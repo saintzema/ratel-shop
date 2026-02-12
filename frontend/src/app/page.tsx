@@ -85,14 +85,14 @@ export default function Home() {
               />
             </div>
 
-            <div className="relative container mx-auto h-full flex flex-col justify-center px-6 text-center text-white z-10">
+            <div className="relative container mx-auto h-full flex flex-col justify-center px-6 text-center text-white z-10" style={{ contain: 'layout style' }}>
               <motion.h1
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-balance drop-shadow-2xl"
+                className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-balance drop-shadow-2xl optimize-text"
               >
-                The <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Ratel</span>Shop
+                The <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Ratel</span> Shop
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -100,7 +100,7 @@ export default function Home() {
                 transition={{ delay: 0.3, duration: 0.8 }}
                 className="text-xl md:text-3xl text-gray-200 mb-10 max-w-3xl mx-auto font-medium drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
               >
-                Nigeria's first AI-regulated marketplace. <br className="hidden md:block" /> The future of Fair Pricing.
+                Nigeria's first AI-regulated marketplace. <br className="hidden md:block" /> The future of Fair Pricing
               </motion.p>
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}

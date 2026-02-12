@@ -92,9 +92,12 @@
 @layer utilities {
   .glass {
     @apply bg-white/10 dark:bg-black/20 backdrop-blur-[12px] border border-white/20 dark:border-white/10 shadow-2xl;
-    will-change: backdrop-filter;
+    will-change: backdrop-filter, transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
     position: relative;
     overflow: hidden;
+    isolation: isolate;
   }
 
   .glass::after {
@@ -105,8 +108,11 @@
   .glass-card {
     @apply bg-white/30 dark:bg-white/[0.02] backdrop-blur-[20px] border border-white/40 dark:border-white/[0.1] shadow-2xl rounded-3xl transition-all duration-500;
     will-change: transform, backdrop-filter;
+    transform: translateZ(0);
+    backface-visibility: hidden;
     position: relative;
     overflow: hidden;
+    isolation: isolate;
   }
 
   .glass-card::before {
@@ -165,6 +171,13 @@
     100% {
       transform: translateX(300%) skewX(-15deg);
     }
+  }
+
+  /* Force Clip-text Optimization */
+  .optimize-text {
+    will-change: transform, opacity;
+    transform: translateZ(0);
+    contain: layout style;
   }
 
   .animate-blink {
