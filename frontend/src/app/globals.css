@@ -102,7 +102,7 @@
   }
 
   .glass-card {
-    @apply bg-white/30 dark:bg-white/[0.02] backdrop-blur-[40px] border border-white/40 dark:border-white/[0.1] shadow-2xl rounded-[2.5rem] transition-all duration-700;
+    @apply bg-white/30 dark:bg-white/[0.02] backdrop-blur-[40px] border border-white/40 dark:border-white/[0.1] shadow-2xl rounded-3xl transition-all duration-700;
     position: relative;
     overflow: hidden;
   }
