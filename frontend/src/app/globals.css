@@ -1,0 +1,238 @@
+@import "tailwindcss";
+
+:root {
+  /* Nigerian Green Palette */
+  --ratel-green-50: #e8f5e9;
+  --ratel-green-100: #c8e6c9;
+  --ratel-green-500: #0a6847;
+  /* Primary */
+  --ratel-green-600: #054d33;
+  --ratel-green-900: #022c1e;
+
+  /* Conversion Colors */
+  --ratel-orange: #f59e0b;
+  --ratel-red: #ef4444;
+
+  --background: #ffffff;
+  --background-ash: #eaeded;
+  /* Classic Amazon grayish background */
+  --foreground: #000000;
+  --hero-overlay: #eaeded;
+
+  --primary: var(--ratel-green-500);
+  --primary-foreground: #ffffff;
+
+  --muted: #f3f3f3;
+  --muted-foreground: #565959;
+
+  --card: #ffffff;
+  --card-foreground: #000000;
+
+  --border: #d5d9d9;
+  --input: #ffffff;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: #000000;
+  --background-ash: #000000;
+  --foreground: #ffffff;
+  --hero-overlay: #000000;
+  /* Dark mode hero overlay matches background */
+
+  --primary: var(--ratel-green-500);
+  --primary-foreground: #ffffff;
+
+  --muted: #111111;
+  --muted-foreground: #888888;
+
+  --card: #050505;
+  --card-foreground: #ffffff;
+
+  --border: #222222;
+  --input: #111111;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+
+  --color-ratel-green: var(--ratel-green-500);
+  --color-ratel-green-400: #10b981;
+  --color-ratel-green-600: var(--ratel-green-600);
+  --color-ratel-green-900: var(--ratel-green-900);
+  --color-ratel-orange: var(--ratel-orange);
+  --color-ratel-red: var(--ratel-red);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  /* Force class-based dark mode for Tailwind 4 */
+  --dark-mode: class;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .glass {
+    @apply bg-white/10 dark:bg-black/20 backdrop-blur-[24px] border border-white/20 dark:border-white/10 shadow-2xl;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass::after {
+    content: "";
+    @apply absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-20;
+  }
+
+  .glass-card {
+    @apply bg-white/30 dark:bg-white/[0.02] backdrop-blur-[40px] border border-white/40 dark:border-white/[0.1] shadow-2xl rounded-[2.5rem] transition-all duration-700;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .glass-card::before {
+    content: "";
+    @apply absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/5 pointer-events-none;
+  }
+
+  .glass-card:hover {
+    @apply scale-[1.01] border-white/40;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark .glass-card:hover {
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+  }
+
+  .glass-card:active {
+    @apply scale-[0.99];
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Ziva Animations */
+  @keyframes blink {
+
+    0%,
+    96%,
+    100% {
+      transform: scaleY(1);
+    }
+
+    98% {
+      transform: scaleY(0.1);
+    }
+  }
+
+  @keyframes float {
+
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%) skewX(-15deg);
+    }
+
+    100% {
+      transform: translateX(300%) skewX(-15deg);
+    }
+  }
+
+  .animate-blink {
+    animation: blink 4s infinite;
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  .glass-card::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 20%;
+    height: 100%;
+    background: linear-gradient(to right,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent);
+    transform: skewX(-15deg);
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .glass-card:hover::after {
+    animation: shimmer 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Ratel Watermark for Dark Mode */
+.dark body::before {
+  content: "";
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80vw;
+  height: 80vh;
+  background-image: url('/ratel-logo-outline.svg');
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.02;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #71717a;
+}
