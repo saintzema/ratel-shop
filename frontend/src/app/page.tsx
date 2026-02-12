@@ -58,8 +58,8 @@ export default function Home() {
 
         {/* Immersive Background Blobs for Glass Effects */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-[20%] left-[-10%] w-[40%] h-[40%] bg-ratel-green-200/20 rounded-full blur-[120px] animate-pulse"></div>
-          <div className="absolute top-[40%] right-[-10%] w-[40%] h-[40%] bg-ratel-orange/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+          <div className="absolute top-[20%] left-[-10%] w-[40%] h-[40%] bg-ratel-green-200/20 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
+          <div className="absolute top-[40%] right-[-10%] w-[40%] h-[40%] bg-ratel-orange/10 rounded-full blur-[120px] animate-pulse will-change-transform" style={{ animationDelay: '2s' }}></div>
           <div className="absolute bottom-[20%] left-[20%] w-[30%] h-[30%] bg-blue-200/10 rounded-full blur-[100px]"></div>
         </div>
 
@@ -92,7 +92,7 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-balance drop-shadow-2xl"
               >
-                The <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Ratel Shop</span>
+                The <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Ratel</span>Shop
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}

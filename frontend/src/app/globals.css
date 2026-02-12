@@ -91,7 +91,8 @@
 
 @layer utilities {
   .glass {
-    @apply bg-white/10 dark:bg-black/20 backdrop-blur-[24px] border border-white/20 dark:border-white/10 shadow-2xl;
+    @apply bg-white/10 dark:bg-black/20 backdrop-blur-[12px] border border-white/20 dark:border-white/10 shadow-2xl;
+    will-change: backdrop-filter;
     position: relative;
     overflow: hidden;
   }
@@ -102,7 +103,8 @@
   }
 
   .glass-card {
-    @apply bg-white/30 dark:bg-white/[0.02] backdrop-blur-[40px] border border-white/40 dark:border-white/[0.1] shadow-2xl rounded-3xl transition-all duration-700;
+    @apply bg-white/30 dark:bg-white/[0.02] backdrop-blur-[20px] border border-white/40 dark:border-white/[0.1] shadow-2xl rounded-3xl transition-all duration-500;
+    will-change: transform, backdrop-filter;
     position: relative;
     overflow: hidden;
   }
@@ -171,6 +173,7 @@
 
   .animate-float {
     animation: float 3s ease-in-out infinite;
+    will-change: transform;
   }
 
   .glass-card::after {
