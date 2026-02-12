@@ -12,7 +12,6 @@ import {
     ArrowDownRight
 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
-import { DEMO_ORDERS } from "@/lib/data";
 
 export default function SellerDashboard() {
     const stats = [
