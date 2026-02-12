@@ -5,6 +5,7 @@ import { Review } from "@/lib/types";
 import { DEMO_REVIEWS } from "@/lib/data";
 import { Star, ThumbsUp, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function ReviewList({ productId }: { productId: string }) {
     // Filter reviews for this product
