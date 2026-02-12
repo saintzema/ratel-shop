@@ -15,7 +15,7 @@ import { useRef } from "react";
 const CATEGORIES = [
   {
     name: "Smartphones",
-    image: "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?auto=format&fit=crop&w=400&q=80", // Corrected iPhone
+    image: "/assets/images/smartphones.jpg",
     link: "/category/phones"
   },
   {
@@ -25,7 +25,7 @@ const CATEGORIES = [
   },
   {
     name: "VDM Verified",
-    image: "https://images.unsplash.com/photo-1519337265831-281ec6cc8514?auto=format&fit=crop&w=400&q=80", // High-end tech checkmark
+    image: "/assets/images/vdm-verified.jpg",
     link: "/seller/verified"
   },
   {
