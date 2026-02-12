@@ -42,7 +42,7 @@ export default function Home() {
   const fairPriceProducts = DEMO_PRODUCTS.filter(p => p.price_flag === "fair").slice(0, 6);
   const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 6);
   const gamingProducts = DEMO_PRODUCTS.filter(p => p.category === "gaming" || p.category === "electronics").slice(0, 6);
-  const carProducts = DEMO_PRODUCTS.filter(p => p.category === "cars" || p.category === "automotive").slice(0, 6);
+  const carProducts = DEMO_PRODUCTS.filter(p => p.category === "cars" || p.category === "automotive").slice(0, 5); // Increased to 5 as requested
   const energyProducts = DEMO_PRODUCTS.filter(p => p.category === "energy" || p.category === "solar").slice(0, 6);
 
   const scrollToProducts = () => {

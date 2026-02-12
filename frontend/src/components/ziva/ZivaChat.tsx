@@ -86,61 +86,60 @@ export function ZivaChat() {
     if (!mounted) return null;
 
     return (
-        <div className="fixed bottom-8 right-8 z-[9999] pointer-events-none">
+        <div className="fixed bottom-4 right-4 z-[9999] pointer-events-none">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
                         initial={{ opacity: 0, y: 20, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                        className="absolute bottom-20 right-0 w-80 md:w-96 max-h-[600px] glass-card flex flex-col overflow-hidden shadow-2xl pointer-events-auto"
+                        className="absolute bottom-24 right-0 w-[calc(100vw-2rem)] md:w-96 h-[80vh] max-h-[600px] glass-card flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl"
                     >
                         {/* 3D Animated Header */}
-                        <div className="relative h-48 bg-gradient-to-b from-ratel-green-900 to-black overflow-hidden flex items-center justify-center">
+                        <div className="relative h-40 bg-gradient-to-b from-ratel-green-900 to-black overflow-hidden flex items-center justify-center shrink-0">
                             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div>
 
                             {/* Ziva Avatar Container */}
                             <motion.div
-                                className="relative w-32 h-32"
-                                animate={{ y: [0, -5, 0] }}
-                                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                                className="relative w-24 h-24"
+                                animate={{ y: [0, -2, 0] }}
+                                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                             >
                                 <motion.img
                                     src="/assets/images/image_v2.png"
                                     alt="Ziva AI"
                                     className="w-full h-full object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]"
                                     style={{
-                                        rotateX: mousePos.y * 10,
-                                        rotateY: mousePos.x * 10,
+                                        rotateX: mousePos.y * 5,
+                                        rotateY: mousePos.x * 5,
                                     }}
                                 />
                             </motion.div>
 
-                            <button onClick={toggleChat} className="absolute top-4 right-4 text-white/50 hover:text-white">
-                                <X className="h-6 w-6" />
+                            <button onClick={toggleChat} className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 rounded-full text-white/70 hover:text-white transition-all backdrop-blur-sm">
+                                <X className="h-5 w-5" />
                             </button>
                         </div>
 
-                        {/* AI Status */}
-                        <div className="bg-black/50 backdrop-blur text-[10px] text-white px-4 py-1 flex items-center gap-2 border-b border-white/10">
+                        {/* AI Status - Simplified */}
+                        <div className="bg-black/50 backdrop-blur text-[10px] text-white px-4 py-1.5 flex items-center gap-2 border-b border-white/10 shrink-0">
                             <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
-                            <span className="font-mono">Ziva_Core_v2.0 :: ONLINE</span>
+                            <span className="font-bold tracking-wider">ZIVA ONLINE</span>
                         </div>
 
                         {/* Messages Area */}
                         <div
                             ref={messagesAreaRef}
-                            className="flex-1 overflow-y-auto p-4 space-y-4 bg-white/80 dark:bg-black/80 backdrop-blur-md scroll-smooth"
-                            style={{ height: '350px' }}
+                            className="flex-1 overflow-y-auto p-4 space-y-4 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md scroll-smooth"
                         >
                             {messages.map(msg => (
                                 <div key={msg.id} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
                                     <div
                                         className={cn(
-                                            "max-w-[85%] rounded-2xl px-4 py-2 text-sm",
+                                            "max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm",
                                             msg.role === "user"
-                                                ? "bg-ratel-green-600 text-white rounded-br-none shadow-md"
-                                                : "bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 border border-black/5 dark:border-white/10 rounded-bl-none shadow-sm"
+                                                ? "bg-ratel-green-600 text-white rounded-br-none"
+                                                : "bg-white dark:bg-zinc-800 text-gray-900 dark:text-gray-100 border border-gray-100 dark:border-zinc-700 rounded-bl-none"
                                         )}
                                     >
                                         {msg.content}
@@ -150,15 +149,15 @@ export function ZivaChat() {
                         </div>
 
                         {/* Input */}
-                        <div className="p-4 bg-white dark:bg-zinc-900 border-t dark:border-zinc-800 flex gap-2">
+                        <div className="p-3 bg-white dark:bg-zinc-900 border-t border-gray-100 dark:border-zinc-800 flex gap-2 shrink-0">
                             <Input
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                                 onKeyDown={e => e.key === "Enter" && handleSend()}
-                                placeholder="Ask Ziva about prices..."
-                                className="flex-1 text-sm rounded-full bg-muted border-none"
+                                placeholder="Ask Ziva..."
+                                className="flex-1 text-sm rounded-full bg-gray-100 dark:bg-zinc-800 border-transparent focus:bg-white dark:focus:bg-zinc-900 transition-all h-10 px-4"
                             />
-                            <Button size="icon" className="rounded-full bg-ratel-green-600 hover:bg-ratel-green-700 h-10 w-10" onClick={handleSend}>
+                            <Button size="icon" className="rounded-full bg-ratel-green-600 hover:bg-ratel-green-700 h-10 w-10 shadow-lg" onClick={handleSend}>
                                 <Send className="h-4 w-4" />
                             </Button>
                         </div>
@@ -168,40 +167,17 @@ export function ZivaChat() {
 
             <motion.div
                 initial={false}
-                animate={{ scale: isOpen ? 0.85 : 1 }}
-                whileHover={{ scale: isOpen ? 0.9 : 1.05 }}
+                animate={{ scale: isOpen ? 0 : 1, opacity: isOpen ? 0 : 1 }}
+                whileHover={{ scale: 1.05 }}
                 className="pointer-events-auto"
             >
                 <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={toggleChat}
-                    className="h-16 w-16 md:h-20 md:w-20 rounded-full glass border-2 border-white/50 flex items-center justify-center group relative shadow-2xl"
+                    className="h-14 w-14 md:h-16 md:w-16 rounded-full glass border-2 border-white/50 flex items-center justify-center group relative shadow-2xl overflow-hidden"
                 >
-                    <span className="absolute inset-0 rounded-full bg-ratel-green-600 opacity-80 blur-lg group-hover:opacity-100 animate-pulse transition-opacity"></span>
-                    <div className="relative w-full h-full rounded-full overflow-hidden border-2 border-white flex items-center justify-center bg-black">
-                        <img src="/assets/images/image_v2.png" className="w-full h-full object-cover" />
-                    </div>
-
-                    {/* Speech Bubble CTA */}
-                    <AnimatePresence>
-                        {!isOpen && (
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.5, x: 20, y: -20 }}
-                                animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-                                transition={{ delay: 2, type: "spring", stiffness: 260, damping: 20 }}
-                                className="absolute bottom-[110%] right-0 mb-4 bg-white dark:bg-zinc-800 text-gray-900 dark:text-white text-sm px-5 py-2.5 rounded-2xl shadow-2xl whitespace-nowrap border border-ratel-green-200"
-                            >
-                                <div className="font-bold text-ratel-green-600 flex items-center gap-1.5 mb-0.5">
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                    Meet Ziva
-                                </div>
-                                <div className="text-xs opacity-90 text-foreground">Chat with me for easy shopping! ✨</div>
-
-                                {/* Speech bubble tail */}
-                                <div className="absolute top-[90%] right-8 -translate-y-1/2 border-8 border-transparent border-t-white dark:border-t-zinc-800"></div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                    <span className="absolute inset-0 bg-ratel-green-600 opacity-0 group-hover:opacity-100 transition-opacity"></span>
+                    <img src="/assets/images/image_v2.png" className="w-full h-full object-cover z-10 scale-110" />
                 </motion.button>
             </motion.div>
         </div>

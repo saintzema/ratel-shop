@@ -96,7 +96,14 @@ const PriceResults = memo(({ result }: { result: PriceIntel }) => (
             </div>
         </div>
 
-        <Button className="w-full py-8 bg-white text-black hover:bg-gray-200 rounded-2xl font-black text-lg shadow-xl transform active:scale-[0.98] transition-all">
+        <Button
+            className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-bold h-12 rounded-xl shadow-lg shadow-ratel-green-900/20 mb-3"
+            onClick={() => {
+                onClose();
+                // Navigate to search with verified filter
+                window.location.href = `/search?q=${encodeURIComponent(result.name)}&verified=true`;
+            }}
+        >
             Shop verified listings for "{result.name}"
         </Button>
     </motion.div>

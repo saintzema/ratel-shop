@@ -1,9 +1,6 @@
-"use strict";
-"use client";
-
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
     Search,
     ShoppingCart,
@@ -27,19 +24,32 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
-import { CATEGORIES } from "@/lib/types";
+import { LocationModal } from "@/components/modals/LocationModal";
+import { CATEGORIES } from "@/lib/data"; // Assuming CATEGORIES are in lib/data or types, correcting import if needed
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("All");
-    const pathname = usePathname();
+    const [searchQuery, setSearchQuery] = useState("");
+    const [location, setLocation] = useState("Lagos");
+    const router = useRouter();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    // Close sidebar on route change
-    // active route highlighting logic can be added here
+    const handleSearch = () => {
+        if (searchQuery.trim()) {
+            router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${selectedCategory}`);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            handleSearch();
+        }
+    };
 
     return (
         <>
@@ -49,31 +59,37 @@ export function Navbar() {
                     {/* Logo */}
                     <Logo />
 
-                    {/* Deliver To */}
-                    <div className="hidden md:flex flex-col text-xs leading-tight hover:outline hover:outline-1 hover:outline-white p-2 rounded cursor-pointer">
-                        <span className="text-gray-300">Deliver to</span>
+                    {/* Deliver To - Now Clickable */}
+                    <button
+                        onClick={() => setIsLocationModalOpen(true)}
+                        className="hidden md:flex flex-col text-left text-xs leading-tight hover:outline hover:outline-1 hover:outline-white p-2 rounded cursor-pointer transition-all"
+                    >
+                        <span className="text-gray-300 ml-3">Deliver to</span>
                         <div className="flex items-center font-bold">
-                            <MapPin className="mr-1 h-3 w-3" />
-                            Lagos
+                            <MapPin className="mr-1 h-3.5 w-3.5 text-white" />
+                            {location}
                         </div>
-                    </div>
+                    </button>
 
                     {/* Search Bar */}
-                    <div className="flex flex-1 items-center">
-                        <div className="flex h-10 w-full rounded-md bg-white text-black overflow-hidden focus-within:ring-2 focus-within:ring-ratel-orange">
-                            {/* Category Dropdown (Mock) */}
-                            <button className="hidden sm:flex items-center gap-1 bg-gray-100 px-3 text-xs text-gray-700 hover:bg-gray-200 border-r border-gray-300">
+                    <div className="flex flex-1 items-center max-w-3xl mx-4">
+                        <div className="flex h-11 w-full rounded-lg bg-white text-black overflow-hidden focus-within:ring-3 focus-within:ring-ratel-orange/50 transition-shadow">
+                            {/* Category Dropdown */}
+                            <button className="hidden sm:flex items-center gap-1 bg-gray-100 px-3 text-xs text-gray-700 hover:bg-gray-200 border-r border-gray-300 transition-colors">
                                 {selectedCategory} <ChevronDown className="h-3 w-3" />
                             </button>
 
                             <Input
-                                className="flex-1 border-0 bg-transparent px-3 text-sm focus-visible:ring-0 placeholder:text-gray-500 rounded-none h-full"
+                                className="flex-1 border-0 bg-transparent px-4 text-sm focus-visible:ring-0 placeholder:text-gray-500 rounded-none h-full"
                                 placeholder="Search RatelShop..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={handleKeyDown}
                             />
 
                             <Button
-                                variant="amazon"
-                                className="h-full rounded-none px-4 bg-ratel-green-600 hover:bg-ratel-orange text-white hover:text-black border-none transition-colors duration-300 cursor-pointer"
+                                onClick={handleSearch}
+                                className="h-full rounded-none px-5 bg-ratel-orange hover:bg-amber-500 text-black border-none transition-colors duration-300 cursor-pointer"
                             >
                                 <Search className="h-5 w-5" />
                             </Button>
@@ -96,26 +112,31 @@ export function Navbar() {
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: 10 }}
-                                    className="absolute top-full right-0 w-64 bg-white dark:bg-zinc-900 shadow-2xl rounded-sm p-4 mt-1 border dark:border-zinc-800 text-black dark:text-white z-[100]"
+                                    transition={{ duration: 0.1 }}
+                                    className="absolute top-full right-0 w-72 bg-white dark:bg-zinc-900 shadow-xl rounded-sm p-4 mt-0.5 border dark:border-zinc-800 text-black dark:text-white z-[100]"
                                 >
                                     <div className="flex flex-col items-center pb-4 border-b dark:border-zinc-800">
-                                        <Button className="w-full bg-ratel-orange text-black font-bold hover:bg-amber-500 mb-2">Sign in</Button>
-                                        <p className="text-[10px] text-gray-500">New customer? <Link href="/register" className="text-blue-600 hover:underline">Start here.</Link></p>
+                                        <Link href="/login" className="w-full">
+                                            <Button className="w-full bg-ratel-orange text-black font-bold hover:bg-amber-500 mb-2 shadow-sm">Sign in</Button>
+                                        </Link>
+                                        <p className="text-[11px] text-gray-600 dark:text-gray-400">New customer? <Link href="/register" className="text-blue-600 hover:underline hover:text-ratel-orange">Start here.</Link></p>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 pt-4">
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             <h4 className="font-bold text-sm">Your Lists</h4>
-                                            <ul className="text-[11px] space-y-1 text-gray-600 dark:text-gray-400">
-                                                <li className="hover:text-ratel-orange">Create a List</li>
-                                                <li className="hover:text-ratel-orange">Find a List</li>
+                                            <ul className="text-[12px] space-y-1.5 text-gray-700 dark:text-gray-300">
+                                                <li className="hover:text-ratel-orange hover:underline cursor-pointer">Create a List</li>
+                                                <li className="hover:text-ratel-orange hover:underline cursor-pointer">Find a List</li>
+                                                <li className="hover:text-ratel-orange hover:underline cursor-pointer">Wish List</li>
                                             </ul>
                                         </div>
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             <h4 className="font-bold text-sm">Your Account</h4>
-                                            <ul className="text-[11px] space-y-1 text-gray-600 dark:text-gray-400">
-                                                <li className="hover:text-ratel-orange">Your Orders</li>
-                                                <li className="hover:text-ratel-orange">Your Profile</li>
-                                                <li className="hover:text-ratel-orange">Seller Hub</li>
+                                            <ul className="text-[12px] space-y-1.5 text-gray-700 dark:text-gray-300">
+                                                <Link href="/account/orders"><li className="hover:text-ratel-orange hover:underline cursor-pointer">Your Orders</li></Link>
+                                                <Link href="/account"><li className="hover:text-ratel-orange hover:underline cursor-pointer">Your Profile</li></Link>
+                                                <Link href="/seller"><li className="hover:text-ratel-orange hover:underline cursor-pointer">Seller Hub</li></Link>
+                                                <Link href="/account/content"><li className="hover:text-ratel-orange hover:underline cursor-pointer">Content & Devices</li></Link>
                                             </ul>
                                         </div>
                                     </div>
@@ -125,10 +146,10 @@ export function Navbar() {
                     </div>
 
                     {/* Returns & Orders */}
-                    <div className="hidden md:flex flex-col text-xs leading-tight hover:outline hover:outline-1 hover:outline-white p-2 rounded cursor-pointer">
+                    <Link href="/account/orders" className="hidden md:flex flex-col text-xs leading-tight hover:outline hover:outline-1 hover:outline-white p-2 rounded cursor-pointer transition-all">
                         <span className="text-gray-300">Returns</span>
                         <span className="font-bold">& Orders</span>
-                    </div>
+                    </Link>
 
                     {/* Theme Toggle */}
                     <div className="hidden md:block">
@@ -136,7 +157,7 @@ export function Navbar() {
                     </div>
 
                     {/* Cart */}
-                    <Link href="/cart" className="flex items-end gap-1 hover:outline hover:outline-1 hover:outline-white p-2 rounded relative">
+                    <Link href="/cart" className="flex items-end gap-1 hover:outline hover:outline-1 hover:outline-white p-2 rounded relative transition-all">
                         <div className="relative">
                             <ShoppingCart className="h-8 w-8" />
                             <Badge
@@ -150,10 +171,10 @@ export function Navbar() {
                 </div>
 
                 {/* Bottom Bar - Navigation */}
-                <div className="flex w-full items-center gap-4 bg-[#232f3e] px-4 py-2 text-sm text-white overflow-x-auto no-scrollbar">
+                <div className="flex w-full items-center gap-4 bg-[#232f3e] px-4 py-2 text-sm text-white overflow-x-auto no-scrollbar scroll-smooth">
                     <button
                         onClick={toggleSidebar}
-                        className="flex items-center gap-1 font-bold hover:outline hover:outline-1 hover:outline-white px-2 py-1 rounded"
+                        className="flex items-center gap-1 font-bold hover:outline hover:outline-1 hover:outline-white px-2 py-1 rounded transition-all"
                     >
                         <Menu className="h-5 w-5" /> All
                     </button>
@@ -162,13 +183,21 @@ export function Navbar() {
                         <Link
                             key={item}
                             href={item === "VDM Verified" ? "/seller/verified" : `/category/${item.toLowerCase().replace(" ", "-")}`}
-                            className="whitespace-nowrap px-2 py-1 hover:outline hover:outline-1 hover:outline-white rounded"
+                            className="whitespace-nowrap px-2 py-1 hover:outline hover:outline-1 hover:outline-white rounded transition-all"
                         >
                             {item}
                         </Link>
                     ))}
                 </div>
             </header>
+
+            {/* Location Filter Modal */}
+            <LocationModal
+                isOpen={isLocationModalOpen}
+                onClose={() => setIsLocationModalOpen(false)}
+                currentLocation={location}
+                onSelectLocation={setLocation}
+            />
 
             {/* Sidebar Overlay */}
             <AnimatePresence>
@@ -188,24 +217,27 @@ export function Navbar() {
                             transition={{ type: "tween", duration: 0.3 }}
                             className="fixed inset-y-0 left-0 z-50 w-80 bg-white dark:bg-zinc-900 shadow-xl overflow-y-auto"
                         >
-                            <div className="flex items-center gap-2 bg-[#232f3e] px-6 py-3 text-white font-bold text-lg">
-                                <User className="h-6 w-6" /> Hello, Sign in
+                            <div className="flex items-center justify-between bg-[#232f3e] px-6 py-3 text-white font-bold text-lg">
+                                <Link href="/login" className="flex items-center gap-2 hover:underline">
+                                    <User className="h-6 w-6" /> Hello, Sign in
+                                </Link>
+                                <button onClick={toggleSidebar} className="text-white">
+                                    <X className="h-6 w-6" />
+                                </button>
                             </div>
 
                             <div className="py-2">
                                 <div className="px-6 py-3 font-bold text-lg text-gray-800 dark:text-gray-100">Shop By Category</div>
-                                <ul>
-                                    {CATEGORIES.map((cat) => (
-                                        <li key={cat.value}>
+                                <ul className="space-y-1">
+                                    {/* Mock Categories for Sidebar */}
+                                    {["Electronics", "Computers", "Smart Home", "Arts & Crafts", "Automotive", "Baby", "Beauty and Personal Care", "Women's Fashion", "Men's Fashion", "Girls' Fashion", "Boys' Fashion", "Health and Household", "Home and Kitchen", "Industrial and Scientific", "Luggage", "Movies & Television", "Pet Supplies", "Software", "Sports and Outdoors", "Tools & Home Improvement", "Toys and Games", "Video Games"].map((cat) => (
+                                        <li key={cat}>
                                             <Link
-                                                href={`/category/${cat.value}`}
-                                                className="flex items-center justify-between px-6 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800"
+                                                href={`/category/${cat.toLowerCase().replace(/ /g, "-").replace(/&/g, "and")}`}
+                                                className="flex items-center justify-between px-6 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                                                 onClick={() => setIsSidebarOpen(false)}
                                             >
-                                                <span className="flex items-center gap-3">
-                                                    {/* Mapping icons manually since they are strings in types.ts */}
-                                                    {cat.label}
-                                                </span>
+                                                <span>{cat}</span>
                                                 <ChevronDown className="h-4 w-4 -rotate-90 text-gray-400" />
                                             </Link>
                                         </li>
@@ -219,8 +251,8 @@ export function Navbar() {
                                     {["Your Account", "Customer Service", "Sign Out"].map((item) => (
                                         <li key={item}>
                                             <Link
-                                                href="#"
-                                                className="block px-6 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800"
+                                                href={item === "Sign Out" ? "/logout" : `/${item.toLowerCase().replace(" ", "-")}`}
+                                                className="block px-6 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors"
                                             >
                                                 {item}
                                             </Link>
@@ -228,13 +260,6 @@ export function Navbar() {
                                     ))}
                                 </ul>
                             </div>
-
-                            <button
-                                onClick={toggleSidebar}
-                                className="absolute top-2 right-2 text-white p-1"
-                            >
-                                <X className="h-6 w-6" />
-                            </button>
                         </motion.div>
                     </>
                 )}
@@ -242,3 +267,13 @@ export function Navbar() {
         </>
     );
 }
+
+// Fallback CATEGORIES if import fails or is not available in the context
+const FALLBACK_CATEGORIES = [
+    { label: "Phones & Tablets", value: "phones" },
+    { label: "Electronics", value: "electronics" },
+    { label: "Vehicles", value: "cars" },
+    { label: "Green Energy", value: "energy" },
+    { label: "Fashion", value: "fashion" },
+    { label: "Gaming", value: "gaming" },
+];

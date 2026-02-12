@@ -18,8 +18,8 @@ export function ProductCard({ product, showDealTimer }: ProductCardProps) {
     const savingsPct = product.original_price ? Math.round((savings / product.original_price) * 100) : 0;
 
     return (
-        <div className="group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl p-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
-            <Link href={`/product/${product.id}`} className="block">
+        <div className="group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl p-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 h-full">
+            <Link href={`/product/${product.id}`} className="block h-full flex flex-col">
                 <div className="relative aspect-square mb-4 overflow-hidden rounded-xl bg-muted">
                     {/* Discount Badge */}
                     {savings > 0 && (
