@@ -21,11 +21,10 @@ interface PriceIntel {
 }
 
 export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-    const [query, setQuery] = useState("");
     const [result, setResult] = useState<PriceIntel | null>(null);
     const [isSearching, setIsSearching] = useState(false);
 
-    const handleSearch = () => {
+    const handleSearch = (query: string) => {
         if (!query.trim()) return;
         setIsSearching(true);
         // Simulate API delay
@@ -55,14 +54,14 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={onClose}
-                        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/40 backdrop-blur-[4px] will-change-[backdrop-filter]"
                     />
 
                     <motion.div
                         initial={{ opacity: 0, scale: 0.9, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="relative w-full max-w-2xl glass-card overflow-hidden"
+                        className="relative w-full max-w-2xl glass-card overflow-hidden will-change-transform"
                     >
                         {/* Header */}
                         <div className="p-6 border-b border-white/10 flex items-center justify-between bg-ratel-green-900/50">
@@ -70,32 +69,14 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                 <TrendingUp className="text-ratel-orange" />
                                 <h2 className="text-xl font-bold">Ratel Price Intelligence</h2>
                             </div>
-                            <button onClick={onClose} className="text-white/50 hover:text-white">
+                            <button onClick={onClose} className="text-white/50 hover:text-white p-2">
                                 <X className="h-6 w-6" />
                             </button>
                         </div>
 
                         <div className="p-6 space-y-6">
-                            {/* Search Box */}
-                            <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                                    <Input
-                                        value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
-                                        placeholder="Enter product name (e.g. iPhone 15 Pro)..."
-                                        className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 rounded-xl"
-                                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                                    />
-                                </div>
-                                <Button
-                                    onClick={handleSearch}
-                                    disabled={isSearching}
-                                    className="bg-ratel-orange text-black hover:bg-amber-500 rounded-xl font-bold"
-                                >
-                                    {isSearching ? "Analyzing..." : "Check"}
-                                </Button>
-                            </div>
+                            {/* Search Box - Isolated in a sub-component to prevent modal re-renders */}
+                            <SearchInput onSearch={handleSearch} isLoading={isSearching} />
 
                             {/* Results */}
                             {result && (
@@ -162,7 +143,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                     </div>
 
                                     <Button className="w-full py-6 bg-white text-black hover:bg-gray-200 rounded-xl font-bold text-lg">
-                                        Shop verified listings for "{query}"
+                                        Shop verified listings for "{result.name}"
                                     </Button>
                                 </motion.div>
                             )}
@@ -171,5 +152,37 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                 </div>
             )}
         </AnimatePresence>
+    );
+}
+
+// Sub-component to isolate input state and prevent full modal re-renders
+function SearchInput({ onSearch, isLoading }: { onSearch: (q: string) => void, isLoading: boolean }) {
+    const [localQuery, setLocalQuery] = useState("");
+
+    const handleAction = () => {
+        if (!localQuery.trim()) return;
+        onSearch(localQuery);
+    };
+
+    return (
+        <div className="flex gap-2">
+            <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                    value={localQuery}
+                    onChange={(e) => setLocalQuery(e.target.value)}
+                    placeholder="Enter product name (e.g. iPhone 15 Pro)..."
+                    className="pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 rounded-xl focus:ring-2 focus:ring-ratel-orange/50 transition-all"
+                    onKeyDown={(e) => e.key === "Enter" && handleAction()}
+                />
+            </div>
+            <Button
+                onClick={handleAction}
+                disabled={isLoading}
+                className="bg-ratel-orange text-black hover:bg-amber-500 rounded-xl font-bold shadow-lg active:scale-95 transition-all"
+            >
+                {isLoading ? "Analyzing..." : "Check"}
+            </Button>
+        </div>
     );
 }

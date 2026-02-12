@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Upload, DollarSign, BarChart3, Info, TrendingUp, Sparkles, Check, ChevronLeft } from "lucide-react";
@@ -12,35 +12,47 @@ export default function NewProduct() {
     const [price, setPrice] = useState("");
     const [isanalyzing, setIsAnalyzing] = useState(false);
     const [analysis, setAnalysis] = useState<any>(null);
+    const analysisTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Debounced AI Analysis
+    useEffect(() => {
+        if (!price || isNaN(parseInt(price))) {
+            setAnalysis(null);
+            setIsAnalyzing(false);
+            return;
+        }
+
+        setIsAnalyzing(true);
+        if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+
+        analysisTimerRef.current = setTimeout(() => {
+            const priceNum = parseInt(price);
+            setAnalysis({
+                marketAvg: 1100000,
+                fairRangeLow: 1050000,
+                fairRangeHigh: 1150000,
+                status: priceNum > 1200000 ? "overpriced" : priceNum < 1000000 ? "suspicious" : "fair",
+                demand: "High",
+                salesProbability: priceNum < 1120000 ? "85%" : "40%"
+            });
+            setIsAnalyzing(false);
+        }, 800);
+
+        return () => {
+            if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
+        };
+    }, [price]);
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = e.target.value;
-        setPrice(val);
-
-        if (val && !isanalyzing) {
-            setIsAnalyzing(true);
-            setAnalysis(null);
-            setTimeout(() => {
-                setIsAnalyzing(false);
-                const priceNum = parseInt(val);
-                setAnalysis({
-                    marketAvg: 1100000,
-                    fairRangeLow: 1050000,
-                    fairRangeHigh: 1150000,
-                    status: priceNum > 1200000 ? "overpriced" : priceNum < 1000000 ? "suspicious" : "fair",
-                    demand: "High",
-                    salesProbability: priceNum < 1120000 ? "85%" : "40%"
-                });
-            }, 1500);
-        }
+        setPrice(e.target.value);
     };
 
     return (
         <div className="min-h-screen bg-[var(--background-ash)] text-foreground transition-all duration-700 flex flex-col relative overflow-x-hidden -m-8 p-8">
             {/* Immersive Background Blobs */}
             <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
-                <div className="absolute top-[10%] left-[-5%] w-[40%] h-[40%] bg-ratel-green-200/10 rounded-full blur-[120px] animate-pulse"></div>
-                <div className="absolute bottom-[10%] right-[-5%] w-[40%] h-[40%] bg-ratel-orange/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
+                <div className="absolute top-[10%] left-[-5%] w-[40%] h-[40%] bg-ratel-green-200/10 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
+                <div className="absolute bottom-[10%] right-[-5%] w-[40%] h-[40%] bg-ratel-orange/5 rounded-full blur-[120px] animate-pulse will-change-transform" style={{ animationDelay: '2s' }}></div>
             </div>
 
             <div className="max-w-6xl mx-auto w-full relative z-10">
@@ -169,7 +181,7 @@ export default function NewProduct() {
                                         <Input
                                             type="number"
                                             placeholder="0"
-                                            className="pl-14 bg-white/40 dark:bg-zinc-900/40 border-white/20 dark:border-zinc-800 rounded-2xl h-14 font-black text-3xl px-6 focus:ring-4 focus:ring-ratel-green-500/20 shadow-sm text-ratel-green-600"
+                                            className="pl-14 bg-white/40 dark:bg-zinc-900/40 border-white/20 dark:border-zinc-800 rounded-2xl h-14 font-black text-3xl px-6 focus:ring-4 focus:ring-ratel-green-500/20 shadow-sm text-ratel-green-600 transition-all focus:scale-[1.01] will-change-transform"
                                             value={price}
                                             onChange={handlePriceChange}
                                         />
@@ -193,9 +205,9 @@ export default function NewProduct() {
                             <motion.div
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="bg-gradient-to-br from-ratel-green-900 to-black text-white rounded-[3rem] p-10 shadow-2xl border-4 border-white/10 relative overflow-hidden group"
+                                className="bg-gradient-to-br from-ratel-green-900 to-black text-white rounded-[3rem] p-10 shadow-2xl border-4 border-white/10 relative overflow-hidden group will-change-transform"
                             >
-                                <div className="absolute top-0 right-0 w-48 h-48 bg-ratel-green-400/10 rounded-full blur-[80px] group-hover:scale-150 transition-transform duration-1000"></div>
+                                <div className="absolute top-0 right-0 w-48 h-48 bg-ratel-green-400/10 rounded-full blur-[80px] group-hover:scale-150 transition-transform duration-1000 will-change-transform"></div>
 
                                 <div className="flex items-center gap-4 mb-10 relative z-10">
                                     <div className="p-3 bg-white/10 rounded-[1.5rem] backdrop-blur-md">
@@ -216,12 +228,12 @@ export default function NewProduct() {
                                     </div>
                                 ) : isanalyzing ? (
                                     <div className="text-center py-16 relative z-10">
-                                        <div className="h-16 w-16 border-4 border-ratel-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-[0_0_30px_rgba(34,197,94,0.3)]"></div>
+                                        <div className="h-16 w-16 border-4 border-ratel-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-[0_0_30px_rgba(34,197,94,0.3)] will-change-transform"></div>
                                         <p className="text-sm font-black uppercase tracking-[0.3em] text-gray-300 animate-pulse">Scanning Markets</p>
                                     </div>
                                 ) : analysis && (
                                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10 relative z-10">
-                                        <div className={`p-8 rounded-[2.5rem] border-2 backdrop-blur-xl ${analysis.status === "fair" ? "bg-green-500/10 border-green-500/40 shadow-[0_0_40px_rgba(34,197,94,0.1)]" : "bg-red-500/10 border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.1)]"}`}>
+                                        <div className={`p-8 rounded-[2.5rem] border-2 backdrop-blur-xl ${analysis.status === "fair" ? "bg-green-500/10 border-green-500/40 shadow-[0_0_40px_rgba(34,197,94,0.1)]" : "bg-red-500/10 border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.1)]"} will-change-[backdrop-filter,transform]`}>
                                             <div className="flex items-center gap-4 mb-3">
                                                 {analysis.status === "fair" ? (
                                                     <div className="bg-green-500/20 p-2 rounded-xl">
