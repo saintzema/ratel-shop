@@ -9,26 +9,34 @@ The frontend is optimized for Vercel's edge network.
 ### Steps:
 1.  **Repository**: Push your code to a GitHub/GitLab/Bitbucket repository.
 2.  **Import**: In the Vercel Dashboard, select "New Project" and import your repository.
-3.  **Root Directory**: Ensure the Root Directory is set to `frontend`.
-4.  **Framework Preset**: Select **Next.js**.
+3.  **Root Directory**: 
+    - Look for the **Root Directory** field in the project setup screen.
+    - Click **Edit** and select the **`frontend`** folder.
+4.  **Framework Preset**: Ensure it says **Next.js**.
 5.  **Environment Variables**:
-    - `NEXT_PUBLIC_API_URL`: Your backend URL (e.g., `https://ratel-backend.up.railway.app`).
-6.  **Deploy**: Click "Deploy".
+    - Under the **Environment Variables** section, add:
+    - **Key**: `NEXT_PUBLIC_API_URL`
+    - **Value**: Your Render backend URL (e.g., `https://ratel-shop.onrender.com`).
+6.  **Deploy**: Click **Deploy**.
 
 ---
 
-## 2. Backend (Python/FastAPI) -> Railway
+## 2. Backend (Python/FastAPI) -> Render (Web Service)
 
-The backend uses a production-ready Dockerfile and is best suited for Railway or Render.
+Render needs to know where your `Dockerfile` is since it's inside the `backend` folder.
 
 ### Steps:
-1.  **New Project**: Select "Deploy from GitHub repo" in Railway.
-2.  **Import**: Select the root folder or the `backend` subdirectory.
-3.  **Docker Discovery**: Railway will automatically detect the `backend/Dockerfile`.
-4.  **Environment Variables**:
-    - `PORT`: `8000` (Railway injects this automatically, but ensure it's mapped).
-    - `DATABASE_URL`: Your PostgreSQL/SQLite connection string.
-5.  **Networking**: Ensure the port is set to `8000` in the "Settings" tab.
+1.  **Select GitHub Repo**: Choose your `ratel-shop` repository.
+2.  **Service Type**: Select **Web Service**.
+3.  **Runtime**: Select **Docker**.
+6.  **Important Settings**:
+    - **Root Directory**: `backend`
+    - **Dockerfile Path**: `Dockerfile`
+    - **Start Command**: **LEAVE THIS EMPTY** (Render will automatically use the command inside your Dockerfile).
+7.  **Environment Variables**:
+    - `DATABASE_URL`: Use your connection string from **[Neon.tech](https://neon.tech/)**.
+    - `PORT`: `8000`
+8.  **Deploy**: Click "Create Web Service".
 
 ---
 
