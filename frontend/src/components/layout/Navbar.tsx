@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { LocationModal } from "@/components/modals/LocationModal";
-import { CATEGORIES } from "@/lib/data"; // Assuming CATEGORIES are in lib/data or types, correcting import if needed
+import { CATEGORIES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
