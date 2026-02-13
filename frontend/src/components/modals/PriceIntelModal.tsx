@@ -32,7 +32,7 @@ const ModalHeader = memo(({ onClose }: { onClose: () => void }) => (
 
 ModalHeader.displayName = "ModalHeader";
 
-const PriceResults = memo(({ result }: { result: PriceIntel }) => (
+const PriceResults = memo(({ result, onClose }: { result: PriceIntel; onClose: () => void }) => (
     <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -157,7 +157,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
                         <div className="p-8 space-y-8" style={{ contain: 'layout style' }}>
                             <SearchInput onSearch={handleSearch} isLoading={isSearching} />
-                            {result && <PriceResults result={result} />}
+                            {result && <PriceResults result={result} onClose={onClose} />}
                         </div>
                     </motion.div>
                 </div>
