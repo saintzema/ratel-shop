@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ZivaChat } from "@/components/ziva/ZivaChat";
+import { LocationProvider } from "@/context/LocationContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,8 +23,10 @@ export default function RootLayout({
         className={cn(inter.className, "antialiased min-h-screen flex flex-col")}
         suppressHydrationWarning
       >
-        {children}
-        <ZivaChat />
+        <LocationProvider>
+          {children}
+          <ZivaChat />
+        </LocationProvider>
       </body>
     </html>
   );

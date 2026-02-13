@@ -8,8 +8,10 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, AlertCircle } from "lucide-react";
+import { useLocation } from "@/context/LocationContext";
 
 export default function CartPage() {
+    const { location, deliveryDate } = useLocation();
     // Mock cart items derived from demo products
     const cartItems = [
         { product: DEMO_PRODUCTS[0], quantity: 1 },
@@ -85,6 +87,10 @@ export default function CartPage() {
                     <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold mb-2">
                         <CheckCircle className="h-4 w-4" />
                         <span>Your order qualifies for FREE Shipping</span>
+                    </div>
+
+                    <div className="text-sm text-gray-500 pb-2 border-b dark:border-zinc-800">
+                        Delivery to <span className="font-bold text-black dark:text-white">{location}</span> by <span className="font-bold text-black dark:text-white">{deliveryDate}</span>
                     </div>
 
                     <div className="text-lg">

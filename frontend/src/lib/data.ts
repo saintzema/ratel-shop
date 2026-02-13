@@ -1,4 +1,4 @@
-import { Product, Seller, Deal, Review, PriceAlert, Complaint, KYCSubmission, AdminDashboardStats, SellerDashboardStats, PriceComparison } from "./types";
+import { Product, Seller, Deal, Review, PriceAlert, Complaint, KYCSubmission, AdminDashboardStats, SellerDashboardStats, PriceComparison, Order, NegotiationRequest } from "./types";
 
 // ─── Sellers ────────────────────────────────────────────────
 
@@ -68,11 +68,51 @@ export const DEMO_SELLERS: Seller[] = [
         kyc_status: "pending",
         created_at: "2025-10-05T10:00:00Z",
     },
+    {
+        id: "s6",
+        user_id: "u7",
+        business_name: "Luxe Fashion House",
+        description: "Authentic designer wear and accessories. From Italy to Ikoyi.",
+        logo_url: "/sellers/luxe-fashion.png",
+        category: "textiles",
+        verified: true,
+        trust_score: 92,
+        status: "active",
+        kyc_status: "approved",
+        created_at: "2025-11-01T10:00:00Z",
+    },
+    {
+        id: "s7",
+        user_id: "u8",
+        business_name: "Mama Nkechi Home Needs",
+        description: "Quality kitchenware and home appliances for every Nigerian family.",
+        logo_url: "/sellers/mama-nkechi.png",
+        category: "home",
+        verified: false,
+        trust_score: 80,
+        status: "active",
+        kyc_status: "approved",
+        created_at: "2025-11-15T10:00:00Z",
+    },
+    {
+        id: "s8",
+        user_id: "u9",
+        business_name: "Glow & Shine Beauty",
+        description: "Original skincare and beauty products. No fakes here.",
+        logo_url: "/sellers/glow-shine.png",
+        category: "beauty",
+        verified: true,
+        trust_score: 89,
+        status: "active",
+        kyc_status: "approved",
+        created_at: "2025-11-20T10:00:00Z",
+    }
 ];
 
 // ─── Products ───────────────────────────────────────────────
 
 export const DEMO_PRODUCTS: Product[] = [
+    // Phones & Electronics
     {
         id: "p1",
         seller_id: "s1",
@@ -134,46 +174,6 @@ export const DEMO_PRODUCTS: Product[] = [
         created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p4",
-        seller_id: "s2",
-        seller_name: "Ratel EV & Power",
-        name: "Tesla Model 3 Dual Motor — 2024 Long Range",
-        description: "Imported 2024 Tesla Model 3. Dual motor, all-wheel drive, zero emissions. Full self-driving capability included.",
-        price: 45000000,
-        original_price: 52000000,
-        recommended_price: 46000000,
-        category: "cars",
-        image_url: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&h=800&fit=crop",
-        images: [],
-        stock: 2,
-        price_flag: "fair",
-        is_active: true,
-        avg_rating: 4.9,
-        review_count: 12,
-        sold_count: 3,
-        created_at: "2025-11-15T10:00:00Z",
-    },
-    {
-        id: "p5",
-        seller_id: "s2",
-        seller_name: "Ratel EV & Power",
-        name: "Luminous Solar Hybrid Inverter — 5KVA + 4 Batteries",
-        description: "Complete solar power system for Nigerian homes. 5KVA hybrid inverter, 4x 200Ah tubular batteries, and 6x 400W panels.",
-        price: 2450000,
-        original_price: 2800000,
-        recommended_price: 2400000,
-        category: "energy",
-        image_url: "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?auto=format&fit=crop&w=800&q=80",
-        images: [],
-        stock: 10,
-        price_flag: "fair",
-        is_active: true,
-        avg_rating: 4.8,
-        review_count: 85,
-        sold_count: 42,
-        created_at: "2025-10-10T10:00:00Z",
-    },
-    {
         id: "p6",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
@@ -192,26 +192,6 @@ export const DEMO_PRODUCTS: Product[] = [
         review_count: 1876,
         sold_count: 623,
         created_at: "2025-10-01T10:00:00Z",
-    },
-    {
-        id: "p7",
-        seller_id: "s3",
-        seller_name: "Naija Auto Parts",
-        name: "Toyota Camry 2020+ Front Bumper — OEM Quality",
-        description: "Genuine OEM-quality front bumper for Toyota Camry 2020 and newer models. Perfect fit, primed and ready for paint.",
-        price: 185000,
-        original_price: 220000,
-        recommended_price: 180000,
-        category: "cars",
-        image_url: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=400&fit=crop",
-        images: [],
-        stock: 18,
-        price_flag: "fair",
-        is_active: true,
-        avg_rating: 4.4,
-        review_count: 89,
-        sold_count: 67,
-        created_at: "2025-11-10T10:00:00Z",
     },
     {
         id: "p8",
@@ -273,6 +253,48 @@ export const DEMO_PRODUCTS: Product[] = [
         sold_count: 1567,
         created_at: "2025-10-20T10:00:00Z",
     },
+
+    // Energy & Cars
+    {
+        id: "p4",
+        seller_id: "s2",
+        seller_name: "Ratel EV & Power",
+        name: "Tesla Model 3 Dual Motor — 2024 Long Range",
+        description: "Imported 2024 Tesla Model 3. Dual motor, all-wheel drive, zero emissions. Full self-driving capability included.",
+        price: 45000000,
+        original_price: 52000000,
+        recommended_price: 46000000,
+        category: "cars",
+        image_url: "https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=800&h=800&fit=crop",
+        images: [],
+        stock: 2,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.9,
+        review_count: 12,
+        sold_count: 3,
+        created_at: "2025-11-15T10:00:00Z",
+    },
+    {
+        id: "p5",
+        seller_id: "s2",
+        seller_name: "Ratel EV & Power",
+        name: "Luminous Solar Hybrid Inverter — 5KVA + 4 Batteries",
+        description: "Complete solar power system for Nigerian homes. 5KVA hybrid inverter, 4x 200Ah tubular batteries, and 6x 400W panels.",
+        price: 2450000,
+        original_price: 2800000,
+        recommended_price: 2400000,
+        category: "energy",
+        image_url: "https://images.unsplash.com/photo-1613665813446-82a78c468a1d?auto=format&fit=crop&w=800&q=80",
+        images: [],
+        stock: 10,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.8,
+        review_count: 85,
+        sold_count: 42,
+        created_at: "2025-10-10T10:00:00Z",
+    },
     {
         id: "p11",
         seller_id: "s2",
@@ -294,6 +316,26 @@ export const DEMO_PRODUCTS: Product[] = [
         created_at: "2025-11-20T10:00:00Z",
     },
     {
+        id: "p7",
+        seller_id: "s3",
+        seller_name: "Naija Auto Parts",
+        name: "Toyota Camry 2020+ Front Bumper — OEM Quality",
+        description: "Genuine OEM-quality front bumper for Toyota Camry 2020 and newer models. Perfect fit, primed and ready for paint.",
+        price: 185000,
+        original_price: 220000,
+        recommended_price: 180000,
+        category: "cars",
+        image_url: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=400&h=400&fit=crop",
+        images: [],
+        stock: 18,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.4,
+        review_count: 89,
+        sold_count: 67,
+        created_at: "2025-11-10T10:00:00Z",
+    },
+    {
         id: "p12",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
@@ -313,6 +355,130 @@ export const DEMO_PRODUCTS: Product[] = [
         sold_count: 345,
         created_at: "2025-10-05T10:00:00Z",
     },
+
+    // Fashion & Beauty (New)
+    {
+        id: "p13",
+        seller_id: "s6",
+        seller_name: "Luxe Fashion House",
+        name: "Gucci Marmont Matelassé Shoulder Bag (Authentic)",
+        description: "100% Authentic Gucci bag. Black leather with chevron design. Verification certificate included.",
+        price: 3200000,
+        original_price: 3500000,
+        recommended_price: 2800000,
+        category: "fashion",
+        image_url: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=400&h=400&fit=crop",
+        images: [],
+        stock: 2,
+        price_flag: "overpriced",
+        is_active: true,
+        avg_rating: 5.0,
+        review_count: 8,
+        sold_count: 2,
+        created_at: "2025-12-01T10:00:00Z",
+    },
+    {
+        id: "p14",
+        seller_id: "s6",
+        seller_name: "Luxe Fashion House",
+        name: "Nike Air Jordan 1 High OG — Chicago Lost & Found",
+        description: "Classic colorway. Brand new in box. Size 42-45 available.",
+        price: 380000,
+        original_price: 450000,
+        recommended_price: 350000,
+        category: "fashion",
+        image_url: "https://images.unsplash.com/photo-1549298916-b41d501d3772?w=400&h=400&fit=crop",
+        images: [],
+        stock: 12,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.9,
+        review_count: 245,
+        sold_count: 120,
+        created_at: "2025-11-25T10:00:00Z",
+    },
+    {
+        id: "p15",
+        seller_id: "s8",
+        seller_name: "Glow & Shine Beauty",
+        name: "CeraVe Moisturizing Cream — 16oz Jar",
+        description: "Original US-imported CeraVe. Suitable for all skin types. Verified authentic.",
+        price: 35000,
+        original_price: 45000,
+        recommended_price: 32000,
+        category: "beauty",
+        image_url: "https://images.unsplash.com/photo-1607611634560-637953298c9f?w=400&h=400&fit=crop",
+        images: [],
+        stock: 150,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.8,
+        review_count: 890,
+        sold_count: 2300,
+        created_at: "2025-10-15T10:00:00Z",
+    },
+    {
+        id: "p16",
+        seller_id: "s8",
+        seller_name: "Glow & Shine Beauty",
+        name: "La Mer Crème de la Mer — 60ml",
+        description: "Luxury moisturizing cream. The miracle broth for youthful skin.",
+        price: 650000,
+        original_price: 700000,
+        recommended_price: 450000,
+        category: "beauty",
+        image_url: "https://images.unsplash.com/photo-1562887245-f2d262b06af4?w=400&h=400&fit=crop",
+        images: [],
+        stock: 5,
+        price_flag: "overpriced",
+        is_active: true,
+        avg_rating: 4.5,
+        review_count: 12,
+        sold_count: 4,
+        created_at: "2025-12-05T10:00:00Z",
+    },
+
+    // Home
+    {
+        id: "p17",
+        seller_id: "s7",
+        seller_name: "Mama Nkechi Home Needs",
+        name: "Scanfrost 4-Burner Gas Cooker + Oven",
+        description: "Durable gas cooker with electric oven. Stainless steel finish.",
+        price: 280000,
+        original_price: 320000,
+        recommended_price: 275000,
+        category: "home",
+        image_url: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=400&h=400&fit=crop",
+        images: [],
+        stock: 8,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.6,
+        review_count: 45,
+        sold_count: 23,
+        created_at: "2025-11-12T10:00:00Z",
+    },
+    {
+        id: "p18",
+        seller_id: "s1",
+        seller_name: "TechHub Lagos",
+        name: "LG 55-inch OLED 4K Smart TV",
+        description: "C3 Series. Perfect blacks, infinite contrast. Best for movies and gaming.",
+        price: 1450000,
+        original_price: 1800000,
+        recommended_price: 1400000,
+        category: "electronics",
+        image_url: "https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=400&fit=crop",
+        images: [],
+        stock: 12,
+        price_flag: "fair",
+        is_active: true,
+        avg_rating: 4.9,
+        review_count: 123,
+        sold_count: 56,
+        created_at: "2025-10-25T10:00:00Z",
+    }
 ];
 
 // ─── Deals ──────────────────────────────────────────────────
@@ -322,9 +488,9 @@ const in3days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
 
 export const DEMO_DEALS: Deal[] = [
     { id: "d1", product_id: "p1", product: DEMO_PRODUCTS[0], discount_pct: 15, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
-    { id: "d2", product_id: "p5", product: DEMO_PRODUCTS[4], discount_pct: 20, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true },
-    { id: "d3", product_id: "p8", product: DEMO_PRODUCTS[7], discount_pct: 13, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
-    { id: "d4", product_id: "p10", product: DEMO_PRODUCTS[9], discount_pct: 16, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true },
+    { id: "d2", product_id: "p5", product: DEMO_PRODUCTS[8], discount_pct: 20, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p5 index changes
+    { id: "d3", product_id: "p8", product: DEMO_PRODUCTS[4], discount_pct: 13, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true }, // p8 index changes
+    { id: "d4", product_id: "p10", product: DEMO_PRODUCTS[6], discount_pct: 16, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p10 index changes
     { id: "d5", product_id: "p12", product: DEMO_PRODUCTS[11], discount_pct: 31, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
 ];
 
@@ -381,6 +547,69 @@ export const DEMO_SELLER_STATS: SellerDashboardStats = {
 };
 
 // ─── Price Comparison Helper ────────────────────────────────
+
+// ─── Orders ──────────────────────────────────────────────────
+export const DEMO_ORDERS: Order[] = [
+    {
+        id: "ord_1",
+        user_id: "u1",
+        product_id: "p1",
+        seller_id: "s1",
+        product: DEMO_PRODUCTS[0],
+        quantity: 1,
+        total_price: 890000,
+        status: "delivered",
+        escrow_status: "holding",
+        created_at: "2026-02-10T10:00:00Z"
+    },
+    {
+        id: "ord_2",
+        user_id: "u1",
+        product_id: "p6",
+        seller_id: "s1",
+        product: DEMO_PRODUCTS[3],
+        quantity: 1,
+        total_price: 1850000,
+        status: "shipped",
+        escrow_status: "holding",
+        created_at: "2026-02-11T14:30:00Z"
+    },
+    {
+        id: "ord_3",
+        user_id: "u1",
+        product_id: "p10",
+        seller_id: "s1",
+        product: DEMO_PRODUCTS[6],
+        quantity: 2,
+        total_price: 370000,
+        status: "processing",
+        escrow_status: "holding",
+        created_at: "2026-02-12T09:15:00Z"
+    }
+];
+
+// ─── Negotiations ─────────────────────────────────────────────
+export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
+    {
+        id: "neg_1",
+        product_id: "p3",
+        customer_id: "u1",
+        customer_name: "Tunde B.",
+        proposed_price: 1300000,
+        message: "I saw this for 1,200,000 elsewhere. Can you do 1,300,000?",
+        status: "pending",
+        created_at: "2026-02-12T16:45:00Z"
+    },
+    {
+        id: "neg_2",
+        product_id: "p9",
+        customer_id: "u1",
+        customer_name: "Tunde B.",
+        proposed_price: 400000,
+        status: "accepted",
+        created_at: "2026-02-11T11:20:00Z"
+    }
+];
 
 export function getDemoPriceComparison(productId: string): PriceComparison {
     const product = DEMO_PRODUCTS.find((p) => p.id === productId);

@@ -54,6 +54,18 @@ export interface Order {
     quantity: number;
     total_price: number;
     status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+    escrow_status: "none" | "holding" | "released" | "disputed";
+    created_at: string;
+}
+
+export interface NegotiationRequest {
+    id: string;
+    product_id: string;
+    customer_id: string;
+    customer_name: string;
+    proposed_price: number;
+    message?: string;
+    status: "pending" | "accepted" | "rejected";
     created_at: string;
 }
 
@@ -135,30 +147,18 @@ export interface CartItem {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory =
-    | "phones"
-    | "computers"
-    | "furniture"
-    | "home"
-    | "electronics"
-    | "health"
-    | "cars"
-    | "gaming"
-    | "automotive"
-    | "energy"
-    | "solar";
+export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles";
 
 export const CATEGORIES: { value: ProductCategory; label: string; icon: string }[] = [
     { value: "phones", label: "Phones & Tablets", icon: "📱" },
-    { value: "computers", label: "Computers", icon: "💻" },
-    { value: "furniture", label: "Furniture", icon: "🪑" },
-    { value: "home", label: "Home & Kitchen", icon: "🏠" },
-    { value: "electronics", label: "Electronics", icon: "⚡" },
-    { value: "health", label: "Health & Beauty", icon: "🧴" },
-    { value: "cars", label: "Cars & Auto", icon: "🚗" },
+    { value: "computers", label: "Computers & Laptops", icon: "💻" },
+    { value: "electronics", label: "Electronics", icon: "🔌" },
+    { value: "fashion", label: "Fashion", icon: "👗" },
+    { value: "beauty", label: "Beauty & Health", icon: "💄" },
+    { value: "home", label: "Home & Garden", icon: "🏠" },
+    { value: "cars", label: "Cars", icon: "🚗" },
+    { value: "energy", label: "Energy & Solar", icon: "⚡" },
     { value: "gaming", label: "Gaming", icon: "🎮" },
-    { value: "energy", label: "Energy", icon: "🔋" },
-    { value: "solar", label: "Solar", icon: "☀️" },
 ];
 
 // ─── Dashboard Stats ────────────────────────────────────────

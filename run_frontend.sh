@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 # Frontend Directory
 FRONTEND_DIR="frontend"
 
-echo "🚀 Starting Ratel Frontend..."
+echo "Starting Ratel Frontend..."
 
 # Check if frontend directory exists
 if [ ! -d "$FRONTEND_DIR" ]; then

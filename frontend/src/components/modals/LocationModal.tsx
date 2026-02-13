@@ -5,23 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, X, Check, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-const NIGERIAN_LOCATIONS = [
-    "Lagos, Lagos State",
-    "Abuja, FCT",
-    "Port Harcourt, Rivers",
-    "Ibadan, Oyo",
-    "Kano, Kano State",
-    "Enugu, Enugu State",
-    "Asaba, Delta State",
-    "Benin City, Edo",
-    "Calabar, Cross River",
-    "Uyo, Akwa Ibom",
-    "Abeokuta, Ogun",
-    "Owerri, Imo",
-    "Jos, Plateau",
-    "Kaduna, Kaduna State",
-    "Ilorin, Kwara",
-];
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
+
+const ALL_LOCATIONS = NIGERIAN_STATES.flatMap(s =>
+    s.cities.map(c => `${c}, ${s.state}`)
+).sort();
 
 interface LocationModalProps {
     isOpen: boolean;
@@ -33,7 +21,7 @@ interface LocationModalProps {
 export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocation }: LocationModalProps) {
     const [searchQuery, setSearchQuery] = useState("");
 
-    const filteredLocations = NIGERIAN_LOCATIONS.filter(loc =>
+    const filteredLocations = ALL_LOCATIONS.filter(loc =>
         loc.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
@@ -56,7 +44,7 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                     >
                         <div className="p-6 border-b border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/50">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-bold text-lg">Choose your location</h3>
+                                <h3 className="text-black font-bold text-lg dark:text-white">Choose your location</h3>
                                 <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
                                     <X className="h-5 w-5 text-gray-500" />
                                 </button>
@@ -68,8 +56,8 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                             <div className="relative">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
-                                    placeholder="Search city or state..."
-                                    className="pl-9 bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700"
+                                    placeholder="Search city, e.g. Ikeja, Lagos"
+                                    className="pl-9 text-white bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
@@ -87,8 +75,8 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                                                 onClose();
                                             }}
                                             className={`w-full flex items-center justify-between p-3 rounded-lg text-sm font-medium transition-colors ${currentLocation === loc
-                                                    ? "bg-ratel-green-50 dark:bg-ratel-green-900/20 text-ratel-green-700 dark:text-ratel-green-400"
-                                                    : "hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
+                                                ? "bg-ratel-green-50 dark:bg-ratel-green-900/20 text-ratel-green-700 dark:text-ratel-green-400"
+                                                : "hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
                                                 }`}
                                         >
                                             <span className="flex items-center gap-3">

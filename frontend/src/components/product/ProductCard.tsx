@@ -3,22 +3,23 @@
 import Link from "next/link";
 import { Star, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, getTrustColor } from "@/lib/utils";
+import { formatPrice, getTrustColor, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface ProductCardProps {
     product: Product;
     showDealTimer?: boolean;
+    className?: string;
 }
 
-export function ProductCard({ product, showDealTimer }: ProductCardProps) {
+export function ProductCard({ product, showDealTimer, className }: ProductCardProps) {
     // Mock savings calculation
     const savings = product.original_price ? product.original_price - product.price : 0;
     const savingsPct = product.original_price ? Math.round((savings / product.original_price) * 100) : 0;
 
     return (
-        <div className="group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl p-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 h-full">
+        <div className={cn("group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl p-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 h-full", className)}>
             <Link href={`/product/${product.id}`} className="block h-full flex flex-col">
                 <div className="relative aspect-square mb-4 overflow-hidden rounded-xl bg-muted">
                     {/* Discount Badge */}

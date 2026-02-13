@@ -1,14 +1,44 @@
 "use client";
 
 import Link from "next/link";
-import { DEMO_PRODUCTS } from "@/lib/data";
+import { DEMO_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Check, Lock, ChevronRight, CreditCard } from "lucide-react";
+import { Check, Lock, ChevronRight, CreditCard, Tag } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 
 export default function CheckoutPage() {
-    const subtotal = 1250000; // Mock total
+    return (
+        <Suspense fallback={<div>Loading checkout...</div>}>
+            <CheckoutContent />
+        </Suspense>
+    );
+}
+
+function CheckoutContent() {
+    const searchParams = useSearchParams();
+    const negotiationId = searchParams.get("negotiationId");
+
+    // Default to first product or find negotiated one
+    let product = DEMO_PRODUCTS[0];
+    let price = product.price;
+    let isNegotiated = false;
+
+    if (negotiationId) {
+        const negotiation = DEMO_NEGOTIATIONS.find(n => n.id === negotiationId);
+        if (negotiation) {
+            const negotiatedProduct = DEMO_PRODUCTS.find(p => p.id === negotiation.product_id);
+            if (negotiatedProduct) {
+                product = negotiatedProduct;
+                price = negotiation.proposed_price;
+                isNegotiated = true;
+            }
+        }
+    }
+
+    const subtotal = price;
     const shipping = 2500;
     const total = subtotal + shipping;
 
@@ -82,18 +112,28 @@ export default function CheckoutPage() {
                         <div className="flex-1">
                             <h2 className="font-bold text-lg mb-4 text-ratel-orange">Review items and shipping</h2>
 
-                            <div className="border rounded p-4 mb-4">
+                            <div className="border rounded p-4 mb-4 bg-white">
                                 <div className="flex justify-between mb-2">
                                     <h3 className="font-bold">Delivery: Feb 14, 2026</h3>
                                     <span className="text-xs text-gray-500">Items shipped from Ratel Fulfillment</span>
                                 </div>
                                 <div className="flex gap-4">
                                     <div className="w-16 h-16 bg-gray-100 rounded border">
-                                        <img src={DEMO_PRODUCTS[0].image_url} className="w-full h-full object-contain p-1" />
+                                        <img src={product.image_url} className="w-full h-full object-contain p-1" />
                                     </div>
                                     <div className="text-sm">
-                                        <div className="font-bold">{DEMO_PRODUCTS[0].name}</div>
-                                        <div className="text-ratel-red font-bold">{formatPrice(DEMO_PRODUCTS[0].price)}</div>
+                                        <div className="font-bold">{product.name}</div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="text-ratel-red font-bold">{formatPrice(price)}</div>
+                                            {isNegotiated && (
+                                                <div className="text-[10px] bg-ratel-green-100 text-ratel-green-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                                                    <Tag className="h-3 w-3" /> Negotiated Price
+                                                </div>
+                                            )}
+                                        </div>
+                                        {isNegotiated && (
+                                            <div className="text-xs text-gray-400 line-through">{formatPrice(product.price)}</div>
+                                        )}
                                         <div>Qty: 1</div>
                                     </div>
                                 </div>
@@ -124,7 +164,7 @@ export default function CheckoutPage() {
 
                         <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
-                                <span>Items (3):</span>
+                                <span>Items (1):</span>
                                 <span>{formatPrice(subtotal)}</span>
                             </div>
                             <div className="flex justify-between">

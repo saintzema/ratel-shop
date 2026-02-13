@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from "next/image"; // Added for thumbnails
 import {
     Search,
     ShoppingCart,
@@ -26,7 +27,9 @@ import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { CATEGORIES } from "@/lib/types";
+import { DEMO_PRODUCTS } from "@/lib/data"; // Import products for search
 import { cn } from "@/lib/utils";
+import { useLocation } from "@/context/LocationContext";
 
 export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -34,13 +37,48 @@ export function Navbar() {
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
-    const [location, setLocation] = useState("Lagos");
+    const [suggestions, setSuggestions] = useState<typeof DEMO_PRODUCTS>([]); // State for suggestions
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const { location, setLocation } = useLocation();
+    const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+    const categoryRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
+    // Predictive Search Logic
+    useEffect(() => {
+        if (searchQuery.trim().length > 1) {
+            const matches = DEMO_PRODUCTS.filter(p =>
+                p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.category.toLowerCase().includes(searchQuery.toLowerCase())
+            ).slice(0, 5); // Limit to 5 suggestions
+            setSuggestions(matches);
+            setShowSuggestions(true);
+        } else {
+            setSuggestions([]);
+            setShowSuggestions(false);
+        }
+    }, [searchQuery]);
+
+    // Close suggestions when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+                setShowSuggestions(false);
+            }
+            if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+                setIsCategoryOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
     const handleSearch = () => {
         if (searchQuery.trim()) {
+            setShowSuggestions(false);
             router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${selectedCategory}`);
         }
     };
@@ -71,29 +109,121 @@ export function Navbar() {
                         </div>
                     </button>
 
-                    {/* Search Bar */}
-                    <div className="flex flex-1 items-center max-w-3xl mx-4">
-                        <div className="flex h-11 w-full rounded-lg bg-white text-black overflow-hidden focus-within:ring-3 focus-within:ring-ratel-orange/50 transition-shadow">
+                    {/* Search Bar Container */}
+                    <div className="flex flex-1 items-center max-w-3xl mx-4 relative" ref={searchRef}>
+                        <div className="flex h-11 w-full rounded-lg bg-white text-black overflow-visible focus-within:ring-3 focus-within:ring-ratel-orange/50 transition-shadow relative z-20">
                             {/* Category Dropdown */}
-                            <button className="hidden sm:flex items-center gap-1 bg-gray-100 px-3 text-xs text-gray-700 hover:bg-gray-200 border-r border-gray-300 transition-colors">
-                                {selectedCategory} <ChevronDown className="h-3 w-3" />
-                            </button>
+                            <div className="relative h-full" ref={categoryRef}>
+                                <button
+                                    onClick={() => setIsCategoryOpen(!isCategoryOpen)}
+                                    className="hidden sm:flex h-full items-center gap-1 bg-gray-100 px-3 text-xs text-gray-700 hover:bg-gray-200 border-r border-gray-300 transition-colors rounded-l-lg cursor-pointer whitespace-nowrap"
+                                >
+                                    {selectedCategory} <ChevronDown className="h-3 w-3" />
+                                </button>
+
+                                <AnimatePresence>
+                                    {isCategoryOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: 5 }}
+                                            className="absolute top-full left-0 mt-1 w-56 bg-white shadow-xl rounded-lg border border-gray-200 z-50 max-h-80 overflow-y-auto"
+                                        >
+                                            <div className="p-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedCategory("All");
+                                                        setIsCategoryOpen(false);
+                                                    }}
+                                                    className={cn(
+                                                        "w-full text-left px-3 py-2 text-sm rounded-md transition-colors",
+                                                        selectedCategory === "All" ? "bg-ratel-green-50 text-ratel-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
+                                                    )}
+                                                >
+                                                    All Categories
+                                                </button>
+                                                {CATEGORIES.map((cat) => (
+                                                    <button
+                                                        key={cat.value}
+                                                        onClick={() => {
+                                                            setSelectedCategory(cat.label);
+                                                            setIsCategoryOpen(false);
+                                                        }}
+                                                        className={cn(
+                                                            "w-full text-left px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2",
+                                                            selectedCategory === cat.label ? "bg-ratel-green-50 text-ratel-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
+                                                        )}
+                                                    >
+                                                        <span>{cat.icon}</span>
+                                                        {cat.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
 
                             <Input
-                                className="flex-1 border-0 bg-transparent px-4 text-sm focus-visible:ring-0 placeholder:text-gray-500 rounded-none h-full"
+                                className="flex-1 border-0 bg-transparent px-4 text-sm focus-visible:ring-0 placeholder:text-gray-500 rounded-none h-full text-black"
                                 placeholder="Search RatelShop..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
+                                onFocus={() => searchQuery.length > 1 && setShowSuggestions(true)}
                                 onKeyDown={handleKeyDown}
                             />
 
                             <Button
                                 onClick={handleSearch}
-                                className="h-full rounded-none px-5 bg-ratel-orange hover:bg-amber-500 text-black border-none transition-colors duration-300 cursor-pointer"
+                                className="h-full rounded-r-lg rounded-l-none px-5 bg-ratel-orange hover:bg-amber-500 text-black border-none transition-colors duration-300 cursor-pointer"
                             >
                                 <Search className="h-5 w-5" />
                             </Button>
                         </div>
+
+                        {/* Predictive Search Dropdown */}
+                        <AnimatePresence>
+                            {showSuggestions && suggestions.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.1 }}
+                                    className="absolute top-full left-0 right-0 mt-1 bg-white rounded-b-lg shadow-xl border border-gray-200 overflow-hidden z-10"
+                                >
+                                    {suggestions.map((product) => (
+                                        <Link
+                                            href={`/product/${product.id}`}
+                                            key={product.id}
+                                            onClick={() => setShowSuggestions(false)}
+                                            className="flex items-center gap-4 p-3 hover:bg-gray-100 transition-colors border-b border-gray-100 last:border-0"
+                                        >
+                                            {/* Thumbnail */}
+                                            <div className="relative h-10 w-10 shrink-0 bg-gray-50 rounded p-1">
+                                                <img
+                                                    src={product.images?.[0] || product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80"}
+                                                    alt={product.name}
+                                                    className="w-full h-full object-contain"
+                                                    onError={(e) => {
+                                                        e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80";
+                                                    }}
+                                                />
+                                            </div>
+
+                                            {/* Text Info */}
+                                            <div className="flex flex-col">
+                                                <span className="text-sm font-medium text-black line-clamp-1">
+                                                    {product.name}
+                                                </span>
+                                                <span className="text-xs text-gray-500">
+                                                    in {product.category}
+                                                </span>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
 
                     {/* Account & Lists Dropdown */}
