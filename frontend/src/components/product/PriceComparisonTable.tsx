@@ -11,7 +11,7 @@ export function PriceComparisonTable({ product }: { product: Product }) {
     const comparison = useMemo(() => getDemoPriceComparison(product.id), [product.id]);
 
     return (
-        <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-lg p-6 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                 <span className="text-ratel-green-600">Ratel Price Intelligence</span>
                 <Badge variant="outline" className="text-xs font-normal">Updated 2m ago</Badge>
@@ -19,7 +19,7 @@ export function PriceComparisonTable({ product }: { product: Product }) {
 
             <div className="space-y-4">
                 {/* Main Price Row */}
-                <div className="flex justify-between items-center pb-4 border-b dark:border-zinc-800">
+                <div className="flex justify-between items-center pb-4 border-b">
                     <div>
                         <div className="text-sm text-gray-500">Current Price (This Seller)</div>
                         <div className="text-2xl font-bold">{formatPrice(comparison.current_price)}</div>
@@ -71,7 +71,7 @@ export function PriceComparisonTable({ product }: { product: Product }) {
                         />
                     </div>
                     <p className="text-xs text-center mt-2 text-gray-500">
-                        Market Average: <span className="font-bold text-gray-700 dark:text-gray-300">{formatPrice(comparison.market_avg)}</span>
+                        Market Average: <span className="font-bold text-gray-700">{formatPrice(comparison.market_avg)}</span>
                     </p>
                 </div>
             </div>

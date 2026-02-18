@@ -1,23 +1,102 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, DollarSign, BarChart3, Info, TrendingUp, Sparkles, Check, ChevronLeft } from "lucide-react";
+import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { DemoStore } from "@/lib/demo-store";
+import { useRouter } from "next/navigation";
+
+// Mock AI generation function
+const generateAIContent = (name: string, category: string) => {
+    const isPhone = name.toLowerCase().includes("iphone") || name.toLowerCase().includes("samsung") || category === "phones";
+    const isLaptop = name.toLowerCase().includes("macbook") || name.toLowerCase().includes("dell") || category === "computers";
+
+    if (isPhone) {
+        return {
+            description: `Experience the future with the ${name}. Featuring a stunning display, all-day battery life, and a professional-grade camera system. Designed for durability with aerospace-grade materials.`,
+            highlights: [
+                "Super Retina XDR display for immersive viewing",
+                "Advanced camera system for pro-level photos",
+                "All-day battery life for uninterrupted usage",
+                "Ceramic Shield front, tougher than any smartphone glass",
+                "5G capable for superfast downloads"
+            ],
+            specs: {
+                "Screen Size": "6.7 Inches",
+                "Resolution": "2796 x 1290 pixels",
+                "Processor": "A17 Pro",
+                "RAM": "8 GB",
+                "Storage": "256 GB",
+                "Battery": "4422 mAh",
+                "Camera": "48MP Main + 12MP Ultra Wide + 12MP Telephoto"
+            }
+        };
+    } else if (isLaptop) {
+        return {
+            description: `Unleash your creativity with the ${name}. Powered by the latest processor, it handles intensive tasks with ease. The liquid retina display brings your work to life with vibrant colors and sharp detail.`,
+            highlights: [
+                "Powerful performance for demanding workflows",
+                "Stunning Liquid Retina display",
+                "Up to 18 hours of battery life",
+                "Quiet, fanless design",
+                "Studio-quality mics and 1080p FaceTime HD camera"
+            ],
+            specs: {
+                "Screen Size": "14 Inches",
+                "Processor": "M3 Pro",
+                "RAM": "16 GB",
+                "Storage": "512 GB SSD",
+                "Graphics": "14-core GPU",
+                "Ports": "Thunderbolt 4, HDMI, SDXC, MagSafe 3"
+            }
+        };
+    }
+
+    return {
+        description: `Premium quality ${name} designed for excellence. Built with high-grade materials to ensure longevity and superior performance. A perfect addition to your lifestyle.`,
+        highlights: [
+            "Premium build quality and durability",
+            "Designed for optimal performance",
+            "Sleek and modern aesthetic",
+            "Easy to use and maintain",
+            "Excellent value for money"
+        ],
+        specs: {
+            "Material": "Premium Composite",
+            "Weight": "1.2 kg",
+            "Dimensions": "20 x 15 x 5 cm",
+            "Warranty": "1 Year Manufacturer Warranty"
+        }
+    };
+};
 
 export default function NewProduct() {
-    const [price, setPrice] = useState("");
-    const [isanalyzing, setIsAnalyzing] = useState(false);
-    const [analysis, setAnalysis] = useState<any>(null);
+    const router = useRouter();
+    const [formData, setFormData] = useState({
+        name: "",
+        category: "",
+        price: "",
+        stock: "1",
+        description: "",
+        highlights: [] as string[],
+        specs: [] as { key: string; value: string }[],
+        images: ["/placeholder-product.jpg"]
+    });
+
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
+    const [priceAnalysis, setPriceAnalysis] = useState<any>(null);
     const analysisTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Debounced AI Analysis
+    // --- Price Analysis Logic ---
     useEffect(() => {
-        if (!price || isNaN(parseInt(price))) {
-            setAnalysis(null);
+        if (!formData.price || isNaN(parseInt(formData.price))) {
+            setPriceAnalysis(null);
             setIsAnalyzing(false);
             return;
         }
@@ -26,14 +105,15 @@ export default function NewProduct() {
         if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
 
         analysisTimerRef.current = setTimeout(() => {
-            const priceNum = parseInt(price);
-            setAnalysis({
-                marketAvg: 1100000,
-                fairRangeLow: 1050000,
-                fairRangeHigh: 1150000,
-                status: priceNum > 1200000 ? "overpriced" : priceNum < 1000000 ? "suspicious" : "fair",
+            const priceNum = parseInt(formData.price);
+            const marketAvg = 1100000;
+            setPriceAnalysis({
+                marketAvg: marketAvg,
+                fairRangeLow: marketAvg * 0.95,
+                fairRangeHigh: marketAvg * 1.05,
+                status: priceNum > marketAvg * 1.1 ? "overpriced" : priceNum < marketAvg * 0.9 ? "suspicious" : "fair",
                 demand: "High",
-                salesProbability: priceNum < 1120000 ? "85%" : "40%"
+                salesProbability: priceNum < marketAvg * 1.02 ? "85%" : "40%"
             });
             setIsAnalyzing(false);
         }, 800);
@@ -41,260 +121,363 @@ export default function NewProduct() {
         return () => {
             if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
         };
-    }, [price]);
+    }, [formData.price]);
 
-    const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPrice(e.target.value);
+    // --- AI Content Generation ---
+    const handleAIGenerate = () => {
+        if (!formData.name) return;
+        setIsGenerating(true);
+
+        setTimeout(() => {
+            const content = generateAIContent(formData.name, formData.category);
+            setFormData(prev => ({
+                ...prev,
+                description: content.description,
+                highlights: content.highlights,
+                specs: Object.entries(content.specs).map(([key, value]) => ({ key, value }))
+            }));
+            setIsGenerating(false);
+        }, 1500);
     };
 
-    // Memoize heavy UI sections to prevent re-renders when 'price' changes
-    const CoreDetailsSection = useMemo(() => (
+    const handleBestPrice = () => {
+        setIsCalculatingBestPrice(true);
+        setTimeout(() => {
+            // Mock logic: 1.1M is our standard demo "fair price"
+            const fairPrice = 1100000;
+            setFormData(prev => ({ ...prev, price: fairPrice.toString() }));
+            setIsCalculatingBestPrice(false);
+        }, 1000);
+    };
+
+    // --- Form Handlers ---
+    const handleChange = (field: string, value: any) => {
+        setFormData(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleSpecChange = (index: number, field: 'key' | 'value', value: string) => {
+        const newSpecs = [...formData.specs];
+        newSpecs[index][field] = value;
+        setFormData(prev => ({ ...prev, specs: newSpecs }));
+    };
+
+    const addSpec = () => {
+        setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "", value: "" }] }));
+    };
+
+    const removeSpec = (index: number) => {
+        const newSpecs = formData.specs.filter((_, i) => i !== index);
+        setFormData(prev => ({ ...prev, specs: newSpecs }));
+    };
+
+    const handleSubmit = () => {
+        const specsRecord: Record<string, string> = {};
+        formData.specs.forEach(s => {
+            if (s.key && s.value) specsRecord[s.key] = s.value;
+        });
+
+        DemoStore.addProduct({
+            name: formData.name,
+            category: formData.category || "electronics",
+            price: parseInt(formData.price) || 0,
+            original_price: parseInt(formData.price) * 1.1,
+            description: formData.description,
+            stock: parseInt(formData.stock) || 1,
+            image_url: "/placeholder-product.jpg",
+            highlights: formData.highlights,
+            specs: specsRecord,
+            images: [],
+            recommended_price: 1100000
+        } as any);
+
+        router.push("/seller/products");
+    };
+
+    // --- Redesigned UI Sections ---
+    const CoreDetailsSection = (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="glass-card p-10"
-            style={{ contain: 'layout style' }}
+            className="bg-white rounded-lg p-6 md:p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100"
         >
-            <div className="flex items-center gap-4 mb-8">
-                <div className="h-12 w-12 bg-ratel-green-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center">
-                    <Info className="h-6 w-6 text-ratel-green-600" />
-                </div>
+            <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h2 className="text-xl font-black tracking-tight uppercase">Core Details</h2>
-                    <p className="text-xs text-gray-400 font-bold">ESSENTIAL LISTING INFO</p>
+                    <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Core Details</h2>
+                    <p className="text-sm text-gray-500 mt-1">Provide the essential information for your listing.</p>
                 </div>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-2 border-ratel-green-200 text-ratel-green-700 hover:bg-ratel-green-50 rounded-full text-xs font-semibold px-4 h-8 transition-colors"
+                    onClick={handleAIGenerate}
+                    disabled={isGenerating || !formData.name}
+                >
+                    <Sparkles className={`h-3 w-3 ${isGenerating ? "animate-spin" : ""}`} />
+                    {isGenerating ? "Generating..." : "Auto-Fill with AI"}
+                </Button>
             </div>
 
-            <div className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Product Name</label>
+                        <label className="text-xs font-medium text-gray-700">Product Name</label>
                         <Input
                             placeholder="e.g. iPhone 15 Pro Max"
-                            className="bg-white/40 dark:bg-zinc-900/40 border-white/20 dark:border-zinc-800 rounded-2xl h-14 font-bold text-lg px-6 focus:ring-4 focus:ring-ratel-green-500/20 shadow-sm"
+                            className="bg-gray-50 border-gray-200 rounded-lg h-11 px-4 focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all"
+                            value={formData.name}
+                            onChange={(e) => handleChange("name", e.target.value)}
                         />
                     </div>
-                    <div className="space-y-2 relative">
-                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Category</label>
-                        <select className="flex h-14 w-full rounded-2xl border border-white/20 dark:border-zinc-800 bg-white/40 dark:bg-zinc-900/40 px-6 py-2 text-lg font-bold focus:outline-none focus:ring-4 focus:ring-ratel-green-500/20 appearance-none cursor-pointer">
-                            <option>Select Category</option>
-                            <option>Phones & Tablets</option>
-                            <option>Electronics</option>
-                            <option>Vehicles</option>
-                            <option>Green Energy</option>
+                    <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-700">Category</label>
+                        <select
+                            className="flex h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all appearance-none cursor-pointer text-gray-900"
+                            value={formData.category}
+                            onChange={(e) => handleChange("category", e.target.value)}
+                        >
+                            <option value="">Select Category</option>
+                            <option value="phones">Phones & Tablets</option>
+                            <option value="electronics">Electronics</option>
+                            <option value="vehicles">Vehicles</option>
+                            <option value="energy">Green Energy</option>
+                            <option value="fashion">Fashion</option>
                         </select>
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Hero Description</label>
+                    <label className="text-xs font-medium text-gray-700">Description</label>
                     <textarea
-                        className="flex min-h-[160px] w-full rounded-2xl border border-white/20 dark:border-zinc-800 bg-white/40 dark:bg-zinc-900/40 px-6 py-4 text-lg font-medium focus:outline-none focus:ring-4 focus:ring-ratel-green-500/20 shadow-sm"
-                        placeholder="What makes this product special?"
+                        className="flex min-h-[140px] w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all resize-none text-gray-900 placeholder:text-gray-400"
+                        placeholder={isGenerating ? "AI is generating description..." : "Describe the key features and benefits..."}
+                        value={formData.description}
+                        onChange={(e) => handleChange("description", e.target.value)}
                     />
                 </div>
             </div>
         </motion.div>
-    ), []);
+    );
 
-    const VisualMediaSection = useMemo(() => (
+    const SpecsSection = (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="glass-card p-10"
-            style={{ contain: 'layout style' }}
+            className="bg-white rounded-lg p-6 md:p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100"
         >
-            <div className="flex items-center gap-4 mb-10">
-                <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center">
-                    <Upload className="h-6 w-6 text-blue-600" />
-                </div>
+            <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h2 className="text-xl font-black tracking-tight uppercase">Visual Media</h2>
-                    <p className="text-xs text-gray-400 font-bold">HIGH DEFINITION ASSETS</p>
+                    <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Specifications</h2>
+                    <p className="text-sm text-gray-500 mt-1">Detailed technical specs for rigorous buyers.</p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                {["Main Image", "Gallery", "Demo Video", "Specs PDF"].map((label, i) => (
-                    <div key={label} className="group relative aspect-square bg-white/30 dark:bg-zinc-900/30 rounded-[2rem] border-2 border-dashed border-white/40 dark:border-zinc-800 flex flex-col items-center justify-center cursor-pointer hover:border-ratel-green-500/50 hover:bg-white/50 transition-all duration-500 shadow-sm">
-                        <div className="w-16 h-16 flex items-center justify-center bg-white dark:bg-zinc-800 rounded-[1.5rem] shadow-xl mb-4 group-hover:scale-110 group-hover:-rotate-3 transition-all">
-                            <Upload className="h-6 w-6 text-gray-400 group-hover:text-ratel-green-600 transition-colors" />
-                        </div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{label}</span>
-
-                        <div className="absolute inset-0 bg-ratel-green-600/5 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="space-y-3">
+                {formData.specs.map((spec, index) => (
+                    <div key={index} className="flex gap-3 group">
+                        <Input
+                            placeholder="Key (e.g. RAM)"
+                            className="flex-1 bg-gray-50 border-gray-200 rounded-lg h-10 px-3 text-sm focus:bg-white transition-colors"
+                            value={spec.key}
+                            onChange={(e) => handleSpecChange(index, "key", e.target.value)}
+                        />
+                        <Input
+                            placeholder="Value (e.g. 16GB)"
+                            className="flex-[2] bg-gray-50 border-gray-200 rounded-lg h-10 px-3 text-sm focus:bg-white transition-colors"
+                            value={spec.value}
+                            onChange={(e) => handleSpecChange(index, "value", e.target.value)}
+                        />
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-10 w-10 text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeSpec(index)}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
                     </div>
                 ))}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full border border-dashed border-gray-200 text-gray-500 hover:text-ratel-green-600 hover:bg-ratel-green-50/50 h-10 rounded-lg text-xs font-semibold mt-2 transition-colors"
+                    onClick={addSpec}
+                >
+                    <Plus className="h-3 w-3 mr-2" /> Add Specification
+                </Button>
             </div>
-            <p className="text-xs text-gray-400 mt-8 text-center font-bold tracking-tight opacity-75">STUNNING VISUALS RESULT IN 400% HIGHER CONVERSION RATES.</p>
         </motion.div>
-    ), []);
+    );
 
     return (
-        <div className="min-h-screen bg-[var(--background-ash)] text-foreground transition-all duration-700 flex flex-col relative overflow-x-hidden -m-8 p-8">
-            {/* Immersive Background Blobs */}
-            <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
-                <div className="absolute top-[10%] left-[-5%] w-[40%] h-[40%] bg-ratel-green-200/10 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
-                <div className="absolute bottom-[10%] right-[-5%] w-[40%] h-[40%] bg-ratel-orange/5 rounded-full blur-[120px] animate-pulse will-change-transform" style={{ animationDelay: '2s' }}></div>
-            </div>
-
-            <div className="max-w-6xl mx-auto w-full relative z-10">
+        <div className="min-h-screen bg-[#E3E6E6] text-foreground transition-colors duration-300 font-sans">
+            <div className="max-w-6xl mx-auto w-full px-4 py-8 md:py-12">
                 <motion.div
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="mb-10"
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-8"
                 >
-                    <Link href="/seller/products" className="inline-flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-ratel-green-600 transition-colors">
-                        <ChevronLeft className="h-4 w-4" /> Back to Dashboard
+                    <Link href="/seller/products" className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors mb-4">
+                        <ChevronLeft className="h-3 w-3" /> Back to Products
                     </Link>
-                    <h1 className="text-4xl font-black tracking-tighter mt-4 text-foreground flex items-center gap-3">
-                        Launch New Product <Sparkles className="text-ratel-green-600 h-8 w-8" />
-                    </h1>
-                    <p className="text-gray-500 font-medium">Create a high-impact listing with AI pricing guidance.</p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+                                New Listing
+                            </h1>
+                            <p className="text-gray-500 mt-2 text-base max-w-2xl">
+                                Create a high-impact product listing with AI pricing guidance.
+                            </p>
+                        </div>
+                        <div className="flex gap-3">
+                            <Button variant="ghost" className="text-gray-600 hover:bg-gray-100 font-medium">
+                                Save Draft
+                            </Button>
+                        </div>
+                    </div>
                 </motion.div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
                     {/* Left: Product Form */}
-                    <div className="lg:col-span-2 space-y-8">
+                    <div className="lg:col-span-2 space-y-6">
                         {CoreDetailsSection}
-                        {VisualMediaSection}
+                        {SpecsSection}
 
+                        {/* Price Section */}
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
+                            initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
-                            className="glass-card p-10"
-                            style={{ contain: 'layout style' }}
+                            className="bg-white rounded-lg p-6 md:p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100"
                         >
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="h-12 w-12 bg-amber-100 dark:bg-amber-900/30 rounded-2xl flex items-center justify-center">
-                                    <DollarSign className="h-6 w-6 text-amber-600" />
-                                </div>
-                                <div>
-                                    <h2 className="text-xl font-black tracking-tight uppercase">Price & Stock</h2>
-                                    <p className="text-xs text-gray-400 font-bold">OPTIMIZED COMMERCE</p>
-                                </div>
+                            <div className="flex items-center gap-3 mb-6">
+                                <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Pricing & Inventory</h2>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Initial Stock</label>
+                                    <label className="text-xs font-medium text-gray-700">Initial Stock</label>
                                     <Input
                                         type="number"
                                         placeholder="1"
-                                        className="bg-white/40 dark:bg-zinc-900/40 border-white/20 dark:border-zinc-800 rounded-2xl h-14 font-black text-2xl px-6 focus:ring-4 focus:ring-ratel-green-500/20 shadow-sm"
+                                        className="bg-gray-50 border-gray-200 rounded-lg h-11 px-4 text-sm font-medium focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all"
+                                        value={formData.stock}
+                                        onChange={(e) => handleChange("stock", e.target.value)}
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Your Price (₦)</label>
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-medium text-gray-700">Your Price (₦)</label>
+                                        <button
+                                            onClick={handleBestPrice}
+                                            disabled={isCalculatingBestPrice}
+                                            className="text-[10px] bg-ratel-green-50 text-ratel-green-700 hover:bg-ratel-green-100 rounded-md px-2 py-1 transition-colors flex items-center gap-1 font-semibold"
+                                            title="Auto-set fair price"
+                                        >
+                                            <Sparkles className={`h-3 w-3 ${isCalculatingBestPrice ? "animate-spin" : ""}`} />
+                                            {isCalculatingBestPrice ? "Checking..." : "Use Best Price"}
+                                        </button>
+                                    </div>
                                     <div className="relative">
-                                        <span className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400 font-black text-2xl group-v-hover:scale-110 transition-transform">₦</span>
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">₦</span>
                                         <Input
                                             type="number"
                                             placeholder="0"
-                                            className="pl-14 bg-white/40 dark:bg-zinc-900/40 border-white/20 dark:border-zinc-800 rounded-2xl h-14 font-black text-3xl px-6 focus:ring-4 focus:ring-ratel-green-500/20 shadow-sm text-ratel-green-600 transition-all focus:scale-[1.01] will-change-transform"
-                                            value={price}
-                                            onChange={handlePriceChange}
+                                            className="pl-8 bg-gray-50 border-gray-200 rounded-lg h-11 px-4 text-sm font-medium focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all"
+                                            value={formData.price}
+                                            onChange={(e) => handleChange("price", e.target.value)}
                                         />
                                     </div>
                                 </div>
                             </div>
                         </motion.div>
 
-                        <div className="flex items-center justify-between py-10 px-4">
-                            <span className="text-sm text-gray-400 font-bold italic">Drafts are saved automatically to your high-security Ratel Cloud.</span>
-                            <div className="flex gap-6">
-                                <Button variant="ghost" className="rounded-2xl px-10 font-black text-gray-500 hover:bg-white/40 text-lg">Save Draft</Button>
-                                <Button className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-[2rem] px-14 h-16 font-black text-xl shadow-2xl hover:scale-105 hover:-rotate-1 active:scale-95 transition-all duration-300">Publish Listing</Button>
-                            </div>
+                        <div className="flex justify-end pt-4 pb-20">
+                            <Button
+                                className="bg-gray-900 hover:bg-black text-white rounded-full px-8 h-12 font-semibold text-base shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                                onClick={handleSubmit}
+                                disabled={!formData.name || !formData.price}
+                            >
+                                <Save className="h-4 w-4 mr-2" />
+                                Publish Listing
+                            </Button>
                         </div>
                     </div>
 
                     {/* Right: AI Price Intelligence Panel */}
                     <div className="lg:col-span-1">
-                        <div className="sticky top-8">
+                        <div className="sticky top-24 space-y-4">
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.95 }}
+                                initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
-                                className="bg-gradient-to-br from-ratel-green-900 to-black text-white rounded-[3rem] p-10 shadow-2xl border-4 border-white/10 relative overflow-hidden group will-change-transform"
-                                style={{ contain: 'layout style' }}
+                                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 overflow-hidden relative"
                             >
-                                <div className="absolute top-0 right-0 w-48 h-48 bg-ratel-green-400/10 rounded-full blur-[80px] group-hover:scale-150 transition-transform duration-1000 will-change-transform"></div>
-
-                                <div className="flex items-center gap-4 mb-10 relative z-10">
-                                    <div className="p-3 bg-white/10 rounded-[1.5rem] backdrop-blur-md">
-                                        <Sparkles className="h-8 w-8 text-yellow-400 animate-pulse" />
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-8 w-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
+                                        <Sparkles className="h-4 w-4 text-white" />
                                     </div>
-                                    <h3 className="font-black text-2xl tracking-tighter uppercase leading-none">AI Market <br />Observer</h3>
+                                    <h3 className="font-semibold text-base text-gray-900 tracking-tight">Price Intelligence</h3>
                                 </div>
 
-                                {!price ? (
-                                    <div className="text-center py-16 text-gray-400 relative z-10">
-                                        <div className="relative mb-6">
-                                            <BarChart3 className="h-20 w-20 mx-auto opacity-10" />
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                                <TrendingUp className="h-10 w-10 text-ratel-green-500/20 animate-bounce" />
-                                            </div>
-                                        </div>
-                                        <p className="text-sm font-black uppercase tracking-widest leading-relaxed">System standby.<br /><span className="text-xs opacity-50">INPUT PRICE FOR ANALYSIS</span></p>
+                                {!formData.price ? (
+                                    <div className="text-center py-12 text-gray-400">
+                                        <TrendingUp className="h-10 w-10 mx-auto opacity-20 mb-3" />
+                                        <p className="text-sm font-medium">Enter a price to see real-time market analysis.</p>
                                     </div>
-                                ) : isanalyzing ? (
-                                    <div className="text-center py-16 relative z-10">
-                                        <div className="h-16 w-16 border-4 border-ratel-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-8 shadow-[0_0_30px_rgba(34,197,94,0.3)] will-change-transform"></div>
-                                        <p className="text-sm font-black uppercase tracking-[0.3em] text-gray-300 animate-pulse">Scanning Markets</p>
+                                ) : isAnalyzing ? (
+                                    <div className="text-center py-12 space-y-4">
+                                        <div className="h-6 w-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                                        <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider">Analyzing Market...</p>
                                     </div>
-                                ) : analysis && (
-                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-10 relative z-10">
-                                        <div className={`p-8 rounded-[2.5rem] border-2 backdrop-blur-xl ${analysis.status === "fair" ? "bg-green-500/10 border-green-500/40 shadow-[0_0_40px_rgba(34,197,94,0.1)]" : "bg-red-500/10 border-red-500/40 shadow-[0_0_40px_rgba(239,68,68,0.1)]"} will-change-[backdrop-filter,transform]`}>
-                                            <div className="flex items-center gap-4 mb-3">
-                                                {analysis.status === "fair" ? (
-                                                    <div className="bg-green-500/20 p-2 rounded-xl">
-                                                        <Check className="h-6 w-6 text-green-400" />
-                                                    </div>
+                                ) : priceAnalysis && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                                        <div className={`p-4 rounded-lg border ${priceAnalysis.status === "fair" ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"}`}>
+                                            <div className="flex items-center gap-2 mb-2">
+                                                {priceAnalysis.status === "fair" ? (
+                                                    <Check className="h-4 w-4 text-emerald-600" />
                                                 ) : (
-                                                    <div className="bg-red-500/20 p-2 rounded-xl">
-                                                        <Info className="h-6 w-6 text-red-400" />
-                                                    </div>
+                                                    <Info className="h-4 w-4 text-rose-600" />
                                                 )}
-                                                <span className={`text-2xl font-black tracking-tighter uppercase ${analysis.status === "fair" ? "text-green-400" : "text-red-400"}`}>
-                                                    {analysis.status === "fair" ? "Fair Price" : "High Alert"}
+                                                <span className={`font-bold text-sm ${priceAnalysis.status === "fair" ? "text-emerald-700" : "text-rose-700"}`}>
+                                                    {priceAnalysis.status === "fair" ? "Competitive Price" : "Above Market Average"}
                                                 </span>
                                             </div>
-                                            <p className="text-base font-bold text-gray-300 leading-snug">
-                                                {analysis.status === "fair"
-                                                    ? "Optimized for Lagos demand. You'll receive the VDM Verified Shield instantly."
-                                                    : `Your listing is ₦${formatPrice(parseInt(price) - analysis.marketAvg)} above the fair market threshold.`
+                                            <p className="text-xs text-gray-600 leading-relaxed">
+                                                {priceAnalysis.status === "fair"
+                                                    ? "This price is optimized for high conversion. You qualify for the 'Fair Price' badge."
+                                                    : `Your listing is ₦${formatPrice(parseInt(formData.price) - priceAnalysis.marketAvg)} higher than similar products. Consider lowering to boost sales.`
                                                 }
                                             </p>
                                         </div>
 
-                                        <div className="space-y-6 px-4">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em]">Market Avg</span>
-                                                <span className="font-black text-2xl tabular-nums">{formatPrice(analysis.marketAvg)}</span>
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-gray-500 font-medium">Market Average</span>
+                                                <span className="font-semibold text-gray-900 tabular-nums">{formatPrice(priceAnalysis.marketAvg)}</span>
                                             </div>
-                                            <div className="flex justify-between items-center group">
-                                                <span className="text-ratel-green-400 text-[10px] font-black uppercase tracking-[0.2em]">Ratel Best</span>
-                                                <span className="font-black text-2xl text-green-400 tabular-nums group-hover:scale-110 transition-transform">{formatPrice(analysis.fairRangeLow)}</span>
+                                            <div className="flex justify-between items-center text-sm">
+                                                <span className="text-emerald-600 font-medium">Recommended</span>
+                                                <span className="font-bold text-emerald-600 tabular-nums">{formatPrice(priceAnalysis.fairRangeLow)}</span>
                                             </div>
-                                            <div className="h-px bg-white/10" />
-                                            <div className="flex justify-between items-end pt-4" style={{ contain: 'layout style' }}>
+                                            <div className="h-px bg-gray-100 my-2" />
+                                            <div className="flex items-center justify-between">
                                                 <div>
-                                                    <p className="text-xs font-black uppercase tracking-widest text-yellow-400 mb-1">Sales Velocity</p>
-                                                    <p className="text-4xl font-black tabular-nums">{analysis.salesProbability}</p>
+                                                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-0.5">Predicted Sales</p>
+                                                    <p className="text-xl font-bold text-gray-900 tabular-nums">{priceAnalysis.salesProbability}</p>
                                                 </div>
-                                                <div className="bg-yellow-400/10 p-3 rounded-2xl">
-                                                    <TrendingUp className="h-10 w-10 text-yellow-400" />
+                                                <div className="h-8 w-8 bg-yellow-50 rounded-full flex items-center justify-center">
+                                                    <TrendingUp className="h-4 w-4 text-yellow-600" />
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {analysis.status === "overpriced" && (
+                                        {priceAnalysis.status === "overpriced" && (
                                             <Button
-                                                className="w-full bg-white text-black hover:bg-gray-100 h-16 rounded-[1.5rem] font-black text-xl shadow-[0_20px_40px_rgba(255,255,255,0.1)] transition-all hover:scale-[1.02] active:scale-95"
-                                                onClick={() => setPrice(analysis.marketAvg.toString())}
+                                                variant="secondary"
+                                                size="sm"
+                                                className="w-full h-9 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 transition-colors"
+                                                onClick={() => handleChange("price", priceAnalysis.marketAvg.toString())}
                                             >
-                                                Apply Fair Price
+                                                Apply Recommended Price
                                             </Button>
                                         )}
                                     </motion.div>

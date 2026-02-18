@@ -18,9 +18,13 @@ export interface Seller {
     logo_url?: string;
     category: string;
     verified: boolean;
+    rating: number;
     trust_score: number;
     status: "pending" | "active" | "frozen" | "banned";
     kyc_status: "not_submitted" | "pending" | "approved" | "rejected";
+    cover_image_url?: string;
+    bank_name?: string;
+    account_number?: string;
     created_at: string;
 }
 
@@ -43,19 +47,31 @@ export interface Product {
     review_count: number;
     sold_count: number;
     created_at: string;
+    specs?: Record<string, string>;
+    highlights?: string[];
 }
 
 export interface Order {
     id: string;
-    user_id: string;
+    customer_id: string;
     product_id: string;
     seller_id: string;
-    product: Product;
-    quantity: number;
-    total_price: number;
+    amount: number;
     status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
-    escrow_status: "none" | "holding" | "released" | "disputed";
+    escrow_status: "held" | "released" | "disputed" | "refunded";
+    shipping_address: string;
+    tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
+    tracking_id?: string;
+    carrier?: string;
+    tracking_steps?: {
+        status: string;
+        location: string;
+        timestamp: string;
+        completed: boolean;
+    }[];
     created_at: string;
+    updated_at: string;
+    product?: Product;
 }
 
 export interface NegotiationRequest {
@@ -66,6 +82,9 @@ export interface NegotiationRequest {
     proposed_price: number;
     message?: string;
     status: "pending" | "accepted" | "rejected";
+    counter_price?: number;
+    counter_message?: string;
+    counter_status?: "pending" | "accepted" | "rejected";
     created_at: string;
 }
 
@@ -145,9 +164,19 @@ export interface CartItem {
     quantity: number;
 }
 
+export interface Notification {
+    id: string;
+    type: "system" | "order" | "negotiation" | "promo";
+    message: string;
+    read: boolean;
+    timestamp: string;
+    link?: string;
+    userId?: string;
+}
+
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles";
+export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
 
 export const CATEGORIES: { value: ProductCategory; label: string; icon: string }[] = [
     { value: "phones", label: "Phones & Tablets", icon: "📱" },
@@ -155,7 +184,13 @@ export const CATEGORIES: { value: ProductCategory; label: string; icon: string }
     { value: "electronics", label: "Electronics", icon: "🔌" },
     { value: "fashion", label: "Fashion", icon: "👗" },
     { value: "beauty", label: "Beauty & Health", icon: "💄" },
-    { value: "home", label: "Home & Garden", icon: "🏠" },
+    { value: "home", label: "Home & Kitchen", icon: "🏠" },
+    { value: "fitness", label: "Gym & Fitness", icon: "💪" },
+    { value: "office", label: "Office Furniture & Accessories", icon: "🪑" },
+    { value: "furniture", label: "Home Furniture", icon: "🛋️" },
+    { value: "grocery", label: "Groceries & Supermarket", icon: "🛒" },
+    { value: "baby", label: "Baby Products", icon: "👶" },
+    { value: "sports", label: "Sports & Outdoors", icon: "⚽" },
     { value: "cars", label: "Cars", icon: "🚗" },
     { value: "energy", label: "Energy & Solar", icon: "⚡" },
     { value: "gaming", label: "Gaming", icon: "🎮" },

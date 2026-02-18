@@ -23,17 +23,17 @@ export default function KYCOnboarding() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-4">
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
             {/* Progress Bar */}
             <div className="w-full max-w-2xl mb-8">
                 <div className="flex justify-between mb-2">
                     {["Business Info", "Identity", "Bank Details", "Review"].map((label, i) => (
-                        <div key={i} className={`text-xs font-bold ${step > i + 1 ? "text-ratel-green-600" : step === i + 1 ? "text-black dark:text-white" : "text-gray-400"}`}>
+                        <div key={i} className={`text-xs font-bold ${step > i + 1 ? "text-ratel-green-600" : step === i + 1 ? "text-black" : "text-gray-400"}`}>
                             {label}
                         </div>
                     ))}
                 </div>
-                <div className="h-2 bg-gray-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <motion.div
                         className="h-full bg-ratel-green-600"
                         initial={{ width: 0 }}
@@ -43,7 +43,7 @@ export default function KYCOnboarding() {
                 </div>
             </div>
 
-            <div className="w-full max-w-2xl bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border dark:border-zinc-800 overflow-hidden">
+            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border overflow-hidden">
                 <div className="bg-ratel-green-600 p-6 text-white text-center">
                     <h1 className="text-2xl font-bold">Seller Verification</h1>
                     <p className="text-green-100 text-sm">Join Nigeria's most trusted marketplace. Let's get you verified.</p>
@@ -112,16 +112,16 @@ export default function KYCOnboarding() {
                                     <label className="text-sm font-medium">Document Type</label>
                                     <div className="grid grid-cols-3 gap-3">
                                         {["NIN Slip", "Intl. Passport", "Driver License"].map(doc => (
-                                            <div key={doc} className="border rounded-lg p-3 text-center cursor-pointer hover:border-ratel-green-600 hover:bg-green-50 dark:hover:bg-zinc-800 transition">
+                                            <div key={doc} className="border rounded-lg p-3 text-center cursor-pointer hover:border-ratel-green-600 hover:bg-green-50 transition">
                                                 {doc}
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div className="border-2 border-dashed border-gray-300 dark:border-zinc-700 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 dark:hover:bg-zinc-800 transition">
+                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition">
                                     <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                                    <p className="text-sm text-gray-600 dark:text-gray-400">Click to upload your ID document</p>
+                                    <p className="text-sm text-gray-600">Click to upload your ID document</p>
                                     <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (Max 5MB)</p>
                                 </div>
                             </motion.div>
@@ -158,7 +158,7 @@ export default function KYCOnboarding() {
                                     <Input placeholder="0123456789" maxLength={10} />
                                 </div>
 
-                                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-sm rounded-md">
+                                <div className="p-3 bg-blue-50 text-blue-700 text-sm rounded-md">
                                     Account Name: <strong>VERIFYING...</strong>
                                 </div>
                             </motion.div>
@@ -173,11 +173,11 @@ export default function KYCOnboarding() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="text-center py-8"
                             >
-                                <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 text-ratel-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <div className="w-20 h-20 bg-green-100 text-ratel-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
                                     <Check className="h-10 w-10" />
                                 </div>
                                 <h2 className="text-2xl font-bold mb-2">You're almost there!</h2>
-                                <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md mx-auto">
+                                <p className="text-gray-600 mb-8 max-w-md mx-auto">
                                     By clicking Submit, you agree to Ratel's Seller Code of Conduct. Your application will be reviewed by our compliance team within 24 hours.
                                 </p>
                             </motion.div>
@@ -187,7 +187,7 @@ export default function KYCOnboarding() {
                 </div>
 
                 {/* Footer Buttons */}
-                <div className="p-6 bg-gray-50 dark:bg-zinc-950/50 border-t dark:border-zinc-800 flex justify-between">
+                <div className="p-6 bg-gray-50 border-t flex justify-between">
                     <Button
                         variant="ghost"
                         onClick={prevStep}

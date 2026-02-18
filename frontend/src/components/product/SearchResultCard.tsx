@@ -1,11 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -23,9 +24,28 @@ export function SearchResultCard({
     isSponsored
 }: SearchResultCardProps) {
     const { location, deliveryDate } = useLocation();
+    const { toggleFavorite, isFavorite } = useFavorites();
+    const lastTapRef = useRef<number>(0);
+    const [showHeartBurst, setShowHeartBurst] = useState(false);
 
-    // Mock social proof and savings
-    const boughtInPastMonth = Math.floor(Math.random() * 20000) + 100;
+    const handleDoubleTap = () => {
+        const now = Date.now();
+        if (now - lastTapRef.current < 300) {
+            if (!isFavorite(product.id)) {
+                toggleFavorite(product.id);
+            }
+            setShowHeartBurst(true);
+            setTimeout(() => setShowHeartBurst(false), 900);
+        }
+        lastTapRef.current = now;
+    };
+
+    // Deterministic "social proof" number based on product id to avoid hydration mismatch
+    const boughtInPastMonth = (() => {
+        let hash = 0;
+        for (let i = 0; i < product.id.length; i++) hash = ((hash << 5) - hash + product.id.charCodeAt(i)) | 0;
+        return (Math.abs(hash) % 20000) + 100;
+    })();
     const listPrice = product.original_price || product.price * 1.2;
     const savingsPct = Math.round(((listPrice - product.price) / listPrice) * 100);
 
@@ -35,7 +55,10 @@ export function SearchResultCard({
             isSponsored && "bg-amber-50/30"
         )}>
             {/* Image Section */}
-            <div className="w-full md:w-64 h-64 flex-shrink-0 relative rounded-xl overflow-hidden bg-gray-100 p-4">
+            <div
+                className="w-full md:w-64 h-64 flex-shrink-0 relative rounded-xl overflow-hidden bg-gray-100 p-4 cursor-pointer select-none"
+                onClick={handleDoubleTap}
+            >
                 {isOverallPick && (
                     <div className="absolute top-0 left-0 bg-black text-white text-[10px] font-bold px-3 py-1.5 flex items-center gap-1 z-10 rounded-br-lg uppercase tracking-wider">
                         Overall Pick <Info className="h-3 w-3" />
@@ -46,11 +69,37 @@ export function SearchResultCard({
                         Best Seller
                     </div>
                 )}
-                <Link href={`/product/${product.id}`} className="block h-full w-full">
+                {/* Heart button */}
+                <button
+                    onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id); }}
+                    className="absolute top-3 right-3 z-20 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 hover:bg-white transition-colors"
+                >
+                    <Heart className={`h-4 w-4 transition-colors ${isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                </button>
+                {/* Heart burst animation */}
+                {showHeartBurst && (
+                    <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                        <Heart className="h-20 w-20 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
+                    </div>
+                )}
+                {/* Fair Price / Overpriced Badge Overlay */}
+                {product.price_flag === "fair" && (
+                    <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Fair Price</span>
+                    </div>
+                )}
+                {product.price_flag === "overpriced" && (
+                    <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-red-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
+                        <Info className="h-3.5 w-3.5 text-red-500" />
+                        <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
+                    </div>
+                )}
+                <Link href={`/product/${product.id}`} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
                     <img
                         src={product.images?.[0] || product.image_url}
                         alt={product.name}
-                        className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
+                        className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
                         onError={(e) => {
                             e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80";
                         }}
@@ -130,9 +179,6 @@ export function SearchResultCard({
                         Add to cart
                     </Button>
                     <div className="flex items-center gap-4">
-                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest flex items-center gap-1">
-                            <ShieldCheck className="h-3 w-3 text-ratel-green-600" /> VDM Verified
-                        </span>
                     </div>
                 </div>
             </div>

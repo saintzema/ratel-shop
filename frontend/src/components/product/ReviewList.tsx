@@ -52,7 +52,7 @@ export function ReviewList({ productId }: { productId: string }) {
                 {/* Review List */}
                 <div className="flex-1 space-y-6">
                     {reviews.map(review => (
-                        <div key={review.id} className="pb-6 border-b dark:border-zinc-800 last:border-0">
+                        <div key={review.id} className="pb-6 border-b last:border-0">
                             <div className="flex items-center gap-2 mb-1">
                                 <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600">
                                     {review.user_name.charAt(0)}
@@ -76,7 +76,7 @@ export function ReviewList({ productId }: { productId: string }) {
                                 )}
                             </div>
 
-                            <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
+                            <p className="text-sm text-gray-700 mb-2">
                                 {review.body}
                             </p>
 

@@ -6,7 +6,7 @@ export const NIGERIAN_STATES = [
     },
     {
         state: "Abuja (FCT)",
-        cities: ["Garki", "Wuse", "Maitama", "Asokoro", "Gwarinpa", "Kubwa", "Lugbe"],
+        cities: ["Garki", "Wuse", "Wuse 2", "Maitama", "Asokoro", "Gwarinpa", "Kubwa", "Lugbe"],
         delivery_days: 2
     },
     {

@@ -3,207 +3,534 @@
 import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { DEMO_ORDERS } from "@/lib/data";
-import { Order, NegotiationRequest } from "@/lib/types";
+import { Order, NegotiationRequest, Product } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Package, Truck, CheckCircle, Clock, Info, ChevronRight, Handshake } from "lucide-react";
+import {
+    ShieldCheck,
+    Package,
+    Truck,
+    CheckCircle,
+    Clock,
+    ChevronRight,
+    Handshake,
+    RotateCcw,
+    Search,
+    ArrowRight,
+    X,
+    ExternalLink,
+    Sparkles,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+
+type OrderFilter = "all" | "processing" | "shipped" | "delivered" | "cancelled" | "buy_again";
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; dot: string }> = {
+    pending: { label: "Processing", color: "text-amber-700", bg: "bg-amber-50", dot: "bg-amber-500" },
+    processing: { label: "Processing", color: "text-amber-700", bg: "bg-amber-50", dot: "bg-amber-500" },
+    shipped: { label: "In Transit", color: "text-blue-700", bg: "bg-blue-50", dot: "bg-blue-500" },
+    delivered: { label: "Delivered", color: "text-emerald-700", bg: "bg-emerald-50", dot: "bg-emerald-500" },
+    cancelled: { label: "Cancelled", color: "text-red-700", bg: "bg-red-50", dot: "bg-red-500" },
+};
 
 export default function OrdersPage() {
-    const [orders, setOrders] = useState<Order[]>(DEMO_ORDERS);
-    // Fetch negotiations from DemoStore
+    const [orders, setOrders] = useState<Order[]>([]);
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
+    const [products, setProducts] = useState<Product[]>([]);
+    const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
+    const { addToCart } = useCart();
+    const router = useRouter();
+    const { user } = useAuth();
+
+    const loadData = () => {
+        if (!user) return;
+        const allOrders = DemoStore.getOrders();
+        const userOrders = allOrders.filter(o =>
+            o.customer_id === user.email ||
+            o.customer_id === user.id ||
+            o.customer_id === "u1"
+        );
+        setOrders(userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+
+        const allNegs = DemoStore.getNegotiations();
+        setNegotiations(allNegs.filter(n =>
+            n.customer_id === user.email ||
+            n.customer_id === user.id ||
+            n.customer_name === user.name ||
+            n.customer_id === "u1"
+        ));
+
+        setProducts(DemoStore.getProducts());
+    };
+
+    useEffect(() => { loadData(); }, [user]);
 
     useEffect(() => {
-        // Load initial state
-        setNegotiations(DemoStore.getNegotiations());
-
-        // Listen for storage changes (updates from other tabs/seller dashboard)
-        const handleStorageChange = () => {
-            setNegotiations(DemoStore.getNegotiations());
-        };
+        loadData();
+        const handleStorageChange = () => loadData();
         window.addEventListener("storage", handleStorageChange);
-        return () => window.removeEventListener("storage", handleStorageChange);
+        window.addEventListener("demo-store-update", handleStorageChange);
+        return () => {
+            window.removeEventListener("storage", handleStorageChange);
+            window.removeEventListener("demo-store-update", handleStorageChange);
+        };
     }, []);
 
     const handleReleaseEscrow = (orderId: string) => {
-        setOrders(prev => prev.map(order =>
-            order.id === orderId ? { ...order, escrow_status: "released" as const } : order
-        ));
+        DemoStore.updateOrderEscrow(orderId, "released");
+        loadData();
         alert("Payment has been released to the seller. Thank you for confirming!");
     };
+
+    const handleBuyAgain = (order: Order) => {
+        if (!order.product) return;
+        addToCart(order.product, 1);
+        router.push("/cart");
+    };
+
+    const filteredOrders = orders.filter(order => {
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            const matchesId = order.id.toLowerCase().includes(q);
+            const matchesProduct = order.product?.name?.toLowerCase().includes(q);
+            if (!matchesId && !matchesProduct) return false;
+        }
+        if (activeFilter === "processing") return order.status === "pending" || order.status === "processing";
+        if (activeFilter === "shipped") return order.status === "shipped";
+        if (activeFilter === "delivered") return order.status === "delivered";
+        if (activeFilter === "cancelled") return order.status === "cancelled";
+        if (activeFilter === "buy_again") return order.status === "delivered";
+        return true;
+    });
+
+    const activeNegotiations = negotiations.filter(n => n.status === "pending" || n.status === "accepted");
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 pt-24 max-w-5xl">
-                <div className="flex border-b border-gray-200 mb-8">
-                    <button className="px-6 py-4 font-bold border-b-4 border-ratel-green-600 text-ratel-green-700">Your Orders</button>
-                    <button className="px-6 py-4 font-medium text-gray-500 hover:text-black transition-colors">Buy Again</button>
-                    <button className="px-6 py-4 font-medium text-gray-500 hover:text-black transition-colors">Not Yet Shipped</button>
-                    <button className="px-6 py-4 font-medium text-gray-500 hover:text-black transition-colors">Cancelled Orders</button>
+            <main className="flex-1 container mx-auto px-4 py-8 pt-6 max-w-7xl">
+                {/* Page Header */}
+                <div className="mb-6">
+                    <h1 className="text-2xl font-bold text-gray-900">Your Orders</h1>
+                    <p className="text-sm text-gray-500 mt-0.5">Track, return, or buy items again.</p>
                 </div>
 
-                <div className="space-y-6">
-                    {/* Negotiation Requests (Pending & Accepted) */}
-                    {(negotiations.some(n => n.status === "pending") || negotiations.some(n => n.status === "accepted")) && (
-                        <div className="bg-white border border-ratel-green-100 rounded-xl overflow-hidden shadow-sm">
-                            <div className="bg-ratel-green-50 px-6 py-3 border-b border-ratel-green-100 flex items-center justify-between">
-                                <h3 className="font-bold text-ratel-green-800 flex items-center gap-2">
-                                    <Handshake className="h-4 w-4" /> Negotiations
-                                </h3>
-                            </div>
-                            <div className="p-6 space-y-4">
-                                {negotiations.filter(n => n.status === "pending").map(neg => (
-                                    <div key={neg.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-dashed border-gray-200 rounded-lg bg-gray-50">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center border border-gray-200">
-                                                <Clock className="h-5 w-5 text-zinc-400" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-sm">Your offer for {formatPrice(neg.proposed_price)} is pending</p>
-                                                <p className="text-xs text-gray-500">The seller has 24 hours to respond to your request.</p>
-                                            </div>
-                                        </div>
-                                        <Button variant="outline" size="sm" className="rounded-full text-xs font-bold border-gray-300">View Details</Button>
-                                    </div>
-                                ))}
-
-                                {negotiations.filter(n => n.status === "accepted").map(neg => (
-                                    <div key={neg.id} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 border border-green-200 rounded-lg bg-green-50/50">
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
-                                                <CheckCircle className="h-5 w-5 text-green-600" />
-                                            </div>
-                                            <div>
-                                                <p className="font-bold text-sm text-green-800">Offer Accepted! {formatPrice(neg.proposed_price)}</p>
-                                                <p className="text-xs text-green-600">The seller accepted your fair price. Complete purchase now.</p>
-                                            </div>
-                                        </div>
-                                        <Link href={`/checkout?negotiationId=${neg.id}`}>
-                                            <Button size="sm" className="rounded-full text-xs font-bold bg-green-600 hover:bg-green-700 text-white shadow-sm">
-                                                Buy Now at {formatPrice(neg.proposed_price)}
-                                            </Button>
-                                        </Link>
-                                    </div>
-                                ))}
+                {/* Two Column Layout */}
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Left Column — Orders Table */}
+                    <div className="flex-1 min-w-0">
+                        {/* Search + Filters */}
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-4">
+                            <div className="p-4 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                                <div className="relative flex-1 w-full">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search orders..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm outline-none focus:border-gray-400 transition-colors"
+                                    />
+                                </div>
+                                <div className="flex gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+                                    {[
+                                        { id: "all", label: "All" },
+                                        { id: "processing", label: "Processing" },
+                                        { id: "shipped", label: "In Transit" },
+                                        { id: "delivered", label: "Delivered" },
+                                        { id: "cancelled", label: "Cancelled" },
+                                        { id: "buy_again", label: "Buy Again" },
+                                    ].map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveFilter(tab.id as OrderFilter)}
+                                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all ${activeFilter === tab.id
+                                                ? "bg-gray-900 text-white"
+                                                : "text-gray-500 hover:bg-gray-100"
+                                                }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
-                    )}
 
-                    {/* Order List */}
-                    {orders.map((order) => (
-                        <div key={order.id} className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                            <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-wrap gap-y-4 justify-between text-xs text-gray-600 uppercase tracking-wider font-bold">
-                                <div className="flex gap-8">
-                                    <div>
-                                        <p className="mb-1 text-[10px] text-gray-400">Order Placed</p>
-                                        <p className="text-black">{new Date(order.created_at).toLocaleDateString()}</p>
-                                    </div>
-                                    <div>
-                                        <p className="mb-1 text-[10px] text-gray-400">Total</p>
-                                        <p className="text-black">{formatPrice(order.total_price)}</p>
-                                    </div>
-                                    <div>
-                                        <p className="mb-1 text-[10px] text-gray-400">Ship To</p>
-                                        <p className="text-blue-600 hover:text-ratel-orange cursor-pointer">Tunde B.</p>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="mb-1 text-[10px] text-gray-400 text-right">Order # {order.id.split('_')[1]}</p>
-                                    <div className="flex gap-4">
-                                        <Link href="#" className="text-blue-600 hover:underline">View order details</Link>
-                                        <span className="text-gray-300">|</span>
-                                        <Link href="#" className="text-blue-600 hover:underline">Invoice</Link>
-                                    </div>
-                                </div>
+                        {/* Orders Table */}
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            {/* Table Header */}
+                            <div className="hidden md:grid grid-cols-[44px_1fr_100px_100px_90px_110px] gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                                <span></span>
+                                <span>Product</span>
+                                <span>Date</span>
+                                <span>Amount</span>
+                                <span>Status</span>
+                                <span className="text-right">Action</span>
                             </div>
 
-                            <div className="p-6">
-                                <div className="flex flex-col md:flex-row gap-8">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-4">
-                                            {order.status === "delivered" ? (
-                                                <CheckCircle className="h-5 w-5 text-ratel-green-600" />
-                                            ) : order.status === "shipped" ? (
-                                                <Truck className="h-5 w-5 text-blue-600" />
-                                            ) : (
-                                                <Package className="h-5 w-5 text-amber-600" />
-                                            )}
-                                            <h3 className="font-black text-lg">
-                                                {order.status === "delivered" ? "Delivered" : order.status === "shipped" ? "On the way" : "Processing"}
-                                            </h3>
-                                        </div>
-
-                                        <div className="flex gap-4">
-                                            <div className="h-24 w-24 bg-gray-50 rounded-lg border border-gray-200 p-2 shrink-0">
-                                                <img src={order.product.image_url} alt={order.product.name} className="h-full w-full object-contain mix-blend-multiply" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Link href={`/product/${order.product_id}`} className="text-blue-600 hover:text-ratel-orange font-medium line-clamp-2 leading-tight">
-                                                    {order.product.name}
-                                                </Link>
-                                                <p className="text-xs text-gray-500">Sold by: <span className="text-blue-600">{order.product.seller_name}</span></p>
-                                                <div className="flex items-center gap-2">
-                                                    <Button size="sm" className="rounded-full bg-ratel-orange text-black hover:bg-amber-500 font-bold px-6">Buy it again</Button>
-                                                    <Button variant="outline" size="sm" className="rounded-full border-gray-300 shadow-sm font-bold">View your item</Button>
-                                                </div>
-                                            </div>
-                                        </div>
+                            {filteredOrders.length === 0 ? (
+                                <div className="p-12 text-center">
+                                    <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                        <Package className="h-7 w-7 text-gray-300" />
                                     </div>
-
-                                    <div className="w-full md:w-64 space-y-3">
-                                        <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100 flex flex-col gap-3">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Escrow Status</span>
-                                                <Badge className={
-                                                    order.escrow_status === "released"
-                                                        ? "bg-ratel-green-100 text-ratel-green-700 hover:bg-ratel-green-100"
-                                                        : "bg-blue-100 text-blue-700 hover:bg-blue-100"
-                                                }>
-                                                    {order.escrow_status === "released" ? "Released" : "In Holding"}
-                                                </Badge>
-                                            </div>
-
-                                            {order.escrow_status === "holding" && (
-                                                <>
-                                                    <div className="flex items-start gap-2 text-[10px] text-zinc-500 leading-tight">
-                                                        <ShieldCheck className="h-3.5 w-3.5 text-ratel-green-600 shrink-0" />
-                                                        <p>Your payment is secure in escrow. Confirm delivery to release funds to the seller.</p>
+                                    <h3 className="text-sm font-bold text-gray-800">No orders found</h3>
+                                    <p className="text-xs text-gray-500 mt-1 mb-4">Explore the marketplace and find great deals.</p>
+                                    <Link href="/">
+                                        <Button size="sm" className="bg-gray-900 text-white rounded-lg text-xs font-semibold px-4">Start Shopping</Button>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {filteredOrders.map((order, idx) => {
+                                        const status = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+                                        return (
+                                            <motion.div
+                                                key={order.id}
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                transition={{ delay: idx * 0.03 }}
+                                                className="group"
+                                            >
+                                                {/* Desktop Row */}
+                                                <div className="hidden md:grid grid-cols-[44px_1fr_100px_100px_90px_110px] gap-4 px-4 py-3 items-center hover:bg-gray-50/50 transition-colors">
+                                                    {/* Thumbnail */}
+                                                    <div className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-100 p-1 shrink-0">
+                                                        <img
+                                                            src={order.product?.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158"}
+                                                            alt={order.product?.name || "Product"}
+                                                            className="h-full w-full object-contain"
+                                                        />
                                                     </div>
-                                                    {order.status === "delivered" && (
-                                                        <Button
-                                                            onClick={() => handleReleaseEscrow(order.id)}
-                                                            className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full font-bold py-2 h-auto text-xs"
+
+                                                    {/* Product Info */}
+                                                    <div className="min-w-0">
+                                                        <Link href={`/product/${order.product_id}`} className="text-sm font-medium text-gray-900 hover:text-emerald-600 transition-colors line-clamp-1 block">
+                                                            {order.product?.name || "Product"}
+                                                        </Link>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-[10px] text-gray-400 font-mono">#{order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}</span>
+                                                            {order.tracking_id && (
+                                                                <span className="text-[10px] text-gray-400">• {order.carrier || "Track"}: {order.tracking_id}</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Date */}
+                                                    <span className="text-xs text-gray-500">
+                                                        {new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                    </span>
+
+                                                    {/* Amount */}
+                                                    <span className="text-sm font-semibold text-gray-900">{formatPrice(order.amount)}</span>
+
+                                                    {/* Status */}
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+                                                        <span className={`text-[11px] font-semibold ${status.color}`}>{status.label}</span>
+                                                    </div>
+
+                                                    {/* Actions */}
+                                                    <div className="flex justify-end gap-1">
+                                                        {order.status === "delivered" && (
+                                                            <button
+                                                                onClick={() => handleBuyAgain(order)}
+                                                                className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                                            >
+                                                                Buy Again
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => setSelectedOrderForTracking(order)}
+                                                            className="text-[11px] font-semibold text-gray-600 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                                                         >
-                                                            Confirm & Release Payment
-                                                        </Button>
-                                                    )}
-                                                </>
-                                            )}
-
-                                            {order.escrow_status === "released" && (
-                                                <div className="flex items-start gap-2 text-[10px] text-ratel-green-700 leading-tight">
-                                                    <CheckCircle className="h-3.5 w-3.5 shrink-0" />
-                                                    <p>Payment successfully released. Thank you!</p>
+                                                            Details
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            )}
-                                        </div>
 
-                                        <Button variant="outline" className="w-full rounded-full border-gray-300 font-bold h-9">Track package</Button>
-                                        <Button variant="outline" className="w-full rounded-full border-gray-300 font-bold h-9">Return items</Button>
-                                        <Button variant="outline" className="w-full rounded-full border-gray-300 font-bold h-9">Write a product review</Button>
-                                    </div>
+                                                {/* Mobile Card */}
+                                                <div className="md:hidden p-4 space-y-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-100 p-1.5 shrink-0">
+                                                            <img
+                                                                src={order.product?.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158"}
+                                                                alt={order.product?.name || "Product"}
+                                                                className="h-full w-full object-contain"
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-semibold text-gray-900 line-clamp-1">{order.product?.name || "Product"}</p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <div className={`flex items-center gap-1 text-[11px] font-semibold ${status.color}`}>
+                                                                    <div className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+                                                                    {status.label}
+                                                                </div>
+                                                                <span className="text-[10px] text-gray-400">•</span>
+                                                                <span className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-sm font-bold text-gray-900">{formatPrice(order.amount)}</span>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        {order.status === "delivered" && (
+                                                            <Button size="sm" variant="outline" onClick={() => handleBuyAgain(order)} className="flex-1 text-xs rounded-lg font-semibold border-gray-200">
+                                                                <RotateCcw className="h-3 w-3 mr-1" /> Buy Again
+                                                            </Button>
+                                                        )}
+                                                        <Button size="sm" variant="outline" onClick={() => setSelectedOrderForTracking(order)} className="flex-1 text-xs rounded-lg font-semibold border-gray-200">
+                                                            <Truck className="h-3 w-3 mr-1" /> Details
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Column — Negotiations & Escrow Summary */}
+                    <div className="w-full lg:w-80 space-y-4 shrink-0">
+                        {/* Negotiate a Price CTA */}
+                        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-5 text-white shadow-lg">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="p-1.5 bg-white/20 rounded-lg">
+                                    <Handshake className="h-4 w-4" />
+                                </div>
+                                <h3 className="font-bold text-sm">Negotiate a Price</h3>
+                            </div>
+                            <p className="text-xs text-emerald-100 leading-relaxed mb-3">
+                                Find any product and negotiate for a better price. Our AI searches the internet for fair market prices so you never overpay.
+                            </p>
+                            <Link href="/account/negotiations">
+                                <Button size="sm" className="w-full bg-white text-emerald-700 hover:bg-emerald-50 font-bold text-xs rounded-lg shadow-sm">
+                                    <Sparkles className="h-3 w-3 mr-1.5" /> View Negotiations <ArrowRight className="h-3 w-3 ml-auto" />
+                                </Button>
+                            </Link>
+                        </div>
+
+                        {/* Active Negotiations */}
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Handshake className="h-4 w-4 text-emerald-600" />
+                                    <h3 className="text-sm font-bold text-gray-900">Active Negotiations</h3>
+                                </div>
+                                {activeNegotiations.length > 0 && (
+                                    <Badge className="bg-emerald-100 text-emerald-700 border-none text-[10px] font-bold">{activeNegotiations.length}</Badge>
+                                )}
+                            </div>
+
+                            {activeNegotiations.length === 0 ? (
+                                <div className="p-6 text-center">
+                                    <p className="text-xs text-gray-400">No active negotiations</p>
+                                    <Link href="/">
+                                        <Button variant="link" size="sm" className="text-xs text-emerald-600 mt-1 p-0">Browse products</Button>
+                                    </Link>
+                                </div>
+                            ) : (
+                                <div className="divide-y divide-gray-50">
+                                    {activeNegotiations.map(neg => {
+                                        const negProduct = products.find(p => p.id === neg.product_id);
+                                        return (
+                                            <div key={neg.id} className="px-4 py-3 hover:bg-gray-50/50 transition-colors">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-xs font-semibold text-gray-900 line-clamp-1">{negProduct?.name || "Product"}</p>
+                                                        <div className="flex items-center gap-1.5 mt-1">
+                                                            {neg.status === "accepted" ? (
+                                                                <Badge className="bg-emerald-100 text-emerald-700 border-none text-[9px] font-bold px-1.5 py-0">Accepted</Badge>
+                                                            ) : (
+                                                                <Badge className="bg-amber-100 text-amber-700 border-none text-[9px] font-bold px-1.5 py-0">Pending</Badge>
+                                                            )}
+                                                            <span className="text-[11px] font-semibold text-gray-900">{formatPrice(neg.proposed_price)}</span>
+                                                        </div>
+                                                    </div>
+                                                    {neg.status === "accepted" ? (
+                                                        <Link href={`/checkout?negotiationId=${neg.id}`}>
+                                                            <Button size="sm" className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-7 px-3">
+                                                                Buy <ArrowRight className="h-3 w-3 ml-1" />
+                                                            </Button>
+                                                        </Link>
+                                                    ) : (
+                                                        <Link href="/account/negotiations">
+                                                            <Button variant="outline" size="sm" className="text-[10px] font-bold rounded-lg h-7 px-2 border-gray-200">
+                                                                View
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Escrow Summary */}
+                        {orders.some(o => o.escrow_status === "held") && (
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                                <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+                                    <ShieldCheck className="h-4 w-4 text-amber-500" />
+                                    <h3 className="text-sm font-bold text-gray-900">Escrow Pending</h3>
+                                </div>
+                                <div className="divide-y divide-gray-50">
+                                    {orders.filter(o => o.escrow_status === "held").map(order => (
+                                        <div key={order.id} className="px-4 py-3">
+                                            <p className="text-xs font-medium text-gray-700 line-clamp-1">{order.product?.name}</p>
+                                            <div className="flex items-center justify-between mt-1.5">
+                                                <span className="text-xs font-bold text-gray-900">{formatPrice(order.amount)}</span>
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleReleaseEscrow(order.id)}
+                                                    className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-7 px-3"
+                                                >
+                                                    Release Funds
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        )}
+                    </div>
                 </div>
             </main>
+
+            {/* Tracking / Order Detail Modal */}
+            <AnimatePresence>
+                {selectedOrderForTracking && (
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+                            onClick={() => setSelectedOrderForTracking(null)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100"
+                        >
+                            {/* Modal Header */}
+                            <div className="p-5 pb-3 flex items-center justify-between border-b border-gray-100">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-900">Order Details</h2>
+                                    <p className="text-xs text-gray-500 font-mono mt-0.5">#{selectedOrderForTracking.id.substring(0, 12)}</p>
+                                </div>
+                                <button
+                                    onClick={() => setSelectedOrderForTracking(null)}
+                                    className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <X className="h-4 w-4 text-gray-400" />
+                                </button>
+                            </div>
+
+                            {/* Product Summary */}
+                            <div className="p-5 flex items-center gap-4 border-b border-gray-50">
+                                <div className="h-16 w-16 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0">
+                                    <img
+                                        src={selectedOrderForTracking.product?.image_url}
+                                        alt={selectedOrderForTracking.product?.name}
+                                        className="h-full w-full object-contain"
+                                    />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-gray-900 line-clamp-2">{selectedOrderForTracking.product?.name}</p>
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <span className="text-sm font-bold text-gray-900">{formatPrice(selectedOrderForTracking.amount)}</span>
+                                        <Badge className={`${STATUS_CONFIG[selectedOrderForTracking.status]?.bg} ${STATUS_CONFIG[selectedOrderForTracking.status]?.color} border-none text-[10px] font-bold`}>
+                                            {STATUS_CONFIG[selectedOrderForTracking.status]?.label}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Escrow Info */}
+                            <div className="px-5 py-3 flex items-center justify-between bg-gray-50/50">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className={`h-4 w-4 ${selectedOrderForTracking.escrow_status === 'released' ? 'text-emerald-500' : 'text-amber-500'}`} />
+                                    <span className="text-xs font-semibold text-gray-600">
+                                        {selectedOrderForTracking.escrow_status === "held" ? "Funds held in escrow" : "Funds released to seller"}
+                                    </span>
+                                </div>
+                                {selectedOrderForTracking.escrow_status === "held" && (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => {
+                                            handleReleaseEscrow(selectedOrderForTracking.id);
+                                            setSelectedOrderForTracking(null);
+                                        }}
+                                        className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-7 px-3"
+                                    >
+                                        Release
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Tracking Steps */}
+                            <div className="px-5 py-4 space-y-4 max-h-[40vh] overflow-y-auto">
+                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Tracking</h3>
+                                <div className="relative">
+                                    <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-200" />
+                                    <div className="space-y-4">
+                                        {(selectedOrderForTracking.tracking_steps || [
+                                            { status: "Order Placed", location: "System", timestamp: selectedOrderForTracking.created_at, completed: true }
+                                        ]).map((step, i) => (
+                                            <div key={i} className="relative flex gap-4 pl-8">
+                                                <div className={`absolute left-0 top-0.5 w-6 h-6 rounded-full flex items-center justify-center z-10 ${step.completed ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-400'
+                                                    }`}>
+                                                    {step.completed ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                                                </div>
+                                                <div>
+                                                    <p className={`text-xs font-semibold ${step.completed ? 'text-gray-900' : 'text-gray-400'}`}>{step.status}</p>
+                                                    <p className="text-[10px] text-gray-400">{step.location} • {new Date(step.timestamp).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Modal Footer */}
+                            <div className="p-4 flex gap-2 border-t border-gray-100">
+                                {selectedOrderForTracking.status === "delivered" && (
+                                    <Button
+                                        size="sm"
+                                        onClick={() => {
+                                            handleBuyAgain(selectedOrderForTracking);
+                                            setSelectedOrderForTracking(null);
+                                        }}
+                                        className="flex-1 bg-gray-900 text-white rounded-lg text-xs font-semibold"
+                                    >
+                                        <RotateCcw className="h-3 w-3 mr-1.5" /> Buy Again
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSelectedOrderForTracking(null)}
+                                    className="flex-1 rounded-lg text-xs font-semibold border-gray-200"
+                                >
+                                    Close
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             <Footer />
         </div>

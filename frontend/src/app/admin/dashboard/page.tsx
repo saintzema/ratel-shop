@@ -1,117 +1,244 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import {
+    TrendingUp,
     Users,
-    AlertTriangle,
-    FileText,
-    Gavel,
+    Package,
+    ShieldAlert,
+    ChevronRight,
+    ExternalLink,
+    Clock,
+    CheckCircle2,
+    XCircle,
     ArrowUpRight,
+    ArrowDownRight,
+    DollarSign,
     ShieldCheck,
-    Ban
+    Zap
 } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { DemoStore } from "@/lib/demo-store";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 export default function AdminDashboard() {
-    const stats = [
-        { label: "Pending KYC", value: "24", change: "+4 today", icon: FileText, color: "blue" },
-        { label: "Price Alerts", value: "15", change: "+12% this week", icon: AlertTriangle, color: "red" },
-        { label: "Active Sellers", value: "142", change: "+8 this month", icon: Users, color: "green" },
-        { label: "Open Disputes", value: "3", change: "-2 yesterday", icon: Gavel, color: "orange" },
+    const [stats, setStats] = useState<any>(null);
+    const [complaints, setComplaints] = useState<any[]>([]);
+    const [kycs, setKycs] = useState<any[]>([]);
+
+    useEffect(() => {
+        const loadData = () => {
+            setStats(DemoStore.getAdminStats());
+            setComplaints(DemoStore.getComplaints().slice(0, 3));
+            setKycs(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending").slice(0, 3));
+        };
+
+        loadData();
+        window.addEventListener("storage", loadData);
+        return () => window.removeEventListener("storage", loadData);
+    }, []);
+
+    if (!stats) return null;
+
+    const cards = [
+        {
+            label: "Escrow Balance",
+            value: `₦${stats.escrow_balance?.toLocaleString() || 0}`,
+            change: "Held in Trust",
+            up: true,
+            icon: ShieldCheck,
+            color: "amber"
+        },
+        {
+            label: "Processed Revenue",
+            value: `₦${stats.processed_revenue?.toLocaleString() || 0}`,
+            change: "Released to Sellers",
+            up: true,
+            icon: DollarSign,
+            color: "emerald"
+        },
+        {
+            label: "Active Sellers",
+            value: stats.active_sellers.toString(),
+            change: "+3.2%",
+            up: true,
+            icon: Users,
+            color: "indigo"
+        },
+        {
+            label: "Total Orders",
+            value: stats.total_orders.toString(),
+            change: "+18.4%",
+            up: true,
+            icon: Package,
+            color: "blue"
+        },
     ];
 
     return (
-        <div className="space-y-6">
-            <div className="bg-red-600 text-white p-6 rounded-xl shadow-lg mb-6">
-                <h1 className="text-2xl font-bold mb-2">Morning, Super Admin.</h1>
-                <p className="opacity-90">There are <span className="font-bold underline">15 overpriced products</span> and <span className="font-bold underline">24 sellers awaiting verification</span> today.</p>
-            </div>
+        <div className="space-y-10">
+            {/* Hero Stats Section */}
+            <div>
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h2 className="text-2xl font-black text-gray-900 tracking-tight">System Overview</h2>
+                        <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Real-time platform performance</p>
+                    </div>
+                </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {stats.map((stat) => (
-                    <motion.div
-                        key={stat.label}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="bg-white dark:bg-zinc-900 p-6 rounded-xl border dark:border-zinc-800 shadow-sm"
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`p-2 rounded-lg bg-${stat.color}-100 dark:bg-${stat.color}-900/20`}>
-                                <stat.icon className={`h-5 w-5 text-${stat.color}-600`} />
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    {cards.map((card) => (
+                        <div key={card.label} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group">
+                            <div className="flex items-start justify-between mb-4">
+                                <div className={cn(
+                                    "p-3 rounded-2xl",
+                                    card.color === "indigo" ? "bg-indigo-50 text-indigo-600" :
+                                        card.color === "emerald" ? "bg-emerald-50 text-emerald-600" :
+                                            card.color === "blue" ? "bg-blue-50 text-blue-600" :
+                                                "bg-rose-50 text-rose-600"
+                                )}>
+                                    <card.icon className="h-6 w-6" />
+                                </div>
+                                <div className={cn(
+                                    "flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-full",
+                                    card.up ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                                )}>
+                                    {card.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                    {card.change}
+                                </div>
                             </div>
-                            <span className="text-xs font-bold text-gray-500">{stat.change}</span>
+                            <h3 className="text-gray-500 text-xs font-black uppercase tracking-widest">{card.label}</h3>
+                            <p className="text-3xl font-black text-gray-900 mt-1 group-hover:scale-105 transition-transform origin-left">{card.value}</p>
                         </div>
-                        <h3 className="text-gray-500 text-sm font-medium">{stat.label}</h3>
-                        <p className="text-2xl font-bold mt-1 text-gray-900 dark:text-white">{stat.value}</p>
-                    </motion.div>
-                ))}
+                    ))}
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                {/* Latest Price Alerts (The "Vigilante" Feature) */}
-                <div className="bg-white dark:bg-zinc-900 rounded-xl border dark:border-zinc-800 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b dark:border-zinc-800 flex justify-between items-center bg-red-50 dark:bg-red-900/10">
-                        <h2 className="font-bold text-lg text-red-700 dark:text-red-400 flex items-center gap-2">
-                            <AlertTriangle className="h-5 w-5" /> Live Price Monitoring
-                        </h2>
-                        <button className="text-sm text-red-600 hover:underline">View All</button>
+            {/* Governance & Operations Section */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Pending KYC Reviews */}
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                        <div>
+                            <h3 className="text-lg font-black text-gray-900 tracking-tight">Trust & Verify</h3>
+                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Pending Seller Onboarding</p>
+                        </div>
+                        <Link href="/admin/governance">
+                            <Button variant="ghost" size="sm" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                                View All <ChevronRight className="ml-1 h-3 w-3" />
+                            </Button>
+                        </Link>
                     </div>
-                    <div className="divide-y dark:divide-zinc-800">
-                        {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                                <div className="flex gap-4 items-center">
-                                    <div className="w-10 h-10 bg-gray-100 rounded overflow-hidden">
-                                        <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100" className="w-full h-full object-cover" />
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-sm">iPhone 14 Pro Max</div>
-                                        <div className="text-xs text-gray-500">Seller: <span className="text-blue-600 hover:underline">GadgetWorld_XYZ</span></div>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="font-bold text-red-600">₦1,450,000</div>
-                                    <div className="text-xs text-gray-400">Avg: ₦1,200,000 (+21%)</div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button className="p-2 hover:bg-red-100 text-red-600 rounded" title="Flag & Warn"><AlertTriangle className="h-4 w-4" /></button>
-                                    <button className="p-2 hover:bg-gray-100 text-gray-600 rounded" title="Force Edit"><Gavel className="h-4 w-4" /></button>
-                                </div>
+                    <div className="flex-1 p-2">
+                        {kycs.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center p-12 text-center">
+                                <CheckCircle2 className="h-12 w-12 text-emerald-500 mb-4 opacity-20" />
+                                <p className="text-sm font-bold text-gray-400">All caught up! No KYC pending.</p>
                             </div>
-                        ))}
+                        ) : (
+                            <div className="divide-y divide-gray-50">
+                                {kycs.map((kyc) => (
+                                    <div key={kyc.id} className="p-6 hover:bg-gray-50 transition-colors group">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-12 w-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-black text-lg">
+                                                    {kyc.seller_name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900 text-sm">{kyc.seller_name}</h4>
+                                                    <p className="text-[11px] text-gray-400 font-bold uppercase">{kyc.id_type} Submission • {new Date(kyc.created_at).toLocaleDateString()}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => DemoStore.updateKYCStatus(kyc.id, "approved")}
+                                                    className="h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold text-[10px] uppercase"
+                                                >
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => DemoStore.updateKYCStatus(kyc.id, "rejected")}
+                                                    className="h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-[10px] uppercase"
+                                                >
+                                                    Reject
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* KYC Review Queue */}
-                <div className="bg-white dark:bg-zinc-900 rounded-xl border dark:border-zinc-800 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b dark:border-zinc-800 flex justify-between items-center">
-                        <h2 className="font-bold text-lg flex items-center gap-2">
-                            <FileText className="h-5 w-5 text-blue-600" /> Pending KYC Reviews
-                        </h2>
-                        <button className="text-sm text-blue-600 hover:underline">View All</button>
+                {/* Dispute Resolution Resolution Center Center */}
+                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                        <div>
+                            <h3 className="text-lg font-black text-gray-900 tracking-tight">Governance</h3>
+                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Active Marketplace Disputes</p>
+                        </div>
+                        <Link href="/admin/governance">
+                            <Button variant="ghost" size="sm" className="text-xs font-bold text-rose-600 hover:text-rose-700">
+                                View Cases <ExternalLink className="ml-1.5 h-3 w-3" />
+                            </Button>
+                        </Link>
                     </div>
-                    <div className="divide-y dark:divide-zinc-800">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-zinc-800/50">
-                                <div className="flex gap-4 items-center">
-                                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs">
-                                        JD
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-sm">John Doe Electronics</div>
-                                        <div className="text-xs text-gray-500">Submitted: 2 hrs ago</div>
-                                    </div>
-                                </div>
-                                <div className="text-xs bg-gray-100 px-2 py-1 rounded">
-                                    CAC • NIN • Utility
-                                </div>
-                                <button className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">Review</button>
+                    <div className="flex-1 p-2">
+                        {complaints.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center p-12 text-center">
+                                <Zap className="h-12 w-12 text-indigo-500 mb-4 opacity-20" />
+                                <p className="text-sm font-bold text-gray-400">Zero disputes. Excellent trust score!</p>
                             </div>
-                        ))}
+                        ) : (
+                            <div className="divide-y divide-gray-50">
+                                {complaints.map((c) => (
+                                    <div key={c.id} className="p-6 hover:bg-gray-50 transition-colors">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1.5">
+                                                    <span className={cn(
+                                                        "text-[9px] font-black uppercase px-2 py-0.5 rounded-full",
+                                                        c.status === "open" ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-600"
+                                                    )}>
+                                                        {c.status}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-300 font-bold">#{c.id}</span>
+                                                </div>
+                                                <h4 className="font-bold text-gray-900 text-sm truncate">{c.description}</h4>
+                                                <p className="text-[11px] text-gray-400 font-bold uppercase mt-1">From: {c.user_name} • Target: {c.seller_name}</p>
+                                            </div>
+                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-2xl bg-gray-50 flex-shrink-0">
+                                                <ChevronRight className="h-5 w-5 text-gray-400" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
+            </div>
 
+            {/* Quick Actions Footer */}
+            <div className="bg-indigo-600 rounded-[32px] p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-center md:text-left">
+                    <h3 className="text-2xl font-black tracking-tight">Platform Safety Mode</h3>
+                    <p className="text-indigo-100/70 text-sm font-bold mt-1">Configure system-wide trust protocols and fee structures.</p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-3">
+                    <Button className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6">
+                        System Configuration
+                    </Button>
+                    <Button variant="outline" className="border-indigo-400/50 text-white hover:bg-indigo-500 font-black rounded-2xl h-12 px-6">
+                        Broadcast Update
+                    </Button>
+                </div>
             </div>
         </div>
     );

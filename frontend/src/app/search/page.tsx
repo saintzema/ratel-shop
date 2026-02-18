@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { DEMO_PRODUCTS } from "@/lib/data";
+import { DemoStore } from "@/lib/demo-store";
 import { CATEGORIES } from "@/lib/types";
 import { formatPrice, cn } from "@/lib/utils";
 import { Filter, SlidersHorizontal, ArrowUpDown, Search as SearchIcon, Star, Info } from "lucide-react";
@@ -55,8 +55,18 @@ function SearchContent() {
         router.push(`/search?${params.toString()}`, { scroll: false });
     };
 
+    // Live products from DemoStore — load on client only to avoid hydration mismatch
+    const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
+
+    useEffect(() => {
+        const refresh = () => setAllProducts(DemoStore.getProducts().filter(p => p.is_active));
+        refresh(); // Initial client load
+        window.addEventListener("demo-store-update", refresh);
+        return () => window.removeEventListener("demo-store-update", refresh);
+    }, []);
+
     const filteredProducts = useMemo(() => {
-        return DEMO_PRODUCTS.filter(product => {
+        return allProducts.filter(product => {
             if (query && !product.name.toLowerCase().includes(query.toLowerCase()) &&
                 !product.description.toLowerCase().includes(query.toLowerCase())) return false;
             if (selectedCategory && selectedCategory !== "All" && product.category !== selectedCategory) return false;
@@ -71,7 +81,7 @@ function SearchContent() {
                 default: return 0;
             }
         });
-    }, [query, selectedCategory, isVerified, priceRange, sortBy]);
+    }, [query, selectedCategory, isVerified, priceRange, sortBy, allProducts]);
 
     const FilterSidebar = () => (
         <div className="space-y-8 text-black pb-20">

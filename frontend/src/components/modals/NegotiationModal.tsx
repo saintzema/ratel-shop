@@ -7,25 +7,89 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
-import { Product } from "@/lib/types";
+import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
-import { ShieldCheck, MessageSquare, Tag } from "lucide-react";
+import { ShieldCheck, MessageSquare, Tag, AlertTriangle } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
+import { useAuth } from "@/context/AuthContext";
 
 interface NegotiationModalProps {
     isOpen: boolean;
     onClose: () => void;
     product: Product;
+    priceComparison?: PriceComparison | null;
 }
 
-export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalProps) {
+export function NegotiationModal({ isOpen, onClose, product, priceComparison }: NegotiationModalProps) {
     const [proposedPrice, setProposedPrice] = useState<string>("");
     const [message, setMessage] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisStep, setAnalysisStep] = useState(0);
+    const [error, setError] = useState<string | null>(null);
+    const [isSystemCalculated, setIsSystemCalculated] = useState(false);
+    const { user } = useAuth();
+
+    // Calculate minimum allowed price (market low)
+    const minAllowedPrice = priceComparison?.market_low || Math.round(product.price * 0.5); // Fallback to 50% if no data
+
+    const handleAnalyze = () => {
+        setIsAnalyzing(true);
+        setAnalysisStep(0);
+        setError(null);
+
+        const steps = ["Scanning Amazon...", "Checking Online Vendors...", "Analyzing Listings...", "Calculating Verified Fair Price..."];
+
+        let step = 0;
+        const interval = setInterval(() => {
+            step++;
+            setAnalysisStep(step);
+            if (step >= steps.length) {
+                clearInterval(interval);
+                setIsAnalyzing(false);
+
+                // Use real market data to calculate a fair price
+                // Priority: priceComparison market_avg → product.recommended_price → fallback
+                const marketAvg = priceComparison?.market_avg || product.recommended_price || 0;
+                const marketLow = priceComparison?.market_low || Math.round((product.recommended_price || product.price) * 0.9);
+
+                let fairPrice: number;
+
+                if (product.price_flag === "suspicious" && marketAvg > 0) {
+                    // Suspicious deal: price is TOO LOW — suggest the market average as fair
+                    // (buying at market avg protects the buyer from scams)
+                    fairPrice = Math.round(marketAvg * 0.95 / 100) * 100;
+                } else if (product.price_flag === "overpriced" && marketAvg > 0) {
+                    // Overpriced: suggest a price closer to market low (best real deal)
+                    fairPrice = Math.round(((marketLow + marketAvg) / 2) / 100) * 100;
+                } else if (marketAvg > 0 && product.price > marketAvg) {
+                    // Regular product priced above market avg — suggest market avg
+                    fairPrice = Math.round(marketAvg / 100) * 100;
+                } else if (marketAvg > 0) {
+                    // Regular product at or below market avg — suggest 5% below listing
+                    fairPrice = Math.round(product.price * 0.95 / 100) * 100;
+                } else {
+                    // No market data at all — suggest 8% below listing as a starting point
+                    fairPrice = Math.round(product.price * 0.92 / 100) * 100;
+                }
+
+                setProposedPrice(fairPrice.toString());
+                setIsSystemCalculated(true);
+            }
+        }, 800);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError(null);
+
+        const price = Number(proposedPrice);
+        if (price < minAllowedPrice) {
+            setError(`Your offer is too low. The lowest recorded market price for this item is ${formatPrice(minAllowedPrice)}. Please suggest a fair value within market range.`);
+            return;
+        }
+
         setIsSubmitting(true);
 
         // Logic to simulate API call
@@ -35,8 +99,8 @@ export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalP
         const newNegotiation = {
             id: `neg_${Date.now()}`,
             product_id: product.id,
-            customer_id: "u1", // Hardcoded demo user
-            customer_name: "Demo Buyer",
+            customer_id: user?.id || "guest",
+            customer_name: user?.name || "Guest Buyer",
             proposed_price: Number(proposedPrice),
             message: message,
             status: "pending" as const,
@@ -53,6 +117,9 @@ export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalP
         setProposedPrice("");
         setMessage("");
         setSubmitted(false);
+        setIsAnalyzing(false);
+        setAnalysisStep(0);
+        setError(null);
         onClose();
     };
 
@@ -79,6 +146,47 @@ export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalP
                             </div>
                         </div>
 
+                        {/* Market Analysis Button */}
+                        {/* Market Analysis Button */}
+                        <div className="space-y-2">
+                            {isAnalyzing ? (
+                                <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 space-y-2">
+                                    <div className="flex justify-between text-xs font-bold text-blue-700">
+                                        <span>Analyzing Market...</span>
+                                        <span>{Math.round((analysisStep / 4) * 100)}%</span>
+                                    </div>
+                                    <div className="w-full bg-blue-200/50 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                            className="h-full bg-blue-500 transition-all duration-300 ease-out"
+                                            style={{ width: `${(analysisStep / 4) * 100}%` }}
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-blue-500 text-center animate-pulse">
+                                        {["Connecting to Global Pricing DB...", "Scanning Amazon & eBay...", "Checking Local Competitors...", "Finalizing Verified Fair Price..."][Math.min(analysisStep, 3)]}
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleAnalyze}
+                                        className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 bg-blue-50/50"
+                                    >
+                                        <Tag className="h-4 w-4 mr-2" />
+                                        {proposedPrice ? "Recalculate Fair Price" : "Auto-Calculate Fair Price"}
+                                    </Button>
+
+                                    {isSystemCalculated && (
+                                        <div className="flex items-center gap-2 text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                                            <ShieldCheck className="h-4 w-4" />
+                                            Calculated based on verified market pricing
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         <div className="space-y-2">
                             <Label htmlFor="price" className="text-sm font-bold">Your Proposed Price (₦)</Label>
                             <div className="relative">
@@ -87,12 +195,25 @@ export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalP
                                     id="price"
                                     type="number"
                                     placeholder="e.g. 45000"
-                                    className="pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-ratel-green-600 focus:border-ratel-green-600"
+                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-ratel-green-600 focus:border-ratel-green-600 ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
                                     value={proposedPrice}
-                                    onChange={(e) => setProposedPrice(e.target.value)}
+                                    onChange={(e) => {
+                                        setProposedPrice(e.target.value);
+                                        setError(null);
+                                        setIsSystemCalculated(false);
+                                    }}
                                     required
                                 />
                             </div>
+                            {error && (
+                                <div className="flex items-start gap-1 text-xs text-red-600 mt-1 animate-in fade-in slide-in-from-top-1">
+                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                    <span>{error}</span>
+                                </div>
+                            )}
+                            <p className="text-[10px] text-zinc-400">
+                                Market Low: {formatPrice(minAllowedPrice)}
+                            </p>
                         </div>
 
                         <div className="space-y-2">
@@ -108,14 +229,14 @@ export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalP
 
                         <div className="bg-blue-50 p-3 rounded-lg flex gap-3 text-xs text-blue-700">
                             <ShieldCheck className="h-4 w-4 shrink-0" />
-                            <p>If accepted, your payment will be held in **Escrow** until you confirm delivery of the item.</p>
+                            <p>If accepted, your payment will be held in <strong>Escrow</strong> until you confirm delivery of the item.</p>
                         </div>
 
                         <DialogFooter>
                             <Button
                                 type="submit"
                                 className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full font-bold h-11"
-                                disabled={isSubmitting || !proposedPrice}
+                                disabled={isSubmitting || !proposedPrice || isAnalyzing}
                             >
                                 {isSubmitting ? "Sending Request..." : "Send Negotiation Request"}
                             </Button>
@@ -128,7 +249,7 @@ export function NegotiationModal({ isOpen, onClose, product }: NegotiationModalP
                         </div>
                         <h3 className="text-xl font-bold">Request Sent!</h3>
                         <p className="text-zinc-500 text-sm px-4">
-                            We've sent your offer of **{formatPrice(Number(proposedPrice))}** to the seller. We'll notify you once they accept or reject it.
+                            We've sent your offer of <strong>{formatPrice(Number(proposedPrice))}</strong> to the seller. We'll notify you once they accept or reject it.
                         </p>
                         <Button
                             onClick={handleReset}

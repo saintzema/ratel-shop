@@ -40,16 +40,16 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                         initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        className="relative w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden border border-white/20"
+                        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-white/20"
                     >
-                        <div className="p-6 border-b border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/50">
+                        <div className="p-6 border-b border-gray-100 bg-gray-50">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-black font-bold text-lg dark:text-white">Choose your location</h3>
-                                <button onClick={onClose} className="p-2 hover:bg-gray-200 dark:hover:bg-zinc-800 rounded-full transition-colors">
+                                <h3 className="text-black font-bold text-lg">Choose your location</h3>
+                                <button onClick={onClose} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
                                     <X className="h-5 w-5 text-gray-500" />
                                 </button>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                            <p className="text-xs text-gray-500 mb-4">
                                 Delivery options and speeds may vary for different locations.
                             </p>
 
@@ -57,7 +57,7 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
                                     placeholder="Search city, e.g. Ikeja, Lagos"
-                                    className="pl-9 text-white bg-white dark:bg-zinc-800 border-gray-200 dark:border-zinc-700"
+                                    className="pl-9 text-black bg-white border-gray-200"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
@@ -75,8 +75,8 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                                                 onClose();
                                             }}
                                             className={`w-full flex items-center justify-between p-3 rounded-lg text-sm font-medium transition-colors ${currentLocation === loc
-                                                ? "bg-ratel-green-50 dark:bg-ratel-green-900/20 text-ratel-green-700 dark:text-ratel-green-400"
-                                                : "hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-700 dark:text-gray-200"
+                                                ? "bg-ratel-green-50 text-ratel-green-700"
+                                                : "hover:bg-gray-100 text-gray-700"
                                                 }`}
                                         >
                                             <span className="flex items-center gap-3">
@@ -94,7 +94,7 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                             </div>
                         </div>
 
-                        <div className="p-4 border-t border-gray-100 dark:border-zinc-800 bg-gray-50 dark:bg-zinc-900/50 flex justify-end">
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                             <button
                                 onClick={onClose}
                                 className="px-4 py-2 bg-ratel-orange text-black text-sm font-bold rounded-lg hover:bg-amber-500 transition-colors shadow-sm"
