@@ -33,6 +33,10 @@ export async function POST(req: Request) {
                     { "name": "Full Product Name", "category": "Category", "approxPrice": number (Naira) }
                 ]
             }
+
+            CRITICAL RULES:
+            - The 'approxPrice' MUST be a realistic market value in Naira. It CANNOT be 0.
+            - Output ONLY raw, valid JSON. NO markdown. NO conversational text before or after the JSON.
             `;
         } else {
             // Mode 2: Deep Analysis (Temu/Global First)
@@ -74,6 +78,7 @@ export async function POST(req: Request) {
             CRITICAL:
             - ANONYMIZE local store names (use "Verified Local Vendor").
             - IF sources include Temu/AliExpress, label them as "Ratel Global".
+            - Output ONLY raw, valid JSON. NO markdown. NO conversational text before or after the JSON. Start your response strictly with { and end with }. 
             `;
         }
 
@@ -100,13 +105,20 @@ export async function POST(req: Request) {
         }
 
         const textResponse = candidates[0].content.parts[0].text;
-        const jsonString = textResponse.replace(/```json/g, "").replace(/```/g, "").trim();
+
+        // Robust JSON extractor to ignore any accidental conversational text
+        let jsonString = textResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const jsonMatch = jsonString.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+
+        if (jsonMatch) {
+            jsonString = jsonMatch[0];
+        }
 
         try {
             const parsedData = JSON.parse(jsonString);
             return NextResponse.json(parsedData);
         } catch (parseError) {
-            console.error("Failed to parse Gemini JSON:", textResponse);
+            console.error("Failed to parse Gemini JSON. Raw text:", textResponse);
             return NextResponse.json({ error: "Invalid JSON from Gemini" }, { status: 500 });
         }
 

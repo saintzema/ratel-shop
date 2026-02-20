@@ -153,7 +153,7 @@ export class PriceEngine {
                 else if (nameLower.includes("inverter") || nameLower.includes("solar")) basePrice = 800000;
                 else if (nameLower.includes("laptop")) basePrice = 750000;
                 else if (nameLower.includes("tv") || nameLower.includes("television")) basePrice = 500000;
-                else basePrice = 200000 + Math.floor(seeded(0) * 500000);
+                else basePrice = 15000 + Math.floor(seeded(0) * 85000); // 15k - 100k generic fallback
             }
 
             // Market average is typically 8-15% above the best price

@@ -305,7 +305,6 @@ export function ZivaChat() {
                     role: "assistant",
                     content: response.content,
                     products: response.products,
-                    priceComparison: response.priceComparison,
                     quickActions: response.quickActions,
                 }
             ]);

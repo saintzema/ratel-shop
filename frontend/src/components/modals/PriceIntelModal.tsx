@@ -6,11 +6,12 @@ import {
     X, Search, TrendingUp, TrendingDown,
     ShieldCheck, MapPin, Scale, ArrowRight,
     BarChart3, Globe, AlertTriangle, CheckCircle, ShoppingCart,
-    Loader2, ExternalLink, ChevronRight
+    Loader2, ExternalLink, ChevronRight, Box
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { RequestDepositModal } from "./RequestDepositModal";
 import { PriceEngine, PriceAnalysis, PriceData, ProductSuggestion } from "@/lib/price-engine";
 import { formatPrice } from "@/lib/utils";
 import { Product } from "@/lib/types";
@@ -232,6 +233,7 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
 export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const [result, setResult] = useState<PriceIntel | null>(null);
     const [isSearching, setIsSearching] = useState(false);
+    const [requestModalOpen, setRequestModalOpen] = useState(false);
     const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const { user } = useAuth();
@@ -271,207 +273,218 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
 
     return (
-        <AnimatePresence>
-            {isOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-hidden">
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        onClick={onClose}
-                        className="absolute inset-0 bg-black/80 backdrop-blur-md"
-                    />
+        <>
+            <AnimatePresence>
+                {isOpen && (
+                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-hidden">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={onClose}
+                            className="absolute inset-0 bg-black/80 backdrop-blur-md"
+                        />
 
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-3xl"
-                        style={{
-                            background: "linear-gradient(145deg, rgba(20, 25, 32, 0.85), rgba(12, 14, 18, 0.92))",
-                            backdropFilter: "blur(60px) saturate(1.5)",
-                            border: "1px solid rgba(255,255,255,0.08)",
-                            boxShadow: "0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"
-                        }}
-                    >
-                        {/* Header — Liquid Glass */}
-                        <div
-                            className="px-6 py-4 flex items-center justify-between"
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                            className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-3xl"
                             style={{
-                                background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.02))",
-                                borderBottom: "1px solid rgba(255,255,255,0.06)"
+                                background: "linear-gradient(145deg, rgba(20, 25, 32, 0.85), rgba(12, 14, 18, 0.92))",
+                                backdropFilter: "blur(60px) saturate(1.5)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                boxShadow: "0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"
                             }}
                         >
-                            <div className="flex items-center gap-3">
-                                <div
-                                    className="h-10 w-10 rounded-xl flex items-center justify-center"
-                                    style={{
-                                        background: "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(16,185,129,0.1))",
-                                        border: "1px solid rgba(16,185,129,0.2)"
-                                    }}
-                                >
-                                    <BarChart3 className="h-5 w-5 text-emerald-400" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-white tracking-tight">Price Intelligence</h2>
-                                    <p className="text-[11px] text-emerald-400/60 font-medium">Real-Time Market Analysis</p>
-                                </div>
-                            </div>
-                            <button
-                                onClick={onClose}
-                                className="text-white/30 hover:text-white p-2 rounded-xl transition-all hover:bg-white/5"
+                            {/* Header — Liquid Glass */}
+                            <div
+                                className="px-6 py-4 flex items-center justify-between"
+                                style={{
+                                    background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.02))",
+                                    borderBottom: "1px solid rgba(255,255,255,0.06)"
+                                }}
                             >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-6 overflow-y-auto max-h-[calc(90vh-72px)] space-y-5 custom-scrollbar">
-                            {/* Search */}
-                            <SearchInput
-                                value={searchQuery}
-                                onChange={setSearchQuery}
-                                onSearch={(q) => handleAnalyze(q)}
-                                isLoading={isSearching}
-                            />
-
-                            {/* Loading State */}
-                            {isSearching && (
-                                <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    className="text-center py-12 space-y-4"
-                                >
-                                    <div className="relative w-16 h-16 mx-auto">
-                                        <div className="absolute inset-0 border-2 border-emerald-500/10 rounded-full" />
-                                        <div className="absolute inset-0 border-2 border-transparent border-t-emerald-400 rounded-full animate-spin" />
-                                        <BarChart3 className="absolute inset-0 m-auto h-6 w-6 text-emerald-400/60" />
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="h-10 w-10 rounded-xl flex items-center justify-center"
+                                        style={{
+                                            background: "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(16,185,129,0.1))",
+                                            border: "1px solid rgba(16,185,129,0.2)"
+                                        }}
+                                    >
+                                        <BarChart3 className="h-5 w-5 text-emerald-400" />
                                     </div>
                                     <div>
-                                        <h3 className="text-white font-semibold text-base animate-pulse">Scanning Markets...</h3>
-                                        <p className="text-white/40 text-xs mt-1">Checking prices across Nigerian stores</p>
+                                        <h2 className="text-lg font-bold text-white tracking-tight">Price Intelligence</h2>
+                                        <p className="text-[11px] text-emerald-400/60 font-medium">Real-Time Market Analysis</p>
                                     </div>
-                                </motion.div>
-                            )}
-
-                            {/* Result */}
-                            {result && !isSearching && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="space-y-5"
-                                >
-                                    {/* Verdict Card */}
-                                    <VerdictCard result={result} onAddToCart={addToCart} />
-
-                                    {/* Price Comparison */}
-                                    <PriceComparison result={result} />
-
-                                    {/* Price Sources Bar Chart REMOVED as per user request */}
-                                    {/* <PriceSourcesChart result={result} /> */}
-
-                                    {/* Price History Chart */}
-                                    <PriceHistoryChart result={result} />
-
-                                    {/* Duty Breakdown */}
-                                    <DutyBreakdown result={result} />
-
-                                    {/* Context & Flags */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <GlassCard>
-                                            <div className="flex items-center gap-2 text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-2">
-                                                <Globe className="h-3 w-3 text-blue-400" />
-                                                Market Context
-                                            </div>
-                                            <p className="text-white/50 text-[11px] leading-relaxed">
-                                                {result.justification}
-                                            </p>
-                                        </GlassCard>
-                                        <GlassCard>
-                                            <div className="flex items-center gap-2 text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-2">
-                                                <AlertTriangle className="h-3 w-3 text-amber-400" />
-                                                Analysis Flags
-                                            </div>
-                                            <div className="flex flex-wrap gap-1.5">
-                                                {result.flags.map((flag, i) => (
-                                                    <span
-                                                        key={i}
-                                                        className="text-[10px] px-2 py-0.5 rounded-full font-medium"
-                                                        style={{
-                                                            background: "rgba(255,255,255,0.06)",
-                                                            border: "1px solid rgba(255,255,255,0.06)",
-                                                            color: "rgba(255,255,255,0.6)"
-                                                        }}
-                                                    >
-                                                        {flag}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </GlassCard>
-                                    </div>
-
-                                    {/* Footer */}
-                                    <div className="flex items-center justify-between text-[10px] text-white/20 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
-                                        <span>Analysis ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
-                                        <span>Confidence: {result.confidence}%</span>
-                                    </div>
-                                </motion.div>
-                            )}
-
-                            {/* Empty State */}
-                            {/* Empty State / Suggestions */}
-                            {!result && !isSearching && (
-                                <div className="py-6 space-y-4">
-                                    {/* Show Suggestions if available */}
-                                    {suggestions.length > 0 ? (
-                                        <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                            <div className="flex items-center gap-2 text-white/40 text-xs uppercase font-bold tracking-wider px-1">
-                                                <ShieldCheck className="h-3 w-3" />
-                                                Suggested Products
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {suggestions.map((s, i) => (
-                                                    <button
-                                                        key={i}
-                                                        onClick={() => handleAnalyze(s.name)}
-                                                        className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all text-left border border-white/5 hover:border-emerald-500/30 group"
-                                                    >
-                                                        <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-colors">
-                                                            <Search className="h-5 w-5 text-emerald-400" />
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">{s.name}</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-[10px] text-white/40">{s.category}</span>
-                                                                <span className="text-[10px] text-emerald-400 font-medium">~{formatPrice(s.approxPrice)}</span>
-                                                            </div>
-                                                        </div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8">
-                                            <div
-                                                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                                                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                                            >
-                                                <Scale className="h-8 w-8 text-white/20" />
-                                            </div>
-                                            <p className="text-white font-semibold text-sm">Search any product to check its fair price</p>
-                                            <p className="text-xs text-white/30 mt-1 max-w-md mx-auto">
-                                                Try searching for &quot;Tesla&quot;, &quot;iPhone 15&quot;, or &quot;Solar Inverter&quot;.
-                                            </p>
-                                        </div>
-                                    )}
                                 </div>
-                            )}
-                        </div>
-                    </motion.div>
-                </div>
+                                <button
+                                    onClick={onClose}
+                                    className="text-white/30 hover:text-white p-2 rounded-xl transition-all hover:bg-white/5"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            {/* Content */}
+                            <div className="p-6 overflow-y-auto max-h-[calc(90vh-72px)] space-y-5 custom-scrollbar">
+                                {/* Search */}
+                                <SearchInput
+                                    value={searchQuery}
+                                    onChange={setSearchQuery}
+                                    onSearch={(q) => handleAnalyze(q)}
+                                    isLoading={isSearching}
+                                />
+
+                                {/* Loading State */}
+                                {isSearching && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="text-center py-12 space-y-4"
+                                    >
+                                        <div className="relative w-16 h-16 mx-auto">
+                                            <div className="absolute inset-0 border-2 border-emerald-500/10 rounded-full" />
+                                            <div className="absolute inset-0 border-2 border-transparent border-t-emerald-400 rounded-full animate-spin" />
+                                            <BarChart3 className="absolute inset-0 m-auto h-6 w-6 text-emerald-400/60" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-white font-semibold text-base animate-pulse">Scanning Markets...</h3>
+                                            <p className="text-white/40 text-xs mt-1">Checking prices across Nigerian stores</p>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* Result */}
+                                {result && !isSearching && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="space-y-5"
+                                    >
+                                        {/* Verdict Card */}
+                                        <VerdictCard result={result} onAddToCart={addToCart} onRequestProduct={() => setRequestModalOpen(true)} />
+
+                                        {/* Price Comparison */}
+                                        <PriceComparison result={result} />
+
+                                        {/* Price Sources Bar Chart REMOVED as per user request */}
+                                        {/* <PriceSourcesChart result={result} /> */}
+
+                                        {/* Price History Chart */}
+                                        <PriceHistoryChart result={result} />
+
+                                        {/* Duty Breakdown */}
+                                        <DutyBreakdown result={result} />
+
+                                        {/* Context & Flags */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <GlassCard>
+                                                <div className="flex items-center gap-2 text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-2">
+                                                    <Globe className="h-3 w-3 text-blue-400" />
+                                                    Market Context
+                                                </div>
+                                                <p className="text-white/50 text-[11px] leading-relaxed">
+                                                    {result.justification}
+                                                </p>
+                                            </GlassCard>
+                                            <GlassCard>
+                                                <div className="flex items-center gap-2 text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-2">
+                                                    <AlertTriangle className="h-3 w-3 text-amber-400" />
+                                                    Analysis Flags
+                                                </div>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {result.flags.map((flag, i) => (
+                                                        <span
+                                                            key={i}
+                                                            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                                                            style={{
+                                                                background: "rgba(255,255,255,0.06)",
+                                                                border: "1px solid rgba(255,255,255,0.06)",
+                                                                color: "rgba(255,255,255,0.6)"
+                                                            }}
+                                                        >
+                                                            {flag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </GlassCard>
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div className="flex items-center justify-between text-[10px] text-white/20 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                                            <span>Analysis ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+                                            <span>Confidence: {result.confidence}%</span>
+                                        </div>
+                                    </motion.div>
+                                )}
+
+                                {/* Empty State */}
+                                {/* Empty State / Suggestions */}
+                                {!result && !isSearching && (
+                                    <div className="py-6 space-y-4">
+                                        {/* Show Suggestions if available */}
+                                        {suggestions.length > 0 ? (
+                                            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                                <div className="flex items-center gap-2 text-white/40 text-xs uppercase font-bold tracking-wider px-1">
+                                                    <ShieldCheck className="h-3 w-3" />
+                                                    Suggested Products
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {suggestions.map((s, i) => (
+                                                        <button
+                                                            key={i}
+                                                            onClick={() => handleAnalyze(s.name)}
+                                                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all text-left border border-white/5 hover:border-emerald-500/30 group"
+                                                        >
+                                                            <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-colors">
+                                                                <Search className="h-5 w-5 text-emerald-400" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">{s.name}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] text-white/40">{s.category}</span>
+                                                                    <span className="text-[10px] text-emerald-400 font-medium">~{formatPrice(s.approxPrice)}</span>
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <div
+                                                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                                                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+                                                >
+                                                    <Scale className="h-8 w-8 text-white/20" />
+                                                </div>
+                                                <p className="text-white font-semibold text-sm">Search any product to check its fair price</p>
+                                                <p className="text-xs text-white/30 mt-1 max-w-md mx-auto">
+                                                    Try searching for &quot;Tesla&quot;, &quot;iPhone 15&quot;, or &quot;Solar Inverter&quot;.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+
+            {result && !result.matchedProduct && (
+                <RequestDepositModal
+                    isOpen={requestModalOpen}
+                    onClose={() => setRequestModalOpen(false)}
+                    productName={result.name}
+                    targetPrice={result.ratelBestPrice}
+                />
             )}
-        </AnimatePresence>
+        </>
     );
 }
 
@@ -636,7 +649,7 @@ function SearchInput({ value, onChange, onSearch, isLoading }: { value: string, 
 
 // ─── Verdict Card ───────────────────────────────────────────
 
-function VerdictCard({ result, onAddToCart }: { result: PriceIntel; onAddToCart: (p: Product, qty?: number) => void }) {
+function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceIntel; onAddToCart: (p: Product, qty?: number) => void; onRequestProduct: () => void }) {
     const verdictColors: Record<string, { bg: string; border: string; dot: string }> = {
         emerald: { bg: "rgba(16,185,129,0.08)", border: "rgba(16,185,129,0.15)", dot: "#10b981" },
         red: { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.15)", dot: "#ef4444" },
@@ -687,7 +700,7 @@ function VerdictCard({ result, onAddToCart }: { result: PriceIntel; onAddToCart:
                     </button>
                 ) : (
                     <button
-                        onClick={() => alert(`Request received for ${result.name}! We will contact you shortly.`)}
+                        onClick={onRequestProduct}
                         className="shrink-0 flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95"
                     >
                         <ShoppingCart className="h-3.5 w-3.5" />

@@ -12,6 +12,7 @@ import { formatPrice } from "@/lib/utils";
 import { ShieldCheck, MessageSquare, Tag, AlertTriangle } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { useAuth } from "@/context/AuthContext";
+import { PriceEngine } from "@/lib/price-engine";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -34,50 +35,59 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     // Calculate minimum allowed price (market low)
     const minAllowedPrice = priceComparison?.market_low || Math.round(product.price * 0.5); // Fallback to 50% if no data
 
-    const handleAnalyze = () => {
+    const handleAnalyze = async () => {
         setIsAnalyzing(true);
         setAnalysisStep(0);
         setError(null);
 
-        const steps = ["Scanning Amazon...", "Checking Online Vendors...", "Analyzing Listings...", "Calculating Verified Fair Price..."];
+        try {
+            // Step 1: Connecting
+            setAnalysisStep(1);
 
-        let step = 0;
-        const interval = setInterval(() => {
-            step++;
-            setAnalysisStep(step);
-            if (step >= steps.length) {
-                clearInterval(interval);
-                setIsAnalyzing(false);
+            // Step 2: Extracting data via Gemini API
+            const analysis = await PriceEngine.analyzePrice(product.name);
+            setAnalysisStep(2);
 
-                // Use real market data to calculate a fair price
-                // Priority: priceComparison market_avg → product.recommended_price → fallback
-                const marketAvg = priceComparison?.market_avg || product.recommended_price || 0;
-                const marketLow = priceComparison?.market_low || Math.round((product.recommended_price || product.price) * 0.9);
+            // Step 3: Calculation logic based on real API response
+            setAnalysisStep(3);
 
-                let fairPrice: number;
+            // Use real market data to calculate a fair price
+            // Priority: api marketAverage → product.recommended_price → fallback
+            const marketAvg = analysis.marketAverage || product.recommended_price || 0;
+            const marketLow = analysis.marketLow || Math.round((product.recommended_price || product.price) * 0.9);
 
-                if (product.price_flag === "suspicious" && marketAvg > 0) {
-                    // Suspicious deal: price is TOO LOW — suggest the market average as fair
-                    // (buying at market avg protects the buyer from scams)
-                    fairPrice = Math.round(marketAvg * 0.95 / 100) * 100;
-                } else if (product.price_flag === "overpriced" && marketAvg > 0) {
-                    // Overpriced: suggest a price closer to market low (best real deal)
-                    fairPrice = Math.round(((marketLow + marketAvg) / 2) / 100) * 100;
-                } else if (marketAvg > 0 && product.price > marketAvg) {
-                    // Regular product priced above market avg — suggest market avg
-                    fairPrice = Math.round(marketAvg / 100) * 100;
-                } else if (marketAvg > 0) {
-                    // Regular product at or below market avg — suggest 5% below listing
-                    fairPrice = Math.round(product.price * 0.95 / 100) * 100;
-                } else {
-                    // No market data at all — suggest 8% below listing as a starting point
-                    fairPrice = Math.round(product.price * 0.92 / 100) * 100;
-                }
+            let fairPrice: number;
 
-                setProposedPrice(fairPrice.toString());
-                setIsSystemCalculated(true);
+            if (product.price_flag === "suspicious" && marketAvg > 0) {
+                // Suspicious deal: price is TOO LOW — suggest the market average as fair
+                // (buying at market avg protects the buyer from scams)
+                fairPrice = Math.round(marketAvg * 0.95 / 100) * 100;
+            } else if (product.price_flag === "overpriced" && marketAvg > 0) {
+                // Overpriced: suggest a price closer to market low (best real deal)
+                fairPrice = Math.round(((marketLow + marketAvg) / 2) / 100) * 100;
+            } else if (marketAvg > 0 && product.price > marketAvg) {
+                // Regular product priced above market avg — suggest market avg
+                fairPrice = Math.round(marketAvg / 100) * 100;
+            } else if (marketAvg > 0) {
+                // Regular product at or below market avg — suggest 5% below listing
+                fairPrice = Math.round(product.price * 0.95 / 100) * 100;
+            } else {
+                // No market data at all — suggest 8% below listing as a starting point
+                fairPrice = Math.round(product.price * 0.92 / 100) * 100;
             }
-        }, 800);
+
+            // Ensure fairPrice isn't lower than marketLow
+            fairPrice = Math.max(fairPrice, minAllowedPrice);
+
+            setProposedPrice(fairPrice.toString());
+            setIsSystemCalculated(true);
+            setAnalysisStep(4);
+        } catch (err) {
+            console.error("Negotiation Analysis failed:", err);
+            setError("Failed to fetch real-time market data. Please suggest a price manually.");
+        } finally {
+            setIsAnalyzing(false);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -124,7 +134,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && handleReset()}>
             <DialogContent className="sm:max-w-[425px] bg-white text-black border-zinc-200">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold">
