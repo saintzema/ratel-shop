@@ -146,11 +146,11 @@ export default function TrackingPage() {
                                 <div className="p-6">
                                     <div className="flex flex-col sm:flex-row gap-6 items-start">
                                         <div className="h-24 w-24 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden border border-gray-200 print:hidden">
-                                            <img src={order.product.image_url} alt={order.product.name} className="w-full h-full object-contain mix-blend-multiply p-2" />
+                                            <img src={order.product?.image_url} alt={order.product?.name} className="w-full h-full object-contain mix-blend-multiply p-2" />
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="text-lg font-bold text-gray-900 mb-1">{order.product.name}</h3>
-                                            <p className="text-sm text-gray-500 mb-3 line-clamp-2">{order.product.description}</p>
+                                            <h3 className="text-lg font-bold text-gray-900 mb-1">{order.product?.name}</h3>
+                                            <p className="text-sm text-gray-500 mb-3 line-clamp-2">{order.product?.description}</p>
                                             <div className="flex items-center gap-4">
                                                 <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 uppercase tracking-wide print:border print:border-emerald-600">
                                                     {order.status}
@@ -160,7 +160,7 @@ export default function TrackingPage() {
                                             </div>
                                         </div>
                                         <div className="flex-shrink-0 self-center sm:self-start print:hidden">
-                                            <Link href={`/product/${order.product.id}`}>
+                                            <Link href={`/product/${order.product?.id}`}>
                                                 <Button variant="outline" size="sm" className="gap-2">
                                                     View Product <ArrowRight className="h-3 w-3" />
                                                 </Button>
@@ -173,7 +173,7 @@ export default function TrackingPage() {
                             {/* Timeline */}
                             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 md:p-8 print:shadow-none print:border-gray-300">
                                 <h2 className="text-xl font-bold text-gray-900 mb-6">Tracking History</h2>
-                                <TrackingTimeline steps={order.tracking_steps} currentStatus={order.tracking_status} />
+                                <TrackingTimeline steps={order.tracking_steps ?? []} currentStatus={order.tracking_status} />
                             </div>
                         </div>
                     ) : searched && !error && (

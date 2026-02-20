@@ -198,361 +198,87 @@ export function ZivaChat() {
 
     // ─── AI Response Generator ────────────────────────
     const generateResponse = useCallback(async (userInput: string) => {
-        const products = DemoStore.getProducts().filter(p => p.is_active);
-        const { intent, query, budget, category, productName } = detectIntent(userInput);
+        try {
+            // Include recent history for context (last 5 messages)
+            const recentHistory = messages.slice(-5).map(m => ({
+                sender: m.role, // local state uses 'role', API expects 'role' (user/model) or 'sender' mapping
+                text: m.content
+            }));
 
-        // Simulate AI thinking
-        await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
+            const res = await fetch("/api/ziva-chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: userInput,
+                    history: recentHistory,
+                    userName: user?.name || "Guest"
+                })
+            });
 
-        switch (intent) {
-            case "greeting": {
-                const name = user?.name?.split(" ")[0] || "there";
-                return {
-                    content: `Hey ${name}! 😊 Great to see you. I'm ready to help you shop smarter. What are you looking for today?`,
-                    quickActions: [
-                        { label: "Browse phones", query: "Show me phones", icon: "📱" },
-                        { label: "Find deals", query: "What are the best deals today?", icon: "🔥" },
-                        { label: "Check a price", query: "Is the Samsung S24 Ultra fairly priced?", icon: "💰" },
-                    ]
-                };
-            }
+            if (!res.ok) throw new Error("Failed to chat with Ziva");
 
-            case "help": {
-                return {
-                    content: "I can help you with:\n\n🔍 **Search products** — \"Find me a laptop under ₦500k\"\n💰 **Check prices** — \"Is iPhone 15 Pro fairly priced?\"\n📊 **Compare** — \"Compare Samsung vs iPhone\"\n🔥 **Find deals** — \"Show me today's best deals\"\n📦 **Track orders** — \"Where's my order?\"\n🤝 **Negotiate** — \"Help me negotiate on this phone\"\n⭐ **Recommendations** — \"Recommend a good gaming laptop\"\n\nJust type naturally — I understand conversational language!",
-                    quickActions: [
-                        { label: "Search products", query: "Find me a good phone", icon: "🔍" },
-                        { label: "Check prices", query: "Is iPhone 15 Pro Max fairly priced?", icon: "💰" },
-                        { label: "Best deals", query: "Show deals", icon: "🔥" },
-                    ]
-                };
-            }
+            const data = await res.json();
 
-            case "search_product": {
-                let results = products.map(p => ({ product: p, score: scoreProductMatch(p, query) }))
-                    .filter(r => r.score > 5)
-                    .sort((a, b) => b.score - a.score);
-
-                if (budget) {
-                    results = results.filter(r => r.product.price <= budget);
-                    if (results.length === 0) {
-                        // Expand slightly
-                        results = products
-                            .filter(p => p.price <= budget * 1.15)
-                            .map(p => ({ product: p, score: scoreProductMatch(p, query) }))
-                            .sort((a, b) => a.product.price - b.product.price);
-                    }
-                }
-
-                const topResults = results.slice(0, 4).map(r => r.product);
-
-                if (topResults.length === 0) {
-                    // Fallback — show popular items
-                    const popular = [...products].sort((a, b) => b.sold_count - a.sold_count).slice(0, 4);
-                    return {
-                        content: `I couldn't find an exact match for "${query}", but here are our most popular products you might like:`,
-                        products: popular,
-                        quickActions: [
-                            { label: "Try different search", query: "Show me electronics", icon: "🔍" },
-                            { label: "Browse all deals", query: "Show me deals", icon: "🔥" },
-                        ]
-                    };
-                }
-
-                const budgetText = budget ? ` under ${formatPrice(budget)}` : "";
-                const fairCount = topResults.filter(p => p.price_flag === "fair").length;
-                const fairNote = fairCount > 0 ? `\n\n🛡️ ${fairCount} of these are **VDM Verified Fair Price** — meaning they're within market range.` : "";
-
-                return {
-                    content: `Found **${topResults.length} products**${budgetText} matching your search:${fairNote}`,
-                    products: topResults,
-                    quickActions: topResults.length > 0 ? [
-                        { label: `Price check ${topResults[0].name.substring(0, 20)}...`, query: `Is ${topResults[0].name} fairly priced?`, icon: "💰" },
-                    ] : undefined
-                };
-            }
-
-            case "price_check": {
-                const searchTerm = productName || query.replace(/\b(price|check|fair|good|is|the|of|for|what|how|much)\b/gi, "").trim();
-                const matches = products
-                    .map(p => ({ product: p, score: scoreProductMatch(p, searchTerm) }))
-                    .filter(r => r.score > 10)
-                    .sort((a, b) => b.score - a.score);
-
-                if (matches.length === 0) {
-                    return {
-                        content: `I couldn't find a product matching "${searchTerm}". Could you be more specific? Try searching by the exact product name.`,
-                        quickActions: [
-                            { label: "Browse phones", query: "Show me phones", icon: "📱" },
-                            { label: "Browse laptops", query: "Show me laptops", icon: "💻" },
-                        ]
-                    };
-                }
-
-                const product = matches[0].product;
-                const comparison = getDemoPriceComparison(product.id);
-                const flagEmoji = product.price_flag === "fair" ? "✅" : product.price_flag === "overpriced" ? "🔴" : "⚠️";
-                const flagText = product.price_flag === "fair"
-                    ? "This product is **fairly priced** — it's within the normal market range."
-                    : product.price_flag === "overpriced"
-                        ? "This product is **overpriced** compared to market averages. I'd recommend negotiating!"
-                        : "This product has an unusual price — proceed with caution.";
-
-                const priceBreakdown = `
-${flagEmoji} **Price Analysis: ${product.name}**
-
-| Metric | Price |
-|--------|-------|
-| Current Price | ${formatPrice(product.price)} |
-| Market Average | ${formatPrice(comparison.market_avg)} |
-| Market Low | ${formatPrice(comparison.market_low)} |
-| Market High | ${formatPrice(comparison.market_high)} |
-| Best on Ratel | ${formatPrice(comparison.ratel_best)} |
-
-${flagText}`;
-
-                return {
-                    content: priceBreakdown,
-                    products: [product],
-                    priceComparison: comparison,
-                    quickActions: product.price_flag === "overpriced" ? [
-                        { label: "Negotiate this price", query: `Help me negotiate for ${product.name}`, icon: "🤝" },
-                        { label: "Find alternatives", query: `Find alternatives to ${product.name}`, icon: "🔍" },
-                    ] : [
-                        { label: "Add to cart", query: `Add ${product.name} to cart`, icon: "🛒" },
-                        { label: "Find similar", query: `Show me more ${product.category}`, icon: "🔍" },
-                    ]
-                };
-            }
-
-            case "deals": {
-                const deals = [...products]
-                    .filter(p => p.original_price && p.original_price > p.price)
-                    .sort((a, b) => {
-                        const discA = ((a.original_price! - a.price) / a.original_price!) * 100;
-                        const discB = ((b.original_price! - b.price) / b.original_price!) * 100;
-                        return discB - discA;
+            // Handle Escalation
+            if (data.shouldEscalate) {
+                // Trigger background escalation
+                fetch("/api/ziva-escalate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        userEmail: user?.email || "guest@ratelshop.com",
+                        userName: user?.name || "Guest",
+                        reason: data.escalationReason || "Customer Requested Support",
+                        transcript: messages.map(m => `${m.role}: ${m.content}`).join("\n")
                     })
-                    .slice(0, 4);
-
-                if (deals.length === 0) {
-                    return {
-                        content: "No active deals right now, but here are our best-rated products:",
-                        products: [...products].sort((a, b) => b.avg_rating - a.avg_rating).slice(0, 4)
-                    };
-                }
-
-                const maxDiscount = deals[0].original_price ? Math.round(((deals[0].original_price - deals[0].price) / deals[0].original_price) * 100) : 0;
+                }).catch(console.error);
 
                 return {
-                    content: `🔥 **Today's Best Deals** — Up to **${maxDiscount}% off**!\n\nThese are verified fair-price deals with real discounts:`,
-                    products: deals,
-                    quickActions: [
-                        { label: "See all deals", query: "Show me more deals", icon: "🔥" },
-                        { label: "Deals under ₦100k", query: "Deals under ₦100,000", icon: "💰" },
-                    ]
+                    content: data.message + "\n\n(I've also notified our human support team to check on this for you! 🛡️)",
+                    intent: "escalation",
+                    products: [],
+                    quickActions: []
                 };
             }
 
-            case "recommend": {
-                const searchTerms = query.replace(/\b(recommend|suggest|best|good|top|popular|what|should|i|buy|get|the|a|me)\b/gi, "").trim();
-
-                let recommended: Product[];
-                if (searchTerms.length > 2) {
-                    recommended = products
-                        .map(p => ({ product: p, score: scoreProductMatch(p, searchTerms) }))
-                        .filter(r => r.score > 5)
-                        .sort((a, b) => b.score - a.score)
-                        .slice(0, 4)
-                        .map(r => r.product);
-                } else {
-                    // General recommendations — high rating + fair price
-                    recommended = [...products]
-                        .filter(p => p.price_flag === "fair" || p.avg_rating >= 4)
-                        .sort((a, b) => (b.avg_rating * b.review_count) - (a.avg_rating * a.review_count))
-                        .slice(0, 4);
+            // Handle Product Suggestions (if API returns names, map to local demo products)
+            let suggestedProducts: any[] = [];
+            if (data.intent === "product_search" || (data.suggestedProducts && data.suggestedProducts.length > 0)) {
+                const allProducts = DemoStore.getProducts();
+                // Filter by name matches from AI suggestions
+                if (data.suggestedProducts && data.suggestedProducts.length > 0) {
+                    suggestedProducts = allProducts.filter(p =>
+                        data.suggestedProducts.some((sp: string) => p.name.toLowerCase().includes(sp.toLowerCase()))
+                    );
                 }
 
-                return {
-                    content: `⭐ **My Top Picks for You**\n\nThese are highly-rated, fairly-priced products verified by our AI price engine:`,
-                    products: recommended,
-                    quickActions: [
-                        { label: "More recommendations", query: "Show me more recommendations", icon: "⭐" },
-                        { label: "Check a price", query: "Is this a fair price?", icon: "💰" },
-                    ]
-                };
+                // Fallback: simple keyword match if AI didn't give specific products but intent is search
+                if (suggestedProducts.length === 0) {
+                    const terms = userInput.split(" ").filter(w => w.length > 3);
+                    suggestedProducts = allProducts.filter(p =>
+                        terms.some(t => p.name.toLowerCase().includes(t.toLowerCase())) ||
+                        terms.some(t => p.category.toLowerCase().includes(t.toLowerCase()))
+                    ).slice(0, 3);
+                }
             }
 
-            case "category_browse": {
-                const cat = category || "";
-                const catProducts = products
-                    .filter(p => p.category?.toLowerCase().includes(cat) || p.name.toLowerCase().includes(cat))
-                    .sort((a, b) => b.sold_count - a.sold_count)
-                    .slice(0, 4);
+            return {
+                content: data.message,
+                intent: data.intent,
+                products: suggestedProducts.slice(0, 4),
+                quickActions: [] // Could be enhanced later
+            };
 
-                if (catProducts.length === 0) {
-                    return {
-                        content: `No products found in the "${cat}" category. Here are our top products instead:`,
-                        products: [...products].sort((a, b) => b.avg_rating - a.avg_rating).slice(0, 4)
-                    };
-                }
-
-                return {
-                    content: `📂 **${cat.charAt(0).toUpperCase() + cat.slice(1)}** — ${catProducts.length} products found:`,
-                    products: catProducts,
-                    quickActions: [
-                        { label: `Cheapest ${cat}`, query: `Cheapest ${cat}`, icon: "💰" },
-                        { label: `Best rated ${cat}`, query: `Best rated ${cat}`, icon: "⭐" },
-                    ]
-                };
-            }
-
-            case "track_order": {
-                const idMatch = query.match(/RATEL-[A-Z0-9]+/i);
-                if (idMatch) {
-                    const trackingId = idMatch[0].toUpperCase();
-                    // We need to access the singleton instance, but since this is a mock outside component
-                    // we assume DemoStore service is available. But actually DemoStore is a class instance.
-                    // The original code used DemoStore.getOrders() which implies static or export.
-                    // Check import: import { DemoStore } from "@/lib/demo-store"; 
-                    // Wait, line 13: import { DemoStore } from "@/lib/demo-store";
-                    // But DemoStore in lib/demo-store.ts is a CLASS. 
-                    // Wait, usually it exports an instance?
-                    // Let's check demo-store.ts export.
-                    // line 25: public static getInstance(): DemoStoreService
-                    // line 440 (end of file): export const DemoStore = DemoStoreService.getInstance();
-                    // So DemoStore is the instance.
-
-                    const order = DemoStore.getOrderByTrackingId(trackingId);
-
-                    if (order) {
-                        const statusEmoji = order.tracking_status === "delivered" ? "✅" : order.tracking_status === "shipped" ? "🚚" : order.tracking_status === "processing" ? "⏳" : "📋";
-                        return {
-                            content: `${statusEmoji} **Order Found: ${order.product.name}**\n\n**Status:** ${order.tracking_status.toUpperCase()}\n**Location:** ${order.tracking_steps[order.tracking_steps.length - 1].location}\n**Last Update:** ${new Date(order.updated_at).toLocaleDateString()}\n\n[View full tracking details →](/tracking)`,
-                            quickActions: [
-                                { label: "Track another", query: "Track another order", icon: "📦" },
-                                { label: "Shop similar", query: `Show me similar to ${order.product.name}`, icon: "🛍️" },
-                            ]
-                        };
-                    } else {
-                        return {
-                            content: `❌ I couldn't find any order with ID **${trackingId}**. Please check the number and try again.`,
-                            quickActions: [
-                                { label: "My orders", query: "Show my recent orders", icon: "📦" },
-                            ]
-                        };
-                    }
-                }
-
-                const orders = DemoStore.getOrders();
-                const userId = user?.id || "u1";
-                const myOrders = orders.filter(o => o.customer_id === userId || o.customer_id === "u1").slice(0, 3);
-
-                if (myOrders.length === 0) {
-                    return {
-                        content: "📦 You don't have any orders yet. Start shopping and I'll help you track them! If you have a tracking number, just type it (e.g., RATEL-XXXXXXXX).",
-                        quickActions: [
-                            { label: "Browse products", query: "Show me popular products", icon: "🛒" },
-                        ]
-                    };
-                }
-
-                const orderLines = myOrders.map(o => {
-                    const statusEmoji = o.status === "delivered" ? "✅" : o.status === "shipped" ? "🚚" : o.status === "processing" ? "⏳" : "📋";
-                    const productName = o.product?.name || "Product";
-                    return `${statusEmoji} **${o.id}** — ${productName.substring(0, 20)}... — ${o.status}`;
-                }).join("\n");
-
-                return {
-                    content: `📦 **Your Recent Orders:**\n\n${orderLines}\n\nTo track a specific order, type its ID.\n\n[View all orders →](/account/orders)`,
-                    quickActions: [
-                        { label: "View all orders", query: "Show all my orders", icon: "📦" },
-                    ]
-                };
-            }
-
-            case "negotiate": {
-                const searchTerm = productName || query.replace(/\b(negotiate|help|me|for|on|the|price|of|with)\b/gi, "").trim();
-                const matches = products
-                    .filter(p => p.price_flag === "overpriced")
-                    .map(p => ({ product: p, score: scoreProductMatch(p, searchTerm) }))
-                    .sort((a, b) => b.score - a.score);
-
-                if (matches.length > 0) {
-                    const product = matches[0].product;
-                    const comparison = getDemoPriceComparison(product.id);
-                    const fairPrice = Math.round(comparison.market_avg * 0.95);
-
-                    return {
-                        content: `🤝 **Negotiation Assist for ${product.name}**\n\nCurrent price: ${formatPrice(product.price)}\nMarket average: ${formatPrice(comparison.market_avg)}\n\n💡 **My suggestion:** Offer around **${formatPrice(fairPrice)}** — that's competitive and the seller is likely to accept.\n\n👉 Click "Negotiate" on the product below to send your offer:`,
-                        products: [product],
-                        quickActions: [
-                            { label: "View product page", query: `Show me ${product.name}`, icon: "👁️" },
-                        ]
-                    };
-                }
-
-                // No overpriced products found
-                const allOverpriced = products.filter(p => p.price_flag === "overpriced").slice(0, 3);
-                if (allOverpriced.length > 0) {
-                    return {
-                        content: "I couldn't match that specific product, but here are items you can negotiate on (they're marked as overpriced):",
-                        products: allOverpriced,
-                    };
-                }
-
-                return {
-                    content: "🛡️ Great news — all products on RatelShop are currently fairly priced! Our VDM system ensures no overpricing.",
-                };
-            }
-
-            case "compare_prices": {
-                const words = query.split(/\s+vs\.?\s+|\s+or\s+|\s+and\s+|\s+versus\s+/i);
-                if (words.length >= 2) {
-                    const product1 = products.find(p => scoreProductMatch(p, words[0]) > 10);
-                    const product2 = products.find(p => scoreProductMatch(p, words[1]) > 10);
-                    if (product1 && product2) {
-                        return {
-                            content: `📊 **Comparison:**\n\n| | ${product1.name.substring(0, 25)} | ${product2.name.substring(0, 25)} |\n|---|---|---|\n| Price | ${formatPrice(product1.price)} | ${formatPrice(product2.price)} |\n| Rating | ${product1.avg_rating}⭐ | ${product2.avg_rating}⭐ |\n| Reviews | ${product1.review_count} | ${product2.review_count} |\n| Price Flag | ${product1.price_flag} | ${product2.price_flag} |\n\n💡 ${product1.avg_rating >= product2.avg_rating ? product1.name : product2.name} has better reviews, while ${product1.price <= product2.price ? product1.name : product2.name} is more affordable.`,
-                            products: [product1, product2],
-                        };
-                    }
-                }
-
-                return {
-                    content: "To compare products, try: \"Compare Samsung S24 vs iPhone 15\" — I'll show you a side-by-side breakdown!",
-                    quickActions: [
-                        { label: "Compare phones", query: "Compare Samsung Galaxy S24 vs iPhone 15 Pro", icon: "📊" },
-                    ]
-                };
-            }
-
-            default: {
-                // Catch-all: try product search
-                const fallbackResults = products
-                    .map(p => ({ product: p, score: scoreProductMatch(p, query) }))
-                    .filter(r => r.score > 5)
-                    .sort((a, b) => b.score - a.score)
-                    .slice(0, 4)
-                    .map(r => r.product);
-
-                if (fallbackResults.length > 0) {
-                    return {
-                        content: `Here's what I found for "${query}":`,
-                        products: fallbackResults,
-                    };
-                }
-
-                return {
-                    content: "I'm not sure what you're looking for. Try asking me to:\n\n🔍 **Search** — \"Find wireless earbuds\"\n💰 **Check price** — \"Is this phone fairly priced?\"\n🔥 **Find deals** — \"Show me deals\"\n📦 **Track order** — \"Where's my package?\"\n\nI understand natural language, so just type like you're chatting with a friend!",
-                    quickActions: [
-                        { label: "Search products", query: "Show me popular products", icon: "🔍" },
-                        { label: "Find deals", query: "Best deals today", icon: "🔥" },
-                    ]
-                };
-            }
+        } catch (error) {
+            console.error("Ziva Chat Error:", error);
+            return {
+                content: "I'm having a bit of trouble connecting to my brain right now. 🧠✨ Please try again in a moment.",
+                intent: "error",
+                products: [],
+                quickActions: []
+            };
         }
-    }, [user]);
+    }, [messages, user]);
 
     // ─── Send Message Handler ────────────────────────
     const handleSend = useCallback(async (text?: string) => {
