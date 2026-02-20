@@ -233,26 +233,57 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
 export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
     const [result, setResult] = useState<PriceIntel | null>(null);
     const [isSearching, setIsSearching] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [requestModalOpen, setRequestModalOpen] = useState(false);
     const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+    const [searchResults, setSearchResults] = useState<{ local: Product[], api: ProductSuggestion[] } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const { user } = useAuth();
     const { addToCart } = useCart();
 
-    // Debounced search for suggestions
+    // Debounced fallback suggestions (only used when not showing search results)
     useEffect(() => {
         const timer = setTimeout(async () => {
-            if (searchQuery.length >= 2 && !result) {
-                const suggs = await PriceEngine.searchProducts(searchQuery);
-                setSuggestions(suggs);
+            if (searchQuery.length >= 2 && !result && !searchResults) {
+                try {
+                    const suggs = await PriceEngine.searchProducts(searchQuery);
+                    setSuggestions(suggs);
+                } catch (e) {
+                    console.error("Failed fetching fallback suggestions", e);
+                }
             }
         }, 600);
         return () => clearTimeout(timer);
-    }, [searchQuery, result]);
+    }, [searchQuery, result, searchResults]);
+
+    const handleSearch = useCallback(async (query: string) => {
+        if (!query.trim()) return;
+        setIsSearching(true);
+        setResult(null); // Clear deep analysis
+        setSuggestions([]);
+
+        try {
+            // Local Match
+            const local = DEMO_PRODUCTS.filter(p =>
+                p.name.toLowerCase().includes(query.toLowerCase()) ||
+                p.category.toLowerCase().includes(query.toLowerCase())
+            );
+
+            // API Match
+            const api = await PriceEngine.searchProducts(query);
+
+            setSearchResults({ local, api });
+        } catch (error) {
+            console.error("Search failed", error);
+        } finally {
+            setIsSearching(false);
+        }
+    }, []);
 
     const handleAnalyze = useCallback(async (productName: string, product?: Product) => {
-        setIsSearching(true);
-        setSuggestions([]); // Clear suggestions
+        setIsAnalyzing(true);
+        setSuggestions([]);
+        setSearchResults(null);
         setResult(null);
 
         try {
@@ -266,7 +297,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         } catch (error) {
             console.error("Analysis failed", error);
         } finally {
-            setIsSearching(false);
+            setIsAnalyzing(false);
         }
     }, [user]);
 
@@ -335,12 +366,13 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                 <SearchInput
                                     value={searchQuery}
                                     onChange={setSearchQuery}
-                                    onSearch={(q) => handleAnalyze(q)}
-                                    isLoading={isSearching}
+                                    onSearch={(q) => handleSearch(q)}
+                                    onAnalyze={(q, p) => handleAnalyze(q, p)}
+                                    isLoading={isSearching || isAnalyzing}
                                 />
 
                                 {/* Loading State */}
-                                {isSearching && (
+                                {(isSearching || isAnalyzing) && (
                                     <motion.div
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
@@ -352,14 +384,125 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                             <BarChart3 className="absolute inset-0 m-auto h-6 w-6 text-emerald-400/60" />
                                         </div>
                                         <div>
-                                            <h3 className="text-white font-semibold text-base animate-pulse">Scanning Markets...</h3>
-                                            <p className="text-white/40 text-xs mt-1">Checking prices across Nigerian stores</p>
+                                            <h3 className="text-white font-semibold text-base animate-pulse">
+                                                {isAnalyzing ? "Analyzing Market Data..." : "Searching Available Products..."}
+                                            </h3>
+                                            <p className="text-white/40 text-xs mt-1">
+                                                {isAnalyzing ? "Deep checking prices across stores" : "Fetching from catalog and global partners"}
+                                            </p>
                                         </div>
                                     </motion.div>
                                 )}
 
-                                {/* Result */}
-                                {result && !isSearching && (
+                                {/* Search Results List */}
+                                {searchResults && !result && !isSearching && !isAnalyzing && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="space-y-6"
+                                    >
+                                        {/* Local Catalog */}
+                                        {searchResults.local.length > 0 && (
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between px-1">
+                                                    <h4 className="flex items-center gap-2 text-white/50 text-[11px] font-bold uppercase tracking-wider">
+                                                        <Box className="h-4 w-4 text-emerald-400" />
+                                                        In RatelShop Catalog
+                                                    </h4>
+                                                    <span className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full font-bold">In Stock</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {searchResults.local.map(product => (
+                                                        <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-colors">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-12 h-12 bg-white/10 rounded-lg p-1.5 shrink-0 flex items-center justify-center">
+                                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-sm text-white">{product.name}</p>
+                                                                    <p className="text-xs text-white/50">{product.category}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                                                                <div className="text-left sm:text-right">
+                                                                    <p className="font-bold text-emerald-400">{formatPrice(product.price)}</p>
+                                                                </div>
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => handleAnalyze(product.name, product)}
+                                                                        className="h-9 px-3 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                    >
+                                                                        <BarChart3 className="h-3 w-3" />
+                                                                        Compare
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => addToCart(product)}
+                                                                        className="h-9 px-4 text-xs font-bold text-black bg-emerald-500 hover:bg-emerald-400 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                    >
+                                                                        <ShoppingCart className="h-3 w-3" />
+                                                                        Add
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* API Sources */}
+                                        {searchResults.api.length > 0 && (
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between px-1">
+                                                    <h4 className="flex items-center gap-2 text-white/50 text-[11px] font-bold uppercase tracking-wider">
+                                                        <Globe className="h-4 w-4 text-blue-400" />
+                                                        Global Internet Sources
+                                                    </h4>
+                                                    <span className="text-xs text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Escrow Protected</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {searchResults.api.map((s, i) => (
+                                                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:border-blue-500/30 transition-colors">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-12 h-12 bg-blue-500/10 rounded-lg shrink-0 flex items-center justify-center">
+                                                                    <Search className="h-5 w-5 text-blue-400" />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="font-bold text-sm text-white">{s.name}</p>
+                                                                    <p className="text-xs text-white/50">{s.category}</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                                                                <div className="text-left sm:text-right">
+                                                                    <p className="text-[10px] text-white/40 mb-0.5 uppercase tracking-wide">Est. Market Value</p>
+                                                                    <p className="font-bold text-blue-400">{formatPrice(s.approxPrice)}</p>
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => handleAnalyze(s.name)}
+                                                                    className="h-9 px-4 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2"
+                                                                >
+                                                                    <BarChart3 className="h-3.5 w-3.5" />
+                                                                    Analyze & Request
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {searchResults.local.length === 0 && searchResults.api.length === 0 && (
+                                            <div className="text-center py-12">
+                                                <Search className="h-8 w-8 text-white/20 mx-auto mb-3" />
+                                                <p className="text-white font-medium">No products found for "{searchQuery}"</p>
+                                                <p className="text-white/40 text-xs mt-1">Try a different or more generic term</p>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                )}
+
+                                {/* Result (Deep Analysis) */}
+                                {result && !isSearching && !isAnalyzing && (
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
@@ -370,9 +513,6 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
                                         {/* Price Comparison */}
                                         <PriceComparison result={result} />
-
-                                        {/* Price Sources Bar Chart REMOVED as per user request */}
-                                        {/* <PriceSourcesChart result={result} /> */}
 
                                         {/* Price History Chart */}
                                         <PriceHistoryChart result={result} />
@@ -421,55 +561,6 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         </div>
                                     </motion.div>
                                 )}
-
-                                {/* Empty State */}
-                                {/* Empty State / Suggestions */}
-                                {!result && !isSearching && (
-                                    <div className="py-6 space-y-4">
-                                        {/* Show Suggestions if available */}
-                                        {suggestions.length > 0 ? (
-                                            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                                <div className="flex items-center gap-2 text-white/40 text-xs uppercase font-bold tracking-wider px-1">
-                                                    <ShieldCheck className="h-3 w-3" />
-                                                    Suggested Products
-                                                </div>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                    {suggestions.map((s, i) => (
-                                                        <button
-                                                            key={i}
-                                                            onClick={() => handleAnalyze(s.name)}
-                                                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all text-left border border-white/5 hover:border-emerald-500/30 group"
-                                                        >
-                                                            <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-colors">
-                                                                <Search className="h-5 w-5 text-emerald-400" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-sm font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">{s.name}</p>
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className="text-[10px] text-white/40">{s.category}</span>
-                                                                    <span className="text-[10px] text-emerald-400 font-medium">~{formatPrice(s.approxPrice)}</span>
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8">
-                                                <div
-                                                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                                                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
-                                                >
-                                                    <Scale className="h-8 w-8 text-white/20" />
-                                                </div>
-                                                <p className="text-white font-semibold text-sm">Search any product to check its fair price</p>
-                                                <p className="text-xs text-white/30 mt-1 max-w-md mx-auto">
-                                                    Try searching for &quot;Tesla&quot;, &quot;iPhone 15&quot;, or &quot;Solar Inverter&quot;.
-                                                </p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
                             </div>
                         </motion.div>
                     </div>
@@ -507,7 +598,7 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
 
 // ─── Search Input with Hybrid Autocomplete ──────────────────
 
-function SearchInput({ value, onChange, onSearch, isLoading }: { value: string, onChange: (v: string) => void, onSearch: (q: string, product?: Product) => void; isLoading: boolean }) {
+function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product) => void; isLoading: boolean }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [apiSuggestions, setApiSuggestions] = useState<ProductSuggestion[]>([]);
@@ -524,7 +615,7 @@ function SearchInput({ value, onChange, onSearch, isLoading }: { value: string, 
                 ).slice(0, 3);
                 setLocalMatches(local);
 
-                // 2. API Search (only if local results are few, or always to give variety)
+                // 2. API Search
                 try {
                     const api = await PriceEngine.searchProducts(value);
                     setApiSuggestions(api);
@@ -572,7 +663,7 @@ function SearchInput({ value, onChange, onSearch, isLoading }: { value: string, 
                     }}
                     className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold px-4 py-2 rounded-lg transition-all"
                 >
-                    Analyze
+                    Search
                 </button>
             )}
 
@@ -593,17 +684,20 @@ function SearchInput({ value, onChange, onSearch, isLoading }: { value: string, 
                                     key={product.id}
                                     onClick={() => {
                                         onChange(product.name);
-                                        onSearch(product.name, product);
+                                        onAnalyze(product.name, product);
                                         setShowSuggestions(false);
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 text-left group"
                                 >
-                                    <div className="h-8 w-8 rounded-lg bg-white/5 p-1">
-                                        <img src={product.image_url} className="w-full h-full object-contain" alt="" />
+                                    <div className="h-8 w-8 rounded-lg bg-white/5 p-1 shrink-0">
+                                        <img src={product.image_url} className="w-full h-full object-contain mix-blend-screen" alt="" />
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors">{product.name}</p>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors truncate">{product.name}</p>
                                         <p className="text-[11px] text-emerald-400 font-bold">{formatPrice(product.price)}</p>
+                                    </div>
+                                    <div className="shrink-0 text-[10px] text-white/30 hidden sm:block uppercase font-bold tracking-wider">
+                                        Analyze <ArrowRight className="inline h-3 w-3" />
                                     </div>
                                 </button>
                             ))}
@@ -615,27 +709,30 @@ function SearchInput({ value, onChange, onSearch, isLoading }: { value: string, 
                         <div>
                             <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center gap-2">
                                 <Search className="h-3 w-3 text-blue-400" />
-                                <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Suggestions</span>
+                                <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Global Search</span>
                             </div>
                             {apiSuggestions.map((s, i) => (
                                 <button
                                     key={i}
                                     onClick={() => {
                                         onChange(s.name);
-                                        onSearch(s.name);
+                                        onAnalyze(s.name);
                                         setShowSuggestions(false);
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 text-left group"
                                 >
-                                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 shrink-0 flex items-center justify-center">
                                         <Search className="h-4 w-4 text-blue-400" />
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors">{s.name}</p>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors truncate">{s.name}</p>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[10px] text-white/40">{s.category}</span>
-                                            <span className="text-[10px] text-blue-400 font-medium">~{formatPrice(s.approxPrice)}</span>
+                                            <span className="text-[10px] text-blue-400 font-bold drop-shadow-sm">~{formatPrice(s.approxPrice)}</span>
                                         </div>
+                                    </div>
+                                    <div className="shrink-0 text-[10px] text-white/30 hidden sm:block uppercase font-bold tracking-wider group-hover:text-blue-400 transition-colors">
+                                        Analyze <ArrowRight className="inline h-3 w-3" />
                                     </div>
                                 </button>
                             ))}
@@ -849,6 +946,8 @@ function PriceSourcesChart({ result }: { result: PriceIntel }) {
 // ─── Price History Chart (Apple-Style Area) ─────────────────
 
 function PriceHistoryChart({ result }: { result: PriceIntel }) {
+    const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
     const prices = result.history.map(h => h.price);
     const minPrice = Math.min(...prices) * 0.95; // 5% buffer bottom
     const maxPrice = Math.max(...prices) * 1.05; // 5% buffer top
@@ -860,14 +959,15 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
     const points = result.history.map((h, i) => {
         const x = (i / (result.history.length - 1)) * width;
         const y = height - ((h.price - minPrice) / range) * height;
-        return `${x},${y}`;
-    }).join(" ");
+        return { x, y, price: h.price, month: h.month };
+    });
+
+    const pathPoints = points.map(p => `${p.x},${p.y}`).join(" ");
 
     // Basic smooth curve approximation (for "Apple" feel) using straight lines for robustness first
-    // ideally we'd use a spline function, but straight lines with a gradient fill look decent for now
     // efficiently.
-    const areaPath = `M0,${height} ${points.split(" ").map(p => `L${p}`).join(" ")} L${width},${height} Z`;
-    const linePath = `M${points.split(" ").join(" L")}`;
+    const areaPath = `M0,${height} ${pathPoints.split(" ").map(p => `L${p}`).join(" ")} L${width},${height} Z`;
+    const linePath = `M${pathPoints.split(" ").join(" L")}`;
 
     const isRising = result.priceDirection === "rising";
     const color = isRising ? "#ef4444" : "#10b981"; // Red or Emerald
@@ -888,7 +988,30 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
                 </span>
             </div>
 
-            <div className="relative h-28 w-full overflow-hidden">
+            <div className="relative h-28 w-full overflow-visible group">
+                {/* Tooltip Overlay */}
+                <AnimatePresence>
+                    {hoverIndex !== null && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 5 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            transition={{ duration: 0.15 }}
+                            className="absolute z-20 pointer-events-none"
+                            style={{
+                                left: `${(hoverIndex / (result.history.length - 1)) * 100}%`,
+                                top: `${(points[hoverIndex].y / height) * 100}%`,
+                                transform: `translate(-50%, -130%)`
+                            }}
+                        >
+                            <div className="bg-[#0f1115] border border-white/10 shadow-xl rounded-lg px-2.5 py-1.5 flex flex-col items-center">
+                                <span className="text-[9px] text-white/50 font-bold uppercase tracking-wider">{points[hoverIndex].month}</span>
+                                <span className="text-xs font-bold text-white whitespace-nowrap">{formatPrice(points[hoverIndex].price)}</span>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* SVG Chart */}
                 <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible" preserveAspectRatio="none">
                     <defs>
@@ -911,21 +1034,34 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
                         shapeRendering="geometricPrecision"
                     />
 
-                    {/* Dots for data points */}
-                    {result.history.map((h, i) => {
-                        const x = (i / (result.history.length - 1)) * width;
-                        const y = height - ((h.price - minPrice) / range) * height;
+                    {/* Dots for data points & Hover Targets */}
+                    {points.map((p, i) => {
                         const isLast = i === result.history.length - 1;
+                        const isHovered = hoverIndex === i;
 
                         return (
-                            <circle
-                                key={i}
-                                cx={x}
-                                cy={y}
-                                r={isLast ? 4 : 2}
-                                fill={color}
-                                className="transition-all duration-500"
-                            />
+                            <g key={i}>
+                                {/* Invisible larger circle for easier hovering */}
+                                <circle
+                                    cx={p.x}
+                                    cy={p.y}
+                                    r={15}
+                                    fill="transparent"
+                                    className="cursor-pointer"
+                                    onMouseEnter={() => setHoverIndex(i)}
+                                    onMouseLeave={() => setHoverIndex(null)}
+                                />
+                                {/* Visible dot */}
+                                <circle
+                                    cx={p.x}
+                                    cy={p.y}
+                                    r={isHovered ? 6 : (isLast ? 4 : 2)}
+                                    fill={isHovered ? "#ffffff" : color}
+                                    stroke={isHovered ? color : "none"}
+                                    strokeWidth={isHovered ? 2 : 0}
+                                    className="transition-all duration-300 pointer-events-none"
+                                />
+                            </g>
                         );
                     })}
                 </svg>
