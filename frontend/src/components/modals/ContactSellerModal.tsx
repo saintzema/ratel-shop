@@ -148,7 +148,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                     <div className="space-y-4 py-2">
                         {/* Seller info */}
                         <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-ratel-green-500 to-emerald-600 flex items-center justify-center text-white font-bold text-sm">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-ratel-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-sm">
                                 {seller.business_name.charAt(0)}
                             </div>
                             <div className="flex-1">

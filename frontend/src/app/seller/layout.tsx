@@ -81,7 +81,7 @@ export default function SellerLayout({
 
     return (
         <ProtectedRoute allowedRoles={["seller", "admin"]}>
-            <div className="min-h-screen bg-[#E3E6E6] flex transition-colors duration-300">
+            <div className="min-h-screen bg-[#0a0a0a] flex transition-colors duration-300">
                 {/* Mobile overlay */}
                 {isSidebarOpen && (
                     <div
@@ -93,24 +93,24 @@ export default function SellerLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto",
+                        "fixed inset-y-0 left-0 z-50 w-[260px] bg-[#0a0a0a] border-r border-white/10 flex flex-col transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto",
                         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
                     {/* Seller identity */}
-                    <div className="p-5 border-b border-gray-100">
+                    <div className="p-5 border-b border-white/10">
                         <div className="flex items-center gap-2 mb-5 cursor-pointer" onClick={() => router.push("/")}>
-                            <Logo variant="dark" />
+                            <Logo variant="light" />
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-ratel-green-600 to-emerald-500 flex items-center justify-center text-white font-bold text-sm shadow-md">
                                 {currentSeller.business_name.charAt(0)}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h2 className="font-bold text-sm text-gray-900 truncate">{currentSeller.business_name}</h2>
+                                <h2 className="font-bold text-sm text-white truncate">{currentSeller.business_name}</h2>
                                 <div className="flex items-center gap-1.5">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                    <span className="text-[11px] text-green-600 font-semibold">Verified Seller</span>
+                                    <div className="w-1.5 h-1.5 rounded-full bg-ratel-green-500" />
+                                    <span className="text-[11px] text-ratel-green-400 font-semibold">Verified Seller</span>
                                 </div>
                             </div>
                         </div>
@@ -118,7 +118,7 @@ export default function SellerLayout({
 
                     {/* Navigation */}
                     <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-                        <p className="px-3 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Menu</p>
+                        <p className="px-3 text-[10px] font-bold text-white/40 uppercase tracking-widest mb-2">Menu</p>
                         {navItems.map((item) => {
                             const isActive = pathname === item.href || (item.href !== "/seller/dashboard" && pathname.startsWith(item.href));
                             return (
@@ -129,7 +129,7 @@ export default function SellerLayout({
                                         "flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all duration-200",
                                         isActive
                                             ? "bg-ratel-green-600 text-white shadow-md shadow-ratel-green-600/20"
-                                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                            : "text-white/60 hover:bg-white/5 hover:text-white"
                                     )}
                                     onClick={() => setIsSidebarOpen(false)}
                                 >
@@ -140,7 +140,7 @@ export default function SellerLayout({
                                     {item.badge && (
                                         <span className={cn(
                                             "text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center",
-                                            isActive ? "bg-white/20 text-white" : "bg-blue-100 text-blue-700"
+                                            isActive ? "bg-white/20 text-white" : "bg-blue-500/20 text-blue-400"
                                         )}>
                                             {item.badge}
                                         </span>
@@ -151,10 +151,10 @@ export default function SellerLayout({
                     </nav>
 
                     {/* Logout */}
-                    <div className="p-3 border-t border-gray-100">
+                    <div className="p-3 border-t border-white/10">
                         <button
                             onClick={() => { DemoStore.logout(); router.push("/seller/login"); }}
-                            className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-semibold text-red-500 hover:bg-red-50 rounded-xl w-full transition-colors"
+                            className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-semibold text-red-500 hover:bg-red-500/10 rounded-xl w-full transition-colors"
                         >
                             <LogOut className="h-[18px] w-[18px]" />
                             Log Out
@@ -165,33 +165,33 @@ export default function SellerLayout({
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
                     {/* Top bar */}
-                    <header className="flex items-center justify-between px-4 md:px-8 py-3 bg-white border-b border-gray-200 sticky top-0 z-30">
+                    <header className="flex items-center justify-between px-4 md:px-8 py-3 bg-[#0a0a0a]/80 backdrop-blur-md border-b border-white/10 sticky top-0 z-30">
                         <div className="flex items-center gap-3">
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="md:hidden h-9 w-9"
+                                className="md:hidden h-9 w-9 text-white/80 hover:text-white hover:bg-white/10"
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                             >
                                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
                             </Button>
                             <div>
-                                <h1 className="text-lg font-bold text-gray-900">
+                                <h1 className="text-lg font-bold text-white">
                                     {navItems.find(n => pathname === n.href)?.label || "Seller Central"}
                                 </h1>
-                                <p className="text-[11px] text-gray-400 font-medium hidden md:block">
+                                <p className="text-[11px] text-white/40 font-medium hidden md:block">
                                     Manage your store, products and orders
                                 </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button size="icon" variant="ghost" className="relative h-9 w-9">
-                                <Bell className="h-4 w-4 text-gray-500" />
+                            <Button size="icon" variant="ghost" className="relative h-9 w-9 text-white/60 hover:text-white hover:bg-white/10">
+                                <Bell className="h-4 w-4" />
                                 {pendingNegotiations > 0 && (
                                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                                 )}
                             </Button>
-                            <Link href={`/store/${currentSeller.id}`} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors">
+                            <Link href={`/store/${currentSeller.id}`} className="text-xs text-white/40 hover:text-white flex items-center gap-1 transition-colors">
                                 View Store <ChevronRight className="h-3 w-3" />
                             </Link>
                         </div>

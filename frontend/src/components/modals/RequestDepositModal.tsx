@@ -4,16 +4,17 @@ import React, { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { formatPrice } from "@/lib/utils";
-import { ShieldCheck, Truck, CheckCircle, PackageSearch, CreditCard } from "lucide-react";
+import { ShieldCheck, Truck, CheckCircle, PackageSearch, CreditCard, ShoppingCart } from "lucide-react";
 
 interface RequestDepositModalProps {
     isOpen: boolean;
     onClose: () => void;
     productName: string;
     targetPrice: number;
+    sourceUrl?: string;
 }
 
-export function RequestDepositModal({ isOpen, onClose, productName, targetPrice }: RequestDepositModalProps) {
+export function RequestDepositModal({ isOpen, onClose, productName, targetPrice, sourceUrl, onConfirm }: RequestDepositModalProps & { onConfirm?: () => void }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
 
@@ -25,9 +26,13 @@ export function RequestDepositModal({ isOpen, onClose, productName, targetPrice 
         e.preventDefault();
         setIsSubmitting(true);
 
-        // Simulate payment/order processing
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        if (onConfirm) {
+            onConfirm();
+            return; // onConfirm navigates away
+        }
 
+        // Fallback simulation
+        await new Promise(resolve => setTimeout(resolve, 1500));
         setIsSubmitting(false);
         setSubmitted(true);
     };
@@ -98,8 +103,8 @@ export function RequestDepositModal({ isOpen, onClose, productName, targetPrice 
                                         "Processing payment..."
                                     ) : (
                                         <span className="flex items-center gap-2">
-                                            <CreditCard className="h-4 w-4" />
-                                            Pay Deposit & Order
+                                            <ShoppingCart className="h-4 w-4" />
+                                            Start Order & Checkout
                                         </span>
                                     )}
                                 </Button>

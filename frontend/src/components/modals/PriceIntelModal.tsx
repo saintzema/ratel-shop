@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { RequestDepositModal } from "./RequestDepositModal";
 import { PriceEngine, PriceAnalysis, PriceData, ProductSuggestion } from "@/lib/price-engine";
@@ -96,6 +97,7 @@ interface PriceIntel {
     sellersOnRatel: number;
     lastUpdated: string;
     confidence: number;
+    category: string;
 }
 
 // ─── Logic Transformation ───────────────────────────────────
@@ -224,7 +226,8 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
         regionFactor: region.factor,
         sellersOnRatel: Math.floor(seeded(100) * 10) + 2,
         lastUpdated: new Date().toISOString(),
-        confidence: analysis.confidence === "high" ? 95 : analysis.confidence === "low" ? 65 : 85
+        confidence: analysis.confidence === "high" ? 95 : analysis.confidence === "low" ? 65 : 85,
+        category
     };
 }
 
@@ -238,8 +241,10 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
     const [searchResults, setSearchResults] = useState<{ local: Product[], api: ProductSuggestion[] } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
     const { user } = useAuth();
     const { addToCart } = useCart();
+    const router = useRouter();
 
     // Debounced fallback suggestions (only used when not showing search results)
     useEffect(() => {
@@ -280,11 +285,12 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         }
     }, []);
 
-    const handleAnalyze = useCallback(async (productName: string, product?: Product) => {
+    const handleAnalyze = useCallback(async (productName: string, product?: Product, sourceUrl?: string) => {
         setIsAnalyzing(true);
         setSuggestions([]);
         setSearchResults(null);
         setResult(null);
+        setSelectedSourceUrl(sourceUrl || null);
 
         try {
             // Find matched product locally if possible for "Buy Now"
@@ -321,12 +327,12 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden rounded-3xl"
+                            className="relative w-full max-w-2xl max-h-[90vh] overflow-visible rounded-3xl flex flex-col"
                             style={{
-                                background: "linear-gradient(145deg, rgba(20, 25, 32, 0.85), rgba(12, 14, 18, 0.92))",
+                                background: "linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.98))",
                                 backdropFilter: "blur(60px) saturate(1.5)",
-                                border: "1px solid rgba(255,255,255,0.08)",
-                                boxShadow: "0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)"
+                                border: "1px solid rgba(0,0,0,0.08)",
+                                boxShadow: "0 40px 80px rgba(0,0,0,0.1), inset 0 1px 0 rgba(0,0,0,0.5)"
                             }}
                         >
                             {/* Header — Liquid Glass */}
@@ -334,7 +340,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                 className="px-6 py-4 flex items-center justify-between"
                                 style={{
                                     background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.02))",
-                                    borderBottom: "1px solid rgba(255,255,255,0.06)"
+                                    borderBottom: "1px solid rgba(0,0,0,0.06)"
                                 }}
                             >
                                 <div className="flex items-center gap-3">
@@ -348,28 +354,33 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         <BarChart3 className="h-5 w-5 text-emerald-400" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-white tracking-tight">Price Intelligence</h2>
+                                        <h2 className="text-lg font-bold text-gray-900 tracking-tight">Price Intelligence</h2>
                                         <p className="text-[11px] text-emerald-400/60 font-medium">Real-Time Market Analysis</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="text-white/30 hover:text-white p-2 rounded-xl transition-all hover:bg-white/5"
+                                    className="text-gray-500 hover:text-gray-900 p-2 rounded-xl transition-all hover:bg-white shadow-sm"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>
                             </div>
 
-                            {/* Content */}
-                            <div className="p-6 overflow-y-auto max-h-[calc(90vh-72px)] space-y-5 custom-scrollbar">
-                                {/* Search */}
+                            {/* ── Search Bar ── */}
+                            <div className="px-6 pt-6 pb-2 shrink-0 relative z-50" style={{ scrollbarWidth: "none" }}>
                                 <SearchInput
                                     value={searchQuery}
                                     onChange={setSearchQuery}
-                                    onSearch={(q) => handleSearch(q)}
-                                    onAnalyze={(q, p) => handleAnalyze(q, p)}
+                                    onSearch={handleAnalyze}
+                                    onAnalyze={(q, p, s) => handleAnalyze(q, p, s)}
                                     isLoading={isSearching || isAnalyzing}
+                                    hasResult={!!result}
+                                    onReset={() => { setResult(null); setSearchQuery(""); setSelectedSourceUrl(null); }}
                                 />
+                            </div>
+
+                            {/* ── Scrollable Content ── */}
+                            <div className="px-6 pb-6 pt-2 overflow-y-auto flex-1 space-y-5 rounded-b-3xl" style={{ scrollbarWidth: "none" }}>
 
                                 {/* Loading State */}
                                 {(isSearching || isAnalyzing) && (
@@ -384,10 +395,10 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                             <BarChart3 className="absolute inset-0 m-auto h-6 w-6 text-emerald-400/60" />
                                         </div>
                                         <div>
-                                            <h3 className="text-white font-semibold text-base animate-pulse">
+                                            <h3 className="text-gray-900 font-semibold text-base animate-pulse">
                                                 {isAnalyzing ? "Analyzing Market Data..." : "Searching Available Products..."}
                                             </h3>
-                                            <p className="text-white/40 text-xs mt-1">
+                                            <p className="text-gray-600 text-xs mt-1">
                                                 {isAnalyzing ? "Deep checking prices across stores" : "Fetching from catalog and global partners"}
                                             </p>
                                         </div>
@@ -405,7 +416,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {searchResults.local.length > 0 && (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between px-1">
-                                                    <h4 className="flex items-center gap-2 text-white/50 text-[11px] font-bold uppercase tracking-wider">
+                                                    <h4 className="flex items-center gap-2 text-gray-500 text-[11px] font-bold uppercase tracking-wider">
                                                         <Box className="h-4 w-4 text-emerald-400" />
                                                         In RatelShop Catalog
                                                     </h4>
@@ -413,14 +424,14 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                 </div>
                                                 <div className="space-y-2">
                                                     {searchResults.local.map(product => (
-                                                        <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-colors">
+                                                        <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:bg-gray-100 transition-colors">
                                                             <div className="flex items-center gap-4">
-                                                                <div className="w-12 h-12 bg-white/10 rounded-lg p-1.5 shrink-0 flex items-center justify-center">
+                                                                <div className="w-12 h-12 bg-gray-100 rounded-lg p-1.5 shrink-0 flex items-center justify-center">
                                                                     <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" />
                                                                 </div>
                                                                 <div>
-                                                                    <p className="font-bold text-sm text-white">{product.name}</p>
-                                                                    <p className="text-xs text-white/50">{product.category}</p>
+                                                                    <p className="font-bold text-sm text-gray-900">{product.name}</p>
+                                                                    <p className="text-xs text-gray-500">{product.category}</p>
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
@@ -430,7 +441,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                                 <div className="flex gap-2">
                                                                     <button
                                                                         onClick={() => handleAnalyze(product.name, product)}
-                                                                        className="h-9 px-3 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-white/10 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                        className="h-9 px-3 text-xs font-bold text-gray-900 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors flex items-center gap-1.5"
                                                                     >
                                                                         <BarChart3 className="h-3 w-3" />
                                                                         Compare
@@ -454,7 +465,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {searchResults.api.length > 0 && (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between px-1">
-                                                    <h4 className="flex items-center gap-2 text-white/50 text-[11px] font-bold uppercase tracking-wider">
+                                                    <h4 className="flex items-center gap-2 text-gray-500 text-[11px] font-bold uppercase tracking-wider">
                                                         <Globe className="h-4 w-4 text-blue-400" />
                                                         Global Internet Sources
                                                     </h4>
@@ -462,24 +473,24 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                 </div>
                                                 <div className="space-y-2">
                                                     {searchResults.api.map((s, i) => (
-                                                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-white/5 bg-white/5 hover:border-blue-500/30 transition-colors">
+                                                        <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:border-blue-500/30 transition-colors">
                                                             <div className="flex items-center gap-4">
                                                                 <div className="w-12 h-12 bg-blue-500/10 rounded-lg shrink-0 flex items-center justify-center">
                                                                     <Search className="h-5 w-5 text-blue-400" />
                                                                 </div>
                                                                 <div>
-                                                                    <p className="font-bold text-sm text-white">{s.name}</p>
-                                                                    <p className="text-xs text-white/50">{s.category}</p>
+                                                                    <p className="font-bold text-sm text-gray-900">{s.name}</p>
+                                                                    <p className="text-xs text-gray-500">{s.category}</p>
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                                                                 <div className="text-left sm:text-right">
-                                                                    <p className="text-[10px] text-white/40 mb-0.5 uppercase tracking-wide">Est. Market Value</p>
+                                                                    <p className="text-[10px] text-gray-600 mb-0.5 uppercase tracking-wide">Est. Market Value</p>
                                                                     <p className="font-bold text-blue-400">{formatPrice(s.approxPrice)}</p>
                                                                 </div>
                                                                 <button
                                                                     onClick={() => handleAnalyze(s.name)}
-                                                                    className="h-9 px-4 text-xs font-bold text-white bg-white/10 hover:bg-white/20 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2"
+                                                                    className="h-9 px-4 text-xs font-bold text-gray-900 bg-gray-100 hover:bg-gray-200 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2"
                                                                 >
                                                                     <BarChart3 className="h-3.5 w-3.5" />
                                                                     Analyze & Request
@@ -493,9 +504,9 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
                                         {searchResults.local.length === 0 && searchResults.api.length === 0 && (
                                             <div className="text-center py-12">
-                                                <Search className="h-8 w-8 text-white/20 mx-auto mb-3" />
-                                                <p className="text-white font-medium">No products found for "{searchQuery}"</p>
-                                                <p className="text-white/40 text-xs mt-1">Try a different or more generic term</p>
+                                                <Search className="h-8 w-8 text-gray-500 mx-auto mb-3" />
+                                                <p className="text-gray-900 font-medium">No products found for "{searchQuery}"</p>
+                                                <p className="text-gray-600 text-xs mt-1">Try a different or more generic term</p>
                                             </div>
                                         )}
                                     </motion.div>
@@ -523,16 +534,16 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {/* Context & Flags */}
                                         <div className="grid grid-cols-2 gap-3">
                                             <GlassCard>
-                                                <div className="flex items-center gap-2 text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-2">
+                                                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider mb-2">
                                                     <Globe className="h-3 w-3 text-blue-400" />
                                                     Market Context
                                                 </div>
-                                                <p className="text-white/50 text-[11px] leading-relaxed">
+                                                <p className="text-gray-500 text-[11px] leading-relaxed">
                                                     {result.justification}
                                                 </p>
                                             </GlassCard>
                                             <GlassCard>
-                                                <div className="flex items-center gap-2 text-white/60 text-[10px] font-semibold uppercase tracking-wider mb-2">
+                                                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider mb-2">
                                                     <AlertTriangle className="h-3 w-3 text-amber-400" />
                                                     Analysis Flags
                                                 </div>
@@ -544,7 +555,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                             style={{
                                                                 background: "rgba(255,255,255,0.06)",
                                                                 border: "1px solid rgba(255,255,255,0.06)",
-                                                                color: "rgba(255,255,255,0.6)"
+                                                                color: "rgba(0,0,0,0.6)"
                                                             }}
                                                         >
                                                             {flag}
@@ -555,7 +566,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         </div>
 
                                         {/* Footer */}
-                                        <div className="flex items-center justify-between text-[10px] text-white/20 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                                        <div className="flex items-center justify-between text-[10px] text-gray-500 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
                                             <span>Analysis ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
                                             <span>Confidence: {result.confidence}%</span>
                                         </div>
@@ -573,6 +584,31 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                     onClose={() => setRequestModalOpen(false)}
                     productName={result.name}
                     targetPrice={result.ratelBestPrice}
+                    sourceUrl={selectedSourceUrl || undefined}
+                    onConfirm={() => {
+                        const sourcingProduct: Product = {
+                            id: `source-${Date.now()}`,
+                            seller_id: "ratel-concierge",
+                            seller_name: "Ratel Global Partners",
+                            name: `[Sourcing Request] ${result.name}`,
+                            description: `Special sourcing request for ${result.name}.`,
+                            price: result.ratelBestPrice,
+                            category: result.category as any || "other",
+                            image_url: "https://images.unsplash.com/photo-1622556498246-755f44ca76f3?w=800&q=80",
+                            images: [],
+                            stock: 1,
+                            price_flag: "fair",
+                            is_active: true,
+                            avg_rating: 0,
+                            review_count: 0,
+                            sold_count: 0,
+                            created_at: new Date().toISOString()
+                        };
+                        addToCart(sourcingProduct, 1);
+                        setRequestModalOpen(false);
+                        onClose();
+                        router.push("/checkout");
+                    }}
                 />
             )}
         </>
@@ -598,7 +634,7 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
 
 // ─── Search Input with Hybrid Autocomplete ──────────────────
 
-function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product) => void; isLoading: boolean }) {
+function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResult, onReset }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product, sourceUrl?: string) => void; isLoading: boolean; hasResult: boolean; onReset: () => void }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [apiSuggestions, setApiSuggestions] = useState<ProductSuggestion[]>([]);
@@ -633,7 +669,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { valu
 
     return (
         <div className="relative" onClick={(e) => e.stopPropagation()}>
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/25 z-10" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-900/25 z-10" />
             <input
                 ref={inputRef}
                 type="text"
@@ -650,12 +686,12 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { valu
                 }}
                 onFocus={() => setShowSuggestions(true)}
                 placeholder="Search any product (e.g. 'Tes' -> Tesla)..."
-                className="w-full h-12 rounded-xl pl-11 pr-24 text-sm text-white placeholder:text-white/25 focus:outline-none transition-all font-medium"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                className="w-full h-12 rounded-xl pl-11 pr-24 text-sm text-gray-900 placeholder:text-gray-900/25 focus:outline-none transition-all font-medium"
+                style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}
                 disabled={isLoading}
                 autoFocus
             />
-            {value && !isLoading && (
+            {value && !isLoading && !hasResult && (
                 <button
                     onClick={() => {
                         onSearch(value);
@@ -666,18 +702,31 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { valu
                     Search
                 </button>
             )}
+            {hasResult && (
+                <button
+                    onClick={onReset}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold px-4 py-2 rounded-lg transition-all"
+                >
+                    Reset
+                </button>
+            )}
 
             {/* Hybrid Dropdown */}
             {showSuggestions && value.length >= 2 && !isLoading && (
-                <div
-                    className="absolute top-full left-0 right-0 mt-2 rounded-xl border border-white/10 bg-[#0f1115]/95 backdrop-blur-xl shadow-2xl overflow-hidden z-50 transform origin-top animate-in fade-in zoom-in-95 duration-200"
+                <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-y-auto overflow-x-hidden z-50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] max-h-[50vh]"
+                    style={{ border: "1px solid rgba(0,0,0,0.06)", background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)" }}
                 >
                     {/* Local Matches Section */}
                     {localMatches.length > 0 && (
                         <div>
-                            <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center gap-2">
-                                <Box className="h-3 w-3 text-emerald-400" />
-                                <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">In Catalog</span>
+                            <div className="px-4 py-2.5 bg-white/40 border-b border-gray-900/5 flex items-center gap-2">
+                                <Box className="h-3 w-3 text-gray-500" />
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">In Catalog</span>
                             </div>
                             {localMatches.map((product) => (
                                 <button
@@ -687,17 +736,17 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { valu
                                         onAnalyze(product.name, product);
                                         setShowSuggestions(false);
                                     }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 text-left group"
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
                                 >
-                                    <div className="h-8 w-8 rounded-lg bg-white/5 p-1 shrink-0">
-                                        <img src={product.image_url} className="w-full h-full object-contain mix-blend-screen" alt="" />
+                                    <div className="h-10 w-10 rounded-xl bg-white border border-gray-200 shadow-sm p-1.5 shrink-0 flex items-center justify-center">
+                                        <img src={product.image_url} className="w-full h-full object-contain" alt="" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-white group-hover:text-emerald-400 transition-colors truncate">{product.name}</p>
-                                        <p className="text-[11px] text-emerald-400 font-bold">{formatPrice(product.price)}</p>
+                                        <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
+                                        <p className="text-[11px] text-gray-500 font-medium mt-0.5">{formatPrice(product.price)}</p>
                                     </div>
-                                    <div className="shrink-0 text-[10px] text-white/30 hidden sm:block uppercase font-bold tracking-wider">
-                                        Analyze <ArrowRight className="inline h-3 w-3" />
+                                    <div className="shrink-0 text-gray-400 group-hover:text-blue-500 transition-colors">
+                                        <ArrowRight className="h-4 w-4" />
                                     </div>
                                 </button>
                             ))}
@@ -707,38 +756,38 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading }: { valu
                     {/* API Suggestions Section */}
                     {apiSuggestions.length > 0 && (
                         <div>
-                            <div className="px-4 py-2 bg-white/5 border-b border-white/5 flex items-center gap-2">
-                                <Search className="h-3 w-3 text-blue-400" />
-                                <span className="text-[10px] font-bold text-white/50 uppercase tracking-wider">Global Search</span>
+                            <div className="px-4 py-2.5 bg-white/40 border-b border-gray-900/5 flex items-center gap-2">
+                                <Search className="h-3 w-3 text-gray-500" />
+                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Global Search</span>
                             </div>
                             {apiSuggestions.map((s, i) => (
                                 <button
                                     key={i}
                                     onClick={() => {
                                         onChange(s.name);
-                                        onAnalyze(s.name);
+                                        onAnalyze(s.name, undefined, s.sourceUrl);
                                         setShowSuggestions(false);
                                     }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors border-b border-white/5 last:border-0 text-left group"
+                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
                                 >
-                                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 shrink-0 flex items-center justify-center">
-                                        <Search className="h-4 w-4 text-blue-400" />
+                                    <div className="h-10 w-10 rounded-xl bg-gray-100 border border-gray-200 shrink-0 flex items-center justify-center">
+                                        <Search className="h-4 w-4 text-gray-500" />
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-white group-hover:text-blue-400 transition-colors truncate">{s.name}</p>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[10px] text-white/40">{s.category}</span>
-                                            <span className="text-[10px] text-blue-400 font-bold drop-shadow-sm">~{formatPrice(s.approxPrice)}</span>
+                                        <p className="text-sm font-semibold text-gray-900 truncate">{s.name}</p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[11px] text-gray-500 font-medium">{s.category}</span>
+                                            <span className="text-[10px] text-gray-400 font-medium drop-shadow-sm">~{formatPrice(s.approxPrice)}</span>
                                         </div>
                                     </div>
-                                    <div className="shrink-0 text-[10px] text-white/30 hidden sm:block uppercase font-bold tracking-wider group-hover:text-blue-400 transition-colors">
-                                        Analyze <ArrowRight className="inline h-3 w-3" />
+                                    <div className="shrink-0 text-gray-400 group-hover:text-blue-500 transition-colors">
+                                        <ArrowRight className="h-4 w-4" />
                                     </div>
                                 </button>
                             ))}
                         </div>
                     )}
-                </div>
+                </motion.div>
             )}
         </div>
     );
@@ -769,20 +818,20 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                             <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} />
                             {result.verdictLabel}
                         </span>
-                        <span className="text-[10px] text-white/30 uppercase tracking-widest font-semibold">Ratel Verdict</span>
+                        <span className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Verdict</span>
                     </div>
 
                     {/* Product title — clickable if matched */}
                     {result.matchedProduct ? (
                         <Link
                             href={`/product/${result.matchedProduct.id}`}
-                            className="text-xl font-bold text-white hover:text-emerald-400 transition-colors inline-flex items-center gap-2 group"
+                            className="text-xl font-bold text-gray-900 hover:text-emerald-400 transition-colors inline-flex items-center gap-2 group"
                         >
                             {result.name}
-                            <ExternalLink className="h-3.5 w-3.5 text-white/20 group-hover:text-emerald-400 transition-colors" />
+                            <ExternalLink className="h-3.5 w-3.5 text-gray-500 group-hover:text-emerald-400 transition-colors" />
                         </Link>
                     ) : (
-                        <h3 className="text-xl font-bold text-white">{result.name}</h3>
+                        <h3 className="text-xl font-bold text-gray-900">{result.name}</h3>
                     )}
                 </div>
 
@@ -798,10 +847,14 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                 ) : (
                     <button
                         onClick={onRequestProduct}
-                        className="shrink-0 flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all border border-white/10 hover:scale-105 active:scale-95"
+                        className="shrink-0 flex items-center gap-2 font-bold text-xs px-5 py-2.5 rounded-xl transition-all border border-gray-200 hover:scale-105 active:scale-95"
+                        style={{
+                            background: "rgba(255,255,255,0.08)",
+                            color: "rgba(255,255,255,0.85)"
+                        }}
                     >
                         <ShoppingCart className="h-3.5 w-3.5" />
-                        Request Product
+                        Start Order
                     </button>
                 )}
             </div>
@@ -829,7 +882,7 @@ function PriceComparison({ result }: { result: PriceIntel }) {
                     BEST PRICE
                 </div>
                 <p className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wide mb-1">Ratel Recommended</p>
-                <p className="text-2xl font-bold text-white tracking-tight">
+                <p className="text-2xl font-bold text-gray-900 tracking-tight">
                     {formatPrice(result.ratelBestPrice)}
                 </p>
 
@@ -853,11 +906,11 @@ function PriceComparison({ result }: { result: PriceIntel }) {
 
             {/* Open Market Average */}
             <GlassCard>
-                <p className="text-[10px] font-semibold text-white/40 uppercase tracking-wide mb-1">Open Market Avg</p>
-                <p className="text-2xl font-bold text-white/70 tracking-tight">
+                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Market Estimate</p>
+                <p className="text-2xl font-bold text-gray-900/70 tracking-tight">
                     {formatPrice(result.marketAverage)}
                 </p>
-                <p className="text-[10px] text-white/25 mt-2 flex items-center gap-1">
+                <p className="text-[10px] text-gray-900/25 mt-2 flex items-center gap-1">
                     <MapPin className="h-3 w-3" />
                     <span>Region: {result.region}</span>
                 </p>
@@ -878,11 +931,11 @@ function PriceSourcesChart({ result }: { result: PriceIntel }) {
     return (
         <GlassCard>
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-white/50 text-[10px] font-semibold uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider">
                     <BarChart3 className="h-3 w-3 text-blue-400" />
                     Price Across Stores
                 </div>
-                <span className="text-[10px] text-white/25">{result.sources.length} sources</span>
+                <span className="text-[10px] text-gray-900/25">{result.sources.length} sources</span>
             </div>
             <div className="space-y-2.5">
                 {result.sources.map((source, i) => {
@@ -901,7 +954,7 @@ function PriceSourcesChart({ result }: { result: PriceIntel }) {
                     return (
                         <div key={i}>
                             <div className="flex items-center justify-between mb-1">
-                                <span className="text-[11px] text-white/60 font-medium flex items-center gap-1.5">
+                                <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1.5">
                                     {displayName}
                                     {isCheapest && (
                                         <span className="text-[9px] font-bold text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded-full">
@@ -909,7 +962,7 @@ function PriceSourcesChart({ result }: { result: PriceIntel }) {
                                         </span>
                                     )}
                                 </span>
-                                <span className={`text-[11px] font-bold ${isCheapest ? "text-emerald-400" : "text-white/70"}`}>
+                                <span className={`text-[11px] font-bold ${isCheapest ? "text-emerald-400" : "text-gray-900/70"}`}>
                                     {formatPrice(source.price)}
                                 </span>
                             </div>
@@ -975,7 +1028,7 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
     return (
         <GlassCard>
             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-white/50 text-[10px] font-semibold uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider">
                     {isRising ? (
                         <TrendingUp className="h-3 w-3 text-red-400" />
                     ) : (
@@ -1004,9 +1057,9 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
                                 transform: `translate(-50%, -130%)`
                             }}
                         >
-                            <div className="bg-[#0f1115] border border-white/10 shadow-xl rounded-lg px-2.5 py-1.5 flex flex-col items-center">
-                                <span className="text-[9px] text-white/50 font-bold uppercase tracking-wider">{points[hoverIndex].month}</span>
-                                <span className="text-xs font-bold text-white whitespace-nowrap">{formatPrice(points[hoverIndex].price)}</span>
+                            <div className="bg-[#0f1115] border border-gray-200 shadow-xl rounded-lg px-2.5 py-1.5 flex flex-col items-center">
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{points[hoverIndex].month}</span>
+                                <span className="text-xs font-bold text-gray-900 whitespace-nowrap">{formatPrice(points[hoverIndex].price)}</span>
                             </div>
                         </motion.div>
                     )}
@@ -1069,7 +1122,7 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
                 {/* X-Axis Labels positioned absolutely */}
                 <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1">
                     {result.history.map((h, i) => (
-                        <span key={i} className="text-[9px] text-white/20 font-medium">
+                        <span key={i} className="text-[9px] text-gray-500 font-medium">
                             {h.month}
                         </span>
                     ))}
@@ -1088,19 +1141,19 @@ function DutyBreakdown({ result }: { result: PriceIntel }) {
         <GlassCard className="overflow-hidden !p-0">
             {/* Header */}
             <div
-                className="px-5 py-3.5 flex justify-between items-center"
+                className="px-6 py-4 flex items-center justify-between shrink-0 rounded-t-3xl"
                 style={{
                     background: "rgba(255,255,255,0.02)",
                     borderBottom: "1px solid rgba(255,255,255,0.05)"
                 }}
             >
-                <h4 className="text-xs font-bold text-white flex items-center gap-2">
+                <h4 className="text-xs font-bold text-gray-900 flex items-center gap-2">
                     <Scale className="h-4 w-4 text-purple-400" />
-                    Import Cost Breakdown
+                    Landed Cost Breakdown
                 </h4>
                 <div className="text-right">
-                    <p className="text-[10px] text-white/30">Est. CIF Value</p>
-                    <p className="text-xs font-bold text-white/70">{formatPrice(result.estimatedCIF)}</p>
+                    <p className="text-[10px] text-gray-500">Base Import Cost (CIF)</p>
+                    <p className="text-xs font-bold text-gray-900/70">{formatPrice(result.estimatedCIF)}</p>
                 </div>
             </div>
 
@@ -1110,7 +1163,7 @@ function DutyBreakdown({ result }: { result: PriceIntel }) {
                     <div key={i}>
                         <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-2">
-                                <span className="text-[11px] text-white/60 font-medium">{d.label}</span>
+                                <span className="text-[11px] text-gray-500 font-medium">{d.label}</span>
                                 <span
                                     className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                                     style={{ background: "rgba(168,85,247,0.12)", color: "rgba(168,85,247,0.8)" }}
@@ -1118,7 +1171,7 @@ function DutyBreakdown({ result }: { result: PriceIntel }) {
                                     {d.percent.toFixed(d.percent % 1 ? 1 : 0)}%
                                 </span>
                             </div>
-                            <span className="text-[11px] font-bold text-white/80">{formatPrice(d.amount)}</span>
+                            <span className="text-[11px] font-bold text-gray-700">{formatPrice(d.amount)}</span>
                         </div>
                         <div
                             className="h-1.5 rounded-full overflow-hidden"
@@ -1138,12 +1191,12 @@ function DutyBreakdown({ result }: { result: PriceIntel }) {
                 {/* Total line */}
                 <div className="pt-3 flex justify-between items-center" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
                     <div>
-                        <span className="text-xs font-bold text-white/80">Total Import Duties</span>
-                        <p className="text-[10px] text-white/30 mt-0.5">{result.importContext}</p>
+                        <span className="text-xs font-bold text-gray-700">Total Import Duties</span>
+                        <p className="text-[10px] text-gray-500 mt-0.5 max-w-[220px] leading-relaxed">Calculated based on Nigerian Customs Service tariffs for {result.category ?? "this category"}.</p>
                     </div>
                     <div className="text-right">
                         <span className="text-sm font-bold text-purple-400">+{result.totalDutyPercent}%</span>
-                        <p className="text-[10px] text-white/40">{formatPrice(totalDutyAmount)}</p>
+                        <p className="text-[10px] text-gray-600">{formatPrice(totalDutyAmount)}</p>
                     </div>
                 </div>
             </div>

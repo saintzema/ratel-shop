@@ -69,9 +69,9 @@ export default function ProfilePage() {
 
                 <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                     {/* Header / Avatar */}
-                    <div className="p-6 bg-gradient-to-r from-gray-900 to-gray-800 text-white flex items-center gap-6">
+                    <div className="p-6 bg-gradient-to-r from-gray-900 to-gray-800 text-gray-900 flex items-center gap-6">
                         <div className="relative group cursor-pointer">
-                            <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl font-black border-2 border-white/30">
+                            <div className="h-20 w-20 rounded-full bg-gray-200 backdrop-blur-md flex items-center justify-center text-2xl font-black border-2 border-white/30">
                                 {formData.name.charAt(0)}
                             </div>
                             <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

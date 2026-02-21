@@ -165,9 +165,9 @@ class DemoStoreService {
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || JSON.stringify(DEMO_ORDERS));
     }
 
-    addOrder(order: Omit<Order, "id" | "created_at" | "updated_at" | "product">): Order {
+    addOrder(order: Omit<Order, "id" | "created_at" | "updated_at" | "product">, sourceProduct?: Product): Order {
         const products = this.getProducts();
-        const product = products.find(p => p.id === order.product_id);
+        const product = products.find(p => p.id === order.product_id) || sourceProduct;
         if (!product) throw new Error("Product not found");
 
         const orderId = `RATEL-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;

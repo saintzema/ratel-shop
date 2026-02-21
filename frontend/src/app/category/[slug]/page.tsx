@@ -164,7 +164,7 @@ export default function CategoryPage() {
                         <div className="space-y-2">
                             <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-ratel-green-600 group">
                                 <input type="checkbox" className="rounded border-gray-400 text-ratel-green-600 focus:ring-ratel-green-600" />
-                                <span className="flex items-center gap-1 text-gray-800"><ShieldCheck className="h-3 w-3 text-ratel-green-600" /> VDM Verified</span>
+                                <span className="flex items-center gap-1 text-gray-800"><ShieldCheck className="h-3 w-3 text-ratel-green-600" /> Superadmin Verified</span>
                             </label>
                             <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-ratel-green-600 group">
                                 <input type="checkbox" className="rounded border-gray-400 text-ratel-green-600 focus:ring-ratel-green-600" />

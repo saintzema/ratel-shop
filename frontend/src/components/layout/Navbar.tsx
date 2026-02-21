@@ -179,9 +179,9 @@ export function Navbar() {
         <>
             <header className="fixed top-0 left-0 right-0 z-50 w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
                 {/* Top Bar — Liquid Glass */}
-                <div className="flex w-full items-center gap-4 liquid-glass px-4 py-3 text-white">
+                <div className="flex w-full items-center gap-2 md:gap-4 liquid-glass px-3 md:px-4 py-3 text-white">
                     {/* Logo */}
-                    <Logo variant="light" />
+                    <Logo variant="light" hideTextMobile />
 
                     {/* Deliver To - Now Clickable */}
                     <button
@@ -196,7 +196,7 @@ export function Navbar() {
                     </button>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center max-w-3xl mx-4 relative" ref={searchRef}>
+                    <div className="flex flex-1 items-center max-w-3xl mx-2 md:mx-4 relative" ref={searchRef}>
                         <div className="flex h-11 w-full rounded-xl bg-white text-black overflow-visible border border-gray-300 focus-within:border-ratel-orange focus-within:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-all relative">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
@@ -343,12 +343,21 @@ export function Navbar() {
 
                     {/* Account & Lists Dropdown */}
                     <div
-                        className="relative hidden md:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer group"
+                        className="relative flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer group justify-center md:justify-start"
                         onMouseEnter={() => setIsAccountMenuOpen(true)}
                         onMouseLeave={() => setIsAccountMenuOpen(false)}
+                        onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
                     >
-                        <span className="text-white">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
-                        <span className="font-bold text-white flex items-center">Account & Lists <ChevronDown className="ml-1 h-3 w-3" /></span>
+                        {/* Mobile View */}
+                        <div className="md:hidden flex flex-col items-center">
+                            <User className="h-6 w-6 text-white" />
+                        </div>
+
+                        {/* Desktop View */}
+                        <div className="hidden md:flex flex-col">
+                            <span className="text-white">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
+                            <span className="font-bold text-white flex items-center">Account & Lists <ChevronDown className="ml-1 h-3 w-3" /></span>
+                        </div>
 
                         {/* Dropdown Menu */}
                         <AnimatePresence>

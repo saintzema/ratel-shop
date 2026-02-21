@@ -299,7 +299,7 @@ function CheckoutContent() {
                     status: "pending",
                     escrow_status: "held",
                     shipping_address: `${fullName}, ${address.street}, ${address.city}`
-                });
+                }, item.product);
             });
 
             if (negotiationId) {
@@ -321,7 +321,7 @@ function CheckoutContent() {
                 searchParams.set("from", "checkout");
                 router.push(`/register?${searchParams.toString()}`);
             } else {
-                router.push("/order-confirmation");
+                router.push("/account/orders?success=true");
             }
         }, 1500);
     };

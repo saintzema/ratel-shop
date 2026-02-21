@@ -18,6 +18,7 @@ export interface ProductSuggestion {
     name: string;
     category: string;
     approxPrice: number;
+    sourceUrl?: string;
 }
 
 export type PriceAnalysis = {

@@ -7,7 +7,7 @@ export const DEMO_SELLERS: Seller[] = [
         id: "s1",
         user_id: "u2",
         business_name: "TechHub Lagos",
-        description: "Premium electronics and gadgets at fair prices. VDM Verified.",
+        description: "Premium electronics and gadgets at fair prices. Superadmin Verified.",
         logo_url: "/sellers/techhub.png",
         category: "electronics",
         verified: true,

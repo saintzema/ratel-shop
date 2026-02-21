@@ -82,10 +82,10 @@ export default function SellerDashboard() {
         <div className="space-y-6 max-w-6xl">
             {/* Welcome header */}
             <div>
-                <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+                <h1 className="text-2xl font-black text-white tracking-tight">
                     Welcome back, {currentSeller.business_name} 👋
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-white/60 mt-1">
                     Here's what's happening with your store today.
                 </p>
             </div>
@@ -101,24 +101,24 @@ export default function SellerDashboard() {
             {/* Revenue & Escrow Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Available Balance */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className="bg-white/5 backdrop-blur-[12px] rounded-2xl border border-white/10 p-6 shadow-lg">
                     <div className="flex items-center gap-2 mb-1">
-                        <Wallet className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Available Balance</span>
+                        <Wallet className="h-4 w-4 text-ratel-green-400" />
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-wider">Available Balance</span>
                     </div>
-                    <h3 className="text-3xl font-black text-gray-900 mt-2">
+                    <h3 className="text-3xl font-black text-white mt-2">
                         {formatPrice(availableBalance)}
                     </h3>
-                    <p className="text-[11px] text-gray-400 mt-1 mb-4">Ready for withdrawal</p>
+                    <p className="text-[11px] text-white/40 mt-1 mb-4">Ready for withdrawal</p>
                     {cashoutSuccess ? (
-                        <div className="flex items-center gap-2 text-sm font-bold text-emerald-600 bg-emerald-50 px-4 py-2.5 rounded-xl">
+                        <div className="flex items-center gap-2 text-sm font-bold text-ratel-green-400 bg-ratel-green-500/10 px-4 py-2.5 rounded-xl">
                             <CheckCircle className="h-4 w-4" />
                             Cashout request submitted!
                         </div>
                     ) : (
                         <Button
                             onClick={handleCashout}
-                            className="w-full bg-ratel-green-600 hover:bg-ratel-green-600/90 text-white font-bold rounded-xl h-10 shadow-md shadow-ratel-green-600/20"
+                            className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-bold rounded-xl h-10 shadow-md shadow-ratel-green-600/20"
                         >
                             <ArrowUpRight className="h-4 w-4 mr-2" />
                             Request Cashout
@@ -127,82 +127,82 @@ export default function SellerDashboard() {
                 </div>
 
                 {/* In Escrow */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className="bg-white/5 backdrop-blur-[12px] rounded-2xl border border-white/10 p-6 shadow-lg">
                     <div className="flex items-center gap-2 mb-1">
-                        <Lock className="h-4 w-4 text-amber-500" />
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">In Escrow</span>
+                        <Lock className="h-4 w-4 text-amber-400" />
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-wider">In Escrow</span>
                     </div>
-                    <h3 className="text-3xl font-black text-amber-600 mt-2">
+                    <h3 className="text-3xl font-black text-amber-400 mt-2">
                         {formatPrice(escrowAmount)}
                     </h3>
-                    <p className="text-[11px] text-gray-400 mt-1 mb-4">Held until delivery confirmed</p>
-                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <p className="text-[11px] text-white/40 mt-1 mb-4">Held until delivery confirmed</p>
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
                             style={{ width: `${escrowAmount > 0 ? Math.min((escrowAmount / DEMO_SELLER_STATS.total_revenue) * 100, 100) : 0}%` }}
                         />
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-2">{orders.filter(o => o.escrow_status === "held").length} orders in escrow</p>
+                    <p className="text-[10px] text-white/40 mt-2">{orders.filter(o => o.escrow_status === "held").length} orders in escrow</p>
                 </div>
 
                 {/* Released */}
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                <div className="bg-white/5 backdrop-blur-[12px] rounded-2xl border border-white/10 p-6 shadow-lg">
                     <div className="flex items-center gap-2 mb-1">
-                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Released</span>
+                        <ShieldCheck className="h-4 w-4 text-ratel-green-400" />
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-wider">Total Released</span>
                     </div>
-                    <h3 className="text-3xl font-black text-emerald-600 mt-2">
+                    <h3 className="text-3xl font-black text-ratel-green-400 mt-2">
                         {formatPrice(releasedAmount)}
                     </h3>
-                    <p className="text-[11px] text-gray-400 mt-1 mb-4">Successfully settled</p>
-                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                    <p className="text-[11px] text-white/40 mt-1 mb-4">Successfully settled</p>
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
                         <div
-                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-ratel-green-400 to-ratel-green-500 rounded-full transition-all duration-500"
                             style={{ width: `${releasedAmount > 0 ? Math.min((releasedAmount / DEMO_SELLER_STATS.total_revenue) * 100, 100) : 0}%` }}
                         />
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-2">{orders.filter(o => o.escrow_status === "released").length} orders released</p>
+                    <p className="text-[10px] text-white/40 mt-2">{orders.filter(o => o.escrow_status === "released").length} orders released</p>
                 </div>
             </div>
 
             {/* Recent Negotiations (max 3) */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-bold text-sm flex items-center gap-2 text-gray-900">
-                        <MessageSquare className="h-4 w-4 text-blue-600" />
+            <div className="bg-white/5 backdrop-blur-[12px] rounded-2xl border border-white/10 shadow-lg overflow-hidden">
+                <div className="px-6 py-4 border-b border-white/10 flex justify-between items-center">
+                    <h3 className="font-bold text-sm flex items-center gap-2 text-white">
+                        <MessageSquare className="h-4 w-4 text-blue-400" />
                         Recent Negotiations
                     </h3>
-                    <Link href="/seller/dashboard/negotiations" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5">
+                    <Link href="/seller/dashboard/negotiations" className="text-xs font-semibold text-blue-400 hover:text-blue-300 flex items-center gap-0.5 transition-colors">
                         View All ({negotiations.length}) <ChevronRight className="h-3 w-3" />
                     </Link>
                 </div>
 
-                <div className="divide-y divide-gray-50">
+                <div className="divide-y divide-white/5">
                     {pendingNegs.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-sm">No pending negotiations 🎉</div>
+                        <div className="p-8 text-center text-white/40 text-sm">No pending negotiations 🎉</div>
                     ) : (
                         pendingNegs.slice(0, 3).map((neg) => {
                             const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts().find(p => p.id === neg.product_id);
                             if (!product) return null;
 
                             return (
-                                <div key={neg.id} className="p-5 hover:bg-gray-50/50 transition-colors">
+                                <div key={neg.id} className="p-5 hover:bg-white/5 transition-colors">
                                     <div className="flex justify-between items-start gap-4">
                                         <div className="flex gap-3 flex-1 min-w-0">
-                                            <div className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-100 shrink-0 overflow-hidden">
-                                                <img src={product.image_url} className="w-full h-full object-contain mix-blend-multiply p-1" alt="" />
+                                            <div className="h-12 w-12 bg-white/10 rounded-xl border border-white/10 shrink-0 overflow-hidden flex items-center justify-center p-1">
+                                                <img src={product.image_url} className="w-full h-full object-contain" alt="" />
                                             </div>
                                             <div className="min-w-0">
-                                                <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
+                                                <h4 className="font-bold text-sm text-white truncate">{product.name}</h4>
                                                 <div className="flex items-center gap-3 mt-1">
-                                                    <span className="text-xs text-gray-400 line-through">{formatPrice(product.price)}</span>
-                                                    <span className="text-sm font-black text-blue-600">{formatPrice(neg.proposed_price)}</span>
-                                                    <Badge variant="outline" className="text-[10px] border-yellow-200 bg-yellow-50 text-yellow-700 py-0">
+                                                    <span className="text-xs text-white/40 line-through">{formatPrice(product.price)}</span>
+                                                    <span className="text-sm font-black text-blue-400">{formatPrice(neg.proposed_price)}</span>
+                                                    <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-500/10 text-amber-400 py-0">
                                                         -{Math.round((1 - neg.proposed_price / product.price) * 100)}%
                                                     </Badge>
                                                 </div>
                                                 {neg.message && (
-                                                    <p className="text-xs text-gray-500 mt-1.5 line-clamp-1">"{neg.message}"</p>
+                                                    <p className="text-xs text-white/50 mt-1.5 line-clamp-1">"{neg.message}"</p>
                                                 )}
                                             </div>
                                         </div>
@@ -210,7 +210,7 @@ export default function SellerDashboard() {
                                             <Button
                                                 size="sm"
                                                 onClick={() => handleNegAction(neg.id, "accepted")}
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-8 px-3 text-xs font-bold shadow-sm"
+                                                className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-lg h-8 px-3 text-xs font-bold shadow-sm"
                                             >
                                                 <CheckCircle className="h-3 w-3 mr-1" /> Accept
                                             </Button>
@@ -218,7 +218,7 @@ export default function SellerDashboard() {
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() => handleNegAction(neg.id, "rejected")}
-                                                className="border-red-200 text-red-600 hover:bg-red-50 rounded-lg h-8 px-3 text-xs font-bold"
+                                                className="border-red-500/50 text-red-400 hover:bg-red-500/20 hover:text-white rounded-lg h-8 px-3 text-xs font-bold bg-transparent transition-colors"
                                             >
                                                 <XCircle className="h-3 w-3 mr-1" /> Reject
                                             </Button>
@@ -238,18 +238,18 @@ export default function SellerDashboard() {
                 const hasAlerts = overpricedItems.length > 0 || opportunityItems.length > 0;
 
                 return (
-                    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-                        <h2 className="font-bold text-sm mb-4 flex items-center gap-2 text-gray-900">
+                    <div className="bg-white/5 backdrop-blur-[12px] rounded-2xl border border-white/10 shadow-lg p-6">
+                        <h2 className="font-bold text-sm mb-4 flex items-center gap-2 text-white">
                             <AlertTriangle className="h-4 w-4 text-ratel-orange" />
                             AI Price Alerts
                         </h2>
 
                         {!hasAlerts ? (
-                            <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                                <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+                            <div className="flex items-center gap-3 p-4 bg-ratel-green-500/10 border border-ratel-green-500/20 rounded-xl">
+                                <CheckCircle className="h-5 w-5 text-ratel-green-400 shrink-0" />
                                 <div>
-                                    <h4 className="font-bold text-emerald-700 text-sm">All prices look competitive! ✅</h4>
-                                    <p className="text-xs text-emerald-600/70 mt-0.5">Your product pricing is within market range. Keep it up!</p>
+                                    <h4 className="font-bold text-ratel-green-400 text-sm">All prices look competitive! ✅</h4>
+                                    <p className="text-xs text-ratel-green-400/70 mt-0.5">Your product pricing is within market range. Keep it up!</p>
                                 </div>
                             </div>
                         ) : (
@@ -259,13 +259,13 @@ export default function SellerDashboard() {
                                         ? Math.round(((item.price - item.recommended_price) / item.recommended_price) * 100)
                                         : 25;
                                     return (
-                                        <div key={item.id} className="p-4 bg-red-50 border border-red-100 rounded-xl">
-                                            <h4 className="font-bold text-red-700 text-sm mb-1">⚠️ Overpriced Item Detected</h4>
-                                            <p className="text-xs text-red-600/80 mb-3">
+                                        <div key={item.id} className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+                                            <h4 className="font-bold text-red-400 text-sm mb-1">⚠️ Overpriced Item Detected</h4>
+                                            <p className="text-xs text-red-400/80 mb-3">
                                                 Your &ldquo;{item.name.split("—")[0].trim()}&rdquo; is priced {pctAbove}% higher than market average ({formatPrice(item.recommended_price || 0)}).
                                             </p>
                                             <Link href={`/seller/products?edit=${item.id}`}>
-                                                <Button size="sm" className="bg-red-600 text-white hover:bg-red-700 h-8 text-xs font-bold rounded-lg">
+                                                <Button size="sm" className="bg-red-600/20 text-red-400 hover:bg-red-600 hover:text-white border border-red-500/30 h-8 text-xs font-bold rounded-lg transition-colors">
                                                     Adjust Price →
                                                 </Button>
                                             </Link>
@@ -274,14 +274,14 @@ export default function SellerDashboard() {
                                 })}
 
                                 {opportunityItems.slice(0, 1).map(item => (
-                                    <div key={item.id} className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
-                                        <h4 className="font-bold text-emerald-700 text-sm mb-1">💡 Price Opportunity</h4>
-                                        <p className="text-xs text-emerald-600/80 mb-3">
+                                    <div key={item.id} className="p-4 bg-ratel-green-500/10 border border-ratel-green-500/20 rounded-xl">
+                                        <h4 className="font-bold text-ratel-green-400 text-sm mb-1">💡 Price Opportunity</h4>
+                                        <p className="text-xs text-ratel-green-400/80 mb-3">
                                             Your &ldquo;{item.name.split("—")[0].trim()}&rdquo; has only {item.sold_count} sales. A 5% discount could boost visibility and conversions.
                                         </p>
                                         <Button
                                             size="sm"
-                                            className="bg-emerald-600 text-white hover:bg-emerald-700 h-8 text-xs font-bold rounded-lg"
+                                            className="bg-ratel-green-500/20 text-ratel-green-400 hover:bg-ratel-green-600 hover:text-white border border-ratel-green-500/30 h-8 text-xs font-bold rounded-lg transition-colors"
                                             onClick={() => {
                                                 DemoStore.updateProduct(item.id, { price: Math.round(item.price * 0.95) });
                                                 // Reload products
@@ -297,21 +297,21 @@ export default function SellerDashboard() {
                                 ))}
 
                                 {overpricedItems.length === 0 && opportunityItems.length > 0 && (
-                                    <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                                        <TrendingUp className="h-5 w-5 text-blue-600 shrink-0" />
+                                    <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                                        <TrendingUp className="h-5 w-5 text-blue-400 shrink-0" />
                                         <div>
-                                            <h4 className="font-bold text-blue-700 text-sm">No Overpriced Items</h4>
-                                            <p className="text-xs text-blue-600/70 mt-0.5">All your product prices are within market range.</p>
+                                            <h4 className="font-bold text-blue-400 text-sm">No Overpriced Items</h4>
+                                            <p className="text-xs text-blue-400/70 mt-0.5">All your product prices are within market range.</p>
                                         </div>
                                     </div>
                                 )}
 
                                 {opportunityItems.length === 0 && overpricedItems.length > 0 && (
-                                    <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
-                                        <TrendingUp className="h-5 w-5 text-blue-600 shrink-0" />
+                                    <div className="flex items-center gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                                        <TrendingUp className="h-5 w-5 text-blue-400 shrink-0" />
                                         <div>
-                                            <h4 className="font-bold text-blue-700 text-sm">Sales Looking Strong 📈</h4>
-                                            <p className="text-xs text-blue-600/70 mt-0.5">Your products are selling well. No discount opportunities detected.</p>
+                                            <h4 className="font-bold text-blue-400 text-sm">Sales Looking Strong 📈</h4>
+                                            <p className="text-xs text-blue-400/70 mt-0.5">Your products are selling well. No discount opportunities detected.</p>
                                         </div>
                                     </div>
                                 )}
@@ -327,22 +327,22 @@ export default function SellerDashboard() {
 // ─── StatCard ───
 function StatCard({ icon, label, value, trend, color = "blue" }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string }) {
     const colors: Record<string, string> = {
-        emerald: "bg-emerald-50 text-emerald-600",
-        amber: "bg-amber-50 text-amber-600",
-        blue: "bg-blue-50 text-blue-600",
-        purple: "bg-purple-50 text-purple-600",
+        emerald: "bg-ratel-green-500/20 text-ratel-green-400",
+        amber: "bg-amber-500/20 text-amber-400",
+        blue: "bg-blue-500/20 text-blue-400",
+        purple: "bg-purple-500/20 text-purple-400",
     };
 
     return (
-        <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="bg-white/5 backdrop-blur-[12px] p-5 rounded-2xl border border-white/10 shadow-lg">
             <div className="flex items-center justify-between mb-3">
                 <div className={`p-2 rounded-xl ${colors[color] || colors.blue}`}>
                     <div className="h-4 w-4">{icon}</div>
                 </div>
-                {trend && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{trend}</span>}
+                {trend && <span className="text-[11px] font-bold text-ratel-green-400 bg-ratel-green-500/20 px-2 py-0.5 rounded-full">{trend}</span>}
             </div>
-            <h3 className="text-xl font-black text-gray-900">{value}</h3>
-            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-1">{label}</p>
+            <h3 className="text-xl font-black text-white">{value}</h3>
+            <p className="text-[11px] font-semibold text-white/40 uppercase tracking-wider mt-1">{label}</p>
         </div>
     );
 }

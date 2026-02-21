@@ -283,7 +283,7 @@ export default function Home() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-10 py-7 text-xl backdrop-blur-md border-white/30 hover:bg-white/10 transition-all hover:scale-105 shadow-xl"
+                  className="rounded-full px-10 py-7 text-xl backdrop-blur-md border-white/30 hover:bg-gray-100 transition-all hover:scale-105 shadow-xl"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
                   Calculate Fair Price <span className="ml-2">✨</span>
@@ -344,7 +344,7 @@ export default function Home() {
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 space-y-6 mb-6">
-                <ProductSlider title="VDM Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-ratel-green-600" />} />
+                <ProductSlider title="Superadmin Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-ratel-green-600" />} />
                 <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} />
                 <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} />
                 <ProductSlider title="Computers & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} />

@@ -431,7 +431,7 @@ export default function ProductDetailPage() {
                         <div className="px-8 py-5 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-purple-200">
-                                    <Sparkles className="h-5 w-5 text-white" />
+                                    <Sparkles className="h-5 w-5 text-gray-900" />
                                 </div>
                                 <div>
                                     <h2 className="text-lg font-black text-gray-900">Ask Ziva</h2>
@@ -469,7 +469,7 @@ export default function ProductDetailPage() {
                                         <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                                             {msg.role === "assistant" && (
                                                 <div className="h-7 w-7 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0">
-                                                    <Bot className="h-3.5 w-3.5 text-white" />
+                                                    <Bot className="h-3.5 w-3.5 text-gray-900" />
                                                 </div>
                                             )}
                                             <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm ${msg.role === "user"
@@ -501,7 +501,7 @@ export default function ProductDetailPage() {
                                 <Button
                                     onClick={handleZivaCustomInput}
                                     size="sm"
-                                    className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-white h-10 w-10 p-0"
+                                    className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:from-violet-600 hover:to-fuchsia-600 text-gray-900 h-10 w-10 p-0"
                                 >
                                     <Send className="h-4 w-4" />
                                 </Button>

@@ -21,7 +21,7 @@ export default function VerifiedSellersPage() {
                     <div className="w-16 h-16 bg-green-100 text-ratel-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                         <ShieldCheck className="h-8 w-8" />
                     </div>
-                    <h1 className="text-3xl font-bold mb-2">VDM Verified Sellers</h1>
+                    <h1 className="text-3xl font-bold mb-2">Superadmin Verified Sellers</h1>
                     <p className="text-gray-600 max-w-2xl mx-auto">
                         Shop with confidence. These sellers have passed our rigorous KYC process and adhere to Ratel's fair pricing policy. No scams, no price gouging.
                     </p>
