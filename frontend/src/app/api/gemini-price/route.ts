@@ -24,23 +24,23 @@ export async function POST(req: Request) {
             User Query: "${productName}"
             
             Task: Find 4-6 distinct, real products that match this query. 
-            If the query is vague (e.g. "Tes"), suggest likely matches (e.g. "Tesla Model 3", "Tesla Cybertruck").
-            If it's a category (e.g. "Phones"), list popular current models in Nigeria.
+            If the query is vague, suggest likely matches.
+            
             CRITICAL SOURCING RULES:
-            - If it's a car/vehicle (e.g. Tesla, Toyota): Search Jiji.ng, Cars45, or global export sites like Made-in-China, Alibaba, Temu.
-            - If it's general electronics or everyday items: Search Jumia Nigeria, Konga, Slot.
-            - For highly specific or long queries, extract the exact product intent.
+            - Provide highly descriptive, long-form product names (like on Temu or AliExpress, e.g., "Living.AI Emo - Desktop AI Pet With 1000+ Expressions").
+            - You MUST include realistic, low-cost alternatives from platforms like Temu, Alibaba, or eBay in your suggestions.
+            - The 'approxPrice' MUST be highly accurate and match what a deep price analysis would confidently return for this specific descriptive item. DO NOT quote an artificially low price for a premium item just to bait clicks, and do not quote a high price for a Temu item. The price must exactly reflect the descriptive name.
             
             Return JSON:
             {
                 "suggestions": [
-                    { "name": "Full Product Name", "category": "Category", "approxPrice": number (Naira), "sourceUrl": "https://example.com/item" }
+                    { "name": "Full Descriptive Product Name", "category": "Category", "approxPrice": number (Naira), "sourceUrl": "https://example.com/item" }
                 ]
             }
 
             CRITICAL RULES:
-            - The 'approxPrice' MUST be a realistic market value in Naira. It CANNOT be 0. We prefer quoting the highest likely market price so we don't under-promise.
-            - Output ONLY raw, valid JSON. NO markdown. NO conversational text before or after the JSON.
+            - The 'approxPrice' MUST be a realistic market value in Naira. It CANNOT be 0.
+            - Output ONLY raw, valid JSON. NO markdown.
             `;
         } else {
             // Mode 2: Deep Analysis (Temu/Global First)

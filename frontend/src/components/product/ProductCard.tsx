@@ -56,10 +56,10 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     }, [favorited, toggleFavorite, product.id]);
 
     return (
-        <div className={cn("group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl p-4 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 h-full", className)}>
+        <div className={cn("group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 h-full", className)}>
             <Link href={`/product/${product.id}`} className="block h-full flex flex-col">
                 <div
-                    className="relative aspect-square mb-4 overflow-hidden rounded-xl bg-muted"
+                    className="relative aspect-square object-cover bg-muted"
                     onClick={handleDoubleTap}
                 >
                     {/* Discount Badge */}
@@ -116,45 +116,72 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     />
                 </div>
 
-                <h3 className="text-sm font-bold line-clamp-2 mb-2 group-hover:text-ratel-green-600 transition-colors leading-snug min-h-[40px]">
-                    {product.name}
-                </h3>
+                <div className="px-3 pt-3 flex flex-col flex-1">
+                    <h3 className="text-sm font-bold line-clamp-2 mb-2 group-hover:text-ratel-green-600 transition-colors leading-snug min-h-[40px]">
+                        {product.name}
+                    </h3>
 
-                {/* Rating */}
-                <div className="flex items-center gap-1.5 mb-3">
-                    <div className="flex text-amber-400">
-                        {[...Array(5)].map((_, i) => (
-                            <Star
-                                key={i}
-                                className={`h-3 w-3 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-300"}`}
-                            />
-                        ))}
-                    </div>
-                    <span className="text-[10px] text-muted-foreground font-bold">
-                        ({product.review_count.toLocaleString()})
-                    </span>
-                </div>
-
-                {/* Price Section */}
-                <div className="flex items-baseline gap-2 mb-2">
-                    <span className="text-xl font-black text-foreground">
-                        {formatPrice(product.price)}
-                    </span>
-                    {product.original_price && (
-                        <span className="text-xs text-muted-foreground line-through font-medium">
-                            {formatPrice(product.original_price)}
+                    {/* Rating */}
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <div className="flex text-amber-400">
+                            {[...Array(5)].map((_, i) => (
+                                <Star
+                                    key={i}
+                                    className={`h-3 w-3 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-300"}`}
+                                />
+                            ))}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-bold">
+                            ({product.review_count.toLocaleString()})
                         </span>
-                    )}
+                    </div>
+
+                    {/* Price Section */}
+                    <div className="flex items-baseline gap-2 mb-2 mt-auto">
+                        <span className="text-lg font-black text-foreground">
+                            {formatPrice(product.price)}
+                        </span>
+                        {product.original_price && (
+                            <span className="text-[10px] text-muted-foreground line-through font-medium">
+                                {formatPrice(product.original_price)}
+                            </span>
+                        )}
+                    </div>
                 </div>
-
-
             </Link>
 
             {/* Action Buttons */}
-            {product.price_flag === "overpriced" ? (
-                <div className="flex gap-1.5 mt-auto overflow-hidden">
+            <div className="px-3 pb-3 mt-auto">
+                {product.price_flag === "overpriced" ? (
+                    <div className="flex gap-1.5 overflow-hidden">
+                        <Button
+                            className="flex-1 min-w-0 bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2"
+                            size="sm"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                addToCart(product);
+                            }}
+                        >
+                            Add to Cart
+                        </Button>
+                        <Link
+                            href={`/product/${product.id}?negotiate=true`}
+                            className="relative z-20 flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <Button
+                                variant="outline"
+                                className="w-full border-2 border-ratel-orange text-ratel-orange font-black hover:bg-ratel-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm text-xs gap-1 px-2"
+                                size="sm"
+                            >
+                                <span className="truncate">Negotiate</span>
+                            </Button>
+                        </Link>
+                    </div>
+                ) : (
                     <Button
-                        className="flex-1 min-w-0 bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 transition-all duration-300 cursor-pointer rounded-xl h-10 shadow-lg relative z-20 text-xs px-2"
+                        className="w-full bg-ratel-green-600 text-white font-black hover:bg-ratel-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20"
                         size="sm"
                         onClick={(e) => {
                             e.preventDefault();
@@ -164,33 +191,8 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     >
                         Add to Cart
                     </Button>
-                    <Link
-                        href={`/product/${product.id}?negotiate=true`}
-                        className="relative z-20 flex-1 min-w-0"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Button
-                            variant="outline"
-                            className="w-full border-2 border-ratel-orange text-ratel-orange font-black hover:bg-ratel-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-10 shadow-lg text-xs gap-1 px-2"
-                            size="sm"
-                        >
-                            <span className="truncate">Negotiate</span>
-                        </Button>
-                    </Link>
-                </div>
-            ) : (
-                <Button
-                    className="w-full mt-auto bg-ratel-green-600 text-white font-black hover:bg-ratel-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-10 shadow-lg relative z-20"
-                    size="sm"
-                    onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        addToCart(product);
-                    }}
-                >
-                    Add to Cart
-                </Button>
-            )}
+                )}
+            </div>
         </div>
     );
 }

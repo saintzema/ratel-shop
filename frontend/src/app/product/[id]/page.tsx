@@ -12,6 +12,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import {
     Handshake,
@@ -36,6 +37,7 @@ import {
     Send,
     Bot,
     User,
+    Zap,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
@@ -603,12 +605,12 @@ export default function ProductDetailPage() {
                 {/* Similar Products */}
                 {similarProducts.length > 0 && (
                     <div className="mt-12 mb-8">
-                        <h2 className="text-2xl font-black mb-8">Similar Items</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-                            {similarProducts.map(p => (
-                                <ProductCard key={p.id} product={p} />
-                            ))}
-                        </div>
+                        <RecommendedProducts
+                            products={similarProducts}
+                            title="Similar Items"
+                            subtitle="Compare with related products"
+                            icon={<Zap className="h-5 w-5 text-ratel-orange" />}
+                        />
                     </div>
                 )}
             </main>

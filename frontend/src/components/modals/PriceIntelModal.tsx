@@ -6,17 +6,19 @@ import {
     X, Search, TrendingUp, TrendingDown,
     ShieldCheck, MapPin, Scale, ArrowRight,
     BarChart3, Globe, AlertTriangle, CheckCircle, ShoppingCart,
-    Loader2, ExternalLink, ChevronRight, Box
+    Loader2, ExternalLink, ChevronRight, Box, Heart
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { RequestDepositModal } from "./RequestDepositModal";
 import { PriceEngine, PriceAnalysis, PriceData, ProductSuggestion } from "@/lib/price-engine";
 import { formatPrice } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { DEMO_PRODUCTS } from "@/lib/data";
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -55,6 +57,18 @@ const REGIONAL_FACTORS: Record<string, { factor: number; label: string }> = {
     calabar: { factor: 0.96, label: "Calabar" },
     default: { factor: 1.0, label: "Nigeria (National)" },
 };
+
+// ─── Utilities ──────────────────────────────────────────────
+
+export function getFallbackImage(cat: string = "") {
+    const c = cat.toLowerCase();
+    if (c.includes("phone") || c.includes("smartwatch")) return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop";
+    if (c.includes("computer") || c.includes("laptop")) return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=400&fit=crop";
+    if (c.includes("fashion") || c.includes("textile")) return "https://images.unsplash.com/photo-1445205170230-053b83016050?w=400&h=400&fit=crop";
+    if (c.includes("car")) return "https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=400&h=400&fit=crop";
+    if (c.includes("home") || c.includes("furniture")) return "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&h=400&fit=crop";
+    return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+}
 
 // ─── Interfaces ─────────────────────────────────────────────
 
@@ -335,32 +349,32 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                 boxShadow: "0 40px 80px rgba(0,0,0,0.1), inset 0 1px 0 rgba(0,0,0,0.5)"
                             }}
                         >
-                            {/* Header — Liquid Glass */}
+                            {/* Header — Liquid Glass with Mesh */}
                             <div
-                                className="px-6 py-4 flex items-center justify-between"
+                                className="px-6 py-4 flex items-center justify-between relative overflow-hidden rounded-t-3xl"
                                 style={{
-                                    background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(16, 185, 129, 0.02))",
-                                    borderBottom: "1px solid rgba(0,0,0,0.06)"
+                                    background: "linear-gradient(135deg, rgba(6, 95, 70, 0.95), rgba(4, 120, 87, 0.85))",
+                                    backdropFilter: "blur(20px)",
+                                    WebkitBackdropFilter: "blur(20px)",
+                                    borderBottom: "1px solid rgba(16, 185, 129, 0.3)"
                                 }}
                             >
-                                <div className="flex items-center gap-3">
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.3),transparent_70%)]" />
+                                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 mix-blend-overlay" />
+                                <div className="flex items-center gap-3 relative z-10">
                                     <div
-                                        className="h-10 w-10 rounded-xl flex items-center justify-center"
-                                        style={{
-                                            background: "linear-gradient(135deg, rgba(16,185,129,0.25), rgba(16,185,129,0.1))",
-                                            border: "1px solid rgba(16,185,129,0.2)"
-                                        }}
+                                        className="h-10 w-10 rounded-xl flex items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 shadow-inner"
                                     >
-                                        <BarChart3 className="h-5 w-5 text-emerald-400" />
+                                        <BarChart3 className="h-5 w-5 text-white drop-shadow-sm" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-gray-900 tracking-tight">Price Intelligence</h2>
-                                        <p className="text-[11px] text-emerald-400/60 font-medium">Real-Time Market Analysis</p>
+                                        <h2 className="text-lg font-bold text-white tracking-tight drop-shadow-md">Price Intelligence</h2>
+                                        <p className="text-[11px] text-emerald-100 font-bold drop-shadow-md">Real-Time Market Analysis</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="text-gray-500 hover:text-gray-900 p-2 rounded-xl transition-all hover:bg-white shadow-sm"
+                                    className="text-white hover:text-emerald-50 p-2 rounded-xl transition-all hover:bg-black/20 shadow-sm relative z-10"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>
@@ -390,9 +404,9 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         className="text-center py-12 space-y-4"
                                     >
                                         <div className="relative w-16 h-16 mx-auto">
-                                            <div className="absolute inset-0 border-2 border-emerald-500/10 rounded-full" />
-                                            <div className="absolute inset-0 border-2 border-transparent border-t-emerald-400 rounded-full animate-spin" />
-                                            <BarChart3 className="absolute inset-0 m-auto h-6 w-6 text-emerald-400/60" />
+                                            <div className="absolute inset-0 border-2 border-emerald-600/20 rounded-full" />
+                                            <div className="absolute inset-0 border-2 border-transparent border-t-emerald-600 rounded-full animate-spin" />
+                                            <BarChart3 className="absolute inset-0 m-auto h-6 w-6 text-emerald-600" />
                                         </div>
                                         <div>
                                             <h3 className="text-gray-900 font-semibold text-base animate-pulse">
@@ -416,11 +430,11 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {searchResults.local.length > 0 && (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between px-1">
-                                                    <h4 className="flex items-center gap-2 text-gray-500 text-[11px] font-bold uppercase tracking-wider">
-                                                        <Box className="h-4 w-4 text-emerald-400" />
+                                                    <h4 className="flex items-center gap-2 text-gray-700 text-[11px] font-bold uppercase tracking-wider">
+                                                        <Box className="h-4 w-4 text-emerald-600" />
                                                         In RatelShop Catalog
                                                     </h4>
-                                                    <span className="text-xs text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full font-bold">In Stock</span>
+                                                    <span className="text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">In Stock</span>
                                                 </div>
                                                 <div className="space-y-2">
                                                     {searchResults.local.map(product => (
@@ -436,7 +450,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                             </div>
                                                             <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
                                                                 <div className="text-left sm:text-right">
-                                                                    <p className="font-bold text-emerald-400">{formatPrice(product.price)}</p>
+                                                                    <p className="font-bold text-emerald-600">{formatPrice(product.price)}</p>
                                                                 </div>
                                                                 <div className="flex gap-2">
                                                                     <button
@@ -465,11 +479,11 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {searchResults.api.length > 0 && (
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between px-1">
-                                                    <h4 className="flex items-center gap-2 text-gray-500 text-[11px] font-bold uppercase tracking-wider">
-                                                        <Globe className="h-4 w-4 text-blue-400" />
+                                                    <h4 className="flex items-center gap-2 text-gray-700 text-[11px] font-bold uppercase tracking-wider">
+                                                        <Globe className="h-4 w-4 text-blue-600" />
                                                         Global Internet Sources
                                                     </h4>
-                                                    <span className="text-xs text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Escrow Protected</span>
+                                                    <span className="text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Escrow Protected</span>
                                                 </div>
                                                 <div className="space-y-2">
                                                     {searchResults.api.map((s, i) => (
@@ -485,8 +499,8 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                             </div>
                                                             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
                                                                 <div className="text-left sm:text-right">
-                                                                    <p className="text-[10px] text-gray-600 mb-0.5 uppercase tracking-wide">Est. Market Value</p>
-                                                                    <p className="font-bold text-blue-400">{formatPrice(s.approxPrice)}</p>
+                                                                    <p className="text-[10px] text-gray-700 mb-0.5 uppercase tracking-wide font-bold">Est. Market Value</p>
+                                                                    <p className="font-bold text-emerald-600">{formatPrice(s.approxPrice)}</p>
                                                                 </div>
                                                                 <button
                                                                     onClick={() => handleAnalyze(s.name)}
@@ -534,28 +548,28 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {/* Context & Flags */}
                                         <div className="grid grid-cols-2 gap-3">
                                             <GlassCard>
-                                                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider mb-2">
-                                                    <Globe className="h-3 w-3 text-blue-400" />
+                                                <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
+                                                    <Globe className="h-3 w-3 text-blue-600" />
                                                     Market Context
                                                 </div>
-                                                <p className="text-gray-500 text-[11px] leading-relaxed">
+                                                <p className="text-gray-800 text-[11px] leading-relaxed font-medium">
                                                     {result.justification}
                                                 </p>
                                             </GlassCard>
                                             <GlassCard>
-                                                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider mb-2">
-                                                    <AlertTriangle className="h-3 w-3 text-amber-400" />
+                                                <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
+                                                    <AlertTriangle className="h-3 w-3 text-amber-500" />
                                                     Analysis Flags
                                                 </div>
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {result.flags.map((flag, i) => (
                                                         <span
                                                             key={i}
-                                                            className="text-[10px] px-2 py-0.5 rounded-full font-medium"
+                                                            className="text-[10px] px-2 py-0.5 rounded-full font-bold"
                                                             style={{
-                                                                background: "rgba(255,255,255,0.06)",
-                                                                border: "1px solid rgba(255,255,255,0.06)",
-                                                                color: "rgba(0,0,0,0.6)"
+                                                                background: "rgba(0,0,0,0.04)",
+                                                                border: "1px solid rgba(0,0,0,0.1)",
+                                                                color: "rgba(0,0,0,0.8)"
                                                             }}
                                                         >
                                                             {flag}
@@ -565,10 +579,19 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                             </GlassCard>
                                         </div>
 
-                                        {/* Footer */}
-                                        <div className="flex items-center justify-between text-[10px] text-gray-500 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}>
+                                        <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold pt-3" style={{ borderTop: "1px solid rgba(0,0,0,0.05)" }}>
                                             <span>Analysis ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
                                             <span>Confidence: {result.confidence}%</span>
+                                        </div>
+
+                                        {/* Global Alternatives (Related items in same category) */}
+                                        <div className="-mx-6 px-6 pt-4 pb-2 border-t border-gray-100 bg-gray-50/50">
+                                            <RecommendedProducts
+                                                products={DEMO_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 8)}
+                                                title="Similar Regional & Global Options"
+                                                subtitle="Other choices you might consider"
+                                                icon={<Globe className="h-4 w-4 text-emerald-600" />}
+                                            />
                                         </div>
                                     </motion.div>
                                 )}
@@ -594,7 +617,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                             description: `Special sourcing request for ${result.name}.`,
                             price: result.ratelBestPrice,
                             category: result.category as any || "other",
-                            image_url: "https://images.unsplash.com/photo-1622556498246-755f44ca76f3?w=800&q=80",
+                            image_url: result.matchedProduct?.image_url || getFallbackImage(result.category || ""),
                             images: [],
                             stock: 1,
                             price_flag: "fair",
@@ -620,11 +643,10 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
     return (
         <div
-            className={`rounded-2xl p-4 ${className}`}
+            className={`rounded-2xl p-4 bg-white/60 shadow-sm ${className}`}
             style={{
-                background: "rgba(255,255,255,0.03)",
                 backdropFilter: "blur(20px)",
-                border: "1px solid rgba(255,255,255,0.06)",
+                border: "1px solid rgba(0,0,0,0.06)",
             }}
         >
             {children}
@@ -648,7 +670,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                 const local = DEMO_PRODUCTS.filter(p =>
                     p.name.toLowerCase().includes(value.toLowerCase()) ||
                     p.category.toLowerCase().includes(value.toLowerCase())
-                ).slice(0, 3);
+                ).slice(0, 7);
                 setLocalMatches(local);
 
                 // 2. API Search
@@ -705,9 +727,9 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
             {hasResult && (
                 <button
                     onClick={onReset}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-gray-100 hover:bg-gray-200 text-gray-900 text-xs font-bold px-4 py-2 rounded-lg transition-all"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 hover:bg-red-400 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm"
                 >
-                    Reset
+                    Clear
                 </button>
             )}
 
@@ -743,7 +765,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
-                                        <p className="text-[11px] text-gray-500 font-medium mt-0.5">{formatPrice(product.price)}</p>
+                                        <p className="text-[11px] text-emerald-600 font-bold mt-0.5">{formatPrice(product.price)}</p>
                                     </div>
                                     <div className="shrink-0 text-gray-400 group-hover:text-blue-500 transition-colors">
                                         <ArrowRight className="h-4 w-4" />
@@ -777,7 +799,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                         <p className="text-sm font-semibold text-gray-900 truncate">{s.name}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <span className="text-[11px] text-gray-500 font-medium">{s.category}</span>
-                                            <span className="text-[10px] text-gray-400 font-medium drop-shadow-sm">~{formatPrice(s.approxPrice)}</span>
+                                            <span className="text-[10px] text-emerald-600 font-bold drop-shadow-sm">~{formatPrice(s.approxPrice)}</span>
                                         </div>
                                     </div>
                                     <div className="shrink-0 text-gray-400 group-hover:text-blue-500 transition-colors">
@@ -799,65 +821,181 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
     const verdictColors: Record<string, { bg: string; border: string; dot: string }> = {
         emerald: { bg: "rgba(16,185,129,0.08)", border: "rgba(16,185,129,0.15)", dot: "#10b981" },
         red: { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.15)", dot: "#ef4444" },
+        yellow: { bg: "rgba(234,179,8,0.08)", border: "rgba(234,179,8,0.15)", dot: "#eab308" },
     };
     const colors = verdictColors[result.verdictColor] || verdictColors.emerald;
+    const { isFavorite, toggleFavorite } = useFavorites();
+    const [liked, setLiked] = useState(false);
+    const [showHeartAnim, setShowHeartAnim] = useState(false);
+    const [showDetails, setShowDetails] = useState(false);
+
+    const isFav = result.matchedProduct ? isFavorite(result.matchedProduct.id) : liked;
+
+    const handleLike = (e?: React.MouseEvent) => {
+        if (e) e.preventDefault();
+        e?.stopPropagation();
+        if (result.matchedProduct) {
+            toggleFavorite(result.matchedProduct.id);
+        } else {
+            setLiked(!liked);
+        }
+    };
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Trigger animation
+        setShowHeartAnim(true);
+        setTimeout(() => setShowHeartAnim(false), 800);
+
+        // Add to favorites if not already
+        if (result.matchedProduct) {
+            if (!isFavorite(result.matchedProduct.id)) {
+                toggleFavorite(result.matchedProduct.id);
+            }
+        } else {
+            if (!liked) setLiked(true);
+        }
+    };
+
+    const imageUrl = result.matchedProduct ? result.matchedProduct.image_url : getFallbackImage(result.category);
 
     return (
         <div
             className="rounded-2xl p-5"
             style={{ background: colors.bg, border: `1px solid ${colors.border}` }}
         >
-            <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                    {/* Verdict badge */}
-                    <div className="flex items-center gap-2 mb-2">
-                        <span
-                            className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
-                            style={{ background: "rgba(255,255,255,0.06)", color: colors.dot }}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-4 flex-1 min-w-0">
+                    {/* Product Image with Double-Click Like Action and Click Details Toggle */}
+                    <div
+                        className="relative w-24 h-24 rounded-xl bg-white border border-gray-100 flex-shrink-0 flex items-center justify-center p-2 shadow-sm group select-none cursor-pointer"
+                        onDoubleClick={handleDoubleClick}
+                        onClick={(e) => { e.preventDefault(); setShowDetails(!showDetails); }}
+                    >
+                        <img src={imageUrl} className="w-full h-full object-contain mix-blend-multiply transition-transform duration-300 group-hover:scale-105 pointer-events-none" alt={result.name} />
+
+                        <AnimatePresence>
+                            {showHeartAnim && (
+                                <motion.div
+                                    initial={{ opacity: 0, scale: 0.3, y: 15 }}
+                                    animate={{ opacity: 1, scale: 1.2, y: 0 }}
+                                    exit={{ opacity: 0, scale: 0.8, y: -15 }}
+                                    transition={{ type: "spring", damping: 12, stiffness: 200, duration: 0.4 }}
+                                    className="absolute inset-0 m-auto flex items-center justify-center drop-shadow-md z-20 pointer-events-none"
+                                >
+                                    <Heart className="h-10 w-10 text-red-500 fill-red-500" />
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <button
+                            onClick={handleLike}
+                            className="absolute top-1.5 right-1.5 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm hover:scale-110 transition-transform z-10"
+                            aria-label="Like product"
                         >
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} />
-                            {result.verdictLabel}
-                        </span>
-                        <span className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Verdict</span>
+                            <Heart className={`h-4 w-4 transition-colors ${isFav ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
+                        </button>
                     </div>
 
-                    {/* Product title — clickable if matched */}
-                    {result.matchedProduct ? (
-                        <Link
-                            href={`/product/${result.matchedProduct.id}`}
-                            className="text-xl font-bold text-gray-900 hover:text-emerald-400 transition-colors inline-flex items-center gap-2 group"
-                        >
-                            {result.name}
-                            <ExternalLink className="h-3.5 w-3.5 text-gray-500 group-hover:text-emerald-400 transition-colors" />
-                        </Link>
-                    ) : (
-                        <h3 className="text-xl font-bold text-gray-900">{result.name}</h3>
-                    )}
+                    <div className="flex-1 min-w-0">
+                        {/* Verdict badge */}
+                        <div className="flex items-center gap-2 mb-2">
+                            <span
+                                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+                                style={{ background: "rgba(255,255,255,0.06)", color: colors.dot }}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} />
+                                {result.verdictLabel}
+                            </span>
+                            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Verdict</span>
+                        </div>
+
+                        {/* Product title — clickable if matched */}
+                        {result.matchedProduct ? (
+                            <button
+                                onClick={(e) => { e.preventDefault(); setShowDetails(!showDetails); }}
+                                className="text-lg sm:text-xl font-bold text-gray-900 hover:text-emerald-600 transition-colors inline-flex flex-wrap items-center gap-2 group line-clamp-2 text-left"
+                            >
+                                {result.name}
+                                <ChevronRight className={`h-4 w-4 text-gray-400 group-hover:text-emerald-600 transition-transform ${showDetails ? 'rotate-90' : ''} shrink-0`} />
+                            </button>
+                        ) : (
+                            <button
+                                onClick={(e) => { e.preventDefault(); setShowDetails(!showDetails); }}
+                                className="text-lg sm:text-xl font-bold text-gray-900 hover:text-emerald-600 transition-colors inline-flex flex-wrap items-center gap-2 group line-clamp-2 text-left w-full"
+                            >
+                                <span className="line-clamp-2">{result.name}</span>
+                                <ChevronRight className={`h-4 w-4 text-gray-400 group-hover:text-emerald-600 transition-transform ${showDetails ? 'rotate-90' : ''} shrink-0`} />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Action Buttons */}
-                {result.matchedProduct ? (
-                    <button
-                        onClick={() => result.matchedProduct && onAddToCart(result.matchedProduct)}
-                        className="shrink-0 flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs px-5 py-2.5 rounded-xl transition-all hover:scale-105 active:scale-95"
-                    >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                        Buy Now
-                    </button>
-                ) : (
-                    <button
-                        onClick={onRequestProduct}
-                        className="shrink-0 flex items-center gap-2 font-bold text-xs px-5 py-2.5 rounded-xl transition-all border border-gray-200 hover:scale-105 active:scale-95"
-                        style={{
-                            background: "rgba(255,255,255,0.08)",
-                            color: "rgba(255,255,255,0.85)"
-                        }}
-                    >
-                        <ShoppingCart className="h-3.5 w-3.5" />
-                        Start Order
-                    </button>
-                )}
+                <div className="w-full sm:w-auto shrink-0 flex justify-end">
+                    {result.matchedProduct ? (
+                        <button
+                            onClick={() => result.matchedProduct && onAddToCart(result.matchedProduct)}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 sm:py-2.5 rounded-xl transition-all shadow-md hover:scale-105 active:scale-95"
+                        >
+                            <ShoppingCart className="h-3.5 w-3.5" />
+                            Buy Now
+                        </button>
+                    ) : (
+                        <button
+                            onClick={onRequestProduct}
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 py-3 sm:py-2.5 rounded-xl transition-all shadow-md hover:scale-105 active:scale-95"
+                        >
+                            <ShoppingCart className="h-3.5 w-3.5" />
+                            Start Order
+                        </button>
+                    )}
+                </div>
             </div>
+
+            {/* Inline Product Details Expansion */}
+            <AnimatePresence>
+                {showDetails && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mt-4 pt-4 border-t overflow-hidden"
+                        style={{ borderColor: colors.border }}
+                    >
+                        {result.matchedProduct ? (
+                            <>
+                                <p className="text-sm text-gray-700 leading-relaxed mb-4 font-medium">
+                                    {result.matchedProduct.description}
+                                </p>
+                                <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-500 bg-white/50 p-3 rounded-xl border border-white/20">
+                                    <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-emerald-500" /> Verified Seller</span>
+                                    <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> Ship to {result.region}</span>
+                                    <span>Stock: <strong className={result.matchedProduct.stock > 0 ? "text-emerald-600" : "text-red-500"}>{result.matchedProduct.stock > 0 ? 'Available' : 'Out of stock'}</strong></span>
+                                </div>
+                                <div className="mt-4 flex gap-3">
+                                    <Link href={`/product/${result.matchedProduct.id}`} className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 flex items-center gap-2 shadow-sm transition-all">
+                                        View Full Page <ExternalLink className="h-3 w-3" />
+                                    </Link>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-sm text-gray-700 leading-relaxed mb-4 font-medium">
+                                    This product is currently not in the local RatelShop catalog. However, our Global Sourcing Partners can procure and deliver it to you securely based on the market estimation above.
+                                </p>
+                                <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-500 bg-white/50 p-3 rounded-xl border border-white/20">
+                                    <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-blue-500" /> Escrow Protected</span>
+                                    <span className="flex items-center gap-1.5"><Globe className="h-4 w-4" /> Global Sourcing</span>
+                                    <span>Category: <strong className="text-gray-900 uppercase tracking-widest">{result.category}</strong></span>
+                                </div>
+                            </>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
@@ -889,8 +1027,8 @@ function PriceComparison({ result }: { result: PriceIntel }) {
                 {/* You Save — only show if savings > 0 */}
                 {result.savingsAmount > 0 && (
                     <div className="mt-2 flex items-center gap-1.5">
-                        <CheckCircle className="h-3 w-3 text-emerald-400" />
-                        <span className="text-[11px] font-semibold text-emerald-400">
+                        <CheckCircle className="h-3 w-3 text-emerald-600" />
+                        <span className="text-[11px] font-bold text-emerald-700">
                             You save {formatPrice(result.savingsAmount)}
                         </span>
                     </div>
@@ -906,12 +1044,12 @@ function PriceComparison({ result }: { result: PriceIntel }) {
 
             {/* Open Market Average */}
             <GlassCard>
-                <p className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide mb-1">Market Estimate</p>
-                <p className="text-2xl font-bold text-gray-900/70 tracking-tight">
+                <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wide mb-1">Market Estimate</p>
+                <p className="text-2xl font-bold text-gray-900 tracking-tight">
                     {formatPrice(result.marketAverage)}
                 </p>
-                <p className="text-[10px] text-gray-900/25 mt-2 flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
+                <p className="text-[10px] font-semibold text-gray-500 mt-2 flex items-center gap-1">
+                    <MapPin className="h-3 w-3 text-gray-600" />
                     <span>Region: {result.region}</span>
                 </p>
             </GlassCard>
@@ -931,11 +1069,11 @@ function PriceSourcesChart({ result }: { result: PriceIntel }) {
     return (
         <GlassCard>
             <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider">
-                    <BarChart3 className="h-3 w-3 text-blue-400" />
+                <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider">
+                    <BarChart3 className="h-3 w-3 text-blue-600" />
                     Price Across Stores
                 </div>
-                <span className="text-[10px] text-gray-900/25">{result.sources.length} sources</span>
+                <span className="text-[10px] font-bold text-gray-500">{result.sources.length} sources</span>
             </div>
             <div className="space-y-2.5">
                 {result.sources.map((source, i) => {
@@ -1028,15 +1166,15 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
     return (
         <GlassCard>
             <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-gray-500 text-[10px] font-semibold uppercase tracking-wider">
+                <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider">
                     {isRising ? (
-                        <TrendingUp className="h-3 w-3 text-red-400" />
+                        <TrendingUp className="h-3 w-3 text-red-600" />
                     ) : (
-                        <TrendingDown className="h-3 w-3 text-emerald-400" />
+                        <TrendingDown className="h-3 w-3 text-emerald-600" />
                     )}
                     6-Month Price Trend
                 </div>
-                <span className={`text-[10px] font-bold ${isRising ? "text-red-400/70" : "text-emerald-400/70"}`}>
+                <span className={`text-[10px] font-bold ${isRising ? "text-red-600" : "text-emerald-700"}`}>
                     {isRising ? "↑ Rising" : "↓ Falling"}
                 </span>
             </div>
@@ -1057,8 +1195,8 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
                                 transform: `translate(-50%, -130%)`
                             }}
                         >
-                            <div className="bg-[#0f1115] border border-gray-200 shadow-xl rounded-lg px-2.5 py-1.5 flex flex-col items-center">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{points[hoverIndex].month}</span>
+                            <div className="bg-white border border-gray-200 shadow-xl rounded-lg px-2.5 py-1.5 flex flex-col items-center">
+                                <span className="text-[9px] text-gray-600 font-bold uppercase tracking-wider">{points[hoverIndex].month}</span>
                                 <span className="text-xs font-bold text-gray-900 whitespace-nowrap">{formatPrice(points[hoverIndex].price)}</span>
                             </div>
                         </motion.div>
@@ -1122,7 +1260,7 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
                 {/* X-Axis Labels positioned absolutely */}
                 <div className="absolute bottom-0 left-0 right-0 flex justify-between px-1">
                     {result.history.map((h, i) => (
-                        <span key={i} className="text-[9px] text-gray-500 font-medium">
+                        <span key={i} className="text-[9px] text-gray-600 font-bold">
                             {h.month}
                         </span>
                     ))}
@@ -1141,14 +1279,13 @@ function DutyBreakdown({ result }: { result: PriceIntel }) {
         <GlassCard className="overflow-hidden !p-0">
             {/* Header */}
             <div
-                className="px-6 py-4 flex items-center justify-between shrink-0 rounded-t-3xl"
+                className="px-6 py-4 flex items-center justify-between shrink-0 rounded-t-3xl bg-gray-50"
                 style={{
-                    background: "rgba(255,255,255,0.02)",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)"
+                    borderBottom: "1px solid rgba(0,0,0,0.05)"
                 }}
             >
                 <h4 className="text-xs font-bold text-gray-900 flex items-center gap-2">
-                    <Scale className="h-4 w-4 text-purple-400" />
+                    <Scale className="h-4 w-4 text-purple-600" />
                     Landed Cost Breakdown
                 </h4>
                 <div className="text-right">

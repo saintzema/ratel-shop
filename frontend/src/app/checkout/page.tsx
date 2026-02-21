@@ -5,7 +5,7 @@ import { DEMO_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, Trash2, Plus } from "lucide-react";
+import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
 import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2 } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo } from "react";
@@ -17,6 +17,7 @@ import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { Navbar } from "@/components/layout/Navbar";
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 
 // Helper: compute a future delivery date (5-7 business days from now)
 function getDeliveryDateRange(): string {
@@ -114,12 +115,12 @@ function persistAddresses(addresses: SavedAddress[]) {
 }
 
 function CheckoutContent() {
-    const searchParams = useSearchParams();
+    const { items, cartTotal, removeFromCart, updateQuantity, clearCart } = useCart();
     const router = useRouter();
-    const negotiationId = searchParams.get("negotiationId");
-    const { cart, cartTotal, clearCart, updateQuantity, removeFromCart } = useCart();
-    const { user, register } = useAuth();
-    const [isEditingAddress, setIsEditingAddress] = useState(true);
+    const { user } = useAuth();
+    const [isClient, setIsClient] = useState(false);
+
+    const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
     const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
     const [showAddressPicker, setShowAddressPicker] = useState(false);
     const [address, setAddress] = useState({
@@ -601,14 +602,20 @@ function CheckoutContent() {
 
                                         <div className="space-y-6">
                                             {groups[sellerName].map((item, i) => (
-                                                <div key={i} className="flex gap-4">
-                                                    <div className="w-20 h-20 bg-gray-50 rounded-xl border border-gray-100 shrink-0 p-2">
-                                                        <img src={item.product.image_url} className="w-full h-full object-contain mix-blend-multiply" alt="" />
-                                                    </div>
+                                                <div key={i} className="flex gap-4 group/item">
+                                                    <button
+                                                        onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
+                                                        className="w-20 h-20 bg-gray-50 rounded-xl border border-gray-100 shrink-0 p-2 cursor-pointer hover:border-emerald-300 transition-colors"
+                                                    >
+                                                        <img src={item.product.image_url} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover/item:scale-105" alt="" />
+                                                    </button>
                                                     <div className="flex-1">
                                                         <div className="flex justify-between items-start">
-                                                            <div>
-                                                                <h3 className="font-bold text-gray-900 line-clamp-1">{item.product.name}</h3>
+                                                            <div
+                                                                className="cursor-pointer group-hover/item:text-emerald-700 transition-colors"
+                                                                onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
+                                                            >
+                                                                <h3 className="font-bold text-gray-900 line-clamp-1 group-hover/item:text-emerald-600 transition-colors">{item.product.name}</h3>
                                                                 <div className="flex items-center gap-2 mt-1">
                                                                     <span className="font-bold text-ratel-green-600">{formatPrice(item.price)}</span>
                                                                     {item.isNegotiated && (
@@ -703,6 +710,15 @@ function CheckoutContent() {
 
             </main >
 
+            {/* Global cross-sell at bottom of checkout */}
+            <div className="container mx-auto max-w-6xl px-4 mt-6 mb-16">
+                <RecommendedProducts
+                    products={DemoStore.getProducts().slice(8, 16)}
+                    title="Frequently Bought Together"
+                    subtitle="Customers also added these items"
+                />
+            </div>
+
             <AnimatePresence>
                 {showPaystack && (
                     <PaystackCheckout
@@ -712,6 +728,64 @@ function CheckoutContent() {
                         onClose={() => setShowPaystack(false)}
                         autoStart={true}
                     />
+                )}
+            </AnimatePresence>
+
+            {/* Product Preview Modal */}
+            <AnimatePresence>
+                {previewProduct && (
+                    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setPreviewProduct(null)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+                        >
+                            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                                <h3 className="font-bold text-lg text-gray-900">Product Details</h3>
+                                <button onClick={() => setPreviewProduct(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                                    <X className="h-5 w-5 text-gray-500" />
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto max-h-[70vh]">
+                                <div className="w-full h-48 bg-gray-50 rounded-2xl border border-gray-100 mb-6 p-4 flex items-center justify-center">
+                                    <img src={previewProduct.image_url} alt={previewProduct.name} className="w-full h-full object-contain mix-blend-multiply" />
+                                </div>
+                                <h2 className="text-xl font-black text-gray-900 mb-2">{previewProduct.name}</h2>
+                                <p className="text-2xl font-bold text-emerald-600 mb-4">{formatPrice(previewProduct.price)}</p>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <h4 className="text-xs font-bold uppercase text-gray-400 mb-1">Description</h4>
+                                        <p className="text-sm text-gray-700 leading-relaxed font-medium">{previewProduct.description}</p>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                                            <ShieldCheck className="h-4 w-4 text-emerald-500" /> Verified Escrow
+                                        </div>
+                                        <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
+                                            {previewProduct.seller_id === "ratel-concierge" ? <Globe className="h-4 w-4 text-blue-500" /> : <Package className="h-4 w-4 text-gray-400" />}
+                                            {previewProduct.seller_name}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                                <Button
+                                    onClick={() => setPreviewProduct(null)}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold px-6"
+                                >
+                                    Continue to Checkout
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </div >

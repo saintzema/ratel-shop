@@ -15,11 +15,6 @@ export function FloatingCart() {
 
     const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
 
-    // Hide the floating cart inside the actual cart page or checkout page
-    if (pathname === "/cart" || pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
-        return null;
-    }
-
     // Trigger bounce effect when count increases
     useEffect(() => {
         if (itemCount > prevCount) {
@@ -29,6 +24,11 @@ export function FloatingCart() {
         }
         setPrevCount(itemCount);
     }, [itemCount, prevCount]);
+
+    // Hide the floating cart inside the actual cart page or checkout page
+    if (pathname === "/cart" || pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
+        return null;
+    }
 
     return (
         <AnimatePresence>

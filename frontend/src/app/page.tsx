@@ -11,6 +11,7 @@ import { Footer } from "@/components/layout/Footer";
 import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Star, Store as StoreIcon, TrendingUp } from "lucide-react";
 import { motion } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
@@ -355,7 +356,13 @@ export default function Home() {
                 <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} />
                 <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} />
                 <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} />
-                <ProductSlider title="Top Picks For You" link="/search" products={topPicks} icon={<Star className="h-5 w-5 text-yellow-500" />} />
+              </section>
+            )}
+
+            {/* ═══ Global Recommended Products ═══ */}
+            {mounted && (
+              <section className="container mx-auto px-4 mb-12">
+                <RecommendedProducts products={topPicks} title="Recommended For You" subtitle="Based on your browsing history" />
               </section>
             )}
           </div>
