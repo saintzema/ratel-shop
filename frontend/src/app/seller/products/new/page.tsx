@@ -3,79 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info } from "lucide-react";
+import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2 } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { DemoStore } from "@/lib/demo-store";
 import { useRouter } from "next/navigation";
-
-// Mock AI generation function
-const generateAIContent = (name: string, category: string) => {
-    const isPhone = name.toLowerCase().includes("iphone") || name.toLowerCase().includes("samsung") || category === "phones";
-    const isLaptop = name.toLowerCase().includes("macbook") || name.toLowerCase().includes("dell") || category === "computers";
-
-    if (isPhone) {
-        return {
-            description: `Experience the future with the ${name}. Featuring a stunning display, all-day battery life, and a professional-grade camera system. Designed for durability with aerospace-grade materials.`,
-            highlights: [
-                "Super Retina XDR display for immersive viewing",
-                "Advanced camera system for pro-level photos",
-                "All-day battery life for uninterrupted usage",
-                "Ceramic Shield front, tougher than any smartphone glass",
-                "5G capable for superfast downloads"
-            ],
-            specs: {
-                "Screen Size": "6.7 Inches",
-                "Resolution": "2796 x 1290 pixels",
-                "Processor": "A17 Pro",
-                "RAM": "8 GB",
-                "Storage": "256 GB",
-                "Battery": "4422 mAh",
-                "Camera": "48MP Main + 12MP Ultra Wide + 12MP Telephoto"
-            }
-        };
-    } else if (isLaptop) {
-        return {
-            description: `Unleash your creativity with the ${name}. Powered by the latest processor, it handles intensive tasks with ease. The liquid retina display brings your work to life with vibrant colors and sharp detail.`,
-            highlights: [
-                "Powerful performance for demanding workflows",
-                "Stunning Liquid Retina display",
-                "Up to 18 hours of battery life",
-                "Quiet, fanless design",
-                "Studio-quality mics and 1080p FaceTime HD camera"
-            ],
-            specs: {
-                "Screen Size": "14 Inches",
-                "Processor": "M3 Pro",
-                "RAM": "16 GB",
-                "Storage": "512 GB SSD",
-                "Graphics": "14-core GPU",
-                "Ports": "Thunderbolt 4, HDMI, SDXC, MagSafe 3"
-            }
-        };
-    }
-
-    return {
-        description: `Premium quality ${name} designed for excellence. Built with high-grade materials to ensure longevity and superior performance. A perfect addition to your lifestyle.`,
-        highlights: [
-            "Premium build quality and durability",
-            "Designed for optimal performance",
-            "Sleek and modern aesthetic",
-            "Easy to use and maintain",
-            "Excellent value for money"
-        ],
-        specs: {
-            "Material": "Premium Composite",
-            "Weight": "1.2 kg",
-            "Dimensions": "20 x 15 x 5 cm",
-            "Warranty": "1 Year Manufacturer Warranty"
-        }
-    };
-};
+import { PriceEngine } from "@/lib/price-engine";
 
 export default function NewProduct() {
     const router = useRouter();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
+
     const [formData, setFormData] = useState({
         name: "",
         category: "",
@@ -84,70 +24,84 @@ export default function NewProduct() {
         description: "",
         highlights: [] as string[],
         specs: [] as { key: string; value: string }[],
-        images: ["/placeholder-product.jpg"]
+        image_url: "",
+        images: [""]
     });
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [priceAnalysis, setPriceAnalysis] = useState<any>(null);
-    const analysisTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-    // --- Price Analysis Logic ---
+    // Dynamic price status update
     useEffect(() => {
-        if (!formData.price || isNaN(parseInt(formData.price))) {
-            setPriceAnalysis(null);
-            setIsAnalyzing(false);
-            return;
+        if (!formData.price || isNaN(parseInt(formData.price.replace(/,/g, ""))) || !priceAnalysis) return;
+        const priceNum = parseInt(formData.price.replace(/,/g, ""));
+        const marketAvg = priceAnalysis.marketAvg;
+        let status = "fair";
+        if (priceNum > marketAvg * 1.1) status = "overpriced";
+        else if (priceNum < marketAvg * 0.8) status = "too_low";
+        let salesProbability = status === "overpriced" ? "30%" : status === "too_low" ? "50%" : "85%";
+        if (priceAnalysis.status !== status || priceAnalysis.salesProbability !== salesProbability) {
+            setPriceAnalysis((prev: any) => ({ ...prev, status, salesProbability }));
         }
-
-        setIsAnalyzing(true);
-        if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
-
-        analysisTimerRef.current = setTimeout(() => {
-            const priceNum = parseInt(formData.price);
-            const marketAvg = 1100000;
-            setPriceAnalysis({
-                marketAvg: marketAvg,
-                fairRangeLow: marketAvg * 0.95,
-                fairRangeHigh: marketAvg * 1.05,
-                status: priceNum > marketAvg * 1.1 ? "overpriced" : priceNum < marketAvg * 0.9 ? "suspicious" : "fair",
-                demand: "High",
-                salesProbability: priceNum < marketAvg * 1.02 ? "85%" : "40%"
-            });
-            setIsAnalyzing(false);
-        }, 800);
-
-        return () => {
-            if (analysisTimerRef.current) clearTimeout(analysisTimerRef.current);
-        };
-    }, [formData.price]);
+    }, [formData.price, priceAnalysis?.marketAvg]);
 
     // --- AI Content Generation ---
-    const handleAIGenerate = () => {
+    const handleAIGenerate = async () => {
         if (!formData.name) return;
         setIsGenerating(true);
-
-        setTimeout(() => {
-            const content = generateAIContent(formData.name, formData.category);
-            setFormData(prev => ({
-                ...prev,
-                description: content.description,
-                highlights: content.highlights,
-                specs: Object.entries(content.specs).map(([key, value]) => ({ key, value }))
-            }));
+        try {
+            const res = await fetch("/api/gemini-seller", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productName: formData.name, category: formData.category })
+            });
+            if (res.ok) {
+                const content = await res.json();
+                setFormData(prev => ({
+                    ...prev,
+                    description: content.description || prev.description,
+                    highlights: content.highlights || prev.highlights,
+                    specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs
+                }));
+            }
+        } catch (error) {
+            console.error("AI Generation failed", error);
+        } finally {
             setIsGenerating(false);
-        }, 1500);
+        }
     };
 
-    const handleBestPrice = () => {
+    const handleBestPrice = async () => {
+        if (!formData.name) {
+            alert("Please enter a product name first to get accurate price intelligence.");
+            return;
+        }
         setIsCalculatingBestPrice(true);
-        setTimeout(() => {
-            // Mock logic: 1.1M is our standard demo "fair price"
-            const fairPrice = 1100000;
-            setFormData(prev => ({ ...prev, price: fairPrice.toString() }));
+        setIsAnalyzing(true);
+        try {
+            const res = await fetch("/api/gemini-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productName: formData.name, region: "Nigeria", mode: "analyze" })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const marketAvg = data.marketAverage || 50000;
+                const fairRangeLow = data.recommendedPrice || Math.round(marketAvg * 0.9);
+                setPriceAnalysis({ marketAvg, fairRangeLow, status: "fair", demand: "High", salesProbability: "85%" });
+                setFormData(prev => ({ ...prev, price: fairRangeLow.toLocaleString() }));
+            }
+        } catch (error) {
+            console.error("Price intelligence failed", error);
+            // Fallback
+            const mockAvg = 50000;
+            setPriceAnalysis({ marketAvg: mockAvg, fairRangeLow: Math.round(mockAvg * 0.9), status: "fair", demand: "High", salesProbability: "85%" });
+        } finally {
             setIsCalculatingBestPrice(false);
-        }, 1000);
+            setIsAnalyzing(false);
+        }
     };
 
     // --- Form Handlers ---
@@ -157,333 +111,444 @@ export default function NewProduct() {
 
     const handleSpecChange = (index: number, field: 'key' | 'value', value: string) => {
         const newSpecs = [...formData.specs];
-        newSpecs[index][field] = value;
+        newSpecs[index] = { ...newSpecs[index], [field]: value };
         setFormData(prev => ({ ...prev, specs: newSpecs }));
     };
 
-    const addSpec = () => {
-        setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "", value: "" }] }));
-    };
-
+    const addSpec = () => setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "", value: "" }] }));
     const removeSpec = (index: number) => {
         const newSpecs = formData.specs.filter((_, i) => i !== index);
         setFormData(prev => ({ ...prev, specs: newSpecs }));
     };
 
+    const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawValue = e.target.value.replace(/\D/g, "");
+        if (!rawValue) { setFormData(prev => ({ ...prev, price: "" })); return; }
+        const formatted = parseInt(rawValue).toLocaleString();
+        setFormData(prev => ({ ...prev, price: formatted }));
+    };
+
+    const handleMainImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => setFormData(prev => ({ ...prev, image_url: reader.result as string }));
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleGalleryImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const newImages = [...formData.images];
+                newImages[index] = reader.result as string;
+                setFormData(prev => ({ ...prev, images: newImages }));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleGalleryUrlChange = (index: number, val: string) => {
+        const newImages = [...formData.images];
+        newImages[index] = val;
+        setFormData(prev => ({ ...prev, images: newImages }));
+    };
+
+    const addGallerySlot = () => setFormData(prev => ({ ...prev, images: [...prev.images, ""] }));
+    const removeGallerySlot = (index: number) => {
+        const newImages = formData.images.filter((_, i) => i !== index);
+        setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
+    };
+
     const handleSubmit = () => {
-        const specsRecord: Record<string, string> = {};
-        formData.specs.forEach(s => {
-            if (s.key && s.value) specsRecord[s.key] = s.value;
-        });
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (!sellerId || !formData.name || !formData.price) return;
 
-        DemoStore.addProduct({
+        const numericPrice = parseInt(formData.price.replace(/,/g, ""));
+        const newProduct = {
+            id: `seller-${Date.now()}`,
+            seller_id: sellerId,
+            seller_name: "My Store",
             name: formData.name,
-            category: formData.category || "electronics",
-            price: parseInt(formData.price) || 0,
-            original_price: parseInt(formData.price) * 1.1,
+            category: (formData.category || "electronics") as any,
+            price: isNaN(numericPrice) ? 0 : numericPrice,
+            original_price: undefined,
             description: formData.description,
+            image_url: formData.image_url || "/placeholder.png",
+            images: formData.images.filter(url => url.trim() !== ""),
             stock: parseInt(formData.stock) || 1,
-            image_url: "/placeholder-product.jpg",
-            highlights: formData.highlights,
-            specs: specsRecord,
-            images: [],
-            recommended_price: 1100000
-        } as any);
+            price_flag: "fair" as const,
+            is_active: true,
+            avg_rating: 0,
+            review_count: 0,
+            sold_count: 0,
+            created_at: new Date().toISOString(),
+        };
 
+        DemoStore.addRawProduct(newProduct);
         router.push("/seller/products");
     };
 
-    // --- Redesigned UI Sections ---
-    const CoreDetailsSection = (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-lg p-6 md:p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100"
-        >
-            <div className="flex items-center justify-between mb-6">
+    return (
+        <div className="max-w-6xl mx-auto py-10 px-4 sm:px-6">
+            {/* Nav */}
+            <Link href="/seller/products" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors mb-8 group">
+                <ChevronLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+                Back to Products
+            </Link>
+
+            {/* Header */}
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Core Details</h2>
-                    <p className="text-sm text-gray-500 mt-1">Provide the essential information for your listing.</p>
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">New Listing</h1>
+                    <p className="text-base text-gray-500 mt-2">Create a high-impact product listing with AI pricing guidance.</p>
                 </div>
                 <Button
-                    size="sm"
                     variant="outline"
-                    className="gap-2 border-ratel-green-200 text-ratel-green-700 hover:bg-ratel-green-50 rounded-full text-xs font-semibold px-4 h-8 transition-colors"
+                    className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-full text-sm font-semibold px-5 h-10"
                     onClick={handleAIGenerate}
                     disabled={isGenerating || !formData.name}
                 >
-                    <Sparkles className={`h-3 w-3 ${isGenerating ? "animate-spin" : ""}`} />
+                    <Sparkles className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
                     {isGenerating ? "Generating..." : "Auto-Fill with AI"}
                 </Button>
-            </div>
+            </motion.div>
 
-            <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-700">Product Name</label>
-                        <Input
-                            placeholder="e.g. iPhone 15 Pro Max"
-                            className="bg-gray-50 border-gray-200 rounded-lg h-11 px-4 focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all"
-                            value={formData.name}
-                            onChange={(e) => handleChange("name", e.target.value)}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-medium text-gray-700">Category</label>
-                        <select
-                            className="flex h-11 w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all appearance-none cursor-pointer text-gray-900"
-                            value={formData.category}
-                            onChange={(e) => handleChange("category", e.target.value)}
-                        >
-                            <option value="">Select Category</option>
-                            <option value="phones">Phones & Tablets</option>
-                            <option value="electronics">Electronics</option>
-                            <option value="vehicles">Vehicles</option>
-                            <option value="energy">Green Energy</option>
-                            <option value="fashion">Fashion</option>
-                        </select>
-                    </div>
-                </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-gray-700">Description</label>
-                    <textarea
-                        className="flex min-h-[140px] w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all resize-none text-gray-900 placeholder:text-gray-400"
-                        placeholder={isGenerating ? "AI is generating description..." : "Describe the key features and benefits..."}
-                        value={formData.description}
-                        onChange={(e) => handleChange("description", e.target.value)}
-                    />
-                </div>
-            </div>
-        </motion.div>
-    );
+                {/* ─── Left Column: Form ─── */}
+                <div className="lg:col-span-2 space-y-6">
 
-    const SpecsSection = (
-        <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-white rounded-lg p-6 md:p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100"
-        >
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Specifications</h2>
-                    <p className="text-sm text-gray-500 mt-1">Detailed technical specs for rigorous buyers.</p>
-                </div>
-            </div>
+                    {/* Section 1: Product Image */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.05 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <h2 className="text-lg font-semibold text-gray-900 mb-1">Product Image</h2>
+                        <p className="text-sm text-gray-500 mb-6">Upload a main product photo or paste a URL.</p>
 
-            <div className="space-y-3">
-                {formData.specs.map((spec, index) => (
-                    <div key={index} className="flex gap-3 group">
-                        <Input
-                            placeholder="Key (e.g. RAM)"
-                            className="flex-1 bg-gray-50 border-gray-200 rounded-lg h-10 px-3 text-sm focus:bg-white transition-colors"
-                            value={spec.key}
-                            onChange={(e) => handleSpecChange(index, "key", e.target.value)}
-                        />
-                        <Input
-                            placeholder="Value (e.g. 16GB)"
-                            className="flex-[2] bg-gray-50 border-gray-200 rounded-lg h-10 px-3 text-sm focus:bg-white transition-colors"
-                            value={spec.value}
-                            onChange={(e) => handleSpecChange(index, "value", e.target.value)}
-                        />
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-10 w-10 text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => removeSpec(index)}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
-                    </div>
-                ))}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full border border-dashed border-gray-200 text-gray-500 hover:text-ratel-green-600 hover:bg-ratel-green-50/50 h-10 rounded-lg text-xs font-semibold mt-2 transition-colors"
-                    onClick={addSpec}
-                >
-                    <Plus className="h-3 w-3 mr-2" /> Add Specification
-                </Button>
-            </div>
-        </motion.div>
-    );
-
-    return (
-        <div className="min-h-screen bg-[#E3E6E6] text-foreground transition-colors duration-300 font-sans">
-            <div className="max-w-6xl mx-auto w-full px-4 py-8 md:py-12">
-                <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
-                >
-                    <Link href="/seller/products" className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors mb-4">
-                        <ChevronLeft className="h-3 w-3" /> Back to Products
-                    </Link>
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-                                New Listing
-                            </h1>
-                            <p className="text-gray-500 mt-2 text-base max-w-2xl">
-                                Create a high-impact product listing with AI pricing guidance.
-                            </p>
+                        <div className="flex flex-col sm:flex-row gap-8">
+                            <div
+                                className="w-full sm:w-48 h-48 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center relative group cursor-pointer hover:border-gray-300 transition-colors"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                {formData.image_url ? (
+                                    <img src={formData.image_url} alt="Preview" className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" />
+                                ) : (
+                                    <div className="text-center text-gray-400">
+                                        <Upload className="h-8 w-8 mx-auto mb-2" />
+                                        <p className="text-xs font-medium">Click to upload</p>
+                                        <p className="text-[10px] text-gray-300 mt-0.5">or drag & drop</p>
+                                    </div>
+                                )}
+                                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleMainImageUpload} />
+                            </div>
+                            <div className="flex-1 space-y-3">
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Or paste image URL</label>
+                                <Input
+                                    value={formData.image_url}
+                                    onChange={(e) => handleChange("image_url", e.target.value)}
+                                    className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                    placeholder="https://example.com/image.jpg"
+                                />
+                                {formData.image_url && (
+                                    <Button variant="ghost" size="sm" onClick={() => handleChange("image_url", "")} className="text-xs text-red-500 hover:bg-red-50 h-8 rounded-lg">
+                                        <Trash2 className="h-3 w-3 mr-1.5" /> Remove
+                                    </Button>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex gap-3">
-                            <Button variant="ghost" className="text-gray-600 hover:bg-gray-100 font-medium">
-                                Save Draft
+                    </motion.section>
+
+                    {/* Section 2: Gallery Images */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.1 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h2 className="text-lg font-semibold text-gray-900">Gallery Images</h2>
+                                <p className="text-sm text-gray-500 mt-1">Add multiple angles and views of your product.</p>
+                            </div>
+                            <Button variant="outline" size="sm" onClick={addGallerySlot} className="rounded-full text-xs font-semibold gap-1.5 border-gray-200 hover:bg-gray-50 h-9 px-4">
+                                <Plus className="h-3.5 w-3.5" /> Add Image
                             </Button>
                         </div>
-                    </div>
-                </motion.div>
+                        <div className="space-y-4">
+                            {formData.images.map((url, i) => (
+                                <div key={`gallery-${i}`} className="flex items-start gap-4">
+                                    <div
+                                        className="w-16 h-16 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:border-gray-300 transition-colors"
+                                        onClick={() => galleryFileRefs.current.get(i)?.click()}
+                                    >
+                                        {url ? (
+                                            <img src={url} alt={`Gallery ${i + 1}`} className="h-full w-full object-contain p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                        ) : (
+                                            <ImagePlus className="h-5 w-5 text-gray-300" />
+                                        )}
+                                        <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(i, el); }} onChange={(e) => handleGalleryImageUpload(i, e)} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <Input
+                                            value={url}
+                                            onChange={(e) => handleGalleryUrlChange(i, e.target.value)}
+                                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                            placeholder={`Image URL ${i + 1} or click thumbnail to upload...`}
+                                        />
+                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={() => removeGallerySlot(i)} className="h-11 w-11 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl shrink-0">
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                    </motion.section>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                    {/* Left: Product Form */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {CoreDetailsSection}
-                        {SpecsSection}
-
-                        {/* Price Section */}
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.2 }}
-                            className="bg-white rounded-lg p-6 md:p-8 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-gray-100"
-                        >
-                            <div className="flex items-center gap-3 mb-6">
-                                <h2 className="text-lg font-semibold text-gray-900 tracking-tight">Pricing & Inventory</h2>
-                            </div>
+                    {/* Section 3: Core Details */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.15 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <h2 className="text-lg font-semibold text-gray-900 mb-6">Product Details</h2>
+                        <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-xs font-medium text-gray-700">Initial Stock</label>
+                                    <label className="text-sm font-medium text-gray-700">Product Name</label>
                                     <Input
-                                        type="number"
-                                        placeholder="1"
-                                        className="bg-gray-50 border-gray-200 rounded-lg h-11 px-4 text-sm font-medium focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all"
-                                        value={formData.stock}
-                                        onChange={(e) => handleChange("stock", e.target.value)}
+                                        placeholder="e.g. iPhone 15 Pro Max"
+                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.name}
+                                        onChange={(e) => handleChange("name", e.target.value)}
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <label className="text-xs font-medium text-gray-700">Your Price (₦)</label>
-                                        <button
-                                            onClick={handleBestPrice}
-                                            disabled={isCalculatingBestPrice}
-                                            className="text-[10px] bg-ratel-green-50 text-ratel-green-700 hover:bg-ratel-green-100 rounded-md px-2 py-1 transition-colors flex items-center gap-1 font-semibold"
-                                            title="Auto-set fair price"
-                                        >
-                                            <Sparkles className={`h-3 w-3 ${isCalculatingBestPrice ? "animate-spin" : ""}`} />
-                                            {isCalculatingBestPrice ? "Checking..." : "Use Best Price"}
-                                        </button>
-                                    </div>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">₦</span>
-                                        <Input
-                                            type="number"
-                                            placeholder="0"
-                                            className="pl-8 bg-gray-50 border-gray-200 rounded-lg h-11 px-4 text-sm font-medium focus:ring-2 focus:ring-ratel-green-500/10 focus:border-ratel-green-500 transition-all"
-                                            value={formData.price}
-                                            onChange={(e) => handleChange("price", e.target.value)}
-                                        />
-                                    </div>
+                                    <label className="text-sm font-medium text-gray-700">Category</label>
+                                    <select
+                                        className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                        value={formData.category}
+                                        onChange={(e) => handleChange("category", e.target.value)}
+                                    >
+                                        <option value="">Select Category</option>
+                                        <option value="phones">Phones & Tablets</option>
+                                        <option value="electronics">Electronics</option>
+                                        <option value="vehicles">Vehicles</option>
+                                        <option value="energy">Green Energy</option>
+                                        <option value="fashion">Fashion</option>
+                                        <option value="health">Health & Beauty</option>
+                                        <option value="home">Home & Living</option>
+                                        <option value="baby">Baby & Kids</option>
+                                        <option value="sports">Sports & Fitness</option>
+                                    </select>
                                 </div>
                             </div>
-                        </motion.div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Description</label>
+                                <textarea
+                                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-normal transition-all leading-relaxed min-h-[140px]"
+                                    placeholder={isGenerating ? "AI is generating description..." : "Describe the key features and benefits..."}
+                                    value={formData.description}
+                                    onChange={(e) => handleChange("description", e.target.value)}
+                                />
+                            </div>
+                        </div>
+                    </motion.section>
 
-                        <div className="flex justify-end pt-4 pb-20">
+                    {/* Section 4: Specifications */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <h2 className="text-lg font-semibold text-gray-900 mb-1">Specifications</h2>
+                        <p className="text-sm text-gray-500 mb-6">Add technical specs for detail-oriented buyers.</p>
+                        <div className="space-y-3">
+                            {formData.specs.map((spec, index) => (
+                                <div key={index} className="flex gap-3 group">
+                                    <Input
+                                        placeholder="Key (e.g. RAM)"
+                                        className="flex-1 bg-gray-50 border-gray-200 rounded-xl h-11 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={spec.key}
+                                        onChange={(e) => handleSpecChange(index, "key", e.target.value)}
+                                    />
+                                    <Input
+                                        placeholder="Value (e.g. 16GB)"
+                                        className="flex-[2] bg-gray-50 border-gray-200 rounded-xl h-11 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={spec.value}
+                                        onChange={(e) => handleSpecChange(index, "value", e.target.value)}
+                                    />
+                                    <Button size="icon" variant="ghost" className="h-11 w-11 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl" onClick={() => removeSpec(index)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))}
                             <Button
-                                className="bg-gray-900 hover:bg-black text-white rounded-full px-8 h-12 font-semibold text-base shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
-                                onClick={handleSubmit}
-                                disabled={!formData.name || !formData.price}
+                                variant="ghost"
+                                size="sm"
+                                className="w-full border border-dashed border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50/50 h-11 rounded-xl text-xs font-semibold mt-2 transition-colors"
+                                onClick={addSpec}
                             >
-                                <Save className="h-4 w-4 mr-2" />
-                                Publish Listing
+                                <Plus className="h-3 w-3 mr-2" /> Add Specification
                             </Button>
                         </div>
-                    </div>
+                    </motion.section>
 
-                    {/* Right: AI Price Intelligence Panel */}
-                    <div className="lg:col-span-1">
-                        <div className="sticky top-24 space-y-4">
-                            <motion.div
-                                initial={{ opacity: 0, scale: 0.98 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 overflow-hidden relative"
-                            >
-                                <div className="flex items-center gap-3 mb-6">
-                                    <div className="h-8 w-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center shadow-sm">
-                                        <Sparkles className="h-4 w-4 text-white" />
-                                    </div>
-                                    <h3 className="font-semibold text-base text-gray-900 tracking-tight">Price Intelligence</h3>
+                    {/* Section 5: Pricing & Inventory */}
+                    <motion.section
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
+                    >
+                        <h2 className="text-lg font-semibold text-gray-900 mb-6">Pricing & Inventory</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-gray-700">Price (₦)</label>
+                                    <button
+                                        onClick={handleBestPrice}
+                                        disabled={isCalculatingBestPrice}
+                                        className="text-xs bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg px-3 py-1.5 transition-colors flex items-center gap-1.5 font-semibold"
+                                    >
+                                        <Sparkles className={`h-3 w-3 ${isCalculatingBestPrice ? "animate-spin" : ""}`} />
+                                        {isCalculatingBestPrice ? "Checking..." : "Best Price"}
+                                    </button>
                                 </div>
-
-                                {!formData.price ? (
-                                    <div className="text-center py-12 text-gray-400">
-                                        <TrendingUp className="h-10 w-10 mx-auto opacity-20 mb-3" />
-                                        <p className="text-sm font-medium">Enter a price to see real-time market analysis.</p>
-                                    </div>
-                                ) : isAnalyzing ? (
-                                    <div className="text-center py-12 space-y-4">
-                                        <div className="h-6 w-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                                        <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider">Analyzing Market...</p>
-                                    </div>
-                                ) : priceAnalysis && (
-                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                                        <div className={`p-4 rounded-lg border ${priceAnalysis.status === "fair" ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"}`}>
-                                            <div className="flex items-center gap-2 mb-2">
-                                                {priceAnalysis.status === "fair" ? (
-                                                    <Check className="h-4 w-4 text-emerald-600" />
-                                                ) : (
-                                                    <Info className="h-4 w-4 text-rose-600" />
-                                                )}
-                                                <span className={`font-bold text-sm ${priceAnalysis.status === "fair" ? "text-emerald-700" : "text-rose-700"}`}>
-                                                    {priceAnalysis.status === "fair" ? "Competitive Price" : "Above Market Average"}
-                                                </span>
-                                            </div>
-                                            <p className="text-xs text-gray-600 leading-relaxed">
-                                                {priceAnalysis.status === "fair"
-                                                    ? "This price is optimized for high conversion. You qualify for the 'Fair Price' badge."
-                                                    : `Your listing is ₦${formatPrice(parseInt(formData.price) - priceAnalysis.marketAvg)} higher than similar products. Consider lowering to boost sales.`
-                                                }
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-gray-500 font-medium">Market Average</span>
-                                                <span className="font-semibold text-gray-900 tabular-nums">{formatPrice(priceAnalysis.marketAvg)}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center text-sm">
-                                                <span className="text-emerald-600 font-medium">Recommended</span>
-                                                <span className="font-bold text-emerald-600 tabular-nums">{formatPrice(priceAnalysis.fairRangeLow)}</span>
-                                            </div>
-                                            <div className="h-px bg-gray-100 my-2" />
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-0.5">Predicted Sales</p>
-                                                    <p className="text-xl font-bold text-gray-900 tabular-nums">{priceAnalysis.salesProbability}</p>
-                                                </div>
-                                                <div className="h-8 w-8 bg-yellow-50 rounded-full flex items-center justify-center">
-                                                    <TrendingUp className="h-4 w-4 text-yellow-600" />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {priceAnalysis.status === "overpriced" && (
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                className="w-full h-9 rounded-lg text-xs font-semibold bg-gray-100 hover:bg-gray-200 transition-colors"
-                                                onClick={() => handleChange("price", priceAnalysis.marketAvg.toString())}
-                                            >
-                                                Apply Recommended Price
-                                            </Button>
-                                        )}
-                                    </motion.div>
-                                )}
-                            </motion.div>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">₦</span>
+                                    <Input
+                                        type="text"
+                                        placeholder="0"
+                                        className="rounded-xl pl-9 font-semibold h-12 text-base bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.price}
+                                        onChange={handlePriceChange}
+                                    />
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700">Initial Stock</label>
+                                <Input
+                                    type="number"
+                                    placeholder="1"
+                                    className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                    value={formData.stock}
+                                    onChange={(e) => handleChange("stock", e.target.value)}
+                                />
+                            </div>
                         </div>
+                    </motion.section>
+
+                    {/* Sticky Publish Bar */}
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="sticky bottom-6 bg-white/90 backdrop-blur-xl rounded-2xl border border-gray-200/60 shadow-lg p-4 flex items-center justify-between"
+                    >
+                        <Link href="/seller/products">
+                            <Button variant="ghost" className="rounded-xl font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 h-11 px-5">
+                                Cancel
+                            </Button>
+                        </Link>
+                        <Button
+                            onClick={handleSubmit}
+                            disabled={!formData.name || !formData.price}
+                            className="bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-semibold shadow-sm h-11 px-7 text-sm transition-all hover:shadow-md disabled:opacity-40"
+                        >
+                            <Save className="h-4 w-4 mr-2" />
+                            Publish Listing
+                        </Button>
+                    </motion.div>
+                </div>
+
+                {/* ─── Right Column: AI Price Intelligence ─── */}
+                <div className="lg:col-span-1">
+                    <div className="sticky top-24 space-y-4">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200/60 overflow-hidden relative"
+                        >
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="h-9 w-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-sm">
+                                    <Sparkles className="h-4 w-4 text-white" />
+                                </div>
+                                <h3 className="font-semibold text-base text-gray-900">Price Intelligence</h3>
+                            </div>
+
+                            {!formData.price ? (
+                                <div className="text-center py-12 text-gray-400">
+                                    <TrendingUp className="h-10 w-10 mx-auto opacity-20 mb-3" />
+                                    <p className="text-sm font-medium">Enter a price to see real-time market analysis.</p>
+                                </div>
+                            ) : isAnalyzing ? (
+                                <div className="text-center py-12 space-y-4">
+                                    <div className="h-6 w-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                                    <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider">Analyzing Market...</p>
+                                </div>
+                            ) : priceAnalysis && (
+                                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                                    <div className={`p-4 rounded-xl border ${priceAnalysis.status === "fair" ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"}`}>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            {priceAnalysis.status === "fair" ? (
+                                                <Check className="h-4 w-4 text-emerald-600" />
+                                            ) : (
+                                                <Info className="h-4 w-4 text-rose-600" />
+                                            )}
+                                            <span className={`font-bold text-sm ${priceAnalysis.status === "fair" ? "text-emerald-700" : "text-rose-700"}`}>
+                                                {priceAnalysis.status === "fair" ? "Competitive Price" : "Above Market Average"}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-600 leading-relaxed">
+                                            {priceAnalysis.status === "fair"
+                                                ? "This price is optimized for high conversion. You qualify for the 'Fair Price' badge."
+                                                : `Your listing is above similar products. Consider lowering to boost sales.`
+                                            }
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-500 font-medium">Market Average</span>
+                                            <span className="font-semibold text-gray-900 tabular-nums">{formatPrice(priceAnalysis.marketAvg)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-emerald-600 font-medium">Recommended</span>
+                                            <span className="font-bold text-emerald-600 tabular-nums">{formatPrice(priceAnalysis.fairRangeLow)}</span>
+                                        </div>
+                                        <div className="h-px bg-gray-100 my-2" />
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-0.5">Predicted Sales</p>
+                                                <p className="text-xl font-bold text-gray-900 tabular-nums">{priceAnalysis.salesProbability}</p>
+                                            </div>
+                                            <div className="h-8 w-8 bg-yellow-50 rounded-full flex items-center justify-center">
+                                                <TrendingUp className="h-4 w-4 text-yellow-600" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {priceAnalysis.status === "overpriced" && (
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            className="w-full h-9 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 transition-colors"
+                                            onClick={() => handleChange("price", priceAnalysis.marketAvg.toLocaleString())}
+                                        >
+                                            Apply Recommended Price
+                                        </Button>
+                                    )}
+                                </motion.div>
+                            )}
+                        </motion.div>
                     </div>
                 </div>
             </div>

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import {
     MessageSquare, X, Send, Sparkles, ShoppingBag, ShieldCheck,
     Star, TrendingDown, Search, Package, ArrowRight, Heart, Tag,
-    Zap, Clock, AlertTriangle, CheckCircle, Loader2
+    Zap, Clock, AlertTriangle, CheckCircle, Loader2, Paperclip, Image as ImageIcon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,7 @@ import { getDemoPriceComparison } from "@/lib/data";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 // ─── Intent Detection ────────────────────────────────────
 type Intent =
@@ -28,6 +29,8 @@ type Intent =
     | "track_order"
     | "negotiate"
     | "category_browse"
+    | "talk_to_human"
+    | "complaint"
     | "greeting"
     | "help"
     | "unknown";
@@ -51,6 +54,14 @@ function detectIntent(input: string): DetectedIntent {
     // Help
     if (/^(help|how\s*(do|can|to)|what\s*(can|do)\s*you)/i.test(lower)) {
         return { intent: "help", query: input };
+    }
+
+    // Talk to a human / complaint
+    if (/\b(talk\s*to\s*(a\s*)?(human|person|agent|manager|support|representative)|escalate|real\s*person|human\s*support|live\s*chat|speak\s*to)\b/i.test(lower)) {
+        return { intent: "talk_to_human", query: input };
+    }
+    if (/\b(complain|complaint|issue|problem|broken|damaged|wrong|missing|refund|return|scam|fraud)\b/i.test(lower)) {
+        return { intent: "complaint", query: input };
     }
 
     // Order tracking
@@ -141,35 +152,57 @@ function scoreProductMatch(product: Product, query: string): number {
 // ─── Message Types ───────────────────────────────────────
 interface ChatMessage {
     id: string;
-    role: "user" | "assistant";
+    role: "user" | "assistant" | "admin";
     content: string;
     products?: Product[];
     priceComparison?: PriceComparison;
     isTyping?: boolean;
     quickActions?: { label: string; query: string; icon: string }[];
+    image?: string;
+    senderName?: string;
 }
 
 // ─── Component ──────────────────────────────────────────
 export function ZivaChat() {
     const [mounted, setMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    // Detect current product page for context-aware suggestions
+    const pathname = usePathname();
+    const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const match = pathname.match(/\/product\/(.+)/);
+        if (match) {
+            const productId = decodeURIComponent(match[1]);
+            const allProducts = DemoStore.getProducts();
+            const found = allProducts.find(p => p.id === productId);
+            setCurrentProduct(found || null);
+        } else {
+            setCurrentProduct(null);
+        }
+    }, [pathname, isOpen]);
+
     const [messages, setMessages] = useState<ChatMessage[]>([
         {
             id: "welcome",
             role: "assistant",
-            content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on RatelShop.\n\nTry asking me anything!",
+            content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
             quickActions: [
                 { label: "Find phones under ₦200k", query: "Find me a phone under ₦200,000", icon: "📱" },
                 { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
-                { label: "Is this price fair?", query: "Is iPhone 15 Pro Max a good price?", icon: "🛡️" },
+                { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
                 { label: "Track my order", query: "Track my order", icon: "📦" },
+                { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
+                { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
             ]
         }
     ]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
+    const [adminActive, setAdminActive] = useState(false);
     const messagesAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const { addToCart } = useCart();
     const { user } = useAuth();
 
@@ -215,13 +248,31 @@ export function ZivaChat() {
                 })
             });
 
-            if (!res.ok) throw new Error("Failed to chat with Ziva");
+            if (!res.ok) {
+                // Try to use the API's fallback message instead of crashing
+                try {
+                    const errData = await res.json();
+                    return {
+                        content: errData.message || "I'm having a little trouble right now. Please try again in a moment. 🧠✨",
+                        intent: "error",
+                        products: [],
+                        quickActions: [{ label: "🔄 Try Again", query: "__RETRY__", icon: "" }]
+                    };
+                } catch {
+                    return {
+                        content: "I'm having a little trouble connecting right now. Please try again in a moment. 🧠✨",
+                        intent: "error",
+                        products: [],
+                        quickActions: [{ label: "🔄 Try Again", query: "__RETRY__", icon: "" }]
+                    };
+                }
+            }
 
             const data = await res.json();
 
             // Handle Escalation
             if (data.shouldEscalate) {
-                // Trigger background escalation
+                // Trigger background escalation (email)
                 fetch("/api/ziva-escalate", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -233,8 +284,18 @@ export function ZivaChat() {
                     })
                 }).catch(console.error);
 
+                // Also persist to admin inbox (DemoStore)
+                DemoStore.addSupportMessage({
+                    user_name: user?.name || "Guest",
+                    user_email: user?.email || "guest@ratelshop.com",
+                    subject: data.escalationReason || "Ziva AI Escalation",
+                    message: messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n"),
+                    source: "ziva_escalation",
+                    transcript: messages.map(m => `${m.role}: ${m.content}`).join("\n"),
+                });
+
                 return {
-                    content: data.message + "\n\n(I've also notified our human support team to check on this for you! 🛡️)",
+                    content: data.message + "\n\n🛡️ **Your message has been forwarded to our support team.** A human agent will review your case and respond shortly.",
                     intent: "escalation",
                     products: [],
                     quickActions: []
@@ -285,17 +346,160 @@ export function ZivaChat() {
         const msgText = text || input.trim();
         if (!msgText || isProcessing) return;
 
-        const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: msgText };
+        // Handle special __PRICE_CHECK__ action — use current product context
+        let resolvedText = msgText;
+        if (msgText === '__PRICE_CHECK__') {
+            if (currentProduct) {
+                resolvedText = `Is ${currentProduct.name} at ${formatPrice(currentProduct.price)} a good price?`;
+            } else {
+                resolvedText = 'Is this a good price?';
+            }
+        }
+
+        // If on a product page and asking about price, inject product context into the message
+        let contextualText = resolvedText;
+        if (currentProduct && /\b(price|cost|good|fair|overpriced|worth|market)\b/i.test(resolvedText)) {
+            const comparison = getDemoPriceComparison(currentProduct.id);
+            const marketAvg = comparison.market_avg > 0 ? comparison.market_avg : Math.round(currentProduct.price * 1.08);
+            const verdict = currentProduct.price <= marketAvg ? 'Good Deal' : 'Above Market';
+            // Add invisible context that Ziva API can use
+            contextualText = `${resolvedText} [CONTEXT: Product "${currentProduct.name}" is listed at ${formatPrice(currentProduct.price)}. Market average is ${formatPrice(marketAvg)}. Price flag: ${currentProduct.price_flag || 'fair'}. Verdict: ${verdict}. Category: ${currentProduct.category}. This is the specific product on the page I'm viewing.]`;
+        }
+
+        const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: resolvedText };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsProcessing(true);
 
         // Show typing indicator
         const typingId = `typing_${Date.now()}`;
-        setMessages(prev => [...prev, { id: typingId, role: "assistant", content: "", isTyping: true }]);
+        setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
 
         try {
-            const response = await generateResponse(msgText);
+            if (adminActive) {
+                // Mock Admin Response
+                setTimeout(() => {
+                    setMessages(prev => [
+                        ...prev.filter(m => m.id !== typingId),
+                        {
+                            id: `admin_resp_${Date.now()}`,
+                            role: "admin",
+                            senderName: "Support Team (Sarah)",
+                            content: `Thanks for your patience. I'm Sarah from the support team. I'm reviewing your request regarding: "${msgText}". How else can I assist you today?`,
+                        }
+                    ]);
+                    setIsProcessing(false);
+                }, 2000);
+                return;
+            }
+
+            // ─── LOCAL: Order Tracking ─────────────────────
+            const trackMatch = resolvedText.match(/\b(track|tracking|order\s*status|where.s?\s*my\s*order|order\s*#?)\s*:?\s*([A-Za-z0-9_-]{6,})?/i);
+            const isTrackQuery = /\b(track|tracking|order status|where.s?\s*my\s*order)\b/i.test(resolvedText);
+            if (isTrackQuery || trackMatch) {
+                const orders = DemoStore.getOrders();
+                const trackId = trackMatch?.[2];
+                let foundOrders = trackId
+                    ? orders.filter(o => o.id.includes(trackId) || o.tracking_id?.includes(trackId))
+                    : orders.slice(0, 3); // Show latest 3 if no ID given
+
+                setTimeout(() => {
+                    setMessages(prev => [
+                        ...prev.filter(m => m.id !== typingId),
+                        {
+                            id: `track_${Date.now()}`,
+                            role: "assistant",
+                            content: foundOrders.length > 0
+                                ? `📦 **Order${foundOrders.length > 1 ? 's' : ''} Found!**\n\n${foundOrders.map(o =>
+                                    `• **${o.id.slice(0, 16)}...** — Status: **${o.status.toUpperCase()}** | Amount: **₦${o.amount.toLocaleString()}** | Date: ${new Date(o.created_at).toLocaleDateString()}\n  Escrow: ${o.escrow_status} | Shipping: ${o.shipping_address?.slice(0, 50) || 'N/A'}`
+                                ).join('\n\n')}\n\n👇 Click below to view full order details.`
+                                : trackId
+                                    ? `😕 I couldn't find any orders matching **${trackId}**. Please double-check your tracking or order ID and try again.`
+                                    : "📋 You don't have any orders yet. Start shopping and your orders will appear here!",
+                            quickActions: foundOrders.length > 0
+                                ? [{ label: "📦 View All Orders", query: "__NAV__/account/orders", icon: "" }, { label: "💬 Need Help?", query: "I need help with my order", icon: "" }]
+                                : [{ label: "🛒 Start Shopping", query: "__NAV__/", icon: "" }]
+                        }
+                    ]);
+                    setIsProcessing(false);
+                }, 1000);
+                return;
+            }
+
+            // ─── LOCAL: Price Negotiation ─────────────────────
+            const isNegotiate = /\b(negotiate|make.*offer|bargain|lower.*price|offer.*price|can.*you.*reduce|price.*too.*high|counter.*offer)\b/i.test(resolvedText);
+            if (isNegotiate) {
+                const allProducts = DemoStore.getProducts();
+                // Try to extract product name from the message
+                const words = resolvedText.replace(/\b(negotiate|make|offer|bargain|lower|price|reduce|for|the|a|an|on|can|you|i|want|to|of)\b/gi, '').trim();
+                let matchedProducts = words.length > 2
+                    ? allProducts.filter(p => {
+                        const pName = p.name.toLowerCase();
+                        const searchTerms = words.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+                        return searchTerms.some(term => pName.includes(term));
+                    }).slice(0, 4)
+                    : (currentProduct ? [currentProduct] : allProducts.slice(0, 4));
+
+                setTimeout(() => {
+                    setMessages(prev => [
+                        ...prev.filter(m => m.id !== typingId),
+                        {
+                            id: `negotiate_${Date.now()}`,
+                            role: "assistant",
+                            content: matchedProducts.length > 0
+                                ? `💰 **Let's Negotiate!**\n\nI found these products you might want to negotiate on. Type your desired price and I'll send the offer to the seller.\n\nFor example: *"I want to offer ₦150,000 for the iPhone"*`
+                                : "🤔 I couldn't find a specific product to negotiate. Could you tell me which product you'd like to make an offer on?",
+                            products: matchedProducts,
+                            quickActions: currentProduct
+                                ? [{ label: `💰 Negotiate ${currentProduct.name.slice(0, 30)}`, query: `I want to negotiate the price of ${currentProduct.name}. Current price is ${formatPrice(currentProduct.price)}`, icon: "" }]
+                                : [{ label: "🔍 Search Products", query: "__NAV__/search", icon: "" }]
+                        }
+                    ]);
+                    setIsProcessing(false);
+                }, 1000);
+                return;
+            }
+
+            // ─── LOCAL: Submit negotiation offer (e.g. "I offer ₦150,000 for iPhone") ─────
+            const offerMatch = resolvedText.match(/\b(?:offer|pay|give)\s+(?:₦|NGN|naira\s*)?([\d,]+)\s+(?:for|on)\s+(.+)/i);
+            if (offerMatch) {
+                const offerAmount = parseInt(offerMatch[1].replace(/,/g, ''));
+                const productQuery = offerMatch[2].trim();
+                const allProducts = DemoStore.getProducts();
+                const matchProduct = allProducts.find(p =>
+                    p.name.toLowerCase().includes(productQuery.toLowerCase().slice(0, 15))
+                ) || currentProduct;
+
+                if (matchProduct && offerAmount > 0) {
+                    // Save negotiation to admin inbox
+                    DemoStore.addSupportMessage({
+                        user_name: user?.name || "Guest Customer",
+                        user_email: user?.email || "guest@fairprice.ng",
+                        subject: `💰 Price Negotiation: ${matchProduct.name}`,
+                        message: `Customer offered ₦${offerAmount.toLocaleString()} for "${matchProduct.name}" (listed at ₦${matchProduct.price.toLocaleString()}).\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nAction required: Accept, counter-offer, or decline.`,
+                        source: "ziva_negotiation",
+                    });
+
+                    setTimeout(() => {
+                        setMessages(prev => [
+                            ...prev.filter(m => m.id !== typingId),
+                            {
+                                id: `offer_${Date.now()}`,
+                                role: "assistant",
+                                content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${offerAmount.toLocaleString()}** (${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
+                                quickActions: [
+                                    { label: "📦 View Product", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
+                                    { label: "🛒 Buy at Listed Price", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
+                                    { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
+                                ]
+                            }
+                        ]);
+                        setIsProcessing(false);
+                    }, 1500);
+                    return;
+                }
+            }
+            const response = await generateResponse(contextualText);
 
             // Remove typing, add real response
             setMessages(prev => [
@@ -308,6 +512,13 @@ export function ZivaChat() {
                     quickActions: response.quickActions,
                 }
             ]);
+
+            if (response.intent === "escalation") {
+                setTimeout(() => {
+                    setAdminActive(true);
+                    setMessages(prev => [...prev, { id: `admin_join_${Date.now()}`, role: "admin", senderName: "System", content: "⚡ **Sarah (Support Team) has joined the chat.**" }]);
+                }, 3500);
+            }
         } catch {
             setMessages(prev => [
                 ...prev.filter(m => m.id !== typingId),
@@ -316,7 +527,36 @@ export function ZivaChat() {
         }
 
         setIsProcessing(false);
-    }, [input, isProcessing, generateResponse]);
+    }, [input, isProcessing, generateResponse, adminActive]);
+
+    // ─── Image Upload Handler ──────────────────────────
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: "Sent an image", image: reader.result as string };
+            setMessages(prev => [...prev, userMsg]);
+            setIsProcessing(true);
+            const typingId = `typing_${Date.now()}`;
+            setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
+
+            setTimeout(() => {
+                setMessages(prev => [
+                    ...prev.filter(m => m.id !== typingId),
+                    {
+                        id: `img_resp_${Date.now()}`,
+                        role: adminActive ? "admin" : "assistant",
+                        senderName: adminActive ? "Support Team (Sarah)" : undefined,
+                        content: adminActive ? "I've received your image. Let me review that for you right away." : "I see you uploaded an image! I can help you find products similar to this visual or analyze it for defects."
+                    }
+                ]);
+                setIsProcessing(false);
+            }, 2000);
+        };
+        reader.readAsDataURL(file);
+    };
 
     // ─── 3D Mouse Tracking ──────────────────────────
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -438,8 +678,8 @@ export function ZivaChat() {
                                 </div>
                             </div>
 
-                            <button onClick={toggleChat} className="absolute top-3 right-3 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/70 hover:text-white transition-all backdrop-blur-sm">
-                                <X className="h-4 w-4" />
+                            <button onClick={toggleChat} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
+                                <X className="h-4 w-4 drop-shadow-sm" strokeWidth={3} />
                             </button>
                         </div>
 
@@ -465,14 +705,22 @@ export function ZivaChat() {
                                         ) : (
                                             <>
                                                 {/* Text */}
+                                                {msg.role === "admin" && msg.senderName && (
+                                                    <p className="text-[10px] text-amber-500 font-bold mb-1 uppercase tracking-widest px-1">{msg.senderName}</p>
+                                                )}
                                                 <div
                                                     className={cn(
                                                         "rounded-2xl px-4 py-3 text-[13px] leading-relaxed",
                                                         msg.role === "user"
                                                             ? "bg-emerald-600 text-white rounded-br-none shadow-lg shadow-emerald-600/20"
-                                                            : "bg-white/5 text-gray-200 rounded-bl-none border border-white/5"
+                                                            : msg.role === "admin"
+                                                                ? "bg-amber-500/10 text-amber-50 rounded-bl-none border border-amber-500/20"
+                                                                : "bg-white/5 text-gray-200 rounded-bl-none border border-white/5"
                                                     )}
                                                 >
+                                                    {msg.image && (
+                                                        <img src={msg.image} alt="Uploaded" className="mb-2 rounded-xl max-w-full h-auto max-h-48 object-cover border border-white/10" />
+                                                    )}
                                                     {hasTable(msg.content) ? (
                                                         <>
                                                             {renderText(msg.content.split("\n").filter(l => !l.trim().startsWith("|")).join("\n"))}
@@ -493,8 +741,14 @@ export function ZivaChat() {
                                                                 onClick={() => setIsOpen(false)}
                                                             >
                                                                 <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
-                                                                    <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0">
-                                                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                                                                    <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                                                                        {product.image_url ? (
+                                                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                                        ) : (
+                                                                            <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                                                                                <span className="text-white font-black text-lg">{product.name.charAt(0)}</span>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                     <div className="flex-1 min-w-0 pr-8">
                                                                         <p className="text-xs font-bold text-white line-clamp-1 group-hover:text-emerald-400 transition-colors">{product.name}</p>
@@ -513,17 +767,28 @@ export function ZivaChat() {
                                                                             )}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex flex-col items-end gap-2 shrink-0">
+                                                                    <div className="flex flex-col items-end gap-1 shrink-0">
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.preventDefault();
                                                                                 e.stopPropagation();
                                                                                 addToCart(product);
+                                                                                // Visual feedback
+                                                                                const btn = e.currentTarget;
+                                                                                btn.textContent = '✓ Added!';
+                                                                                btn.classList.add('bg-green-500');
+                                                                                btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+                                                                                setTimeout(() => {
+                                                                                    btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Add to Cart';
+                                                                                    btn.classList.remove('bg-green-500');
+                                                                                    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+                                                                                }, 1500);
                                                                             }}
-                                                                            className="h-7 w-7 rounded-full bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center text-white transition-colors shadow-lg"
+                                                                            className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1"
                                                                             title="Add to Cart"
                                                                         >
-                                                                            <ShoppingBag className="h-3.5 w-3.5" />
+                                                                            <ShoppingBag className="h-3 w-3" />
+                                                                            Add to Cart
                                                                         </button>
                                                                     </div>
                                                                 </div>
@@ -535,16 +800,30 @@ export function ZivaChat() {
                                                 {/* Quick Action Buttons */}
                                                 {msg.quickActions && msg.quickActions.length > 0 && (
                                                     <div className="flex flex-wrap gap-1.5 mt-2">
-                                                        {msg.quickActions.map((action, i) => (
-                                                            <button
-                                                                key={i}
-                                                                onClick={() => handleSend(action.query)}
-                                                                className="text-[11px] font-semibold bg-white/5 hover:bg-emerald-600/20 border border-white/10 hover:border-emerald-500/30 text-gray-300 hover:text-emerald-400 rounded-full px-3 py-1.5 transition-all flex items-center gap-1.5"
-                                                            >
-                                                                <span>{action.icon}</span>
-                                                                {action.label}
-                                                            </button>
-                                                        ))}
+                                                        {msg.quickActions.map((action, i) => {
+                                                            const actionText = action.query || '';
+                                                            const isNav = actionText.startsWith('__NAV__');
+                                                            const isRetry = actionText === '__RETRY__';
+                                                            return (
+                                                                <button
+                                                                    key={i}
+                                                                    onClick={() => {
+                                                                        if (isNav) {
+                                                                            window.location.href = actionText.replace('__NAV__', '');
+                                                                        } else if (isRetry) {
+                                                                            const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+                                                                            if (lastUserMsg) handleSend(lastUserMsg.content);
+                                                                        } else {
+                                                                            handleSend(actionText);
+                                                                        }
+                                                                    }}
+                                                                    className="text-[11px] font-semibold bg-white/5 hover:bg-emerald-600/20 border border-white/10 hover:border-emerald-500/30 text-gray-300 hover:text-emerald-400 rounded-full px-3 py-1.5 transition-all flex items-center gap-1.5"
+                                                                >
+                                                                    {action.icon && <span>{action.icon}</span>}
+                                                                    {action.label}
+                                                                </button>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
                                             </>
@@ -555,7 +834,23 @@ export function ZivaChat() {
                         </div>
 
                         {/* Input */}
-                        <div className="p-3 border-t border-white/5 flex gap-2 shrink-0" style={{ background: "rgba(15,15,20,0.98)" }}>
+                        <div className="p-3 border-t border-white/5 flex gap-2 shrink-0 items-center" style={{ background: "rgba(15,15,20,0.98)" }}>
+                            <Button
+                                size="icon"
+                                variant="ghost"
+                                className="rounded-full h-10 w-10 text-gray-400 hover:text-white hover:bg-white/10 shrink-0"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isProcessing}
+                            >
+                                <Paperclip className="h-5 w-5" />
+                            </Button>
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                            />
                             <Input
                                 ref={inputRef}
                                 value={input}

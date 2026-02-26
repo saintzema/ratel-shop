@@ -149,7 +149,7 @@ export default function UserDirectory() {
                                 </td>
                                 <td className="px-8 py-6">
                                     <div className="flex items-center gap-4">
-                                        <div>
+                                        <div className="flex-1">
                                             <div className="flex items-center gap-1 mb-1">
                                                 <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
                                                 <span className="text-xs font-black text-gray-900">{p.trust_score || 90}</span>
@@ -165,7 +165,7 @@ export default function UserDirectory() {
                                             </div>
                                         </div>
                                         {p.role === "seller" && (
-                                            <div className="pl-4 border-l border-gray-100">
+                                            <div className="pl-4 border-l border-gray-100 min-w-16">
                                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Growth</p>
                                                 <p className="text-xs font-black text-emerald-600">+12%</p>
                                             </div>

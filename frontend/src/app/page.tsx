@@ -184,7 +184,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const refresh = () => setAllProducts(DemoStore.getProducts().filter(p => p.is_active));
+    const refresh = () => setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
     refresh(); // Initial load on client
     setMounted(true);
     window.addEventListener("storage", refresh);
@@ -195,8 +195,8 @@ export default function Home() {
     };
   }, []);
 
-  const fairPriceProducts = allProducts.filter(p => p.price_flag === "fair").slice(0, 12);
-  const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 12);
+  const fairPriceProducts = allProducts.filter(p => p.price_flag === "fair").slice(0, 30);
+  const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 30);
   const phonesProducts = allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")).slice(0, 12);
   const gamingProducts = allProducts.filter(p => ["gaming", "computers"].includes(p.category || "")).slice(0, 12);
   const computerProducts = allProducts.filter(p => ["computers", "office"].includes(p.category || "")).slice(0, 12);
@@ -207,7 +207,7 @@ export default function Home() {
   const electronicsProducts = allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")).slice(0, 12);
   const fitnessProducts = allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")).slice(0, 12);
   const groceryProducts = allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")).slice(0, 12);
-  const topPicks = allProducts.slice(0, 12);
+  const topPicks = allProducts.slice(0, 30);
 
   // ─── From Stores You Follow ──────────────
   const { favoriteStores } = useFavorites();
@@ -258,7 +258,7 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-balance drop-shadow-2xl"
               >
-                The <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Ratel</span> Shop
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Fair</span>Price
               </motion.h1>
               <motion.p
                 initial={{ opacity: 0, y: 20 }}
@@ -266,7 +266,7 @@ export default function Home() {
                 transition={{ delay: 0.3, duration: 0.8 }}
                 className="text-xl md:text-3xl text-gray-200 mb-10 max-w-3xl mx-auto font-medium drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
               >
-                Nigeria's first AI-regulated marketplace. <br className="hidden md:block" /> The future of Fair Pricing
+                Nigeria's first AI-regulated marketplace. <br className="hidden md:block" /> Shop smarter. Pay fairer.
               </motion.p>
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -284,10 +284,10 @@ export default function Home() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-10 py-7 text-xl backdrop-blur-md border-white/30 hover:bg-gray-100 transition-all hover:scale-105 shadow-xl"
+                  className="rounded-full px-10 py-7 text-xl backdrop-blur-md border-white/30 hover:bg-white transition-all hover:scale-105 shadow-xl text-white hover:text-gray-900 group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  Calculate Fair Price <span className="ml-2">✨</span>
+                  <span className="group-hover:text-gray-900 transition-colors duration-300">Calculate Fair Price</span> <span className="ml-2">✨</span>
                 </Button>
               </motion.div>
             </div>
@@ -296,35 +296,22 @@ export default function Home() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20 -mt-16">
 
-            {/* ═══ ROW 1: Category Grid Cards ═══ */}
-            <section className="container mx-auto px-4 mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {CATEGORY_CARDS_ROW_1.map((card, i) => (
-                  <CategoryGridCard key={card.title} card={card} delay={i * 0.08} />
-                ))}
-              </div>
-            </section>
-
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
-              <section className="container mx-auto px-4 mb-6">
-                <BestSellersScroller title="Popular in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-ratel-green-600" />} />
+              <section className="container mx-auto px-4 mb-6 relative z-40">
+                <BestSellersScroller title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-ratel-green-600" />} autoScroll={true} />
               </section>
             )}
 
-            {/* ═══ ROW 2: Category Grid Cards ═══ */}
-            <section className="container mx-auto px-4 mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {CATEGORY_CARDS_ROW_2.map((card, i) => (
-                  <CategoryGridCard key={card.title} card={card} delay={i * 0.08} />
-                ))}
-              </div>
-            </section>
+            {/* ═══ Horizontal Sliding Products in Categories ═══ */}
+            {/* (Replaced 2x2 grids with existing ProductSliders below) */}
 
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
             <section className="container mx-auto px-4 mb-6">
-              <BestSellersScroller title="Today's Top Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll />
+              <BestSellersScroller title="Today's Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll />
             </section>
+
+            {/* Category Cards Row 2 Removed */}
 
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (
@@ -333,19 +320,12 @@ export default function Home() {
               </section>
             )}
 
-            {/* ═══ ROW 3: New Nigerian Category Grid Cards ═══ */}
-            <section className="container mx-auto px-4 mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {CATEGORY_CARDS_ROW_3.map((card, i) => (
-                  <CategoryGridCard key={card.title} card={card} delay={i * 0.08} />
-                ))}
-              </div>
-            </section>
+            {/* Category Cards Row 3 Removed */}
 
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 space-y-6 mb-6">
-                <ProductSlider title="Superadmin Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-ratel-green-600" />} />
+                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-ratel-green-600" />} />
                 <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} />
                 <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} />
                 <ProductSlider title="Computers & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} />
@@ -450,9 +430,9 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false }
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        // If we've scrolled to the end, reset to start
-        if (el.scrollLeft + el.clientWidth >= el.scrollWidth - 2) {
-          el.scrollTo({ left: 0, behavior: "smooth" });
+        // Infinite loop technique: reset scroll when it reaches 1/3 since we have 3 copies
+        if (el.scrollLeft >= el.scrollWidth / 3) {
+          el.scrollLeft = 0;
         } else {
           el.scrollLeft += 1;
         }
@@ -506,9 +486,9 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false }
           <ChevronRight className="h-5 w-5 text-gray-700" />
         </button>
 
-        <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2">
-          {products.map((product) => (
-            <ScrollerProductCard key={product.id} product={product} />
+        <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-2" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
+          {[...products, ...products, ...products].map((product, idx) => (
+            <ScrollerProductCard key={`${product.id}-${idx}`} product={product} />
           ))}
         </div>
       </div>
@@ -556,16 +536,22 @@ function ScrollerProductCard({ product }: { product: any }) {
   }, [addToCart, product]);
 
   return (
-    <div className="min-w-[160px] max-w-[160px] shrink-0 group/item relative">
-      <Link href={`/product/${product.id}`}>
+    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-ratel-green-200 p-2 pb-3">
+      <Link href={`/product/${product.id}`} className="flex flex-col flex-1 h-full relative">
         <div
-          className="aspect-square bg-gray-50 rounded-md overflow-hidden mb-2 border border-gray-100 relative"
+          className="w-full h-[200px] bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
           onClick={handleDoubleTap}
         >
+          {/* Sponsored Ad Tag */}
+          {product.is_sponsored && (
+            <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-widest rounded-tl-lg rounded-br-lg shadow-md border-b border-r border-white/10 flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-ratel-green-400 animate-pulse" /> Ad
+            </div>
+          )}
           <img
-            src={product.image_url}
+            src={product.image_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E"}
             alt={product.name}
-            className="w-full h-full object-contain mix-blend-multiply p-2 transition-transform duration-300 group-hover/item:scale-110"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110"
             loading="lazy"
           />
           {/* Heart burst animation */}
@@ -575,32 +561,38 @@ function ScrollerProductCard({ product }: { product: any }) {
             </div>
           )}
         </div>
-        <p className="text-xs text-gray-700 line-clamp-2 font-medium leading-tight group-hover/item:text-ratel-green-600 transition-colors pr-6">
+        <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-ratel-green-600 transition-colors pr-6">
           {product.name}
         </p>
       </Link>
       {/* Price + Add to Cart row */}
-      <div className="flex items-center justify-between mt-1.5 pr-1">
-        <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
-        <button
+      <div className="flex flex-col mt-auto gap-2 shrink-0">
+        <span className="text-base font-black text-gray-900">{formatPrice(product.price)}</span>
+        <Button
+          size="sm"
           onClick={handleAddToCart}
-          className={`w-7 h-7 rounded-full flex items-center justify-center shadow-sm transition-all duration-200 ${addedToCart
-            ? "bg-ratel-green-600 text-white scale-110"
-            : "bg-ratel-orange/90 text-black hover:bg-ratel-orange hover:scale-110"
+          className={`w-full text-xs font-bold h-9 rounded-lg shadow-sm transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer active:scale-95 ${addedToCart
+            ? "bg-emerald-600 text-white"
+            : "bg-ratel-green-600 hover:bg-ratel-green-700 text-white hover:shadow-md"
             }`}
-          aria-label="Add to cart"
         >
           {addedToCart ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+              Added
+            </>
           ) : (
-            <Plus className="h-4 w-4" strokeWidth={2.5} />
+            <>
+              <ShoppingCart className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+              Add to Cart
+            </>
           )}
-        </button>
+        </Button>
       </div>
       {/* Persistent heart button */}
       <button
         onClick={handleHeartClick}
-        className="absolute top-1.5 right-1.5 z-10 w-7 h-7 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
+        className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-md hover:scale-110 transition-transform"
         aria-label={liked ? "Remove from favorites" : "Add to favorites"}
       >
         <Heart className={`h-4 w-4 transition-colors ${liked ? "fill-red-500 text-red-500" : "text-gray-400 hover:text-red-400"}`} />

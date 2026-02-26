@@ -13,7 +13,7 @@ export function PriceComparisonTable({ product }: { product: Product }) {
     return (
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                <span className="text-ratel-green-600">Ratel Price Intelligence</span>
+                <span className="text-ratel-green-600">FairPrice Intelligence</span>
                 <Badge variant="outline" className="text-xs font-normal">Updated 2m ago</Badge>
             </h3>
 
@@ -35,7 +35,7 @@ export function PriceComparisonTable({ product }: { product: Product }) {
                                 <AlertTriangle className="h-3 w-3" /> Overpriced
                             </Badge>
                         )}
-                        {comparison.flag === "suspicious" && (
+                        {comparison.flag === "too_low" && (
                             <Badge variant="warning" className="flex items-center gap-1 text-black">
                                 <AlertTriangle className="h-3 w-3" /> Suspiciously Low
                             </Badge>

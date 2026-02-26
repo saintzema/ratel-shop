@@ -76,7 +76,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 ref: `RATEL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 metadata: {
                     custom_fields: [
-                        { display_name: "Platform", variable_name: "platform", value: "RatelShop" },
+                        { display_name: "Platform", variable_name: "platform", value: "FairPrice" },
                         ...(metadata ? [Object.entries(metadata).map(([k, v]) => ({ display_name: k, variable_name: k.toLowerCase(), value: v }))] : []),
                     ],
                 },

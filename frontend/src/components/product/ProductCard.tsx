@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, useRef, useCallback } from "react";
-import { Star, ShieldCheck, AlertTriangle, Heart, Handshake } from "lucide-react";
+import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, getTrustColor, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,9 @@ interface ProductCardProps {
 export function ProductCard({ product, showDealTimer, className }: ProductCardProps) {
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
+    const router = useRouter();
     const [showHeartBurst, setShowHeartBurst] = useState(false);
+    const [addedToCart, setAddedToCart] = useState(false);
     const lastTapRef = useRef<number>(0);
     const favorited = isFavorite(product.id);
 
@@ -56,12 +59,18 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     }, [favorited, toggleFavorite, product.id]);
 
     return (
-        <div className={cn("group relative flex flex-col justify-between bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 h-full", className)}>
-            <Link href={`/product/${product.id}`} className="block h-full flex flex-col">
+        <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full", className)}>
+            <Link href={`/product/${product.id}`} className="flex flex-col flex-1">
                 <div
-                    className="relative aspect-square object-cover bg-muted"
+                    className="relative aspect-[4/5] object-cover bg-muted"
                     onClick={handleDoubleTap}
                 >
+                    {/* Sponsored Ad Tag */}
+                    {product.is_sponsored && (
+                        <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-tl-2xl rounded-br-2xl shadow-md border-b border-r border-white/10 flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-ratel-green-400 animate-pulse" /> Sponsored
+                        </div>
+                    )}
                     {/* Discount Badge */}
                     {savings > 0 && !product.price_flag && (
                         <Badge variant="destructive" className="absolute top-3 left-3 z-10 font-bold">
@@ -107,7 +116,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     )}
 
                     <img
-                        src={product.image_url}
+                        src={product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80"}
                         alt={product.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={(e) => {
@@ -155,15 +164,16 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                 {product.price_flag === "overpriced" ? (
                     <div className="flex gap-1.5 overflow-hidden">
                         <Button
-                            className="flex-1 min-w-0 bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2"
+                            className="flex-1 min-w-0 bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 addToCart(product);
+                                router.push('/checkout');
                             }}
                         >
-                            Add to Cart
+                            <ShoppingCart className="h-4 w-4 mr-1 lg:mr-1.5 shrink-0" /> <span className="truncate">Buy Now</span>
                         </Button>
                         <Link
                             href={`/product/${product.id}?negotiate=true`}
@@ -180,17 +190,39 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                         </Link>
                     </div>
                 ) : (
-                    <Button
-                        className="w-full bg-ratel-green-600 text-white font-black hover:bg-ratel-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20"
-                        size="sm"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            addToCart(product);
-                        }}
-                    >
-                        Add to Cart
-                    </Button>
+                    <>
+                        <Button
+                            className="w-full bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
+                            size="sm"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                addToCart(product);
+                                setAddedToCart(true);
+                                setTimeout(() => setAddedToCart(false), 3000);
+                            }}
+                        >
+                            {addedToCart ? (
+                                <span className="text-white">✓ Added!</span>
+                            ) : (
+                                <><ShoppingCart className="h-4 w-4 mr-2" /> Add to Cart</>
+                            )}
+                        </Button>
+                        {addedToCart && (
+                            <Button
+                                variant="outline"
+                                className="w-full mt-1.5 rounded-xl h-8 text-xs font-bold border-ratel-green-200 text-ratel-green-700 hover:bg-ratel-green-50 relative z-20 md:hidden"
+                                size="sm"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    router.push('/cart');
+                                }}
+                            >
+                                View Cart →
+                            </Button>
+                        )}
+                    </>
                 )}
             </div>
         </div>

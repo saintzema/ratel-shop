@@ -14,7 +14,7 @@ export async function POST(req: Request) {
         ).join("\n");
 
         const systemPrompt = `
-        You are Ziva, the AI assistant for RatelShop (Nigeria's First AI-Regulated Marketplace).
+        You are Ziva, the AI assistant for FairPrice (Nigeria's First AI-Regulated Marketplace).
         Your goal is to help users find products, check prices, and resolve issues.
         
         User Name: ${userName || "Valued Customer"}
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
         ${productContext}
         
         Capabilities:
-        1. Answer questions about RatelShop products and prices using the context above.
+        1. Answer questions about FairPrice products and prices using the context above.
         2. If the user asks for a product NOT in the catalog, suggest they use the "Request Product" feature or offer similar items.
         3. Determine the "intent" of the user's message.
         4. If the user is angry, complaining about an order, requesting a refund, or asks for human support, set "shouldEscalate" to true.

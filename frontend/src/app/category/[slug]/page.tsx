@@ -168,7 +168,7 @@ export default function CategoryPage() {
                             </label>
                             <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-ratel-green-600 group">
                                 <input type="checkbox" className="rounded border-gray-400 text-ratel-green-600 focus:ring-ratel-green-600" />
-                                <span className="text-gray-800">Ratel Fulfillment</span>
+                                <span className="text-gray-800">FairPrice Fulfillment</span>
                             </label>
                         </div>
                     </div>

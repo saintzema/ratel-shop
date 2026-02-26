@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Search, TrendingUp, TrendingDown,
     ShieldCheck, MapPin, Scale, ArrowRight,
     BarChart3, Globe, AlertTriangle, CheckCircle, ShoppingCart,
-    Loader2, ExternalLink, ChevronRight, Box, Heart
+    Loader2, ExternalLink, ChevronRight, Box, Heart,
+    Phone, Monitor, Sofa, Home as HomeIcon, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -18,6 +19,7 @@ import { PriceEngine, PriceAnalysis, PriceData, ProductSuggestion } from "@/lib/
 import { formatPrice } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { DEMO_PRODUCTS } from "@/lib/data";
+import { DemoStore } from "@/lib/demo-store";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -61,13 +63,53 @@ const REGIONAL_FACTORS: Record<string, { factor: number; label: string }> = {
 // ─── Utilities ──────────────────────────────────────────────
 
 export function getFallbackImage(cat: string = "") {
-    const c = cat.toLowerCase();
-    if (c.includes("phone") || c.includes("smartwatch")) return "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop";
-    if (c.includes("computer") || c.includes("laptop")) return "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=400&fit=crop";
-    if (c.includes("fashion") || c.includes("textile")) return "https://images.unsplash.com/photo-1445205170230-053b83016050?w=400&h=400&fit=crop";
-    if (c.includes("car")) return "https://images.unsplash.com/photo-1542282088-fe8426682b8f?w=400&h=400&fit=crop";
-    if (c.includes("home") || c.includes("furniture")) return "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&h=400&fit=crop";
-    return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+    // No longer using Unsplash fallbacks — use CategoryIconFallback instead
+    return "";
+}
+
+// Category icon fallback component for PriceIntelModal
+
+const MODAL_CATEGORY_ICONS: Record<string, React.ReactNode> = {
+    phones: <Phone className="h-8 w-8" />,
+    electronics: <Monitor className="h-8 w-8" />,
+    computing: <Monitor className="h-8 w-8" />,
+    fashion: <Shirt className="h-8 w-8" />,
+    home: <HomeIcon className="h-8 w-8" />,
+    furniture: <Sofa className="h-8 w-8" />,
+    cars: <Car className="h-8 w-8" />,
+    vehicles: <Car className="h-8 w-8" />,
+    gaming: <Gamepad className="h-8 w-8" />,
+    energy: <Zap className="h-8 w-8" />,
+    baby: <Baby className="h-8 w-8" />,
+    sports: <Dumbbell className="h-8 w-8" />,
+    books: <BookOpen className="h-8 w-8" />,
+    tools: <Wrench className="h-8 w-8" />,
+    beauty: <Paintbrush className="h-8 w-8" />,
+    grocery: <ShoppingBag className="h-8 w-8" />,
+};
+
+function getModalCategoryIcon(category: string) {
+    const cat = category?.toLowerCase() || "";
+    return Object.entries(MODAL_CATEGORY_ICONS).find(([key]) => cat.includes(key))?.[1] || <Package className="h-8 w-8" />;
+}
+
+function ProductImageWithFallback({ src, alt, category, className }: { src?: string; alt: string; category?: string; className?: string }) {
+    const [imgError, setImgError] = React.useState(false);
+    if (!src || imgError) {
+        return (
+            <div className={`w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white ${className || ''}`}>
+                {getModalCategoryIcon(category || '')}
+            </div>
+        );
+    }
+    return (
+        <img
+            src={src}
+            alt={alt}
+            className={`w-full h-full object-contain mix-blend-normal transition-transform duration-300 group-hover:scale-105 pointer-events-none ${className || ''}`}
+            onError={() => setImgError(true)}
+        />
+    );
 }
 
 // ─── Interfaces ─────────────────────────────────────────────
@@ -80,15 +122,17 @@ interface PriceHistory {
 
 interface PriceIntel {
     name: string;
+    description?: string;
+    image_url?: string;
     matchedProduct: Product | null;
     // Core pricing
-    ratelBestPrice: number;
-    ratelAvgPrice: number;
+    fairBestPrice: number;
+    fairAvgPrice: number;
     marketLowest: number;
     marketAverage: number;
     marketHighest: number;
     // Analysis
-    priceVerdict: "great_deal" | "fair" | "slightly_above" | "overpriced" | "suspicious";
+    priceVerdict: "great_deal" | "fair" | "slightly_above" | "overpriced" | "too_low";
     verdictLabel: string;
     verdictColor: string;
     overchargePercent: number;
@@ -108,35 +152,22 @@ interface PriceIntel {
     region: string;
     regionFactor: number;
     // Metadata
-    sellersOnRatel: number;
+    sellersOnPlatform: number;
     lastUpdated: string;
     confidence: number;
     category: string;
+    specs?: Record<string, string>;
 }
 
 // ─── Logic Transformation ───────────────────────────────────
 
-function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProduct: Product | null): PriceIntel {
+function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProduct: Product | null, platformMarginPercent: number, anchorPrice?: number): PriceIntel {
     // 1. Regional Adjustment
     const region = REGIONAL_FACTORS[regionKey.toLowerCase()] || REGIONAL_FACTORS.default;
-    const marketAverage = analysis.marketAverage * region.factor;
-    const recommendedPrice = analysis.recommendedPrice * region.factor;
 
-    // 2. Statistical Extrapolations or Real Data
-    // Use Gemini's real market range if available, otherwise extrapolate
-    const marketLowest = analysis.marketLow
-        ? Math.round(analysis.marketLow * region.factor)
-        : Math.round(marketAverage * 0.85);
-
-    const marketHighest = analysis.marketHigh
-        ? Math.round(analysis.marketHigh * region.factor)
-        : Math.round(marketAverage * 1.35);
-
-    // 3. Duty Calculations
+    // 2. Determine category first (needed for markup calculation)
     const nameLower = analysis.productName.toLowerCase();
     let category = "electronics";
-
-    // Use Gemini's detected category if available
     if (analysis.category) {
         if (analysis.category === "phones") category = "phones";
         else if (analysis.category === "computers") category = "computers";
@@ -144,12 +175,52 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
         else if (analysis.category === "cars") category = "cars";
         else if (analysis.category === "energy") category = "energy";
     } else {
-        // Fallback to keyword matching
         if (nameLower.includes("macbook") || nameLower.includes("laptop")) category = "computers";
         else if (nameLower.includes("iphone") || nameLower.includes("samsung") || nameLower.includes("pixel")) category = "phones";
         else if (nameLower.includes("shoe") || nameLower.includes("shirt") || nameLower.includes("dress")) category = "fashion";
         else if (nameLower.includes("solar") || nameLower.includes("inverter")) category = "energy";
         else if (nameLower.includes("car") || nameLower.includes("lexus") || nameLower.includes("toyota")) category = "cars";
+    }
+
+    // 3. Detect if this is a locally available product (food, drinks, herbal, traditional items)
+    // These should NOT have import markups — they're already sold locally
+    const baseRefPrice = anchorPrice || analysis.recommendedPrice;
+    const isLocalProduct = (
+        (category === "other" && baseRefPrice < 10000) ||
+        /\b(food|drink|herbal|spice|seasoning|garri|rice|oil|soap|cream|lotion|malt|beer|wine|juice|water|snack|biscuit|noodle|semo|flour|yam|beans|pepper|tomato|milk|sugar|salt|tea|coffee|cocoa)\b/i.test(nameLower)
+    );
+
+    // 4. Calculate prices anchored to the search price when available
+    let recommendedPrice: number;
+    let marketAverage: number;
+    let marketLowest: number;
+    let marketHighest: number;
+
+    if (isLocalProduct) {
+        // LOCAL MODE: Use Gemini's prices directly without extra margins
+        const geminiRecommended = anchorPrice || analysis.recommendedPrice;
+        recommendedPrice = Math.round(geminiRecommended);
+        marketAverage = analysis.marketAverage || Math.round(geminiRecommended * 1.05);
+        marketLowest = analysis.marketLow || Math.round(geminiRecommended * 0.85);
+        marketHighest = analysis.marketHigh || Math.round(geminiRecommended * 1.25);
+    } else if (anchorPrice && anchorPrice > 0) {
+        // ANCHORED MODE: Exact match of what the user clicked.
+        const anchoredBase = anchorPrice * region.factor;
+        recommendedPrice = Math.round(anchoredBase);
+        marketAverage = Math.round(anchoredBase * 1.15 + 15000); // Default fallback, bypass overrides this
+        marketLowest = Math.round(anchoredBase * 0.90);
+        marketHighest = Math.round(anchoredBase * 1.50 + 15000);
+    } else {
+        // UNANCHORED MODE: Trust Gemini's output
+        const basePlatformCost = analysis.recommendedPrice * region.factor;
+        recommendedPrice = Math.round(basePlatformCost);
+        marketAverage = Math.round(analysis.marketAverage * region.factor);
+        marketLowest = analysis.marketLow
+            ? Math.round(analysis.marketLow * region.factor)
+            : Math.round(marketAverage * 0.85);
+        marketHighest = analysis.marketHigh
+            ? Math.round(analysis.marketHigh * region.factor)
+            : Math.round(marketAverage * 1.35);
     }
 
     const dutyInfo = IMPORT_DUTY_RATES[category] || IMPORT_DUTY_RATES.electronics;
@@ -165,17 +236,15 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
         { label: `Surcharge`, percent: dutyInfo.surcharge * 100, amount: Math.round(estimatedCIF * dutyInfo.surcharge) },
     ].filter(d => d.percent > 0);
 
-    // 4. Verdict Logic
+    // 4. Verdict Logic (Simplified, removing Overpriced)
     const diffPercent = ((marketAverage - recommendedPrice) / recommendedPrice) * 100;
 
     let priceVerdict: PriceIntel["priceVerdict"] = "fair";
-    let verdictLabel = "Fair Price";
+    let verdictLabel = "Fair Value";
     let verdictColor = "emerald";
 
-    if (diffPercent < 0) {
+    if (diffPercent > 10) {
         priceVerdict = "great_deal"; verdictLabel = "Great Deal"; verdictColor = "emerald";
-    } else if (diffPercent > 20) {
-        priceVerdict = "overpriced"; verdictLabel = "Overpriced"; verdictColor = "red";
     }
 
     // 5. History Generation (aligned with priceDirection)
@@ -205,7 +274,7 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
     });
 
     // 6. Justification
-    const justification = analysis.justification || `Based on analysis of real-time data from ${analysis.sources.length} online sources. The recommended price of ${formatPrice(recommendedPrice)} accounts for ${dutyInfo.label} import duties (~${Math.round(totalDutyPercent)}%) and current FX rates.`;
+    const justification = analysis.justification || `Based on analysis of real-time data from ${analysis.sources.length} online sources. The recommended price of ${formatPrice(recommendedPrice)} includes standard delivery and procurement margins.`;
 
     // 7. Flags
     const flags: string[] = ["Real-Time Data"];
@@ -216,9 +285,11 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
 
     return {
         name: analysis.productName,
+        description: analysis.description,
+        image_url: analysis.image_url,
         matchedProduct,
-        ratelBestPrice: recommendedPrice,
-        ratelAvgPrice: Math.round(recommendedPrice * 1.05),
+        fairBestPrice: recommendedPrice,
+        fairAvgPrice: Math.round(recommendedPrice * 1.05),
         marketLowest,
         marketAverage,
         marketHighest,
@@ -234,11 +305,11 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
         sources: analysis.sources,
         priceDirection: analysis.priceDirection || (history[5].price > history[4].price ? "rising" : "falling"),
         justification,
-        importContext: `Duties calculated for ${category} category based on Nigerian Customs Service tariffs.`,
+        importContext: `Includes ${Math.round(platformMarginPercent)}% service charge and estimated delivery.`,
         flags,
         region: region.label,
         regionFactor: region.factor,
-        sellersOnRatel: Math.floor(seeded(100) * 10) + 2,
+        sellersOnPlatform: Math.floor(seeded(100) * 10) + 2,
         lastUpdated: new Date().toISOString(),
         confidence: analysis.confidence === "high" ? 95 : analysis.confidence === "low" ? 65 : 85,
         category
@@ -247,15 +318,33 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
 
 // ─── Component ──────────────────────────────────────────────
 
-export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boolean; onClose: () => void; initialQuery?: string }) {
+    const [platformMarginPercent, setPlatformMarginPercent] = useState(0.15); // Default fallback
+
+    useEffect(() => {
+        if (isOpen) {
+            fetch("/api/admin/settings")
+                .then(res => res.json())
+                .then(data => {
+                    if (data?.platformMargin) {
+                        setPlatformMarginPercent(data.platformMargin / 100);
+                    }
+                })
+                .catch(err => console.error("Failed to load platform margin", err));
+        }
+    }, [isOpen]);
+
     const [result, setResult] = useState<PriceIntel | null>(null);
     const [isSearching, setIsSearching] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [requestModalOpen, setRequestModalOpen] = useState(false);
     const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
     const [searchResults, setSearchResults] = useState<{ local: Product[], api: ProductSuggestion[] } | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(initialQuery || "");
     const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
+
+    // initialQuery sync — moved after handleSearch to avoid TDZ
+    const initialQueryTriggeredRef = useRef<string | null>(null);
     const { user } = useAuth();
     const { addToCart } = useCart();
     const router = useRouter();
@@ -299,20 +388,143 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         }
     }, []);
 
-    const handleAnalyze = useCallback(async (productName: string, product?: Product, sourceUrl?: string) => {
+    // Sync initialQuery when modal opens — placed after handleSearch to avoid TDZ
+    useEffect(() => {
+        if (isOpen && initialQuery && initialQuery !== initialQueryTriggeredRef.current) {
+            setSearchQuery(initialQuery);
+            setResult(null);
+            setSearchResults(null);
+            initialQueryTriggeredRef.current = initialQuery;
+            const timer = setTimeout(() => {
+                handleSearch(initialQuery);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+        if (!isOpen) {
+            initialQueryTriggeredRef.current = null;
+        }
+    }, [isOpen, initialQuery, handleSearch]);
+
+    const handleAnalyze = useCallback(async (productName: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>) => {
         setIsAnalyzing(true);
         setSuggestions([]);
+
+        // Capture searchResults before nulling UI state so we can read the competitor prices
+        const activeSearchResults = searchResults;
+
         setSearchResults(null);
         setResult(null);
         setSelectedSourceUrl(sourceUrl || null);
 
         try {
             // Find matched product locally if possible for "Buy Now"
-            const matchedProduct = product || DEMO_PRODUCTS.find(p => p.name.toLowerCase() === productName.toLowerCase()) || null;
+            let matchedProduct = product || DemoStore.getProducts().find(p => p.name.toLowerCase() === productName.toLowerCase()) || null;
 
-            // Deep Analysis
-            const analysis = await PriceEngine.analyzePrice(productName);
-            const intel = processAnalysis(analysis, user?.location || "lagos", matchedProduct);
+            // Use the product's actual price as anchor if we have a catalog match
+            const anchorPrice = product?.price || approxPrice;
+
+            let intel: PriceIntel;
+
+            if (anchorPrice && (sourceUrl || product || approxPrice)) {
+                // VERY FAST TRACK: Skip Gemini deep analysis for search result clicks.
+                // The price the user clicked is locked in immediately as the absolute Fair Price.
+                const fairBestPrice = anchorPrice;
+
+                // Find highest price in search results to use as market average
+                let maxSearchPrice = 0;
+                if (activeSearchResults) {
+                    const localMax = activeSearchResults.local.reduce((max, p) => Math.max(max, p.price), 0);
+                    const apiMax = activeSearchResults.api.reduce((max, s) => Math.max(max, s.approxPrice || 0), 0);
+                    // Add standard 15k local delivery for competitors
+                    maxSearchPrice = Math.max(localMax, apiMax) + 15000;
+                }
+
+                // Use the highest search result as the market anchor if it's higher. If it's somehow not higher, apply a minor 8% gap as a fallback.
+                const marketAverage = maxSearchPrice > fairBestPrice * 1.05 ? maxSearchPrice : Math.round(fairBestPrice * 1.08);
+                const marketLowest = Math.round(fairBestPrice * 1.02);
+                const marketHighest = Math.round(marketAverage * 1.15);
+                const savingsAmount = marketAverage - fairBestPrice;
+
+                // Create a brief info-packed description if specs are available
+                const specSummary = specs ? Object.entries(specs).map(([k, v]) => `${k}: ${v}`).join(" • ") : "";
+                const generatedDesc = specSummary ? `${productName} featuring ${specSummary}` : `High-quality ${productName} sourced securely via global partners.`;
+
+                intel = {
+                    name: productName,
+                    description: product?.description || generatedDesc,
+                    image_url: product?.image_url || getFallbackImage(product?.category || "other"),
+                    matchedProduct: matchedProduct,
+                    specs: product?.specs || specs,
+                    fairBestPrice,
+                    fairAvgPrice: fairBestPrice,
+                    marketLowest,
+                    marketAverage,
+                    marketHighest,
+                    priceVerdict: savingsAmount > (fairBestPrice * 0.05) ? "great_deal" : "fair",
+                    verdictLabel: savingsAmount > (fairBestPrice * 0.05) ? "Great Deal" : "Fair Value",
+                    verdictColor: "emerald",
+                    overchargePercent: Math.round((savingsAmount / fairBestPrice) * 100),
+                    savingsAmount,
+                    estimatedCIF: Math.round(fairBestPrice * 0.7),
+                    totalDutyPercent: 20,
+                    dutyBreakdown: [],
+                    history: [
+                        { month: "Sep", price: Math.round(marketAverage * 1.05) },
+                        { month: "Oct", price: Math.round(marketAverage * 1.01) },
+                        { month: "Nov", price: Math.round(marketAverage * 0.98) },
+                        { month: "Dec", price: Math.round(marketAverage * 1.08), note: "Holiday Spike" },
+                        { month: "Jan", price: Math.round(marketAverage * 1.02) },
+                        { month: "Feb", price: marketAverage }
+                    ],
+                    sources: [
+                        { source: "Direct Partner Source", price: fairBestPrice, type: "global", url: sourceUrl || "", currency: "NGN" },
+                        { source: "Highest Market Online", price: marketAverage, type: "local", url: "", currency: "NGN" }
+                    ],
+                    priceDirection: "stable",
+                    justification: `Price locked based on your selection. The market estimate reflects current competitor pricing including standard delivery.`,
+                    importContext: "Sourced efficiently with priority international shipping.",
+                    flags: ["Best Value Guaranteed", "Escrow Protection"],
+                    region: user?.location || "lagos",
+                    regionFactor: 1,
+                    sellersOnPlatform: 1,
+                    lastUpdated: new Date().toISOString(),
+                    confidence: 99,
+                    category: product?.category || "other"
+                };
+            } else {
+                // Deep Analysis — only call Gemini for totally raw searches
+                const analysis = await PriceEngine.analyzePrice(productName, anchorPrice);
+                intel = processAnalysis(analysis, user?.location || "lagos", matchedProduct, platformMarginPercent, anchorPrice);
+            }
+
+            // Auto-save Global Searches to the local catalog
+            if (!matchedProduct) {
+                const newId = `global-${Date.now()}`;
+                const newGlobalProduct: Product = {
+                    id: newId,
+                    seller_id: "global-partners",
+                    seller_name: "Global Partners",
+                    name: intel.name,
+                    description: intel.description || `Global import sourced securely via real-time market analysis.`,
+                    price: intel.fairBestPrice,
+                    category: intel.category as any,
+                    image_url: intel.image_url || getFallbackImage(intel.category || ""),
+                    images: [],
+                    stock: 999, // global stock
+                    price_flag: "fair",
+                    is_active: true,
+                    avg_rating: 0,
+                    review_count: 0,
+                    sold_count: 0,
+                    created_at: new Date().toISOString(),
+                    external_url: sourceUrl || undefined,
+                    specs: intel.specs
+                };
+                DemoStore.addRawProduct(newGlobalProduct);
+                matchedProduct = newGlobalProduct; // Attach it so they can buy it directly!
+                intel.matchedProduct = newGlobalProduct;
+            }
+
             setResult(intel);
         } catch (error) {
             console.error("Analysis failed", error);
@@ -327,7 +539,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 overflow-hidden">
+                    <div className="fixed inset-0 z-[9999] flex items-center md:items-start pt-0 md:pt-[10vh] justify-center p-4 overflow-hidden">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
@@ -341,7 +553,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="relative w-full max-w-2xl max-h-[90vh] overflow-visible rounded-3xl flex flex-col"
+                            className="relative w-full max-w-2xl h-[85vh] md:h-auto max-h-[90vh] overflow-visible rounded-3xl flex flex-col"
                             style={{
                                 background: "linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.98))",
                                 backdropFilter: "blur(60px) saturate(1.5)",
@@ -349,32 +561,31 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                 boxShadow: "0 40px 80px rgba(0,0,0,0.1), inset 0 1px 0 rgba(0,0,0,0.5)"
                             }}
                         >
-                            {/* Header — Liquid Glass with Mesh */}
+                            {/* Header — Apple Liquid Glass */}
                             <div
-                                className="px-6 py-4 flex items-center justify-between relative overflow-hidden rounded-t-3xl"
+                                className="px-6 py-5 flex items-center justify-between relative overflow-hidden rounded-t-3xl border-b border-white/20"
                                 style={{
                                     background: "linear-gradient(135deg, rgba(6, 95, 70, 0.95), rgba(4, 120, 87, 0.85))",
                                     backdropFilter: "blur(20px)",
                                     WebkitBackdropFilter: "blur(20px)",
-                                    borderBottom: "1px solid rgba(16, 185, 129, 0.3)"
                                 }}
                             >
-                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.3),transparent_70%)]" />
-                                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20 mix-blend-overlay" />
-                                <div className="flex items-center gap-3 relative z-10">
+                                {/* Decorative Mesh Background */}
+                                <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.4) 1px, transparent 1px)", backgroundSize: "16px 16px" }} />
+                                <div className="flex items-center gap-4 relative z-10">
                                     <div
-                                        className="h-10 w-10 rounded-xl flex items-center justify-center bg-white/10 backdrop-blur-md border border-white/20 shadow-inner"
+                                        className="h-12 w-12 rounded-2xl flex items-center justify-center bg-white border border-gray-200 shadow-sm"
                                     >
-                                        <BarChart3 className="h-5 w-5 text-white drop-shadow-sm" />
+                                        <BarChart3 className="h-6 w-6 text-gray-800" />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-white tracking-tight drop-shadow-md">Price Intelligence</h2>
-                                        <p className="text-[11px] text-emerald-100 font-bold drop-shadow-md">Real-Time Market Analysis</p>
+                                        <h2 className="text-xl font-bold text-white tracking-tight">Price Intelligence</h2>
+                                        <p className="text-xs text-white/80 font-medium mt-0.5">Real-Time Market Analysis</p>
                                     </div>
                                 </div>
                                 <button
                                     onClick={onClose}
-                                    className="text-white hover:text-emerald-50 p-2 rounded-xl transition-all hover:bg-black/20 shadow-sm relative z-10"
+                                    className="p-2.5 rounded-full bg-white/10 hover:bg-red-500 text-white hover:text-white transition-all shadow-sm border border-transparent hover:border-red-400 relative z-[200]"
                                 >
                                     <X className="h-5 w-5" />
                                 </button>
@@ -385,8 +596,8 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                 <SearchInput
                                     value={searchQuery}
                                     onChange={setSearchQuery}
-                                    onSearch={handleAnalyze}
-                                    onAnalyze={(q, p, s) => handleAnalyze(q, p, s)}
+                                    onSearch={handleSearch}
+                                    onAnalyze={(q, p, s, price, specs) => handleAnalyze(q, p, s, price, specs)}
                                     isLoading={isSearching || isAnalyzing}
                                     hasResult={!!result}
                                     onReset={() => { setResult(null); setSearchQuery(""); setSelectedSourceUrl(null); }}
@@ -432,7 +643,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                 <div className="flex items-center justify-between px-1">
                                                     <h4 className="flex items-center gap-2 text-gray-700 text-[11px] font-bold uppercase tracking-wider">
                                                         <Box className="h-4 w-4 text-emerald-600" />
-                                                        In RatelShop Catalog
+                                                        In FairPrice Catalog
                                                     </h4>
                                                     <span className="text-xs text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">In Stock</span>
                                                 </div>
@@ -440,8 +651,13 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                     {searchResults.local.map(product => (
                                                         <div key={product.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:bg-gray-100 transition-colors">
                                                             <div className="flex items-center gap-4">
-                                                                <div className="w-12 h-12 bg-gray-100 rounded-lg p-1.5 shrink-0 flex items-center justify-center">
-                                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" />
+                                                                <div className="w-12 h-12 bg-gray-100 rounded-lg p-1.5 shrink-0 flex items-center justify-center overflow-hidden">
+                                                                    {product.image_url ? (
+                                                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling && ((e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex'); }} />
+                                                                    ) : null}
+                                                                    <div className={`w-full h-full rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${product.image_url ? 'hidden' : 'flex'} items-center justify-center`}>
+                                                                        <span className="text-white font-black text-sm">{product.name.charAt(0)}</span>
+                                                                    </div>
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-bold text-sm text-gray-900">{product.name}</p>
@@ -489,8 +705,19 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                     {searchResults.api.map((s, i) => (
                                                         <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-white shadow-sm hover:border-blue-500/30 transition-colors">
                                                             <div className="flex items-center gap-4">
-                                                                <div className="w-12 h-12 bg-blue-500/10 rounded-lg shrink-0 flex items-center justify-center">
-                                                                    <Search className="h-5 w-5 text-blue-400" />
+                                                                <div className="w-12 h-12 bg-gray-100 rounded-lg shrink-0 flex items-center justify-center p-1.5 overflow-hidden">
+                                                                    {s.image_url ? (
+                                                                        <img
+                                                                            src={s.image_url}
+                                                                            alt={s.name}
+                                                                            className="w-full h-full object-contain mix-blend-multiply"
+                                                                            onError={(e) => {
+                                                                                e.currentTarget.style.display = 'none';
+                                                                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                                                            }}
+                                                                        />
+                                                                    ) : null}
+                                                                    <Search className={`h-5 w-5 text-gray-400 ${s.image_url ? 'hidden' : ''}`} />
                                                                 </div>
                                                                 <div>
                                                                     <p className="font-bold text-sm text-gray-900">{s.name}</p>
@@ -503,11 +730,11 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                                                     <p className="font-bold text-emerald-600">{formatPrice(s.approxPrice)}</p>
                                                                 </div>
                                                                 <button
-                                                                    onClick={() => handleAnalyze(s.name)}
-                                                                    className="h-9 px-4 text-xs font-bold text-gray-900 bg-gray-100 hover:bg-gray-200 border border-blue-500/30 rounded-lg transition-colors flex items-center gap-2"
+                                                                    onClick={() => handleAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice)}
+                                                                    className="h-9 px-3 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap"
                                                                 >
-                                                                    <BarChart3 className="h-3.5 w-3.5" />
-                                                                    Analyze & Request
+                                                                    <ShoppingCart className="h-3.5 w-3.5" />
+                                                                    Get Fair Price
                                                                 </button>
                                                             </div>
                                                         </div>
@@ -534,7 +761,15 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         className="space-y-5"
                                     >
                                         {/* Verdict Card */}
-                                        <VerdictCard result={result} onAddToCart={addToCart} onRequestProduct={() => setRequestModalOpen(true)} />
+                                        <VerdictCard
+                                            result={result}
+                                            onAddToCart={(product) => {
+                                                addToCart(product);
+                                                onClose();
+                                                router.push('/checkout');
+                                            }}
+                                            onRequestProduct={() => setRequestModalOpen(true)}
+                                        />
 
                                         {/* Price Comparison */}
                                         <PriceComparison result={result} />
@@ -542,21 +777,18 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {/* Price History Chart */}
                                         <PriceHistoryChart result={result} />
 
-                                        {/* Duty Breakdown */}
-                                        <DutyBreakdown result={result} />
-
                                         {/* Context & Flags */}
                                         <div className="grid grid-cols-2 gap-3">
-                                            <GlassCard>
+                                            <GlassCard className="bg-white/95 shadow-md">
                                                 <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
                                                     <Globe className="h-3 w-3 text-blue-600" />
                                                     Market Context
                                                 </div>
-                                                <p className="text-gray-800 text-[11px] leading-relaxed font-medium">
+                                                <p className="text-gray-900 text-[11px] leading-relaxed font-medium">
                                                     {result.justification}
                                                 </p>
                                             </GlassCard>
-                                            <GlassCard>
+                                            <GlassCard className="bg-white/95 shadow-md">
                                                 <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
                                                     <AlertTriangle className="h-3 w-3 text-amber-500" />
                                                     Analysis Flags
@@ -587,10 +819,13 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                                         {/* Global Alternatives (Related items in same category) */}
                                         <div className="-mx-6 px-6 pt-4 pb-2 border-t border-gray-100 bg-gray-50/50">
                                             <RecommendedProducts
-                                                products={DEMO_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 8)}
-                                                title="Similar Regional & Global Options"
-                                                subtitle="Other choices you might consider"
-                                                icon={<Globe className="h-4 w-4 text-emerald-600" />}
+                                                products={[
+                                                    ...DEMO_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 4),
+                                                    ...DEMO_PRODUCTS.filter(p => p.category !== result.category && p.is_active).sort((a, b) => b.sold_count - a.sold_count).slice(0, 4)
+                                                ].slice(0, 8)}
+                                                title="Customers Also Bought"
+                                                subtitle="Similar products and trending items"
+                                                icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
                                             />
                                         </div>
                                     </motion.div>
@@ -606,18 +841,18 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                     isOpen={requestModalOpen}
                     onClose={() => setRequestModalOpen(false)}
                     productName={result.name}
-                    targetPrice={result.ratelBestPrice}
+                    targetPrice={result.fairBestPrice}
                     sourceUrl={selectedSourceUrl || undefined}
                     onConfirm={() => {
                         const sourcingProduct: Product = {
                             id: `source-${Date.now()}`,
-                            seller_id: "ratel-concierge",
-                            seller_name: "Ratel Global Partners",
+                            seller_id: "global-partners",
+                            seller_name: "Global Partners",
                             name: `[Sourcing Request] ${result.name}`,
-                            description: `Special sourcing request for ${result.name}.`,
-                            price: result.ratelBestPrice,
+                            description: result.description || `Special sourcing request for ${result.name}.`,
+                            price: result.fairBestPrice,
                             category: result.category as any || "other",
-                            image_url: result.matchedProduct?.image_url || getFallbackImage(result.category || ""),
+                            image_url: result.matchedProduct?.image_url || result.image_url || getFallbackImage(result.category || ""),
                             images: [],
                             stock: 1,
                             price_flag: "fair",
@@ -643,7 +878,7 @@ export function PriceIntelModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 function GlassCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
     return (
         <div
-            className={`rounded-2xl p-4 bg-white/60 shadow-sm ${className}`}
+            className={`rounded-2xl p-4 bg-white/95 shadow-md ${className}`}
             style={{
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(0,0,0,0.06)",
@@ -656,11 +891,29 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
 
 // ─── Search Input with Hybrid Autocomplete ──────────────────
 
-function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResult, onReset }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product, sourceUrl?: string) => void; isLoading: boolean; hasResult: boolean; onReset: () => void }) {
+function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResult, onReset }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>) => void; isLoading: boolean; hasResult: boolean; onReset: () => void }) {
     const inputRef = useRef<HTMLInputElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [apiSuggestions, setApiSuggestions] = useState<ProductSuggestion[]>([]);
     const [localMatches, setLocalMatches] = useState<Product[]>([]);
+
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+                setShowSuggestions(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    // Force close suggestions when analysis starts or completes
+    useEffect(() => {
+        if (hasResult || isLoading) {
+            setShowSuggestions(false);
+        }
+    }, [hasResult, isLoading]);
 
     // Debounced search for suggestions
     useEffect(() => {
@@ -690,7 +943,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
     }, [value]);
 
     return (
-        <div className="relative" onClick={(e) => e.stopPropagation()}>
+        <div ref={containerRef} className="relative" onClick={(e) => e.stopPropagation()}>
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-900/25 z-10" />
             <input
                 ref={inputRef}
@@ -760,8 +1013,13 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
                                 >
-                                    <div className="h-10 w-10 rounded-xl bg-white border border-gray-200 shadow-sm p-1.5 shrink-0 flex items-center justify-center">
-                                        <img src={product.image_url} className="w-full h-full object-contain" alt="" />
+                                    <div className="h-10 w-10 rounded-xl bg-white border border-gray-200 shadow-sm p-1.5 shrink-0 flex items-center justify-center overflow-hidden">
+                                        {product.image_url ? (
+                                            <img src={product.image_url} className="w-full h-full object-contain" alt="" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling && ((e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex'); }} />
+                                        ) : null}
+                                        <div className={`w-full h-full rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${product.image_url ? 'hidden' : 'flex'} items-center justify-center`}>
+                                            <span className="text-white font-black text-xs">{product.name.charAt(0)}</span>
+                                        </div>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
@@ -787,7 +1045,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                     key={i}
                                     onClick={() => {
                                         onChange(s.name);
-                                        onAnalyze(s.name, undefined, s.sourceUrl);
+                                        onAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice, s.specs);
                                         setShowSuggestions(false);
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
@@ -819,9 +1077,9 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
 
 function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceIntel; onAddToCart: (p: Product, qty?: number) => void; onRequestProduct: () => void }) {
     const verdictColors: Record<string, { bg: string; border: string; dot: string }> = {
-        emerald: { bg: "rgba(16,185,129,0.08)", border: "rgba(16,185,129,0.15)", dot: "#10b981" },
-        red: { bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.15)", dot: "#ef4444" },
-        yellow: { bg: "rgba(234,179,8,0.08)", border: "rgba(234,179,8,0.15)", dot: "#eab308" },
+        emerald: { bg: "rgba(16,185,129,0.12)", border: "rgba(16,185,129,0.3)", dot: "#10b981" },
+        red: { bg: "rgba(239,68,68,0.12)", border: "rgba(239,68,68,0.3)", dot: "#ef4444" },
+        yellow: { bg: "rgba(234,179,8,0.12)", border: "rgba(234,179,8,0.3)", dot: "#eab308" },
     };
     const colors = verdictColors[result.verdictColor] || verdictColors.emerald;
     const { isFavorite, toggleFavorite } = useFavorites();
@@ -859,7 +1117,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
         }
     };
 
-    const imageUrl = result.matchedProduct ? result.matchedProduct.image_url : getFallbackImage(result.category);
+    const imageUrl = result.matchedProduct ? result.matchedProduct.image_url : (result.image_url || getFallbackImage(result.category));
 
     return (
         <div
@@ -874,7 +1132,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                         onDoubleClick={handleDoubleClick}
                         onClick={(e) => { e.preventDefault(); setShowDetails(!showDetails); }}
                     >
-                        <img src={imageUrl} className="w-full h-full object-contain mix-blend-multiply transition-transform duration-300 group-hover:scale-105 pointer-events-none" alt={result.name} />
+                        <ProductImageWithFallback src={imageUrl} alt={result.name} category={result.category} />
 
                         <AnimatePresence>
                             {showHeartAnim && (
@@ -900,17 +1158,6 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                     </div>
 
                     <div className="flex-1 min-w-0">
-                        {/* Verdict badge */}
-                        <div className="flex items-center gap-2 mb-2">
-                            <span
-                                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
-                                style={{ background: "rgba(255,255,255,0.06)", color: colors.dot }}
-                            >
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ background: colors.dot }} />
-                                {result.verdictLabel}
-                            </span>
-                            <span className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold">Verdict</span>
-                        </div>
 
                         {/* Product title — clickable if matched */}
                         {result.matchedProduct ? (
@@ -955,6 +1202,59 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                 </div>
             </div>
 
+            {/* EV / Car Financing Option */}
+            {(result.category === "cars" || result.category === "vehicles") && result.fairBestPrice >= 5000000 && (() => {
+                const price = result.fairBestPrice;
+                const deposit = price * 0.5;
+                const remaining = deposit;
+                // 3/6/12 months with low interest rates
+                const tier = price < 15000000 ? { months: 3, rate: 0.03, label: '3 months' }
+                    : price < 30000000 ? { months: 6, rate: 0.05, label: '6 months' }
+                        : { months: 12, rate: 0.08, label: '12 months' };
+                const monthlyPayment = Math.round((remaining * (1 + tier.rate)) / tier.months);
+                return (
+                    <div className="mt-4 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md">
+                                <Scale className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                                    FairPrice Financing Available
+                                    <span className="text-[9px] font-black bg-green-100 text-green-700 px-2 py-0.5 rounded-full">NEW</span>
+                                </h4>
+                                <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                                    Pay <strong className="text-blue-700">50% deposit</strong> of ₦{deposit.toLocaleString()} and finance the rest.
+                                </p>
+                                <div className="flex flex-wrap gap-3 mt-2.5">
+                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg">
+                                        {tier.label} repayment
+                                    </span>
+                                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
+                                        ~₦{monthlyPayment.toLocaleString()}/mo
+                                    </span>
+                                    <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-lg">
+                                        {(tier.rate * 100).toFixed(0)}% interest
+                                    </span>
+                                    <span className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                                        <ShieldCheck className="h-3 w-3 text-green-500" /> Concierge follow-up
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        window.open(`mailto:adeshop@protonmail.com?subject=Financing%20Inquiry%20-%20${encodeURIComponent(result.name)}&body=I%20would%20like%20to%20apply%20for%20financing%20for%20${encodeURIComponent(result.name)}%20at%20₦${price.toLocaleString()}.%0A%0ADeposit:%20₦${deposit.toLocaleString()}%0ARepayment:%20${tier.label}%0AMonthly:%20₦${monthlyPayment.toLocaleString()}/mo`, '_blank');
+                                    }}
+                                    className="mt-3 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
+                                >
+                                    <Scale className="h-3.5 w-3.5" />
+                                    Apply for Financing
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
             {/* Inline Product Details Expansion */}
             <AnimatePresence>
                 {showDetails && (
@@ -970,6 +1270,19 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                                 <p className="text-sm text-gray-700 leading-relaxed mb-4 font-medium">
                                     {result.matchedProduct.description}
                                 </p>
+                                {result.specs && Object.keys(result.specs).length > 0 && (
+                                    <div className="mb-4">
+                                        <h5 className="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">Key Specifications</h5>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            {Object.entries(result.specs).map(([key, value]) => (
+                                                <div key={key} className="flex flex-col">
+                                                    <span className="text-[9px] text-gray-500 uppercase tracking-widest">{key}</span>
+                                                    <span className="text-xs font-semibold text-gray-900 leading-snug">{String(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-500 bg-white/50 p-3 rounded-xl border border-white/20">
                                     <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-emerald-500" /> Verified Seller</span>
                                     <span className="flex items-center gap-1.5"><MapPin className="h-4 w-4" /> Ship to {result.region}</span>
@@ -983,10 +1296,23 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                             </>
                         ) : (
                             <>
-                                <p className="text-sm text-gray-700 leading-relaxed mb-4 font-medium">
-                                    This product is currently not in the local RatelShop catalog. However, our Global Sourcing Partners can procure and deliver it to you securely based on the market estimation above.
+                                <p className="text-sm text-gray-800 leading-relaxed mb-4 font-medium">
+                                    {result.description || "This product is currently not in the local FairPrice catalog. However, our Global Sourcing Partners can procure and deliver it to you securely based on the market estimation above."}
                                 </p>
-                                <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-500 bg-white/50 p-3 rounded-xl border border-white/20">
+                                {result.specs && Object.keys(result.specs).length > 0 && (
+                                    <div className="mb-4">
+                                        <h5 className="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-widest">Key Specifications</h5>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            {Object.entries(result.specs).map(([key, value]) => (
+                                                <div key={key} className="flex flex-col">
+                                                    <span className="text-[9px] text-gray-500 uppercase tracking-widest">{key}</span>
+                                                    <span className="text-xs font-semibold text-gray-900 leading-snug">{String(value)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-gray-600 bg-white/50 p-3 rounded-xl border border-white/20">
                                     <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-blue-500" /> Escrow Protected</span>
                                     <span className="flex items-center gap-1.5"><Globe className="h-4 w-4" /> Global Sourcing</span>
                                     <span>Category: <strong className="text-gray-900 uppercase tracking-widest">{result.category}</strong></span>
@@ -1005,7 +1331,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
 function PriceComparison({ result }: { result: PriceIntel }) {
     return (
         <div className="grid grid-cols-2 gap-3">
-            {/* Ratel Recommended */}
+            {/* FairPrice Recommended */}
             <div
                 className="rounded-2xl p-4 relative overflow-hidden"
                 style={{
@@ -1019,9 +1345,9 @@ function PriceComparison({ result }: { result: PriceIntel }) {
                 >
                     BEST PRICE
                 </div>
-                <p className="text-[10px] font-semibold text-emerald-400/70 uppercase tracking-wide mb-1">Ratel Recommended</p>
+                <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wide mb-1">FairPrice Recommended</p>
                 <p className="text-2xl font-bold text-gray-900 tracking-tight">
-                    {formatPrice(result.ratelBestPrice)}
+                    {formatPrice(result.fairBestPrice)}
                 </p>
 
                 {/* You Save — only show if savings > 0 */}
@@ -1035,7 +1361,7 @@ function PriceComparison({ result }: { result: PriceIntel }) {
                 )}
 
                 {!result.savingsAmount && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-400/50">
+                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-emerald-600">
                         <CheckCircle className="h-3 w-3" />
                         <span>Fair Price Estimate</span>
                     </div>
@@ -1120,13 +1446,13 @@ function PriceSourcesChart({ result }: { result: PriceIntel }) {
                     );
                 })}
             </div>
-            {/* Ratel recommended line */}
-            <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px dashed rgba(255,255,255,0.06)" }}>
-                <span className="text-[10px] text-emerald-400/60 font-medium flex items-center gap-1">
+            {/* FairPrice recommended line */}
+            <div className="mt-3 pt-3 flex items-center justify-between" style={{ borderTop: "1px dashed rgba(0,0,0,0.1)" }}>
+                <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
                     <ShieldCheck className="h-3 w-3" />
-                    Ratel Fair Price
+                    FairPrice Estimate
                 </span>
-                <span className="text-[11px] font-bold text-emerald-400">{formatPrice(result.ratelBestPrice)}</span>
+                <span className="text-[11px] font-bold text-emerald-700">{formatPrice(result.fairBestPrice)}</span>
             </div>
         </GlassCard>
     );

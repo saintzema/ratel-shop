@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Product } from "@/lib/types";
+import { useAuth } from "@/context/AuthContext";
 
 export interface CartItem {
     product: Product;
@@ -16,33 +17,44 @@ interface CartContextType {
     clearCart: () => void;
     cartTotal: number;
     cartCount: number;
+    isLoaded: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function getCartKey(userEmail?: string | null): string {
+    return userEmail ? `ratel-cart-${userEmail}` : "ratel-cart-guest";
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
     const [cart, setCart] = useState<CartItem[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
+    const { user } = useAuth();
 
-    // Load from local storage on mount
+    // Load cart for the current user on mount AND when user changes (login/logout)
     useEffect(() => {
-        const savedCart = localStorage.getItem("ratel-cart");
+        const key = getCartKey(user?.email);
+        const savedCart = localStorage.getItem(key);
         if (savedCart) {
             try {
                 setCart(JSON.parse(savedCart));
             } catch (e) {
                 console.error("Failed to parse cart", e);
+                setCart([]);
             }
+        } else {
+            setCart([]);
         }
         setIsLoaded(true);
-    }, []);
+    }, [user?.email]);
 
     // Save to local storage on change
     useEffect(() => {
         if (isLoaded) {
-            localStorage.setItem("ratel-cart", JSON.stringify(cart));
+            const key = getCartKey(user?.email);
+            localStorage.setItem(key, JSON.stringify(cart));
         }
-    }, [cart, isLoaded]);
+    }, [cart, isLoaded, user?.email]);
 
     const addToCart = (product: Product, quantity = 1) => {
         setCart(prev => {
@@ -78,7 +90,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const cartCount = cart.reduce((ctx, item) => ctx + item.quantity, 0);
 
     return (
-        <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount }}>
+        <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, cartTotal, cartCount, isLoaded }}>
             {children}
         </CartContext.Provider>
     );

@@ -1,11 +1,11 @@
 "use client";
 
-import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification } from "./types";
-import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS } from "./data";
+import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason } from "./types";
+import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS, DEMO_PAYOUTS } from "./data";
 
 class DemoStoreService {
     private static instance: DemoStoreService;
-    private readonly STORAGE_KEYS = {
+    public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "ratel_demo_negotiations",
         ORDERS: "ratel_demo_orders",
         SELLERS: "ratel_demo_sellers",
@@ -14,6 +14,9 @@ class DemoStoreService {
         NOTIFICATIONS: "ratel_demo_notifications",
         KYC: "ratel_demo_kyc",
         COMPLAINTS: "ratel_demo_complaints",
+        PAYOUTS: "ratel_demo_payouts",
+        SUPPORT_MESSAGES: "ratel_demo_support_messages",
+        DISPUTES: "ratel_demo_disputes",
     };
 
     private constructor() {
@@ -32,7 +35,7 @@ class DemoStoreService {
     private init() {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
-        const DATA_VERSION = "4";
+        const DATA_VERSION = "7";
         const currentVersion = localStorage.getItem("ratel_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -58,6 +61,9 @@ class DemoStoreService {
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS)) {
             localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(DEMO_COMPLAINTS));
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.PAYOUTS)) {
+            localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(DEMO_PAYOUTS));
         }
     }
 
@@ -155,9 +161,27 @@ class DemoStoreService {
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || JSON.stringify(DEMO_PRODUCTS));
     }
 
+    /** Returns only products whose seller has kyc_status === "approved" (or verified === true). 
+     *  Use this for public-facing views (Homepage, Search, Category pages). */
+    getApprovedProducts(): Product[] {
+        const products = this.getProducts();
+        const sellers = this.getSellers();
+        const approvedSellerIds = new Set(
+            sellers.filter(s => s.verified === true || s.kyc_status === "approved").map(s => s.id)
+        );
+        return products.filter(p => approvedSellerIds.has(p.seller_id));
+    }
+
     getSellers(): Seller[] {
         if (typeof window === "undefined") return DEMO_SELLERS;
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || JSON.stringify(DEMO_SELLERS));
+    }
+
+    addSeller(seller: Seller) {
+        const sellers = this.getSellers();
+        sellers.push(seller);
+        localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
+        window.dispatchEvent(new Event("storage"));
     }
 
     getOrders(): Order[] {
@@ -170,24 +194,57 @@ class DemoStoreService {
         const product = products.find(p => p.id === order.product_id) || sourceProduct;
         if (!product) throw new Error("Product not found");
 
-        const orderId = `RATEL-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+        const orderId = `ZMA-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+
+        const now = new Date();
+        const trackingSteps = [
+            {
+                status: "Order Placed",
+                location: "System",
+                timestamp: now.toISOString(),
+                completed: true
+            },
+            {
+                status: "Payment Confirmed",
+                location: "Paystack Gateway",
+                timestamp: new Date(now.getTime() + 60000).toISOString(), // +1 min
+                completed: true
+            },
+            {
+                status: "Processing",
+                location: product.seller_name || "Seller Warehouse",
+                timestamp: new Date(now.getTime() + 3600000).toISOString(), // +1 hr
+                completed: true
+            },
+            {
+                status: "Dispatched to Courier",
+                location: "Lagos Sortation Hub",
+                timestamp: new Date(now.getTime() + 86400000).toISOString(), // +1 day
+                completed: false
+            },
+            {
+                status: "Out for Delivery",
+                location: "Local Hub",
+                timestamp: new Date(now.getTime() + 172800000).toISOString(), // +2 days
+                completed: false
+            },
+            {
+                status: "Delivered",
+                location: "Customer Address",
+                timestamp: new Date(now.getTime() + 259200000).toISOString(), // +3 days
+                completed: false
+            },
+        ];
 
         const newOrder: Order = {
             ...order,
             id: orderId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
+            created_at: now.toISOString(),
+            updated_at: now.toISOString(),
             product: product,
             tracking_id: orderId,
             tracking_status: "pending",
-            tracking_steps: [
-                {
-                    status: "Order Placed",
-                    location: "System",
-                    timestamp: new Date().toISOString(),
-                    completed: true
-                }
-            ]
+            tracking_steps: trackingSteps
         };
 
         const orders = this.getOrders();
@@ -210,9 +267,9 @@ class DemoStoreService {
         const products = this.getProducts();
 
         // Mock AI analysis for price flag
-        const priceFlag: "fair" | "overpriced" | "suspicious" | "none" =
+        const priceFlag: "fair" | "overpriced" | "too_low" | "none" | "great_deal" =
             product.price > (product.recommended_price || product.price * 1.2) ? "overpriced" :
-                product.price < (product.recommended_price || product.price * 0.8) ? "suspicious" : "fair";
+                product.price < (product.recommended_price || product.price * 0.8) ? "too_low" : "fair";
 
         const newProduct: Product = {
             ...product,
@@ -233,6 +290,34 @@ class DemoStoreService {
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
         return newProduct;
+    }
+
+    // Add a fully-formed global product (preserves id, seller, etc.)
+    addGlobalProduct(product: Product) {
+        const products = this.getProducts();
+        // Avoid duplicates
+        if (products.some(p => p.id === product.id)) return product;
+        const updated = [product, ...products]; // Newest first
+        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+        return product;
+    }
+
+    addRawProduct(product: Product) {
+        const products = this.getProducts();
+        const updated = [product, ...products];
+        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+
+        // Also add to global search history (we will use a separate key or just rely on the products list if they have 'global-partners' seller_id)
+        const historyJson = localStorage.getItem("ratel_demo_global_search_history") || "[]";
+        const history = JSON.parse(historyJson);
+        history.push({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
+        localStorage.setItem("ratel_demo_global_search_history", JSON.stringify(history));
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+        return product;
     }
 
     updateProduct(id: string, updates: Partial<Product>) {
@@ -264,7 +349,30 @@ class DemoStoreService {
         const order = orders.find(o => o.id === id);
         if (!order) return;
 
-        const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
+        const updated = orders.map(o => {
+            if (o.id !== id) return o;
+            const changes: Partial<Order> = { escrow_status };
+
+            // When escrow is released, also mark order as delivered
+            if (escrow_status === "released") {
+                changes.status = "delivered";
+                const steps = o.tracking_steps || [];
+                const hasDelivered = steps.some(s => s.status.toLowerCase().includes("delivered"));
+                if (!hasDelivered) {
+                    changes.tracking_steps = [
+                        ...steps,
+                        {
+                            status: "Delivered",
+                            location: "Destination",
+                            timestamp: new Date().toISOString(),
+                            completed: true
+                        }
+                    ];
+                }
+            }
+
+            return { ...o, ...changes };
+        });
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Notify Seller if released
@@ -328,7 +436,7 @@ class DemoStoreService {
                 {
                     id: "notif_1",
                     type: "system",
-                    message: "Welcome to RatelShop! Complete your profile to get started.",
+                    message: "Welcome to FairPrice! Complete your profile to get started.",
                     read: false,
                     timestamp: new Date().toISOString(),
                     link: "/account/profile"
@@ -403,7 +511,7 @@ class DemoStoreService {
             escrow_balance: escrowBalance,
             processed_revenue: processedRevenue,
             active_sellers: sellers.length,
-            flagged_products: products.filter(p => p.price_flag === "suspicious" || p.price_flag === "overpriced").length,
+            flagged_products: products.filter(p => p.price_flag === "too_low" || p.price_flag === "overpriced").length,
             open_complaints: complaints.filter(c => c.status !== "resolved").length,
             total_orders: orders.length,
         };
@@ -412,6 +520,17 @@ class DemoStoreService {
     getComplaints(): Complaint[] {
         if (typeof window === "undefined") return DEMO_COMPLAINTS;
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS) || JSON.stringify(DEMO_COMPLAINTS));
+    }
+
+    getPayouts(): any[] {
+        if (typeof window === "undefined") return DEMO_PAYOUTS;
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PAYOUTS) || JSON.stringify(DEMO_PAYOUTS));
+    }
+
+    updatePayoutStatus(id: string, status: string) {
+        const payouts = this.getPayouts();
+        const updated = payouts.map(p => p.id === id ? { ...p, status } : p);
+        localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(updated));
     }
 
     getKYCSubmissions(): KYCSubmission[] {
@@ -442,6 +561,210 @@ class DemoStoreService {
         const updated = complaints.map(c => c.id === id ? { ...c, status } : c);
         localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+    }
+
+    // ─── Support Messages (Admin Inbox) ─────────────────
+    getSupportMessages(): SupportMessage[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SUPPORT_MESSAGES) || "[]");
+    }
+
+    addSupportMessage(msg: Omit<SupportMessage, "id" | "created_at" | "status">) {
+        const messages = this.getSupportMessages();
+        const newMsg: SupportMessage = {
+            ...msg,
+            id: `SUP-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            status: "new",
+            created_at: new Date().toISOString(),
+        };
+        messages.unshift(newMsg);
+        localStorage.setItem(this.STORAGE_KEYS.SUPPORT_MESSAGES, JSON.stringify(messages));
+        window.dispatchEvent(new Event("storage"));
+        return newMsg;
+    }
+
+    updateSupportMessageStatus(id: string, status: SupportMessage["status"]) {
+        const messages = this.getSupportMessages();
+        const updated = messages.map(m => m.id === id ? { ...m, status } : m);
+        localStorage.setItem(this.STORAGE_KEYS.SUPPORT_MESSAGES, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    // ─── Escrow Management ──────────────────────────────
+    getEscrowOrders(): Order[] {
+        const orders = this.getOrders();
+        return orders.filter(o => o.escrow_status !== "released" && o.escrow_status !== "refunded");
+    }
+
+    sellerConfirmDelivery(orderId: string) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === orderId ? {
+            ...o,
+            escrow_status: "seller_confirmed" as const,
+            seller_confirmed_at: new Date().toISOString(),
+            status: "delivered" as const,
+        } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    buyerConfirmReceipt(orderId: string) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === orderId ? {
+            ...o,
+            escrow_status: "buyer_confirmed" as const,
+            buyer_confirmed_at: new Date().toISOString(),
+        } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    releaseEscrow(orderId: string) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === orderId ? {
+            ...o,
+            escrow_status: "released" as const,
+            escrow_released_at: new Date().toISOString(),
+        } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    /** Check if order is eligible for auto-release (3+ days since seller confirmed, no dispute) */
+    checkAutoReleaseEligible(order: Order): boolean {
+        if (order.escrow_status !== "seller_confirmed" || !order.seller_confirmed_at) return false;
+        const daysSinceConfirm = (Date.now() - new Date(order.seller_confirmed_at).getTime()) / (1000 * 60 * 60 * 24);
+        return daysSinceConfirm >= 3;
+    }
+    // ─── Dispute Management ─────────────────────────────
+    getDisputes(): Dispute[] {
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DISPUTES) || "[]");
+    }
+
+    raiseDispute(orderId: string, buyerId: string, buyerName: string, buyerEmail: string, reason: DisputeReason, description: string): Dispute {
+        const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) throw new Error("Order not found");
+
+        const sellers = this.getSellers();
+        const seller = sellers.find(s => s.id === order.seller_id);
+
+        const dispute: Dispute = {
+            id: `disp_${Date.now()}`,
+            order_id: orderId,
+            buyer_id: buyerId,
+            buyer_name: buyerName,
+            buyer_email: buyerEmail,
+            seller_id: order.seller_id,
+            seller_name: seller?.business_name || order.seller_name || "Unknown Seller",
+            product_name: order.product?.name || `Product ${order.product_id}`,
+            amount: order.amount,
+            reason,
+            description,
+            status: "open",
+            created_at: new Date().toISOString(),
+        };
+
+        // Save dispute
+        const disputes = this.getDisputes();
+        disputes.unshift(dispute);
+        localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(disputes));
+
+        // Mark order as disputed
+        const updated = orders.map(o => o.id === orderId ? { ...o, escrow_status: "disputed" as const } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Create admin notification message
+        this.addSupportMessage({
+            user_name: buyerName,
+            user_email: buyerEmail,
+            subject: `Dispute Filed: ${reason.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}`,
+            message: `Buyer ${buyerName} raised a dispute on order #${orderId}. Reason: ${reason.replace(/_/g, " ")}. Description: ${description}`,
+            source: "order_issue",
+            order_id: orderId,
+        });
+
+        window.dispatchEvent(new Event("storage"));
+        return dispute;
+    }
+
+    resolveDispute(disputeId: string, resolution: "resolved_refund" | "resolved_release", adminNotes?: string) {
+        const disputes = this.getDisputes();
+        const dispute = disputes.find(d => d.id === disputeId);
+        if (!dispute) return;
+
+        const updatedDisputes = disputes.map(d => d.id === disputeId ? {
+            ...d,
+            status: resolution,
+            resolved_at: new Date().toISOString(),
+            admin_notes: adminNotes || "",
+        } : d);
+        localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(updatedDisputes));
+
+        // Update order escrow status
+        const orders = this.getOrders();
+        const newEscrowStatus = resolution === "resolved_refund" ? "refunded" as const : "released" as const;
+        const updatedOrders = orders.map(o => o.id === dispute.order_id ? {
+            ...o,
+            escrow_status: newEscrowStatus,
+            escrow_released_at: new Date().toISOString(),
+        } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    updateDisputeStatus(disputeId: string, status: Dispute["status"], adminNotes?: string) {
+        const disputes = this.getDisputes();
+        const updated = disputes.map(d => d.id === disputeId ? {
+            ...d,
+            status,
+            admin_notes: adminNotes || d.admin_notes,
+            ...(status.startsWith("resolved") ? { resolved_at: new Date().toISOString() } : {}),
+        } : d);
+        localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    getDisputeByOrderId(orderId: string): Dispute | undefined {
+        return this.getDisputes().find(d => d.order_id === orderId);
+    }
+
+    /** Buyer-side dispute resolution: mark the dispute as resolved and release escrow */
+    buyerResolveDispute(disputeId: string) {
+        const disputes = this.getDisputes();
+        const dispute = disputes.find(d => d.id === disputeId);
+        if (!dispute) return;
+
+        const updatedDisputes = disputes.map(d => d.id === disputeId ? {
+            ...d,
+            status: "resolved_release" as const,
+            resolved_at: new Date().toISOString(),
+            admin_notes: "Resolved by buyer",
+        } : d);
+        localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(updatedDisputes));
+
+        // Release escrow
+        const orders = this.getOrders();
+        const updatedOrders = orders.map(o => o.id === dispute.order_id ? {
+            ...o,
+            escrow_status: "released" as const,
+            escrow_released_at: new Date().toISOString(),
+        } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    getAdminMessagesForUser(userEmail: string): SupportMessage[] {
+        return this.getSupportMessages().filter(m =>
+            m.source === "dispute_admin" && m.target_user_email === userEmail
+        );
+    }
+
+    getAdminMessagesForOrder(orderId: string): SupportMessage[] {
+        return this.getSupportMessages().filter(m => m.order_id === orderId);
     }
 }
 

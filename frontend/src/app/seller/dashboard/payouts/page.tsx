@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
     Wallet, ArrowUpRight, Lock, ShieldCheck, CheckCircle,
-    Clock, Building2, Pencil, X, Save
+    Clock, Building2, Pencil, X, Save, Download, FileText
 } from "lucide-react";
 
 export default function PayoutsPage() {
@@ -20,6 +20,7 @@ export default function PayoutsPage() {
     const [editingBank, setEditingBank] = useState(false);
     const [bankName, setBankName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
+    const [accountName, setAccountName] = useState("");
     const [savingBank, setSavingBank] = useState(false);
 
     useEffect(() => {
@@ -31,6 +32,7 @@ export default function PayoutsPage() {
             setSeller(s);
             setBankName(s?.bank_name || "");
             setAccountNumber(s?.account_number || "");
+            setAccountName(s?.account_name || "");
         };
         loadData();
         window.addEventListener("storage", loadData);
@@ -50,7 +52,7 @@ export default function PayoutsPage() {
         if (!seller) return;
         setSavingBank(true);
         await new Promise(r => setTimeout(r, 800));
-        DemoStore.updateSeller(seller.id, { bank_name: bankName, account_number: accountNumber });
+        DemoStore.updateSeller(seller.id, { bank_name: bankName, account_number: accountNumber, account_name: accountName });
         setSavingBank(false);
         setEditingBank(false);
     };
@@ -60,9 +62,9 @@ export default function PayoutsPage() {
         : "Not set";
 
     const payoutHistory = [
-        { id: "pay_1", amount: 2500000, status: "completed", date: "Feb 5, 2026", method: "Bank Transfer" },
-        { id: "pay_2", amount: 1800000, status: "completed", date: "Jan 28, 2026", method: "Bank Transfer" },
-        { id: "pay_3", amount: 950000, status: "processing", date: "Feb 12, 2026", method: "Mobile Money" },
+        { id: "pay_1", amount: 2500000, status: "completed", date: "Feb 5, 2026", method: "Bank Transfer", txId: "TXN-982374-ABCD" },
+        { id: "pay_2", amount: 1800000, status: "completed", date: "Jan 28, 2026", method: "Bank Transfer", txId: "TXN-102938-WXYZ" },
+        { id: "pay_3", amount: 950000, status: "processing", date: "Feb 12, 2026", method: "Mobile Money", txId: "TXN-PENDING-456" },
     ];
 
     return (
@@ -139,17 +141,53 @@ export default function PayoutsPage() {
                     <div className="space-y-4">
                         <div>
                             <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Bank Name</label>
-                            <Input value={bankName} onChange={e => setBankName(e.target.value)} placeholder="e.g. First Bank Nigeria" className="rounded-xl" />
+                            <select
+                                value={bankName}
+                                onChange={e => setBankName(e.target.value)}
+                                className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            >
+                                <option value="">Select Bank</option>
+                                <option value="Access Bank">Access Bank</option>
+                                <option value="Citibank Nigeria">Citibank Nigeria</option>
+                                <option value="Ecobank Nigeria">Ecobank Nigeria</option>
+                                <option value="Fidelity Bank">Fidelity Bank</option>
+                                <option value="First Bank of Nigeria">First Bank of Nigeria</option>
+                                <option value="First City Monument Bank">First City Monument Bank</option>
+                                <option value="Globus Bank">Globus Bank</option>
+                                <option value="Guaranty Trust Bank (GTB)">Guaranty Trust Bank (GTB)</option>
+                                <option value="Heritage Bank">Heritage Bank</option>
+                                <option value="Keystone Bank">Keystone Bank</option>
+                                <option value="Kuda Bank">Kuda Bank</option>
+                                <option value="Moniepoint">Moniepoint</option>
+                                <option value="Opay">Opay</option>
+                                <option value="Palmpay">Palmpay</option>
+                                <option value="Polaris Bank">Polaris Bank</option>
+                                <option value="Providus Bank">Providus Bank</option>
+                                <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
+                                <option value="Standard Chartered">Standard Chartered</option>
+                                <option value="Sterling Bank">Sterling Bank</option>
+                                <option value="SunTrust Bank">SunTrust Bank</option>
+                                <option value="Titan Trust Bank">Titan Trust Bank</option>
+                                <option value="Union Bank of Nigeria">Union Bank of Nigeria</option>
+                                <option value="United Bank for Africa (UBA)">United Bank for Africa (UBA)</option>
+                                <option value="Unity Bank">Unity Bank</option>
+                                <option value="Wema Bank">Wema Bank</option>
+                                <option value="Zenith Bank">Zenith Bank</option>
+                            </select>
                         </div>
                         <div>
                             <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Account Number</label>
                             <Input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="10-digit account number" maxLength={10} className="rounded-xl" />
                         </div>
+                        <div>
+                            <label className="text-xs font-semibold text-gray-500 mb-1.5 block">Account Name</label>
+                            <Input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder="E.g. John Doe / Business Name" className="rounded-xl" />
+                        </div>
                         <div className="flex gap-2 pt-2">
-                            <Button onClick={handleSaveBank} disabled={savingBank || !bankName || !accountNumber} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-1.5 font-bold text-xs">
+                            <Button onClick={handleSaveBank} disabled={savingBank || !bankName || !accountNumber || !accountName} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl gap-1.5 font-bold text-xs">
                                 <Save className="h-3.5 w-3.5" /> {savingBank ? "Saving..." : "Save Changes"}
                             </Button>
-                            <Button variant="ghost" onClick={() => { setEditingBank(false); setBankName(seller?.bank_name || ""); setAccountNumber(seller?.account_number || ""); }} className="rounded-xl text-xs gap-1.5">
+                            <Button variant="ghost" onClick={() => { setEditingBank(false); setBankName(seller?.bank_name || ""); setAccountNumber(seller?.account_number || ""); setAccountName(seller?.account_name || ""); }} className="rounded-xl text-xs gap-1.5">
                                 <X className="h-3.5 w-3.5" /> Cancel
                             </Button>
                         </div>
@@ -162,11 +200,12 @@ export default function PayoutsPage() {
                             </div>
                             <div>
                                 <p className="font-bold text-sm text-gray-900">{seller?.bank_name || "No bank set"}</p>
+                                <p className="text-xs text-gray-400 font-medium">{seller?.account_name ? seller.account_name : "No account name"}</p>
                                 <p className="text-xs text-gray-400">{maskedAccount}</p>
                             </div>
                         </div>
                         <Badge className="bg-emerald-100 text-emerald-700 text-[10px] font-bold">
-                            {seller?.bank_name ? "Verified" : "Not Set"}
+                            {seller?.bank_name && seller?.account_number && seller?.account_name ? "Verified" : "Incomplete"}
                         </Badge>
                     </div>
                 )}
@@ -179,19 +218,27 @@ export default function PayoutsPage() {
                 </div>
                 <div className="divide-y divide-gray-50">
                     {payoutHistory.map((payout) => (
-                        <div key={payout.id} className="px-6 py-4 flex items-center justify-between">
+                        <div key={payout.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <div className={`h-8 w-8 rounded-xl flex items-center justify-center ${payout.status === "completed" ? "bg-emerald-100" : "bg-amber-100"}`}>
-                                    {payout.status === "completed" ? <CheckCircle className="h-4 w-4 text-emerald-600" /> : <Clock className="h-4 w-4 text-amber-600" />}
+                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${payout.status === "completed" ? "bg-emerald-100" : "bg-amber-100"}`}>
+                                    {payout.status === "completed" ? <CheckCircle className="h-5 w-5 text-emerald-600" /> : <Clock className="h-5 w-5 text-amber-600" />}
                                 </div>
                                 <div>
                                     <p className="font-bold text-sm text-gray-900">{formatPrice(payout.amount)}</p>
-                                    <p className="text-[11px] text-gray-400">{payout.date} · {payout.method}</p>
+                                    <p className="text-[11px] text-gray-400 font-medium">{payout.date} • {payout.method}</p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5">Ref: {payout.txId}</p>
                                 </div>
                             </div>
-                            <Badge variant="outline" className={`text-[10px] font-bold ${payout.status === "completed" ? "border-emerald-200 text-emerald-700 bg-emerald-50" : "border-amber-200 text-amber-700 bg-amber-50"}`}>
-                                {payout.status === "completed" ? "Completed" : "Processing"}
-                            </Badge>
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className={`text-[10px] font-bold ${payout.status === "completed" ? "border-emerald-200 text-emerald-700 bg-emerald-50" : "border-amber-200 text-amber-700 bg-amber-50"}`}>
+                                    {payout.status === "completed" ? "Completed" : "Processing"}
+                                </Badge>
+                                {payout.status === "completed" && (
+                                    <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-gray-500 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => alert("Simulation: Downloading PDF Receipt for " + payout.txId)}>
+                                        <Download className="h-3 w-3 mr-1.5" /> Receipt
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     ))}
                 </div>

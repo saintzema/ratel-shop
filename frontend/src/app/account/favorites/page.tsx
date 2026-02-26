@@ -53,7 +53,7 @@ export default function FavoritesPage() {
                             Double-tap any product image or click the heart icon to add it to your favorites.
                         </p>
                         <Link href="/">
-                            <Button className="bg-gray-900 text-gray-900 rounded-xl font-semibold px-6">
+                            <Button className="bg-gray-900 text-white rounded-xl font-semibold px-6">
                                 <ShoppingBag className="h-4 w-4 mr-2" /> Browse Products <ArrowRight className="h-4 w-4 ml-2" />
                             </Button>
                         </Link>

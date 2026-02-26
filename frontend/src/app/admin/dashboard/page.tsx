@@ -15,7 +15,8 @@ import {
     ArrowDownRight,
     DollarSign,
     ShieldCheck,
-    Zap
+    Zap,
+    AlertTriangle
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -26,12 +27,14 @@ export default function AdminDashboard() {
     const [stats, setStats] = useState<any>(null);
     const [complaints, setComplaints] = useState<any[]>([]);
     const [kycs, setKycs] = useState<any[]>([]);
+    const [openDisputeCount, setOpenDisputeCount] = useState(0);
 
     useEffect(() => {
         const loadData = () => {
             setStats(DemoStore.getAdminStats());
             setComplaints(DemoStore.getComplaints().slice(0, 3));
             setKycs(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending").slice(0, 3));
+            setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
         };
 
         loadData();
@@ -48,7 +51,8 @@ export default function AdminDashboard() {
             change: "Held in Trust",
             up: true,
             icon: ShieldCheck,
-            color: "amber"
+            color: "amber",
+            href: "/admin/escrow?filter=held"
         },
         {
             label: "Processed Revenue",
@@ -56,7 +60,8 @@ export default function AdminDashboard() {
             change: "Released to Sellers",
             up: true,
             icon: DollarSign,
-            color: "emerald"
+            color: "emerald",
+            href: "/admin/escrow?filter=released"
         },
         {
             label: "Active Sellers",
@@ -64,7 +69,8 @@ export default function AdminDashboard() {
             change: "+3.2%",
             up: true,
             icon: Users,
-            color: "indigo"
+            color: "indigo",
+            href: "/admin/users"
         },
         {
             label: "Total Orders",
@@ -72,56 +78,73 @@ export default function AdminDashboard() {
             change: "+18.4%",
             up: true,
             icon: Package,
-            color: "blue"
+            color: "blue",
+            href: "/admin/orders"
+        },
+        {
+            label: "Open Disputes",
+            value: openDisputeCount.toString(),
+            change: openDisputeCount > 0 ? "Action Needed" : "All Clear",
+            up: openDisputeCount === 0,
+            icon: AlertTriangle,
+            color: "rose",
+            href: "/admin/escrow?filter=disputed"
         },
     ];
 
     return (
-        <div className="space-y-10">
-            {/* Hero Stats Section */}
+        <div className="space-y-6 max-w-6xl">
+            {/* Welcome Header */}
             <div>
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h2 className="text-2xl font-black text-gray-900 tracking-tight">System Overview</h2>
-                        <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Real-time platform performance</p>
-                    </div>
-                </div>
+                <h1 className="text-2xl font-black text-gray-900 tracking-tight">
+                    Welcome back, Superadmin 👋
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">
+                    System Overview &amp; Real-time platform performance
+                </p>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                    {cards.map((card) => (
-                        <div key={card.label} className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group">
-                            <div className="flex items-start justify-between mb-4">
-                                <div className={cn(
-                                    "p-3 rounded-2xl",
-                                    card.color === "indigo" ? "bg-indigo-50 text-indigo-600" :
-                                        card.color === "emerald" ? "bg-emerald-50 text-emerald-600" :
-                                            card.color === "blue" ? "bg-blue-50 text-blue-600" :
-                                                "bg-rose-50 text-rose-600"
-                                )}>
-                                    <card.icon className="h-6 w-6" />
-                                </div>
-                                <div className={cn(
-                                    "flex items-center gap-1 text-[11px] font-black px-2 py-1 rounded-full",
-                                    card.up ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
-                                )}>
-                                    {card.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                                    {card.change}
-                                </div>
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                {cards.map((card) => (
+                    <Link href={card.href} key={card.label} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group block">
+                        <div className="flex items-start justify-between mb-4">
+                            <div className={cn(
+                                "p-3 rounded-xl",
+                                card.color === "indigo" ? "bg-indigo-50 text-indigo-600" :
+                                    card.color === "emerald" ? "bg-emerald-50 text-emerald-600" :
+                                        card.color === "blue" ? "bg-blue-50 text-blue-600" :
+                                            card.color === "rose" ? "bg-rose-50 text-rose-600" :
+                                                "bg-amber-50 text-amber-600"
+                            )}>
+                                <card.icon className="h-5 w-5" />
                             </div>
-                            <h3 className="text-gray-500 text-xs font-black uppercase tracking-widest">{card.label}</h3>
-                            <p className="text-3xl font-black text-gray-900 mt-1 group-hover:scale-105 transition-transform origin-left">{card.value}</p>
+                            <div className={cn(
+                                "flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full",
+                                card.up ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
+                            )}>
+                                {card.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                {card.change}
+                            </div>
                         </div>
-                    ))}
-                </div>
+                        <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest">{card.label}</h3>
+                        <div className="flex items-end justify-between mt-1">
+                            <p className="text-2xl font-black text-gray-900">{card.value}</p>
+                            <span className="text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                                View Details <ChevronRight className="h-3 w-3 ml-0.5" />
+                            </span>
+                        </div>
+                    </Link>
+                ))}
             </div>
 
             {/* Governance & Operations Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Pending KYC Reviews */}
-                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                         <div>
-                            <h3 className="text-lg font-black text-gray-900 tracking-tight">Trust & Verify</h3>
+                            <h3 className="text-lg font-black text-gray-900 tracking-tight">Trust &amp; Verify</h3>
                             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Pending Seller Onboarding</p>
                         </div>
                         <Link href="/admin/governance">
@@ -176,9 +199,9 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Dispute Resolution Resolution Center Center */}
-                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-8 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                {/* Dispute Resolution Center */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                         <div>
                             <h3 className="text-lg font-black text-gray-900 tracking-tight">Governance</h3>
                             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Active Marketplace Disputes</p>
@@ -213,9 +236,30 @@ export default function AdminDashboard() {
                                                 <h4 className="font-bold text-gray-900 text-sm truncate">{c.description}</h4>
                                                 <p className="text-[11px] text-gray-400 font-bold uppercase mt-1">From: {c.user_name} • Target: {c.seller_name}</p>
                                             </div>
-                                            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-2xl bg-gray-50 flex-shrink-0">
-                                                <ChevronRight className="h-5 w-5 text-gray-400" />
-                                            </Button>
+                                            <div className="flex items-center gap-2 opacity-0 group-[&:hover]:opacity-100 transition-opacity">
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        DemoStore.updateComplaintStatus(c.id, "investigating");
+                                                    }}
+                                                    className="h-8 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-[10px] uppercase"
+                                                >
+                                                    Investigate
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        DemoStore.updateComplaintStatus(c.id, "resolved");
+                                                    }}
+                                                    className="h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold text-[10px] uppercase"
+                                                >
+                                                    Resolve
+                                                </Button>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -226,7 +270,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Actions Footer */}
-            <div className="bg-indigo-600 rounded-[32px] p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8">
+            <div className="bg-indigo-600 rounded-2xl p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8">
                 <div className="text-center md:text-left">
                     <h3 className="text-2xl font-black tracking-tight">Platform Safety Mode</h3>
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">Configure system-wide trust protocols and fee structures.</p>
@@ -235,7 +279,7 @@ export default function AdminDashboard() {
                     <Button className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6">
                         System Configuration
                     </Button>
-                    <Button variant="outline" className="border-indigo-400/50 text-white hover:bg-indigo-500 font-black rounded-2xl h-12 px-6">
+                    <Button variant="outline" className="bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 hover:text-white font-black rounded-2xl h-12 px-6 transition-all">
                         Broadcast Update
                     </Button>
                 </div>

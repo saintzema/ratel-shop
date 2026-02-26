@@ -32,12 +32,12 @@ export default function NegotiationsPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const userId = user?.id || "u1";
+        const userId = user?.id || user?.email || "";
 
         const loadData = () => {
             const all = DemoStore.getNegotiations();
             // Show negotiations belonging to the logged-in user AND legacy demo data ("u1")
-            const myNegotiations = all.filter(n => n.customer_id === userId || n.customer_id === "u1");
+            const myNegotiations = all.filter(n => n.customer_id === userId);
             setNegotiations(myNegotiations);
             setProducts(DemoStore.getProducts());
         };

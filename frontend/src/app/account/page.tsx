@@ -22,21 +22,21 @@ export default function AccountPage() {
         },
         {
             icon: User,
-            title: "Prime / Ratel Premium",
+            title: "Prime / FairPrice Premium",
             desc: "View benefits and payment settings",
-            href: "#"
+            href: "/account/premium"
         },
         {
             icon: MapPin,
             title: "Your Addresses",
             desc: "Edit addresses for orders and gifts",
-            href: "#"
+            href: "/account/addresses"
         },
         {
             icon: CreditCard,
             title: "Your Payments",
             desc: "Manage payment methods and settings",
-            href: "#"
+            href: "/account/payments"
         },
         {
             icon: Heart,
@@ -47,8 +47,8 @@ export default function AccountPage() {
         {
             icon: MessageSquare,
             title: "Your Messages",
-            desc: "View messages from sellers and RatelShop",
-            href: "#"
+            desc: "View messages from sellers and FairPrice",
+            href: "/account/messages"
         },
         {
             icon: List,

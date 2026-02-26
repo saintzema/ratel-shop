@@ -4,7 +4,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -27,6 +27,25 @@ export default function ProfilePage() {
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [profilePic, setProfilePic] = useState<string | null>(null);
+
+    useEffect(() => {
+        const saved = localStorage.getItem('ratel_profile_pic');
+        if (saved) setProfilePic(saved);
+    }, []);
+
+    const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const dataUrl = reader.result as string;
+            setProfilePic(dataUrl);
+            localStorage.setItem('ratel_profile_pic', dataUrl);
+        };
+        reader.readAsDataURL(file);
+    };
 
     const handleSave = () => {
         setIsLoading(true);
@@ -35,7 +54,9 @@ export default function ProfilePage() {
             updateUser({
                 name: formData.name,
                 email: formData.email,
-                location: formData.location
+                location: formData.location,
+                phone: formData.phone,
+                address: formData.address
             } as any);
             setIsLoading(false);
             setEditingField(null);
@@ -64,23 +85,35 @@ export default function ProfilePage() {
 
             <main className="flex-1 container mx-auto px-4 py-8 max-w-2xl">
                 <div className="flex items-center justify-between mb-8">
-                    <h1 className="text-3xl font-normal">Login & Security</h1>
+                    <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-emerald-500 bg-clip-text text-transparent">Login & Security</h1>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
                     {/* Header / Avatar */}
-                    <div className="p-6 bg-gradient-to-r from-gray-900 to-gray-800 text-gray-900 flex items-center gap-6">
-                        <div className="relative group cursor-pointer">
-                            <div className="h-20 w-20 rounded-full bg-gray-200 backdrop-blur-md flex items-center justify-center text-2xl font-black border-2 border-white/30">
-                                {formData.name.charAt(0)}
+                    <div className="p-6 bg-gradient-to-r from-emerald-900 to-emerald-700 text-white flex items-center gap-6 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
+                        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                            <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl font-black border-2 border-white/30 text-white overflow-hidden">
+                                {profilePic ? (
+                                    <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                                ) : (
+                                    formData.name.charAt(0)
+                                )}
                             </div>
                             <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Camera className="h-6 w-6" />
+                                <Camera className="h-6 w-6 text-white" />
                             </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleProfilePicChange}
+                            />
                         </div>
                         <div>
                             <h2 className="text-2xl font-bold">{formData.name}</h2>
-                            <p className="text-gray-300 text-sm">Personal Member</p>
+                            <p className="text-emerald-200 text-sm">Personal Member</p>
                         </div>
                     </div>
 

@@ -69,7 +69,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
         if (text.length > 5) {
             const { isClean, blockedTypes } = filterMessage(text);
             if (!isClean) {
-                setFilterWarning(`Sharing ${blockedTypes.join(", ")} is not allowed. All communication must stay on RatelShop for your protection.`);
+                setFilterWarning(`Sharing ${blockedTypes.join(", ")} is not allowed. All communication must stay on FairPrice for your protection.`);
             } else {
                 setFilterWarning(null);
             }
@@ -127,7 +127,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                         Contact {seller.business_name}
                     </DialogTitle>
                     <DialogDescription className="text-zinc-500">
-                        Send a message to this seller. All conversations stay on RatelShop for your safety.
+                        Send a message to this seller. All conversations stay on FairPrice for your safety.
                     </DialogDescription>
                 </DialogHeader>
 

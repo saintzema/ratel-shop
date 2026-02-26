@@ -1,4 +1,6 @@
 import { Product, Seller, Deal, Review, PriceAlert, Complaint, KYCSubmission, AdminDashboardStats, SellerDashboardStats, PriceComparison, Order, NegotiationRequest } from "./types";
+import { TEMU_PRODUCTS } from "./demo-data-temu";
+import { generateMoreDemoProducts } from "./demo-data-nigeria";
 
 // ─── Sellers ────────────────────────────────────────────────
 
@@ -23,7 +25,7 @@ export const DEMO_SELLERS: Seller[] = [
     {
         id: "s2",
         user_id: "u3",
-        business_name: "Ratel EV & Power",
+        business_name: "EV & Power Hub",
         description: "Leading the Nigerian green energy revolution. Solar systems and Electric Vehicles.",
         logo_url: "/sellers/ratel-power.png",
         category: "energy",
@@ -190,12 +192,64 @@ export const DEMO_SELLERS: Seller[] = [
         status: "active",
         kyc_status: "approved",
         created_at: "2025-09-20T10:00:00Z",
+    },
+    {
+        id: "global-partners",
+        user_id: "global_partner",
+        business_name: "Global Partners",
+        description: "Verified global products sourced through FairPrice AI and protected by our Escrow system.",
+        logo_url: "",
+        category: "electronics",
+        verified: true,
+        rating: 4.9,
+        trust_score: 99,
+        status: "active",
+        kyc_status: "approved",
+        created_at: "2026-01-01T00:00:00Z",
+    }
+];
+
+export const DEMO_PAYOUTS = [
+    {
+        id: "po_1",
+        seller_id: "s1",
+        seller_name: "Tech Hub Nigeria",
+        amount: 4500000,
+        status: "pending",
+        method: "Bank Transfer",
+        bank_name: "Access Bank",
+        account_last4: "9012",
+        created_at: "2026-02-13T10:00:00Z"
+    },
+    {
+        id: "po_2",
+        seller_id: "s2",
+        seller_name: "Fashion Forward",
+        amount: 850000,
+        status: "completed",
+        method: "Bank Transfer",
+        bank_name: "GTBank",
+        account_last4: "3456",
+        created_at: "2026-02-12T14:30:00Z"
+    },
+    {
+        id: "po_3",
+        seller_id: "s3",
+        seller_name: "Home Essentials",
+        amount: 1200000,
+        status: "rejected",
+        method: "Bank Transfer",
+        bank_name: "Zenith Bank",
+        account_last4: "7890",
+        created_at: "2026-02-10T09:15:00Z"
     }
 ];
 
 // ─── Products ───────────────────────────────────────────────
 
 export const DEMO_PRODUCTS: Product[] = [
+    ...TEMU_PRODUCTS,
+    ...generateMoreDemoProducts(),
     // Phones & Electronics
     {
         id: "p1",
@@ -211,6 +265,7 @@ export const DEMO_PRODUCTS: Product[] = [
         images: [],
         stock: 23,
         price_flag: "fair",
+        is_sponsored: true,
         is_active: true,
         avg_rating: 4.7,
         review_count: 2341,
@@ -233,6 +288,7 @@ export const DEMO_PRODUCTS: Product[] = [
         images: [],
         stock: 15,
         price_flag: "fair",
+        is_sponsored: true,
         is_active: true,
         avg_rating: 4.8,
         review_count: 3102,
@@ -246,7 +302,7 @@ export const DEMO_PRODUCTS: Product[] = [
         seller_id: "s4",
         seller_name: "PhoneZone Nigeria",
         name: "iPhone 15 Pro Max 256GB — Blue Titanium",
-        description: "Same Apple flagship, different seller. Compare prices on RatelShop!",
+        description: "Same Apple flagship, different seller. Compare prices on FairPrice!",
         price: 1450000,
         original_price: 1500000,
         recommended_price: 1200000,
@@ -320,7 +376,7 @@ export const DEMO_PRODUCTS: Product[] = [
         image_url: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=400&h=400&fit=crop",
         images: [],
         stock: 50,
-        price_flag: "suspicious",
+        price_flag: "too_low",
         is_active: true,
         avg_rating: 2.1,
         review_count: 23,
@@ -356,7 +412,7 @@ export const DEMO_PRODUCTS: Product[] = [
     {
         id: "p4",
         seller_id: "s2",
-        seller_name: "Ratel EV & Power",
+        seller_name: "EV & Power Hub",
         name: "Tesla Model 3 Dual Motor — 2024 Long Range",
         description: "Imported 2024 Tesla Model 3. Dual motor, all-wheel drive, zero emissions. Full self-driving capability included.",
         price: 45000000,
@@ -378,7 +434,7 @@ export const DEMO_PRODUCTS: Product[] = [
     {
         id: "p5",
         seller_id: "s2",
-        seller_name: "Ratel EV & Power",
+        seller_name: "EV & Power Hub",
         name: "Luminous Solar Hybrid Inverter — 5KVA + 4 Batteries",
         description: "Complete solar power system for Nigerian homes. 5KVA hybrid inverter, 4x 200Ah tubular batteries, and 6x 400W panels.",
         price: 2450000,
@@ -400,7 +456,7 @@ export const DEMO_PRODUCTS: Product[] = [
     {
         id: "p11",
         seller_id: "s2",
-        seller_name: "Ratel EV & Power",
+        seller_name: "EV & Power Hub",
         name: "EcoFlow Delta Pro Portable Power Station",
         description: "3.6kWh expandable capacity, 3600W AC output. Power your entire home during outages with this premium solar generator.",
         price: 1850000,
@@ -510,7 +566,7 @@ export const DEMO_PRODUCTS: Product[] = [
     {
         id: "p21",
         seller_id: "s2",
-        seller_name: "Ratel EV & Power",
+        seller_name: "EV & Power Hub",
         name: "Toyota Corolla 2022 LE — foreign used",
         description: "Direct buy from US. Clean title. 1.8L engine. Excellent fuel economy.",
         price: 18500000,
@@ -651,19 +707,18 @@ export const DEMO_PRODUCTS: Product[] = [
         original_price: 700000,
         recommended_price: 450000,
         category: "beauty",
-        image_url: "https://images.unsplash.com/photo-1562887245-f2d262b06af4?w=400&h=400&fit=crop",
-        images: [],
-        stock: 5,
+        image_url: "https://images.unsplash.com/photo-1542452255191-c85a98f2c5d1?w=400&h=400&fit=crop",
+        images: ["https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&h=400&fit=crop", "https://images.unsplash.com/photo-1556228578-8d89f6aca8d3?w=400&h=400&fit=crop"],
+        stock: 50,
         price_flag: "overpriced",
         is_active: true,
-        avg_rating: 4.5,
-        review_count: 12,
-        sold_count: 4,
-        created_at: "2025-12-05T10:00:00Z",
-        specs: { Brand: "La Mer", "Size": "60ml / 2 oz", "Skin Type": "All Skin Types", "Key Ingredients": "Miracle Broth™, Lime Tea Extract", "Texture": "Rich Cream", "Fragrance": "Subtle Marine" },
-        highlights: ["The legendary Miracle Broth™ for deep skin renewal", "Intensely moisturizes and softens dry, dehydrated skin", "Helps reduce the appearance of fine lines and wrinkles", "Luxurious cream texture that melts into skin"],
+        avg_rating: 4.9,
+        review_count: 120,
+        sold_count: 45,
+        created_at: "2025-11-01T10:00:00Z",
+        specs: { Brand: "La Mer", "Size": "60ml", "Skin Type": "Dry and sensitive", "Key Ingredients": "Miracle Broth™, Lime Tea Extract", "Benefit": "Intense hydration, visible repair", "Usage": "Warm between fingers until translucent" },
+        highlights: ["Legendary rich cream that deeply soothes and moisturizes", "Infused with cell-renewing Miracle Broth™", "Helps heal dryness and restores radiant glow", "Ideal for drier skin types needing intense care", "Guaranteed genuine with verifiable batch codes"],
     },
-
     // Home
     {
         id: "p17",
@@ -1417,7 +1472,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 2340, sold_count: 4120, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p69", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p69", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Xbox Series X 1TB — Game Pass Ultimate Bundle",
         description: "Most powerful Xbox ever. 12 teraflops GPU, 4K@120fps, Quick Resume, SSD storage. Includes 3 months Game Pass.",
         price: 580000, original_price: 650000, recommended_price: 570000,
@@ -1444,7 +1499,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 1230, sold_count: 1890, created_at: "2025-10-15T10:00:00Z",
     },
     {
-        id: "p72", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p72", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Logitech G Pro X Superlight 2 — Wireless Mouse",
         description: "60g featherweight, HERO 2 sensor, 95-hour battery, zero-additive PTFE feet for effortless glide.",
         price: 110000, original_price: 135000, recommended_price: 105000,
@@ -1482,7 +1537,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 890, sold_count: 1230, created_at: "2025-10-05T10:00:00Z",
     },
     {
-        id: "p76", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p76", seller_id: "s2", seller_name: "FairPrice Official",
         name: "HP Pavilion 15 — AMD Ryzen 7, 16GB, 512GB SSD",
         description: "All-purpose laptop with IPS display, long battery life, and reliable performance for work and entertainment.",
         price: 520000, original_price: 620000, recommended_price: 500000,
@@ -1511,7 +1566,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // ─── NEW: Fashion & Style ────────────────────────────────
     {
-        id: "p79", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p79", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Nike Air Force 1 '07 — Triple White Classic",
         description: "The iconic AF1 in all-white leather. Perforated toe box, Air-Sole cushioning, rubber cupsole.",
         price: 85000, original_price: 110000, recommended_price: 82000,
@@ -1538,7 +1593,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 5600, sold_count: 9800, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p82", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p82", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Casio G-Shock GA-2100 'CasiOak' — Carbon Core Guard",
         description: "Octagonal bezel, carbon core guard, 200m water resistance, world time, LED light.",
         price: 68000, original_price: 85000, recommended_price: 65000,
@@ -1567,7 +1622,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // ─── NEW: Beauty & Skincare ──────────────────────────────
     {
-        id: "p85", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p85", seller_id: "s2", seller_name: "FairPrice Official",
         name: "The Ordinary Niacinamide 10% + Zinc 1% — 30ml",
         description: "Targets oil imbalance, enlarged pores, and blemishes. Lightweight water-based serum.",
         price: 12000, original_price: 18000, recommended_price: 11000,
@@ -1594,7 +1649,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 12300, sold_count: 28000, created_at: "2025-10-10T10:00:00Z",
     },
     {
-        id: "p88", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p88", seller_id: "s2", seller_name: "FairPrice Official",
         name: "La Roche-Posay Anthelios UV Mune SPF50+ — 50ml",
         description: "Mexoryl 400 UVA protection, ultra-light fluid, invisible finish, for all skin types.",
         price: 18000, original_price: 25000, recommended_price: 17000,
@@ -1623,7 +1678,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 5600, sold_count: 12300, created_at: "2025-08-20T10:00:00Z",
     },
     {
-        id: "p91", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p91", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Ninja Foodi 9-in-1 Air Fryer & Grill — 6L Capacity",
         description: "Air fry, roast, bake, dehydrate, grill and more. Ceramic-coated non-stick basket, dishwasher safe.",
         price: 145000, original_price: 180000, recommended_price: 140000,
@@ -1650,7 +1705,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 2800, sold_count: 5200, created_at: "2025-11-10T10:00:00Z",
     },
     {
-        id: "p94", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p94", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Samsung 75\" Crystal UHD 4K Smart TV — 2024 Model",
         description: "Crystal Processor 4K, HDR10+, Gaming Hub, SmartThings, AirSlim design. Tizen OS.",
         price: 980000, original_price: 1200000, recommended_price: 950000,
@@ -1670,7 +1725,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 4500, sold_count: 7800, created_at: "2025-09-01T10:00:00Z",
     },
     {
-        id: "p96", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p96", seller_id: "s2", seller_name: "FairPrice Official",
         name: "iPad Air M2 11-inch — 256GB Wi-Fi Space Gray",
         description: "Apple M2 chip, Liquid Retina display, Apple Pencil Pro support, USB-C, Touch ID.",
         price: 680000, original_price: 780000, recommended_price: 660000,
@@ -1699,7 +1754,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // ─── NEW: More Electronics ───────────────────────────────
     {
-        id: "p99", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p99", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Sony WH-1000XM5 — Wireless Noise Cancelling Headphones",
         description: "Industry-leading ANC, 30hr battery, multipoint connection, speak-to-chat, fold flat design.",
         price: 280000, original_price: 340000, recommended_price: 270000,
@@ -1726,7 +1781,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 6700, sold_count: 11200, created_at: "2025-11-15T10:00:00Z",
     },
     {
-        id: "p102", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p102", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Apple Watch Ultra 2 — 49mm Titanium with Alpine Loop",
         description: "S9 SiP, precision dual GPS, 36hr battery, 100m water resistance, Action Button, Siren.",
         price: 680000, original_price: 800000, recommended_price: 660000,
@@ -1747,7 +1802,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 890, sold_count: 1200, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p104", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p104", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Google Pixel 8 Pro — 256GB Obsidian",
         description: "Tensor G3, 6.7-inch LTPO OLED, 50MP main camera with Magic Eraser, 7 years of updates.",
         price: 520000, original_price: 650000, recommended_price: 500000,
@@ -1785,7 +1840,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 1100, sold_count: 1800, created_at: "2025-09-10T10:00:00Z",
     },
     {
-        id: "p108", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p108", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Nintendo Switch OLED — White Joy-Con Edition",
         description: "7-inch OLED screen, enhanced audio, wide adjustable stand, 64GB internal storage.",
         price: 320000, original_price: 380000, recommended_price: 300000,
@@ -1803,7 +1858,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 890, sold_count: 1600, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p110", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p110", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Logitech G Pro X Superlight 2 — Wireless Gaming Mouse",
         description: "HERO 2 sensor, 95-hour battery, 60g ultralight, 5 programmable buttons.",
         price: 95000, original_price: 120000, recommended_price: 90000,
@@ -1823,7 +1878,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // Computers (+4)
     {
-        id: "p112", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p112", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Dell XPS 15 9530 — i9/32GB/1TB RTX 4070",
         description: "15.6-inch 3.5K OLED InfinityEdge, Intel Core i9-13900H, Studio-grade color accuracy.",
         price: 1650000, original_price: 1900000, recommended_price: 1600000,
@@ -1841,7 +1896,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 450, sold_count: 670, created_at: "2025-11-10T10:00:00Z",
     },
     {
-        id: "p114", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p114", seller_id: "s2", seller_name: "FairPrice Official",
         name: "ASUS ROG Zephyrus G14 — Ryzen 9/RTX 4090",
         description: "14-inch QHD+ 165Hz, AMD Ryzen 9 7940HS, 32GB, 1TB, AniMe Matrix LED lid.",
         price: 1800000, original_price: 2100000, recommended_price: 1750000,
@@ -1861,7 +1916,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // Electronics (+4)
     {
-        id: "p116", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p116", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Sony WH-1000XM5 — Wireless Noise Cancelling Headphones",
         description: "Industry-leading ANC, 30-hour battery, multipoint Bluetooth, Hi-Res Audio.",
         price: 280000, original_price: 350000, recommended_price: 260000,
@@ -1888,7 +1943,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 560, sold_count: 340, created_at: "2025-09-20T10:00:00Z",
     },
     {
-        id: "p119", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p119", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Bose SoundLink Max — Portable Bluetooth Speaker",
         description: "Stereo sound, deep bass, IP67 rated, 20-hour playtime, built-in mic.",
         price: 185000, original_price: 220000, recommended_price: 175000,
@@ -1955,7 +2010,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 2300, sold_count: 4100, created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p126", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p126", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Louis Vuitton Neverfull MM — Monogram Canvas",
         description: "Classic tote bag, removable zippered clutch, microfiber lining, brass hardware.",
         price: 2800000, original_price: 3200000, recommended_price: 2700000,
@@ -2031,7 +2086,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 1200, sold_count: 2100, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p134", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p134", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Dyson V15 Detect — Cordless Vacuum Cleaner",
         description: "Laser dust detection, piezo sensor, LCD screen, 60-min runtime, HEPA filtration.",
         price: 520000, original_price: 650000, recommended_price: 500000,
@@ -2049,7 +2104,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 4500, sold_count: 8900, created_at: "2025-09-20T10:00:00Z",
     },
     {
-        id: "p136", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p136", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Samsung Family Hub Refrigerator — 28 Cu. Ft.",
         description: "21.5-inch touchscreen, SmartThings, internal cameras, Bixby voice control.",
         price: 1800000, original_price: 2200000, recommended_price: 1750000,
@@ -2060,7 +2115,7 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // Fitness & Sports (+3)
     {
-        id: "p137", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p137", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Garmin Forerunner 965 — Premium GPS Running Smartwatch",
         description: "AMOLED display, advanced training metrics, 23-day battery, multi-band GPS.",
         price: 380000, original_price: 450000, recommended_price: 360000,
@@ -2078,7 +2133,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 1560, sold_count: 2300, created_at: "2025-11-15T10:00:00Z",
     },
     {
-        id: "p139", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p139", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Peloton Bike+ — Indoor Exercise Bike with 24\" Screen",
         description: "360° swivel screen, auto-follow resistance, Apple GymKit, Dolby Atmos sound.",
         price: 1200000, original_price: 1500000, recommended_price: 1150000,
@@ -2098,7 +2153,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 1200, sold_count: 2100, created_at: "2025-10-15T10:00:00Z",
     },
     {
-        id: "p141", seller_id: "s2", seller_name: "Ratel Official",
+        id: "p141", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Garmin Venu 3S — AMOLED GPS Smartwatch",
         description: "Health monitoring, Body Battery, nap & sleep tracking, wheelchair mode.",
         price: 320000, original_price: 380000, recommended_price: 300000,
@@ -2117,7 +2172,7 @@ export const DEMO_PRODUCTS: Product[] = [
     },
     // Global Sourcing Items (Temu Inspired)
     {
-        id: "temu_1", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_1", seller_id: "global-partners", seller_name: "Global Partners",
         name: "3-in-1 Black Replacement Cover Accessories Kit with Canopy & Shoulder Pads for Baby Infant Stroller",
         description: "High-quality accessories kit for strollers and car seats.",
         price: 78159, original_price: 128594, recommended_price: 78000,
@@ -2126,7 +2181,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 111, sold_count: 676, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_2", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_2", seller_id: "global-partners", seller_name: "Global Partners",
         name: "Compatible for Strollers & Car Seat Organizer Storage Bag with Zipper",
         description: "Machine-Washable Travel Stroller Organizer storage bag.",
         price: 14815, original_price: 48831, recommended_price: 15000,
@@ -2135,7 +2190,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 80, sold_count: 320, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_3", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_3", seller_id: "global-partners", seller_name: "Global Partners",
         name: "3pcs Baby Stroller Cushion Set + Includes 2pcs Safety Belt Shoulder Pads",
         description: "Cationic Baby Stroller Mat Suitable for All Seasons, Washable.",
         price: 16069, original_price: 53611, recommended_price: 16000,
@@ -2144,7 +2199,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 45, sold_count: 150, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_4", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_4", seller_id: "global-partners", seller_name: "Global Partners",
         name: "1-Person Stroller Windproof And Warm Cover",
         description: "Polyester Fiber, Multi-Color, Winter Cold Protection Foot Cover For Stroller Additions",
         price: 8207, original_price: 15193, recommended_price: 8500,
@@ -2153,7 +2208,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.3, review_count: 22, sold_count: 80, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_5", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_5", seller_id: "global-partners", seller_name: "Global Partners",
         name: "Child Car Seat Cushion, Suitable for Newborns",
         description: "Breathable Mesh Child Car Seat Cushion with Padded Sponge, Universal Support.",
         price: 13945, original_price: 25710, recommended_price: 14000,
@@ -2162,7 +2217,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.9, review_count: 230, sold_count: 900, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_6", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_6", seller_id: "global-partners", seller_name: "Global Partners",
         name: "Lightweight And Ultra-Lightweight Stroller for Infants",
         description: "Suitable for Babies Aged 0-3, Can Be Used for Sitting Or Lying Down.",
         price: 182882, original_price: 1405072, recommended_price: 185000,
@@ -2171,7 +2226,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 56, sold_count: 240, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_7", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_7", seller_id: "global-partners", seller_name: "Global Partners",
         name: "Stroller Replacement Trio: Seat Mat, Sunshade & Shoulder Covers",
         description: "Value Kit | Trio Protection | All-in-One Care for Complete Stroller Comfort",
         price: 62241, original_price: 142158, recommended_price: 65000,
@@ -2180,7 +2235,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 34, sold_count: 110, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_8", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_8", seller_id: "global-partners", seller_name: "Global Partners",
         name: "High-view Four-wheel Baby Stroller | Convertible Seat",
         description: "Lightweight and Compact, Kinderwagen, Pram, Carbon Steel Structure.",
         price: 350100, original_price: 450000, recommended_price: 350000,
@@ -2189,7 +2244,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 5.0, review_count: 12, sold_count: 50, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_9", seller_id: "ratel-concierge", seller_name: "Ratel Global Partners",
+        id: "temu_9", seller_id: "global-partners", seller_name: "Global Partners",
         name: "Gb Compact Baby Pushchair Featuring One-Handed Folding",
         description: "Reclining Seats, Stroller, All-Terrain Shock absorption.",
         price: 236451, original_price: 265361, recommended_price: 235000,
@@ -2218,7 +2273,7 @@ export const DEMO_REVIEWS: Review[] = [
     { id: "r1", user_id: "u10", user_name: "Chidi O.", product_id: "p1", rating: 5, title: "Amazing phone!", body: "Best Samsung ever. Camera is incredible, battery lasts all day. Fast delivery from TechHub.", verified_purchase: true, created_at: "2026-01-15T10:00:00Z" },
     { id: "r2", user_id: "u11", user_name: "Amaka N.", product_id: "p1", rating: 4, title: "Great but took 3 days", body: "Phone is perfect. Delivery was slower than expected though. 3 days to Abuja.", verified_purchase: true, created_at: "2026-01-20T10:00:00Z" },
     { id: "r3", user_id: "u12", user_name: "Emeka I.", product_id: "p2", rating: 5, title: "iPhone 15 Pro Max is worth every naira", body: "Upgraded from iPhone 12. The camera and performance are night and day. TechHub Lagos is legit.", verified_purchase: true, created_at: "2026-01-10T10:00:00Z" },
-    { id: "r4", user_id: "u13", user_name: "Funke A.", product_id: "p4", rating: 5, title: "Beautiful desk", body: "Mahogany is gorgeous. Took a week to deliver to Lagos but worth the wait. Very sturdy.", verified_purchase: true, created_at: "2026-01-05T10:00:00Z" },
+    { id: "r4", user_id: "u13", user_name: "Funke A.", product_id: "p4", rating: 5, title: "Best car purchase ever", body: "The Tesla Model 3 is amazing! Smooth acceleration, the autopilot is incredible for Lagos traffic, and I charge at home overnight. Zero fuel costs. Delivered from the US in 3 weeks.", verified_purchase: true, created_at: "2026-01-05T10:00:00Z" },
     { id: "r5", user_id: "u14", user_name: "Tunde B.", product_id: "p9", rating: 1, title: "SCAM! Don't buy!", body: "Price too low to be real. Phone never arrived. Seller not responding. RATEL should ban this seller!", verified_purchase: false, created_at: "2026-02-01T10:00:00Z" },
 ];
 
@@ -2226,7 +2281,7 @@ export const DEMO_REVIEWS: Review[] = [
 
 export const DEMO_PRICE_ALERTS: PriceAlert[] = [
     { id: "pa1", product_id: "p3", product_name: "iPhone 15 Pro Max 256GB", seller_id: "s4", seller_name: "PhoneZone Nigeria", alert_type: "overpriced", market_avg: 1200000, seller_price: 1450000, created_at: "2026-02-10T14:30:00Z" },
-    { id: "pa2", product_id: "p9", product_name: "Samsung Galaxy S24 Ultra 256GB", seller_id: "s5", seller_name: "Lagos Gadget World", alert_type: "suspicious", market_avg: 880000, seller_price: 420000, created_at: "2026-02-10T15:00:00Z" },
+    { id: "pa2", product_id: "p9", product_name: "Samsung Galaxy S24 Ultra 256GB", seller_id: "s5", seller_name: "Lagos Gadget World", alert_type: "great_deal", market_avg: 880000, seller_price: 420000, created_at: "2026-02-10T15:00:00Z" },
 ];
 
 // ─── KYC ────────────────────────────────────────────────────
@@ -2269,7 +2324,7 @@ export const DEMO_SELLER_STATS: SellerDashboardStats = {
 // ─── Orders ──────────────────────────────────────────────────
 export const DEMO_ORDERS: Order[] = [
     {
-        id: "RATEL-7729LGKX",
+        id: "FP-7729LGKX",
         customer_id: "u1",
         product_id: "p1",
         seller_id: "s1",
@@ -2279,7 +2334,7 @@ export const DEMO_ORDERS: Order[] = [
         escrow_status: "released",
         shipping_address: "123 Lekki Phase 1, Lagos",
         tracking_status: "delivered",
-        tracking_id: "RATEL-7729LGKX",
+        tracking_id: "FP-7729LGKX",
         carrier: "RT Logistics",
         tracking_steps: [
             { status: "Order Placed", location: "Lagos", timestamp: "2023-10-15T10:30:00Z", completed: true },
@@ -2292,7 +2347,7 @@ export const DEMO_ORDERS: Order[] = [
         updated_at: "2023-10-18T14:20:00Z",
     },
     {
-        id: "RATEL-8821XP99",
+        id: "FP-8821XP99",
         customer_id: "u1",
         product_id: "p6",
         seller_id: "s1",
@@ -2302,7 +2357,7 @@ export const DEMO_ORDERS: Order[] = [
         escrow_status: "held",
         shipping_address: "123 Lekki Phase 1, Lagos",
         tracking_status: "shipped",
-        tracking_id: "RATEL-8821XP99",
+        tracking_id: "FP-8821XP99",
         carrier: "DHL Nigeria",
         tracking_steps: [
             { status: "Order Placed", location: "Lagos", timestamp: "2026-02-11T14:30:00Z", completed: true },
@@ -2313,7 +2368,7 @@ export const DEMO_ORDERS: Order[] = [
         updated_at: "2026-02-11T14:30:00Z",
     },
     {
-        id: "RATEL-XPL70UKL",
+        id: "FP-XPL70UKL",
         customer_id: "u1",
         product_id: "p8",
         seller_id: "s1",
@@ -2323,7 +2378,7 @@ export const DEMO_ORDERS: Order[] = [
         escrow_status: "held",
         shipping_address: "123 Lekki Phase 1, Lagos",
         tracking_status: "processing",
-        tracking_id: "RATEL-XPL70UKL",
+        tracking_id: "FP-XPL70UKL",
         tracking_steps: [
             { status: "Order Placed", location: "Lagos", timestamp: "2026-02-12T09:15:00Z", completed: true },
             { status: "Payment Confirmed", location: "System", timestamp: "2026-02-12T09:20:00Z", completed: true },
@@ -2353,6 +2408,29 @@ export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
         proposed_price: 400000,
         status: "accepted",
         created_at: "2026-02-11T11:20:00Z"
+    },
+    {
+        id: "neg_3",
+        product_id: "p1", // iPhone 15 Pro Max
+        customer_id: "u2",
+        customer_name: "Sarah J.",
+        proposed_price: 1350000,
+        message: "Can I get this today for 1.35m? Serious buyer.",
+        status: "pending",
+        counter_price: 1400000,
+        counter_message: "1.4m is the best I can do for a brand new sealed unit.",
+        counter_status: "pending",
+        created_at: "2026-02-13T09:10:00Z"
+    },
+    {
+        id: "neg_4",
+        product_id: "p1", // iPhone 15 Pro Max
+        customer_id: "u3",
+        customer_name: "Mike O.",
+        proposed_price: 1250000,
+        message: "I only have 1.25m. Let's make a deal.",
+        status: "rejected",
+        created_at: "2026-02-10T14:30:00Z"
     }
 ];
 

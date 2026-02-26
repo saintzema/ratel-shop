@@ -20,14 +20,16 @@ export function RecommendedProducts({
     icon = <TrendingUp className="h-5 w-5 text-ratel-green-600" />,
 }: RecommendedProductsProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
-    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const [isHovered, setIsHovered] = useState(false);
+    const [canScrollLeft, setCanScrollLeft] = useState(true);
     const [canScrollRight, setCanScrollRight] = useState(true);
 
     const checkScroll = () => {
         if (scrollRef.current) {
-            const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-            setCanScrollLeft(scrollLeft > 0);
-            setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+            // with 3 copies, there's always scroll space unless very wide monitor
+            setCanScrollLeft(true);
+            setCanScrollRight(true);
         }
     };
 
@@ -37,11 +39,37 @@ export function RecommendedProducts({
         return () => window.removeEventListener("resize", checkScroll);
     }, [products]);
 
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+
+        const startAutoScroll = () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            intervalRef.current = setInterval(() => {
+                if (!el) return;
+                if (el.scrollLeft >= el.scrollWidth / 3) {
+                    el.scrollLeft = 0;
+                } else {
+                    el.scrollLeft += 1;
+                }
+            }, 30);
+        };
+
+        if (!isHovered) {
+            startAutoScroll();
+        } else {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        }
+    }, [isHovered, products]);
+
     const scroll = (direction: "left" | "right") => {
         if (scrollRef.current) {
             const scrollAmount = direction === "left" ? -300 : 300;
             scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
-            setTimeout(checkScroll, 350);
         }
     };
 
@@ -96,11 +124,14 @@ export function RecommendedProducts({
                 <div
                     ref={scrollRef}
                     onScroll={checkScroll}
-                    className="flex gap-4 md:gap-5 overflow-x-auto pb-4 pt-2 px-1 scrollbar-hide snap-x scroll-smooth items-stretch"
+                    onMouseEnter={() => setIsHovered(true)}
+                    onMouseLeave={() => setIsHovered(false)}
+                    className="flex gap-4 md:gap-5 overflow-x-auto pb-4 pt-2 px-1 scrollbar-hide items-stretch"
+                    style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}
                 >
-                    {products.map((product) => (
+                    {[...products, ...products, ...products].map((product, idx) => (
                         <div
-                            key={product.id}
+                            key={`${product.id}-${idx}`}
                             className="min-w-[160px] md:min-w-[200px] snap-start flex flex-col"
                         >
                             <ProductCard product={product} className="h-full w-full" />

@@ -15,18 +15,39 @@ import {
     Flag,
     ArrowUpRight,
     ArrowDownRight,
-    AlertCircle
+    AlertCircle,
+    Globe,
+    ExternalLink,
+    RefreshCw,
+    Loader2,
+    Edit2
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import Link from "next/link";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 export default function CatalogControl() {
     const [searchTerm, setSearchTerm] = useState("");
-    const [filter, setFilter] = useState<"all" | "flagged" | "fair">("all");
+    const [filter, setFilter] = useState<"all" | "flagged" | "fair" | "global">("all");
     const [products, setProducts] = useState<any[]>([]);
+
+    // Edit Modal State
+    const [editingProduct, setEditingProduct] = useState<any | null>(null);
+    const [editPrice, setEditPrice] = useState("");
+    const [editImage, setEditImage] = useState("");
+    const [editExternalUrl, setEditExternalUrl] = useState("");
+    const [editImages, setEditImages] = useState("");
+
+    // Sync Modal State
+    const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
+    const [syncReport, setSyncReport] = useState<any[]>([]);
+    const [profitMargin, setProfitMargin] = useState("25");
+    const [selectedSyncIds, setSelectedSyncIds] = useState<string[]>([]);
 
     useEffect(() => {
         const load = () => {
@@ -39,7 +60,11 @@ export default function CatalogControl() {
 
     const filtered = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filter === "all" || (filter === "flagged" && p.price_flag !== "fair") || (filter === "fair" && p.price_flag === "fair");
+        const isGlobal = p.seller_name.toLowerCase().includes("ratel global");
+        const matchesFilter = filter === "all" ||
+            (filter === "flagged" && p.price_flag !== "fair") ||
+            (filter === "fair" && p.price_flag === "fair") ||
+            (filter === "global" && isGlobal);
         return matchesSearch && matchesFilter;
     });
 
@@ -49,16 +74,71 @@ export default function CatalogControl() {
         }
     };
 
+    const handleEditSave = () => {
+        if (editingProduct) {
+            DemoStore.updateProduct(editingProduct.id, {
+                price: parseFloat(editPrice) || editingProduct.price,
+                image_url: editImage || editingProduct.image_url,
+                external_url: editExternalUrl || editingProduct.external_url,
+                images: editImages ? editImages.split(",").map(s => s.trim()).filter(Boolean) : editingProduct.images || []
+            });
+            setEditingProduct(null);
+        }
+    };
+
+    const handleInitiateSync = () => {
+        setIsSyncModalOpen(true);
+        setIsSyncing(true);
+        setTimeout(() => {
+            const globalProducts = products.filter(p => p.seller_name.toLowerCase().includes("ratel global"));
+            const report = globalProducts.map(p => {
+                const rawMarketPrice = p.price * (Math.random() * (1.15 - 0.85) + 0.85); // +/- 15% drift simulation
+                return {
+                    ...p,
+                    oldPrice: p.price,
+                    rawMarketPrice: rawMarketPrice,
+                    suggestedPrice: rawMarketPrice * (1 + parseFloat(profitMargin) / 100)
+                };
+            });
+            setSyncReport(report);
+            setSelectedSyncIds(report.filter(r => Math.abs(r.suggestedPrice - r.oldPrice) / r.oldPrice > 0.05).map(r => r.id));
+            setIsSyncing(false);
+        }, 2000);
+    };
+
+    const handleMarginChange = (val: string) => {
+        setProfitMargin(val);
+        const num = parseFloat(val) || 0;
+        setSyncReport(prev => prev.map(r => ({
+            ...r,
+            suggestedPrice: r.rawMarketPrice * (1 + num / 100)
+        })));
+    };
+
+    const handleApplySync = () => {
+        selectedSyncIds.forEach(id => {
+            const item = syncReport.find(r => r.id === id);
+            if (item) {
+                // Round to nearest hundred
+                const roundedPrice = Math.ceil(item.suggestedPrice / 100) * 100;
+                DemoStore.updateProduct(id, { price: roundedPrice });
+            }
+        });
+        setIsSyncModalOpen(false);
+        setProducts(DemoStore.getProducts());
+        alert("Selected global product prices successfully synced and updated.");
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">Catalog Control</h2>
-                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Platform-wide product monitoring & safety</p>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Platform-wide product monitoring & management</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="bg-white p-1.5 rounded-2xl border border-gray-100 flex gap-1">
-                        {(["all", "flagged", "fair"] as const).map((v) => (
+                        {(["all", "global", "flagged", "fair"] as const).map((v) => (
                             <button
                                 key={v}
                                 onClick={() => setFilter(v)}
@@ -81,96 +161,310 @@ export default function CatalogControl() {
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                     <Input
                         placeholder="Search by product name, seller, or ID..."
-                        className="pl-12 h-14 bg-white border-gray-100 rounded-[20px] text-sm font-medium shadow-sm"
+                        className="pl-12 h-14 bg-white border border-gray-100 rounded-[20px] text-sm font-medium shadow-sm focus-visible:ring-indigo-500"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <Button className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20">
-                    <Tag className="mr-2 h-4 w-4" /> Global Price Update
+                <Button onClick={handleInitiateSync} className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20" title="Syncs prices for Global Partners items against live 3rd party APIs (e.g. Amazon, BestBuy)">
+                    <Globe className="mr-2 h-4 w-4" /> Sync Global Prices
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                {filtered.map((p) => (
-                    <div key={p.id} className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group">
-                        <div className="flex gap-6">
-                            <div className="h-32 w-32 rounded-3xl overflow-hidden relative border border-gray-50 flex-shrink-0 bg-gray-50">
-                                <img src={p.image_url} alt={p.name} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-500" />
-                                {p.price_flag !== "fair" && (
-                                    <div className="absolute top-2 left-2">
-                                        <div className={cn(
-                                            "p-1.5 rounded-xl shadow-lg",
-                                            p.price_flag === "suspicious" ? "bg-rose-500 text-white" : "bg-amber-500 text-white"
-                                        )}>
-                                            <ShieldAlert className="h-4 w-4" />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{p.category}</span>
-                                        <div className="flex items-center gap-1">
-                                            <span className={cn(
-                                                "text-[9px] font-black uppercase px-2 py-0.5 rounded-full",
-                                                p.price_flag === "fair" ? "bg-emerald-50 text-emerald-600" :
-                                                    p.price_flag === "suspicious" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600"
-                                            )}>
-                                                {p.price_flag} price
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <h4 className="font-bold text-gray-900 text-lg truncate mb-1">{p.name}</h4>
-                                    <p className="text-[11px] text-gray-400 font-bold uppercase">Seller: {p.seller_name}</p>
-                                </div>
-                                <div className="flex items-end justify-between">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Pricing</p>
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-xl font-black text-gray-900">₦{p.price.toLocaleString()}</span>
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="border-b border-gray-100 bg-gray-50/50">
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product Reference</th>
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Pricing Model</th>
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Origin / Seller</th>
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Trust Status</th>
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            {filtered.map((p) => {
+                                const isGlobal = p.seller_name.toLowerCase().includes("ratel global");
+                                return (
+                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                                        <td className="px-6 py-4 align-middle">
+                                            <div className="flex items-center gap-4">
+                                                <div className="h-16 w-16 rounded-2xl border border-gray-100 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1 relative">
+                                                    <img src={p.image_url} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" />
+                                                    {p.price_flag !== "fair" && (
+                                                        <div className="absolute top-1 left-1">
+                                                            <div className="h-2 w-2 rounded-full bg-rose-500 shadow-sm"></div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="min-w-0 max-w-[200px] lg:max-w-xs">
+                                                    <p className="font-bold text-gray-900 text-sm truncate">{p.name}</p>
+                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{p.category}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 align-middle">
+                                            <p className="text-base font-black text-gray-900">₦{p.price.toLocaleString()}</p>
                                             {p.original_price && (
-                                                <span className="text-sm text-gray-300 line-through font-bold">₦{p.original_price.toLocaleString()}</span>
+                                                <p className="text-[11px] text-gray-400 font-bold line-through mt-0.5">₦{p.original_price.toLocaleString()}</p>
                                             )}
-                                        </div>
+                                        </td>
+                                        <td className="px-6 py-4 align-middle">
+                                            <div className="flex items-center gap-2">
+                                                {isGlobal ? <Globe className="h-4 w-4 text-blue-500" /> : <Box className="h-4 w-4 text-gray-400" />}
+                                                <p className={cn("text-xs font-bold", isGlobal ? "text-blue-700" : "text-gray-600")}>
+                                                    {p.seller_name}
+                                                </p>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 align-middle">
+                                            {isGlobal && p.external_url ? (
+                                                <a href={p.external_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors truncate max-w-[150px]" title={p.external_url}>
+                                                    <ExternalLink className="h-3 w-3 shrink-0" />
+                                                    View Source
+                                                </a>
+                                            ) : (
+                                                <span className={cn(
+                                                    "text-[10px] font-black uppercase px-2.5 py-1 rounded-full inline-flex items-center gap-1",
+                                                    p.price_flag === "fair" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                                                        p.price_flag === "too_low" ? "bg-rose-50 text-rose-600 border border-rose-100" : "bg-amber-50 text-amber-600 border border-amber-100"
+                                                )}>
+                                                    {p.price_flag === "too_low" && <AlertCircle className="h-3 w-3" />}
+                                                    {p.price_flag === "fair" && <CheckCircle2 className="h-3 w-3" />}
+                                                    {p.price_flag}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 align-middle text-right">
+                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
+                                                    <Link href={`/product/${p.id}`} target="_blank">
+                                                        <Eye className="h-4 w-4" />
+                                                    </Link>
+                                                </Button>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                                                    title="Edit product"
+                                                    onClick={() => {
+                                                        setEditingProduct(p);
+                                                        setEditPrice(p.price.toString());
+                                                        setEditImage(p.image_url);
+                                                        setEditExternalUrl(p.external_url || "");
+                                                        setEditImages(p.images?.join(", ") || "");
+                                                    }}
+                                                >
+                                                    <Edit2 className="h-4 w-4" />
+                                                </Button>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors" onClick={() => handleDelete(p.id)} title="Remove product">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+
+                {filtered.length === 0 && (
+                    <div className="py-24 text-center bg-gray-50/50">
+                        <div className="h-16 w-16 bg-white border border-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                            <Box className="h-8 w-8 text-gray-300" />
+                        </div>
+                        <h3 className="text-lg font-black text-gray-900 mt-1">No products found</h3>
+                        <p className="text-sm text-gray-400 font-bold uppercase tracking-wider mt-1">Try adjusting your filters or search term</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Sync Global Prices Interactive Report Modal */}
+            <Dialog open={isSyncModalOpen} onOpenChange={setIsSyncModalOpen}>
+                <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[90vh] flex flex-col">
+                    <div className="p-8 border-b border-gray-100 bg-gray-50/50">
+                        <DialogHeader>
+                            <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+                                <Globe className="h-6 w-6 text-indigo-600" /> API Synchronization Report
+                            </DialogTitle>
+                            <p className="text-sm font-bold text-gray-400 mt-2">Compare real-time 3rd-party market prices and factor your profit margins.</p>
+                        </DialogHeader>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-8">
+                        {isSyncing ? (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <RefreshCw className="h-12 w-12 text-indigo-600 animate-spin mb-6" />
+                                <h3 className="text-xl font-black text-gray-900 mb-2">Fetching Live Data from Global Suppliers</h3>
+                                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Amazon • AliExpress • BestBuy</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100">
+                                    <div>
+                                        <h4 className="font-black text-indigo-900">Global Profit Margin Config</h4>
+                                        <p className="text-xs text-indigo-600 font-bold mt-1">Applied to raw API prices automatically ({syncReport.length} items parsed)</p>
                                     </div>
-                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-2xl bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
-                                            <Eye className="h-4 w-4" />
-                                        </Button>
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-2xl bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
-                                            <CheckCircle2 className="h-4 w-4" />
-                                        </Button>
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-2xl bg-gray-50 hover:bg-rose-50 hover:text-rose-600 transition-colors" onClick={() => handleDelete(p.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
+                                    <div className="flex items-center gap-3">
+                                        <label className="text-xs font-black uppercase tracking-widest text-indigo-400">Add Margin %</label>
+                                        <Input
+                                            type="number"
+                                            value={profitMargin}
+                                            onChange={(e) => handleMarginChange(e.target.value)}
+                                            className="w-24 h-12 bg-white border-none shadow-sm rounded-xl font-black text-lg text-center"
+                                        />
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        {p.price_flag !== "fair" && (
-                            <div className="mt-6 p-4 bg-rose-50/50 rounded-2xl border border-rose-100 flex items-start gap-3">
-                                <AlertCircle className="h-5 w-5 text-rose-500 mt-0.5" />
-                                <div>
-                                    <p className="text-xs font-bold text-rose-900">System Alert: Market Anomaly</p>
-                                    <p className="text-[11px] text-rose-600 font-medium">This product's price is {p.price_flag === "suspicious" ? "80% below" : "40% above"} market average. Requires manual audit.</p>
+
+                                <div className="border border-gray-100 rounded-3xl overflow-hidden">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-50/50 border-b border-gray-100">
+                                                <th className="px-5 py-4 w-12 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedSyncIds.length === syncReport.length && syncReport.length > 0}
+                                                        onChange={(e) => setSelectedSyncIds(e.target.checked ? syncReport.map(r => r.id) : [])}
+                                                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                    />
+                                                </th>
+                                                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Product</th>
+                                                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Current Price</th>
+                                                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400">Raw API Avg</th>
+                                                <th className="px-5 py-4 text-[10px] font-black uppercase tracking-widest text-indigo-600">New Target (+{profitMargin}%)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50 bg-white">
+                                            {syncReport.map((r) => {
+                                                const diff = ((r.suggestedPrice - r.oldPrice) / r.oldPrice) * 100;
+                                                const isSelected = selectedSyncIds.includes(r.id);
+                                                return (
+                                                    <tr key={r.id} className={cn("transition-colors", isSelected ? "bg-indigo-50/20" : "")}>
+                                                        <td className="px-5 py-4 text-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) setSelectedSyncIds([...selectedSyncIds, r.id]);
+                                                                    else setSelectedSyncIds(selectedSyncIds.filter(id => id !== r.id));
+                                                                }}
+                                                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                                            />
+                                                        </td>
+                                                        <td className="px-5 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <img src={r.image_url} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" />
+                                                                <p className="text-xs font-bold text-gray-900 line-clamp-2 max-w-[200px]">{r.name}</p>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-5 py-4 font-bold text-gray-500 text-sm">₦{Math.round(r.oldPrice).toLocaleString()}</td>
+                                                        <td className="px-5 py-4 font-bold text-gray-500 text-sm">₦{Math.round(r.rawMarketPrice).toLocaleString()}</td>
+                                                        <td className="px-5 py-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-black text-indigo-700 text-sm">₦{(Math.ceil(r.suggestedPrice / 100) * 100).toLocaleString()}</span>
+                                                                <span className={cn(
+                                                                    "text-[10px] font-bold mt-0.5 uppercase tracking-widest",
+                                                                    diff > 0 ? "text-emerald-500" : diff < 0 ? "text-rose-500" : "text-gray-400"
+                                                                )}>
+                                                                    {diff > 0 ? "+" : ""}{diff.toFixed(1)}% {diff > 0 ? "Boost" : "Drop"}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
                                 </div>
                             </div>
                         )}
                     </div>
-                ))}
-            </div>
 
-            {filtered.length === 0 && (
-                <div className="py-20 text-center">
-                    <div className="h-16 w-16 bg-gray-50 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                        <Box className="h-8 w-8 text-gray-300" />
+                    {!isSyncing && (
+                        <div className="p-6 border-t border-gray-100 bg-white flex items-center justify-between">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{selectedSyncIds.length} Products Selected to Update</p>
+                            <div className="flex gap-3">
+                                <Button variant="ghost" onClick={() => setIsSyncModalOpen(false)} className="rounded-2xl font-bold uppercase tracking-widest text-xs h-12 text-gray-400">Cancel</Button>
+                                <Button onClick={handleApplySync} disabled={selectedSyncIds.length === 0} className="rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs h-12 shadow-lg shadow-indigo-500/20 px-8 flex items-center gap-2">
+                                    <RefreshCw className="h-4 w-4" /> Apply {selectedSyncIds.length} Updates
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit Modal */}
+            <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+                <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[85vh] overflow-y-auto">
+                    <div className="p-8">
+                        <DialogHeader className="mb-6">
+                            <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Modify Details</DialogTitle>
+                            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-1">{editingProduct?.name}</p>
+                        </DialogHeader>
+
+                        <div className="space-y-6">
+                            <div className="flex gap-6 items-center">
+                                <div className="h-20 w-20 border border-gray-100 rounded-2xl overflow-hidden p-2 flex-shrink-0 bg-white shadow-sm">
+                                    <img src={editImage || editingProduct?.image_url} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/150")} />
+                                </div>
+                                <div className="space-y-2 flex-1">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Image Source URL</label>
+                                    <Input
+                                        value={editImage}
+                                        onChange={(e) => setEditImage(e.target.value)}
+                                        className="bg-gray-50 border-gray-100 h-12 rounded-xl text-sm font-medium"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Target Price (₦)</label>
+                                    <Input
+                                        type="number"
+                                        value={editPrice}
+                                        onChange={(e) => setEditPrice(e.target.value)}
+                                        className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-black"
+                                        placeholder="Enter new price"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Source Product Link</label>
+                                    {editExternalUrl ? (
+                                        <a href={editExternalUrl} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 truncate bg-gray-50 p-3 rounded-xl border border-gray-100 hover:underline">
+                                            {editExternalUrl}
+                                        </a>
+                                    ) : editingProduct?.id ? (
+                                        <a href={`/product/${editingProduct.id}`} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 truncate bg-gray-50 p-3 rounded-xl border border-gray-100 hover:underline">
+                                            /product/{editingProduct.id}
+                                        </a>
+                                    ) : (
+                                        <p className="text-sm text-gray-400 italic bg-gray-50 p-3 rounded-xl border border-gray-100">No external source available.</p>
+                                    )}
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Gallery Images (Comma separated URLs)</label>
+                                    <textarea
+                                        value={editImages}
+                                        onChange={(e) => setEditImages(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="https://img1.com, https://img2.com..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        <DialogFooter className="mt-8 gap-3 sm:gap-0">
+                            <Button variant="ghost" onClick={() => setEditingProduct(null)} className="rounded-2xl font-bold uppercase tracking-widest text-xs h-12 text-gray-400">Cancel</Button>
+                            <Button onClick={handleEditSave} className="rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs h-12 shadow-lg shadow-indigo-500/20 px-8">Update Product</Button>
+                        </DialogFooter>
                     </div>
-                    <h3 className="text-lg font-black text-gray-900 mt-1">No products found</h3>
-                    <p className="text-sm text-gray-400 font-bold uppercase tracking-wider mt-1">Try adjusting your filters or search term</p>
-                </div>
-            )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

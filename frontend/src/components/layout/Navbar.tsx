@@ -19,7 +19,16 @@ import {
     Car,
     Gamepad,
     Heart,
-    Handshake
+    Handshake,
+    Sparkles,
+    Globe,
+    Shirt,
+    Baby,
+    Dumbbell,
+    BookOpen,
+    Wrench,
+    Paintbrush,
+    Package
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -28,12 +37,43 @@ import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { LocationModal } from "@/components/modals/LocationModal";
+import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
 import { DEMO_PRODUCTS } from "@/lib/data"; // Import products for search
+import { DemoStore } from "@/lib/demo-store";
 import { cn } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+
+// Category icon map for product image fallback
+const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
+    phones: <Phone className="h-6 w-6" />,
+    electronics: <Monitor className="h-6 w-6" />,
+    computing: <Monitor className="h-6 w-6" />,
+    fashion: <Shirt className="h-6 w-6" />,
+    home: <Home className="h-6 w-6" />,
+    furniture: <Sofa className="h-6 w-6" />,
+    cars: <Car className="h-6 w-6" />,
+    gaming: <Gamepad className="h-6 w-6" />,
+    energy: <Zap className="h-6 w-6" />,
+    baby: <Baby className="h-6 w-6" />,
+    sports: <Dumbbell className="h-6 w-6" />,
+    books: <BookOpen className="h-6 w-6" />,
+    tools: <Wrench className="h-6 w-6" />,
+    beauty: <Paintbrush className="h-6 w-6" />,
+    grocery: <ShoppingBag className="h-6 w-6" />,
+};
+
+function CategoryIconFallback({ category }: { category: string }) {
+    const cat = category?.toLowerCase() || "";
+    const icon = Object.entries(CATEGORY_ICON_MAP).find(([key]) => cat.includes(key))?.[1] || <Package className="h-6 w-6" />;
+    return (
+        <div className="w-full h-full rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
+            {icon}
+        </div>
+    );
+}
 
 export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -43,6 +83,11 @@ export function Navbar() {
     const [searchQuery, setSearchQuery] = useState("");
     const [suggestions, setSuggestions] = useState<typeof DEMO_PRODUCTS>([]); // State for suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
+    const [priceIntelQuery, setPriceIntelQuery] = useState("");
+    const [globalResults, setGlobalResults] = useState<{ name: string; category: string; approxPrice: number; sourceUrl?: string }[]>([]);
+    const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+    const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
     const prevCartCountRef = useRef(cartCount);
@@ -101,15 +146,18 @@ export function Navbar() {
     const [activeIndex, setActiveIndex] = useState(-1);
     const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
 
+    // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
         if (searchQuery.trim().length > 0) {
             const q = searchQuery.toLowerCase();
-            // Score and rank products
-            const scored = DEMO_PRODUCTS
+            // Local product matches — only STRONG matches
+            const storeProducts = DemoStore.getApprovedProducts();
+            const allSearchProducts = [...storeProducts, ...DEMO_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
+            const scored = allSearchProducts
                 .map(p => ({ product: p, score: scoreProduct(p, q) }))
-                .filter(s => s.score > 5)
+                .filter(s => s.score > 30)
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 6);
+                .slice(0, 3);
             setSuggestions(scored.map(s => s.product));
 
             // Category suggestions
@@ -118,13 +166,91 @@ export function Navbar() {
             ).slice(0, 3).map(c => c.label);
             setCategorySuggestions(matchedCats);
 
+            // Generate smart, context-aware autocomplete suggestions (no API)
+            const autoSuggs: string[] = [];
+            const trimQ = searchQuery.trim();
+            if (trimQ.length >= 2) {
+                // Detect product type for smart suggestions
+                const qLower = trimQ.toLowerCase();
+                const isCarQuery = /\b(car|suv|sedan|truck|van|toyota|lexus|benz|bmw|honda|hyundai|kia|jetour|avatr|tesla|range rover|land cruiser|camry|corolla|rav4|highlander|prado|gwm|changan|geely|byd)\b/i.test(qLower);
+                const isPhoneQuery = /\b(phone|iphone|samsung|galaxy|pixel|xiaomi|redmi|tecno|infinix|oppo|vivo|realme|oneplus|huawei)\b/i.test(qLower);
+                const isElectronicsQuery = /\b(laptop|macbook|ps5|playstation|xbox|airpods|earbuds|headphone|speaker|tv|monitor|tablet|ipad)\b/i.test(qLower);
+
+                if (isCarQuery) {
+                    // Smart car suggestions with years and conditions
+                    const hasYear = /\b(20[1-2]\d)\b/.test(trimQ);
+                    if (!hasYear) {
+                        autoSuggs.push(`${trimQ} 2025 Brand New`);
+                        autoSuggs.push(`${trimQ} 2024 Foreign Used`);
+                    } else {
+                        autoSuggs.push(`${trimQ} Brand New`);
+                        autoSuggs.push(`${trimQ} Foreign Used (Tokunbo)`);
+                    }
+                    autoSuggs.push(`${trimQ} Nigerian Used`);
+                } else if (isPhoneQuery) {
+                    autoSuggs.push(`${trimQ} Brand New`);
+                    autoSuggs.push(`${trimQ} Refurbished`);
+                    autoSuggs.push(`${trimQ} best price Nigeria`);
+                } else if (isElectronicsQuery) {
+                    autoSuggs.push(`${trimQ} Brand New`);
+                    autoSuggs.push(`${trimQ} best deal`);
+                    autoSuggs.push(`Buy ${trimQ} online Nigeria`);
+                } else {
+                    // Generic product suggestions
+                    const nameSuggs = allSearchProducts
+                        .filter(p => p.name.toLowerCase().includes(qLower) && !p.name.toLowerCase().includes('duty') && !p.name.toLowerCase().includes('levy') && !p.name.toLowerCase().includes('cif'))
+                        .map(p => p.name)
+                        .slice(0, 2);
+                    autoSuggs.push(...nameSuggs);
+                    if (autoSuggs.length < 4) autoSuggs.push(`${trimQ} best deal`);
+                    if (autoSuggs.length < 4) autoSuggs.push(`Buy ${trimQ} online`);
+                }
+            }
+            setAutocompleteSuggestions(autoSuggs.slice(0, 4));
+
             setShowSuggestions(true);
             setActiveIndex(-1);
         } else {
             setSuggestions([]);
             setCategorySuggestions([]);
+            setGlobalResults([]);
+            setIsGlobalSearching(false);
+            setAutocompleteSuggestions([]);
             setShowSuggestions(false);
         }
+    }, [searchQuery]);
+
+    // Debounced global search — only fetches after user stops typing for 300ms AND has typed 2+ words
+    useEffect(() => {
+        const trimmed = searchQuery.trim();
+        const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
+        if (trimmed.length <= 2 || wordCount < 2) {
+            setGlobalResults([]);
+            setIsGlobalSearching(false);
+            return;
+        }
+
+        setIsGlobalSearching(true);
+        setGlobalResults([]);
+        const fetchTimer = setTimeout(() => {
+            fetch('/api/gemini-price', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productName: trimmed, mode: 'search' })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.suggestions && Array.isArray(data.suggestions)) {
+                        setGlobalResults(data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10));
+                    }
+                })
+                .catch(() => { })
+                .finally(() => setIsGlobalSearching(false));
+        }, 300); // Super fast 300ms debounce
+
+        return () => {
+            clearTimeout(fetchTimer);
+        };
     }, [searchQuery]);
 
     // Close suggestions when clicking outside
@@ -144,7 +270,9 @@ export function Navbar() {
     const handleSearch = () => {
         if (searchQuery.trim()) {
             setShowSuggestions(false);
-            router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${selectedCategory}`);
+            const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+            const catValue = catMatch ? catMatch.value : "All";
+            router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
         }
     };
 
@@ -155,7 +283,9 @@ export function Navbar() {
             if (activeIndex >= 0 && activeIndex < categorySuggestions.length) {
                 // Navigate to category
                 setShowSuggestions(false);
-                router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${categorySuggestions[activeIndex]}`);
+                const catMatch = CATEGORIES.find(c => c.label === categorySuggestions[activeIndex]);
+                const catValue = catMatch ? catMatch.value : "All";
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
             } else if (activeIndex >= categorySuggestions.length && activeIndex < totalSuggestionItems) {
                 // Navigate to product
                 const product = suggestions[activeIndex - categorySuggestions.length];
@@ -179,7 +309,7 @@ export function Navbar() {
         <>
             <header className="fixed top-0 left-0 right-0 z-50 w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
                 {/* Top Bar — Liquid Glass */}
-                <div className="flex w-full items-center gap-2 md:gap-4 liquid-glass px-3 md:px-4 py-3 text-white">
+                <div className="flex w-full items-center gap-2 md:gap-4 liquid-glass px-3 md:px-4 py-3 text-white relative z-10">
                     {/* Logo */}
                     <Logo variant="light" hideTextMobile />
 
@@ -252,7 +382,7 @@ export function Navbar() {
 
                             <Input
                                 className="flex-1 border-0 bg-transparent px-4 text-sm focus-visible:ring-0 placeholder:text-gray-500 rounded-none h-full text-black"
-                                placeholder="Search RatelShop..."
+                                placeholder="Search FairPrice..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => searchQuery.length > 1 && setShowSuggestions(true)}
@@ -261,40 +391,63 @@ export function Navbar() {
 
                             <Button
                                 onClick={handleSearch}
-                                className="h-full rounded-r-lg rounded-l-none px-5 bg-ratel-orange hover:bg-amber-500 text-black border-none transition-colors duration-300 cursor-pointer"
+                                className="h-full rounded-r-lg rounded-l-none px-5 bg-ratel-orange hover:bg-amber-500 text-black border-none transition-colors duration-300 cursor-pointer relative"
                             >
                                 <Search className="h-5 w-5" />
+                                <Sparkles className="h-2.5 w-2.5 absolute top-1.5 right-1.5 text-white/80" />
                             </Button>
                         </div>
 
                         {/* Predictive Search Dropdown — Amazon Style */}
                         <AnimatePresence>
-                            {showSuggestions && (suggestions.length > 0 || categorySuggestions.length > 0) && (
+                            {showSuggestions && (suggestions.length > 0 || categorySuggestions.length > 0 || searchQuery.trim().length > 1) && (
                                 <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     transition={{ duration: 0.1 }}
-                                    className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-10 max-h-[420px] overflow-y-auto"
+                                    className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-[9999] max-h-[420px] overflow-y-auto"
                                 >
                                     {/* Category Suggestions */}
                                     {categorySuggestions.length > 0 && (
                                         <div className="border-b border-gray-100">
-                                            {categorySuggestions.map((cat, i) => (
-                                                <Link
-                                                    href={`/search?q=${encodeURIComponent(searchQuery)}&category=${cat}`}
-                                                    key={cat}
-                                                    onClick={() => setShowSuggestions(false)}
-                                                    className={cn(
-                                                        "flex items-center gap-3 px-4 py-2.5 transition-colors text-sm",
-                                                        activeIndex === i ? "bg-blue-50" : "hover:bg-gray-50"
-                                                    )}
+                                            {categorySuggestions.map((catLabel, i) => {
+                                                const catValue = CATEGORIES.find(c => c.label === catLabel)?.value || "All";
+                                                return (
+                                                    <Link
+                                                        href={`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`}
+                                                        key={catLabel}
+                                                        onClick={() => setShowSuggestions(false)}
+                                                        className={cn(
+                                                            "flex items-center gap-3 px-4 py-2.5 transition-colors text-sm",
+                                                            activeIndex === i ? "bg-blue-50" : "hover:bg-gray-50"
+                                                        )}
+                                                    >
+                                                        <Search className="h-4 w-4 text-gray-400 shrink-0" />
+                                                        <span className="text-gray-900">{searchQuery}</span>
+                                                        <span className="text-xs text-gray-400">in</span>
+                                                        <span className="text-xs font-bold text-blue-600">{catLabel}</span>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* Text Autocomplete Suggestions (instant, no API) */}
+                                    {autocompleteSuggestions.length > 0 && suggestions.length === 0 && (
+                                        <div className="border-b border-gray-100">
+                                            {autocompleteSuggestions.map((suggestion, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        setSearchQuery(suggestion);
+                                                        setAutocompleteSuggestions([]);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
                                                 >
-                                                    <Search className="h-4 w-4 text-gray-400 shrink-0" />
-                                                    <span className="text-gray-900">{searchQuery}</span>
-                                                    <span className="text-xs text-gray-400">in</span>
-                                                    <span className="text-xs font-bold text-blue-600">{cat}</span>
-                                                </Link>
+                                                    <Search className="h-4 w-4 text-gray-300 shrink-0" />
+                                                    <span className="text-sm text-gray-700">{suggestion}</span>
+                                                </button>
                                             ))}
                                         </div>
                                     )}
@@ -312,13 +465,21 @@ export function Navbar() {
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
                                                 )}
                                             >
-                                                <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1">
+                                                <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
                                                     <img
                                                         src={product.images?.[0] || product.image_url}
                                                         alt={product.name}
                                                         className="w-full h-full object-contain"
-                                                        onError={(e) => { e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80"; }}
+                                                        onError={(e) => {
+                                                            // Hide the broken image and show category icon fallback
+                                                            e.currentTarget.style.display = 'none';
+                                                            const fallback = e.currentTarget.nextElementSibling;
+                                                            if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                                        }}
                                                     />
+                                                    <div className="absolute inset-0 hidden items-center justify-center">
+                                                        <CategoryIconFallback category={product.category} />
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-col flex-1 min-w-0">
                                                     <span className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</span>
@@ -336,6 +497,84 @@ export function Navbar() {
                                             </Link>
                                         );
                                     })}
+
+                                    {/* Global Search Results (from Gemini API) */}
+                                    {isGlobalSearching && (
+                                        <div className="border-t border-emerald-50 px-4 py-3">
+                                            <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mb-2">
+                                                <Globe className="h-3.5 w-3.5 animate-spin" />
+                                                Searching global markets...
+                                            </div>
+                                            {[1, 2, 3].map(i => (
+                                                <div key={i} className="flex items-center gap-3 p-2.5 animate-pulse">
+                                                    <div className="h-10 w-10 bg-emerald-50 rounded-lg" />
+                                                    <div className="flex-1 space-y-1.5">
+                                                        <div className="h-3 bg-gray-100 rounded w-3/4" />
+                                                        <div className="h-2.5 bg-emerald-50 rounded w-1/3" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {globalResults.length > 0 && (
+                                        <div className="border-t border-emerald-50">
+                                            <div className="px-4 py-2 bg-emerald-50/50 flex items-center gap-2 text-xs text-emerald-700 font-bold">
+                                                <Globe className="h-3.5 w-3.5" />
+                                                Global Results — Click to analyze price
+                                            </div>
+                                            {globalResults.map((result, i) => (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        setPriceIntelQuery(result.name);
+                                                        setIsPriceIntelOpen(true);
+                                                        setShowSuggestions(false);
+                                                    }}
+                                                    className="w-full flex items-center gap-3 p-3 transition-colors border-b border-gray-50 last:border-0 hover:bg-emerald-50/50 text-left"
+                                                >
+                                                    <div className="h-10 w-10 shrink-0 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg flex items-center justify-center">
+                                                        <Globe className="h-5 w-5 text-emerald-500" />
+                                                    </div>
+                                                    <div className="flex flex-col flex-1 min-w-0">
+                                                        <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-xs font-bold text-emerald-600">₦{result.approxPrice?.toLocaleString()}</span>
+                                                            <span className="text-[10px] text-gray-400">·</span>
+                                                            <span className="text-[10px] text-gray-400 capitalize">{result.category}</span>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[8px] font-black text-white bg-emerald-500 px-2 py-0.5 rounded-full uppercase shrink-0 shadow-sm">Analyze</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Global Search / Calculate Fair Price CTA */}
+                                    {searchQuery.trim().length > 1 && (
+                                        <button
+                                            onClick={() => {
+                                                setPriceIntelQuery(searchQuery);
+                                                setIsPriceIntelOpen(true);
+                                                setShowSuggestions(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100"
+                                        >
+                                            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                                                <Globe className="h-5 w-5" />
+                                            </div>
+                                            <div className="flex flex-col flex-1 min-w-0 text-left">
+                                                <span className="text-sm font-bold text-emerald-800 flex items-center gap-1.5">
+                                                    <Sparkles className="h-3.5 w-3.5" />
+                                                    Calculate Fair Price
+                                                </span>
+                                                <span className="text-[11px] text-emerald-600/80 line-clamp-1">
+                                                    Search globally for "{searchQuery}" and get the best deal
+                                                </span>
+                                            </div>
+                                            <span className="text-emerald-500 font-bold text-xs shrink-0">→</span>
+                                        </button>
+                                    )}
                                 </motion.div>
                             )}
                         </AnimatePresence>
@@ -375,18 +614,29 @@ export function Navbar() {
                                                 <Button className="w-full bg-gradient-to-r from-ratel-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2">Sign in</Button>
                                             </Link>
                                             <p className="text-[11px] text-gray-500">
-                                                New customer? <Link href="/register" className="text-blue-600 hover:underline" onClick={() => setIsAccountMenuOpen(false)}>Start here.</Link>
+                                                New customer? <Link href="/login" className="text-blue-600 hover:underline" onClick={() => setIsAccountMenuOpen(false)}>Start here.</Link>
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="p-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
-                                            <span className="font-bold text-gray-700 truncate">{user.name}</span>
+                                        <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3">
+                                            <Link href="/account" onClick={() => setIsAccountMenuOpen(false)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                                <div className="h-10 w-10 min-w-10 rounded-full bg-gradient-to-br from-ratel-green-600 to-emerald-400 flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden">
+                                                    {(() => {
+                                                        const pic = typeof window !== 'undefined' ? localStorage.getItem('ratel_profile_pic') : null;
+                                                        return pic ? <img src={pic} alt="" className="w-full h-full object-cover" /> : user.name.charAt(0).toUpperCase();
+                                                    })()}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-gray-900 truncate">{user.name}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{user.email || 'user@example.com'}</p>
+                                                </div>
+                                            </Link>
                                             <button
                                                 onClick={() => {
                                                     logout();
                                                     setIsAccountMenuOpen(false);
                                                 }}
-                                                className="text-[10px] uppercase font-bold text-gray-400 hover:text-red-600 transition-colors"
+                                                className="w-full text-center py-1.5 text-xs font-bold text-gray-500 border border-gray-200 rounded hover:bg-white hover:text-red-600 transition-colors"
                                             >
                                                 Sign Out
                                             </button>
@@ -412,6 +662,7 @@ export function Navbar() {
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
                                         <Link href="/account" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Account</Link>
                                         <Link href="/account/orders" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Orders</Link>
+                                        <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
                                         <Link href="#" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700">Recommendations</Link>
                                         <Link href="#" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700">Browsing History</Link>
                                     </div>
@@ -449,7 +700,7 @@ export function Navbar() {
                 </div>
 
                 {/* Bottom Bar - Navigation */}
-                <div className="flex w-full items-center gap-4 liquid-glass-sub px-4 py-2 text-sm text-white/90 overflow-x-auto no-scrollbar scroll-smooth">
+                <div className="flex w-full items-center gap-4 liquid-glass-sub px-4 py-2 text-sm text-white/90 overflow-x-auto no-scrollbar scroll-smooth relative z-0">
                     <button
                         onClick={toggleSidebar}
                         className="flex items-center gap-1 font-bold hover:bg-white/10 px-2 py-1 rounded transition-all text-white"
@@ -458,8 +709,12 @@ export function Navbar() {
                     </button>
 
                     {[
+                        { label: "Best-Selling Items", href: "/search?sort=bestselling" },
+                        { label: "5-Star Rated", href: "/search?rating=5" },
+                        { label: "New In", href: "/search?sort=newest" },
+                        { label: "Categories", href: "#" },
                         { label: "Today's Deals", href: "/deals" },
-                        { label: "VDM Verified", href: "/seller/verified" },
+                        { label: "Verified Listings", href: "/search?verified=true" },
                         { label: "Electronics", href: "/category/electronics" },
                         { label: "Phones", href: "/category/phones" },
                         { label: "Solar Energy", href: "/category/solar" },
@@ -568,6 +823,13 @@ export function Navbar() {
                     </>
                 )}
             </AnimatePresence>
+
+            {/* PriceIntel Modal — triggered from search */}
+            <PriceIntelModal
+                isOpen={isPriceIntelOpen}
+                onClose={() => setIsPriceIntelOpen(false)}
+                initialQuery={priceIntelQuery}
+            />
         </>
     );
 }

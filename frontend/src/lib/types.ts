@@ -7,25 +7,36 @@ export interface User {
     role: "customer" | "seller" | "admin";
     avatar_url?: string;
     location?: string;
+    birthday?: string;
     created_at: string;
 }
 
 export interface Seller {
     id: string;
-    user_id: string;
+    user_id?: string;
     business_name: string;
+    owner_name?: string;
+    owner_email?: string;
     description: string;
     logo_url?: string;
     category: string;
     verified: boolean;
-    rating: number;
+    rating?: number;
     trust_score: number;
-    status: "pending" | "active" | "frozen" | "banned";
+    status?: "pending" | "active" | "frozen" | "banned";
     kyc_status: "not_submitted" | "pending" | "approved" | "rejected";
     cover_image_url?: string;
     bank_name?: string;
     account_number?: string;
-    created_at: string;
+    account_name?: string;
+    store_url?: string;
+    location?: string;
+    weekly_orders?: string;
+    currencies?: string[];
+    staff_count?: string;
+    physical_stores?: string;
+    joined_at?: string;
+    created_at?: string;
 }
 
 export interface Product {
@@ -41,14 +52,17 @@ export interface Product {
     image_url: string;
     images: string[];
     stock: number;
-    price_flag: "fair" | "overpriced" | "suspicious" | "none";
+    price_flag: "fair" | "overpriced" | "too_low" | "none" | "great_deal";
+    is_sponsored?: boolean;
     is_active: boolean;
     avg_rating: number;
     review_count: number;
     sold_count: number;
     created_at: string;
     specs?: Record<string, string>;
+    external_url?: string;
     highlights?: string[];
+    condition?: "brand_new" | "used" | "refurbished";
 }
 
 export interface Order {
@@ -58,7 +72,7 @@ export interface Order {
     seller_id: string;
     amount: number;
     status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
-    escrow_status: "held" | "released" | "disputed" | "refunded";
+    escrow_status: "held" | "seller_confirmed" | "buyer_confirmed" | "auto_release_eligible" | "released" | "disputed" | "refunded";
     shipping_address: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
     tracking_id?: string;
@@ -69,9 +83,14 @@ export interface Order {
         timestamp: string;
         completed: boolean;
     }[];
+    seller_confirmed_at?: string;
+    buyer_confirmed_at?: string;
+    escrow_released_at?: string;
     created_at: string;
     updated_at: string;
     product?: Product;
+    customer_name?: string;
+    seller_name?: string;
 }
 
 export interface NegotiationRequest {
@@ -130,7 +149,7 @@ export interface PriceAlert {
     product_name: string;
     seller_id: string;
     seller_name: string;
-    alert_type: "overpriced" | "suspicious";
+    alert_type: "overpriced" | "great_deal";
     market_avg: number;
     seller_price: number;
     created_at: string;
@@ -155,7 +174,7 @@ export interface PriceComparison {
     market_avg: number;
     ratel_best: number;
     current_price: number;
-    flag: "fair" | "overpriced" | "suspicious" | "none";
+    flag: "fair" | "overpriced" | "too_low" | "none" | "great_deal";
     savings: number;
 }
 
@@ -216,4 +235,43 @@ export interface SellerDashboardStats {
     products_count: number;
     trust_score: number;
     flagged_products: number;
+}
+
+// ─── Support Messages (Admin Inbox) ─────────────────────────
+
+export interface SupportMessage {
+    id: string;
+    user_name: string;
+    user_email: string;
+    subject: string;
+    message: string;
+    source: "ziva_escalation" | "ziva_negotiation" | "contact_form" | "order_issue" | "dispute_admin";
+    status: "new" | "read" | "replied" | "resolved";
+    transcript?: string;
+    created_at: string;
+    target_user_id?: string;
+    target_user_email?: string;
+    order_id?: string;
+}
+
+// ─── Disputes ────────────────────────────────────────────────
+
+export type DisputeReason = "wrong_item" | "damaged" | "not_received" | "not_as_described" | "other";
+
+export interface Dispute {
+    id: string;
+    order_id: string;
+    buyer_id: string;
+    buyer_name: string;
+    buyer_email: string;
+    seller_id: string;
+    seller_name: string;
+    product_name: string;
+    amount: number;
+    reason: DisputeReason;
+    description: string;
+    status: "open" | "investigating" | "resolved_refund" | "resolved_release";
+    created_at: string;
+    resolved_at?: string;
+    admin_notes?: string;
 }

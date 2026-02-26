@@ -2,13 +2,38 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info, Heart } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useCart } from "@/context/CartContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
+// Category icon map for product image fallback
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+    phones: <Phone className="h-10 w-10" />,
+    electronics: <Monitor className="h-10 w-10" />,
+    computing: <Monitor className="h-10 w-10" />,
+    fashion: <Shirt className="h-10 w-10" />,
+    home: <Home className="h-10 w-10" />,
+    furniture: <Sofa className="h-10 w-10" />,
+    cars: <Car className="h-10 w-10" />,
+    gaming: <Gamepad className="h-10 w-10" />,
+    energy: <Zap className="h-10 w-10" />,
+    baby: <Baby className="h-10 w-10" />,
+    sports: <Dumbbell className="h-10 w-10" />,
+    books: <BookOpen className="h-10 w-10" />,
+    tools: <Wrench className="h-10 w-10" />,
+    beauty: <Paintbrush className="h-10 w-10" />,
+    grocery: <ShoppingBag className="h-10 w-10" />,
+};
+
+function getCategoryIcon(category: string) {
+    const cat = category?.toLowerCase() || "";
+    return Object.entries(CATEGORY_ICONS).find(([key]) => cat.includes(key))?.[1] || <Package className="h-10 w-10" />;
+}
 
 interface SearchResultCardProps {
     product: Product;
@@ -25,8 +50,10 @@ export function SearchResultCard({
 }: SearchResultCardProps) {
     const { location, deliveryDate } = useLocation();
     const { toggleFavorite, isFavorite } = useFavorites();
+    const { addToCart } = useCart();
     const lastTapRef = useRef<number>(0);
     const [showHeartBurst, setShowHeartBurst] = useState(false);
+    const [imgError, setImgError] = useState(false);
 
     const handleDoubleTap = () => {
         const now = Date.now();
@@ -96,14 +123,18 @@ export function SearchResultCard({
                     </div>
                 )}
                 <Link href={`/product/${product.id}`} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
-                    <img
-                        src={product.images?.[0] || product.image_url}
-                        alt={product.name}
-                        className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
-                        onError={(e) => {
-                            e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80";
-                        }}
-                    />
+                    {!imgError ? (
+                        <img
+                            src={product.images?.[0] || product.image_url}
+                            alt={product.name}
+                            className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                            onError={() => setImgError(true)}
+                        />
+                    ) : (
+                        <div className="w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
+                            {getCategoryIcon(product.category)}
+                        </div>
+                    )}
                 </Link>
             </div>
 
@@ -113,9 +144,15 @@ export function SearchResultCard({
 
                 <Link href={`/product/${product.id}`} className="group-hover:text-ratel-green-600 transition-colors">
                     <h2 className="text-xl font-medium leading-tight mb-1 line-clamp-2">
-                        <span className="font-bold">{product.seller_name}</span> {product.name}
+                        {product.name}
                     </h2>
                 </Link>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                    <span>by <span className="text-blue-600 hover:underline cursor-pointer font-medium">{product.seller_name}</span></span>
+                    {product.price_flag === "fair" && (
+                        <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
+                    )}
+                </div>
 
                 {/* Ratings & Social Proof */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-3">
@@ -173,15 +210,15 @@ export function SearchResultCard({
                 {/* Action Section */}
                 <div className="flex items-center gap-3">
                     <Button
-                        className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm"
-                        onClick={() => alert(`Added ${product.name} to cart!`)}
+                        className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToCart(product); }}
                     >
-                        Add to cart
+                        <ShoppingCart className="h-4 w-4" /> Add to cart
                     </Button>
                     <div className="flex items-center gap-4">
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

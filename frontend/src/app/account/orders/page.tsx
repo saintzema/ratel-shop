@@ -22,12 +22,15 @@ import {
     X,
     ExternalLink,
     Sparkles,
+    AlertTriangle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { PostOrderConciergeChat } from "@/components/modals/PostOrderConciergeChat";
+import { Suspense } from "react";
 
 type OrderFilter = "all" | "processing" | "shipped" | "delivered" | "cancelled" | "buy_again";
 
@@ -39,15 +42,18 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     cancelled: { label: "Cancelled", color: "text-red-400", bg: "bg-red-500/10", dot: "bg-red-400" },
 };
 
-export default function OrdersPage() {
+function OrdersContent() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [activeFilter, setActiveFilter] = useState<OrderFilter>("all");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
+    const [showConcierge, setShowConcierge] = useState(false);
+
     const { addToCart } = useCart();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { user } = useAuth();
 
     const loadData = () => {
@@ -55,23 +61,29 @@ export default function OrdersPage() {
         const allOrders = DemoStore.getOrders();
         const userOrders = allOrders.filter(o =>
             o.customer_id === user.email ||
-            o.customer_id === user.id ||
-            o.customer_id === "u1"
+            o.customer_id === user.id
         );
-        setOrders(userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        const sortedOrders = userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        setOrders(sortedOrders);
 
         const allNegs = DemoStore.getNegotiations();
         setNegotiations(allNegs.filter(n =>
             n.customer_id === user.email ||
             n.customer_id === user.id ||
-            n.customer_name === user.name ||
-            n.customer_id === "u1"
+            n.customer_name === user.name
         ));
 
         setProducts(DemoStore.getProducts());
+
+        // Auto-show concierge chat for the most recent order if coming from checkout success
+        if (searchParams.get("success") === "true" && sortedOrders.length > 0) {
+            setShowConcierge(true);
+            // Optional: clean up the URL to prevent re-triggering on refresh
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
     };
 
-    useEffect(() => { loadData(); }, [user]);
+    useEffect(() => { loadData(); }, [user, searchParams]);
 
     useEffect(() => {
         loadData();
@@ -87,7 +99,6 @@ export default function OrdersPage() {
     const handleReleaseEscrow = (orderId: string) => {
         DemoStore.updateOrderEscrow(orderId, "released");
         loadData();
-        alert("Payment has been released to the seller. Thank you for confirming!");
     };
 
     const handleBuyAgain = (order: Order) => {
@@ -307,7 +318,7 @@ export default function OrdersPage() {
                                 <div className="p-1.5 bg-gray-200 rounded-lg">
                                     <Handshake className="h-4 w-4" />
                                 </div>
-                                <h3 className="font-bold text-sm">Negotiate a Price</h3>
+                                <h3 className="font-bold text-sm text-white">Negotiate a Price</h3>
                             </div>
                             <p className="text-xs text-emerald-100 leading-relaxed mb-3">
                                 Find any product and negotiate for a better price. Our AI searches the internet for fair market prices so you never overpay.
@@ -403,6 +414,29 @@ export default function OrdersPage() {
                                 </div>
                             </div>
                         )}
+
+                        {/* Disputed Orders Callout */}
+                        {orders.some(o => o.escrow_status === "disputed") && (
+                            <div className="bg-white backdrop-blur-[12px] border border-rose-200 shadow-lg rounded-xl overflow-hidden">
+                                <div className="px-4 py-3 border-b border-rose-100 flex items-center gap-2 bg-rose-50">
+                                    <AlertTriangle className="h-4 w-4 text-rose-500" />
+                                    <h3 className="text-sm font-bold text-rose-800">Under Dispute</h3>
+                                </div>
+                                <div className="divide-y divide-rose-50">
+                                    {orders.filter(o => o.escrow_status === "disputed").map(order => (
+                                        <Link key={order.id} href={`/account/orders/${order.id}`} className="block">
+                                            <div className="px-4 py-3 hover:bg-rose-50/80 transition-colors cursor-pointer">
+                                                <p className="text-xs font-medium text-gray-700 line-clamp-1">{order.product?.name}</p>
+                                                <div className="flex items-center justify-between mt-1.5">
+                                                    <span className="text-xs font-bold text-gray-900">{formatPrice(order.amount)}</span>
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full">Under Review</span>
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>
@@ -461,9 +495,18 @@ export default function OrdersPage() {
                             {/* Escrow Info */}
                             <div className="px-5 py-3 flex items-center justify-between bg-white">
                                 <div className="flex items-center gap-2">
-                                    <ShieldCheck className={`h-4 w-4 ${selectedOrderForTracking.escrow_status === 'released' ? 'text-ratel-green-500' : 'text-amber-500'}`} />
+                                    {selectedOrderForTracking.escrow_status === "disputed" ? (
+                                        <AlertTriangle className="h-4 w-4 text-rose-500" />
+                                    ) : selectedOrderForTracking.escrow_status === "refunded" ? (
+                                        <ShieldCheck className="h-4 w-4 text-gray-400" />
+                                    ) : (
+                                        <ShieldCheck className={`h-4 w-4 ${selectedOrderForTracking.escrow_status === 'released' ? 'text-ratel-green-500' : 'text-amber-500'}`} />
+                                    )}
                                     <span className="text-xs font-semibold text-gray-500">
-                                        {selectedOrderForTracking.escrow_status === "held" ? "Funds held in escrow" : "Funds released to seller"}
+                                        {selectedOrderForTracking.escrow_status === "held" ? "Funds held in escrow" :
+                                            selectedOrderForTracking.escrow_status === "released" ? "Funds released to seller" :
+                                                selectedOrderForTracking.escrow_status === "disputed" ? "Dispute under review" :
+                                                    selectedOrderForTracking.escrow_status === "refunded" ? "Refund issued" : "Escrow"}
                                     </span>
                                 </div>
                                 {selectedOrderForTracking.escrow_status === "held" && (
@@ -518,6 +561,19 @@ export default function OrdersPage() {
                                         <RotateCcw className="h-3 w-3 mr-1.5" /> Buy Again
                                     </Button>
                                 )}
+                                {(selectedOrderForTracking.status === "delivered" || selectedOrderForTracking.status === "shipped") && selectedOrderForTracking.escrow_status !== "disputed" && selectedOrderForTracking.escrow_status !== "refunded" && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                            setSelectedOrderForTracking(null);
+                                            router.push(`/account/orders/${selectedOrderForTracking.id}`);
+                                        }}
+                                        className="flex-1 rounded-lg text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 bg-transparent"
+                                    >
+                                        <AlertTriangle className="h-3 w-3 mr-1.5" /> Report Problem
+                                    </Button>
+                                )}
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -532,7 +588,30 @@ export default function OrdersPage() {
                 )}
             </AnimatePresence>
 
+            <AnimatePresence>
+                {showConcierge && orders.length > 0 && (
+                    <PostOrderConciergeChat
+                        isOpen={showConcierge}
+                        onClose={() => setShowConcierge(false)}
+                        product={orders[0]?.product || null}
+                        orderId={orders[0]?.id?.split('_')[1]?.substring(0, 8) || orders[0]?.id?.substring(0, 8) || "NEW"}
+                    />
+                )}
+            </AnimatePresence>
+
             <Footer />
         </div>
+    );
+}
+
+export default function OrdersPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+                <div className="w-8 h-8 rounded-full border-4 border-gray-200 border-t-ratel-green-600 animate-spin" />
+            </div>
+        }>
+            <OrdersContent />
+        </Suspense>
     );
 }

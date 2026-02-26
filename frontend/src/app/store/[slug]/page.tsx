@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DemoStore } from "@/lib/demo-store";
+import { DEMO_PRODUCTS, DEMO_SELLERS } from "@/lib/data";
 import { Product, Seller } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
     AlertTriangle
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
+import { Footer } from "@/components/layout/Footer";
 import { useAuth } from "@/context/AuthContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { Input } from "@/components/ui/input";
@@ -41,17 +43,24 @@ export default function StoreProfile() {
     const { isFavoriteStore, toggleFavoriteStore } = useFavorites();
 
     useEffect(() => {
-        const id = params.id as string;
-        if (!id) return;
+        const slug = params.slug as string;
+        if (!slug) return;
 
         const loadStore = () => {
-            const allSellers = DemoStore.getSellers();
-            const foundSeller = allSellers.find(s => s.id === id);
+            const allSellers = [...DemoStore.getSellers(), ...DEMO_SELLERS];
+            // Deduplicate by id, preferring DemoStore version
+            const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
+            // find by ID OR by slugified business name
+            const foundSeller = uniqueSellers.find(s =>
+                s.id === slug || s.business_name.toLowerCase().replace(/\s+/g, "-") === slug
+            );
 
             if (foundSeller) {
                 setSeller(foundSeller);
-                const allProducts = DemoStore.getProducts();
-                setProducts(allProducts.filter(p => p.seller_id === id));
+                const allProducts = [...DemoStore.getProducts(), ...DEMO_PRODUCTS];
+                // Deduplicate by id
+                const uniqueProducts = allProducts.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
+                setProducts(uniqueProducts.filter(p => p.seller_id === foundSeller.id));
             }
             setLoading(false);
         };
@@ -59,7 +68,7 @@ export default function StoreProfile() {
         loadStore();
         window.addEventListener("storage", loadStore);
         return () => window.removeEventListener("storage", loadStore);
-    }, [params.id]);
+    }, [params.slug]);
 
     const isOwner = user && seller && user.id === seller.user_id;
 
@@ -149,9 +158,13 @@ export default function StoreProfile() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
                     <div className="-mt-16 md:-mt-20 flex flex-col md:flex-row md:items-end gap-6 pb-6">
                         {/* Avatar */}
-                        <div className="h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0">
-                            <div className="h-full w-full rounded-2xl bg-gradient-to-br from-ratel-green-600 to-emerald-500 flex items-center justify-center text-white text-5xl font-bold shadow-inner">
-                                {seller.business_name.charAt(0)}
+                        <div className="h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar">
+                            <div className="h-full w-full rounded-2xl bg-gradient-to-br from-ratel-green-600 to-emerald-500 flex items-center justify-center text-white text-5xl font-bold shadow-inner overflow-hidden relative">
+                                {seller.logo_url ? (
+                                    <img src={seller.logo_url} alt="" className="h-full w-full object-cover" />
+                                ) : (
+                                    seller.business_name.charAt(0)
+                                )}
                             </div>
                             <div className="absolute -bottom-2 -right-2 bg-blue-500 text-white p-1.5 rounded-full border-4 border-white shadow-lg" title="Verified Seller">
                                 <ShieldCheck className="h-5 w-5" />
@@ -170,7 +183,7 @@ export default function StoreProfile() {
                                     <span>(128 reviews)</span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                    <MapPin className="h-3.5 w-3.5" /> Lagas, Nigeria
+                                    <MapPin className="h-3.5 w-3.5" /> Lagos, Nigeria
                                 </div>
                                 <div className="flex items-center gap-1.5 text-emerald-600">
                                     <Clock className="h-3.5 w-3.5" /> Responds within 1 hr
@@ -355,6 +368,8 @@ export default function StoreProfile() {
                     seller={seller}
                 />
             )}
+
+            <Footer />
         </div>
     );
 }

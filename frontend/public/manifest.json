@@ -1,0 +1,21 @@
+{
+    "name": "RatelShop",
+    "short_name": "Ratel",
+    "description": "Premium African E-Commerce with Escrow Protection",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#052e16",
+    "icons": [
+        {
+            "src": "/ratel-logo.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/ratel-logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

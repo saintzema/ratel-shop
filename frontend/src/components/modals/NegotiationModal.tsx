@@ -58,7 +58,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
 
             let fairPrice: number;
 
-            if (product.price_flag === "suspicious" && marketAvg > 0) {
+            if (product.price_flag === "too_low" && marketAvg > 0) {
                 // Suspicious deal: price is TOO LOW — suggest the market average as fair
                 // (buying at market avg protects the buyer from scams)
                 fairPrice = Math.round(marketAvg * 0.95 / 100) * 100;
@@ -172,7 +172,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                         />
                                     </div>
                                     <p className="text-[10px] text-blue-500 text-center animate-pulse">
-                                        {["Connecting to Global Pricing DB...", "Scanning Amazon & eBay...", "Checking Local Competitors...", "Finalizing Verified Fair Price..."][Math.min(analysisStep, 3)]}
+                                        {["Connecting to Global Pricing DB...", "Scanning Marketplaces...", "Checking Local Competitors...", "Finalizing Verified Fair Price..."][Math.min(analysisStep, 3)]}
                                     </p>
                                 </div>
                             ) : (
@@ -181,7 +181,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                         type="button"
                                         variant="outline"
                                         onClick={handleAnalyze}
-                                        className="w-full border-blue-200 text-blue-600 hover:bg-blue-50 bg-blue-50/50"
+                                        className="w-full border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-blue-50/50"
                                     >
                                         <Tag className="h-4 w-4 mr-2" />
                                         {proposedPrice ? "Recalculate Fair Price" : "Auto-Calculate Fair Price"}
@@ -203,12 +203,14 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-bold">₦</span>
                                 <Input
                                     id="price"
-                                    type="number"
-                                    placeholder="e.g. 45000"
-                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-ratel-green-600 focus:border-ratel-green-600 ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
-                                    value={proposedPrice}
+                                    type="text"
+                                    inputMode="numeric"
+                                    placeholder="e.g. 45,000"
+                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-ratel-green-600 focus:border-ratel-green-600 font-medium ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                    value={proposedPrice ? Number(proposedPrice).toLocaleString() : ""}
                                     onChange={(e) => {
-                                        setProposedPrice(e.target.value);
+                                        const rawValue = e.target.value.replace(/,/g, "").replace(/\D/g, "");
+                                        setProposedPrice(rawValue);
                                         setError(null);
                                         setIsSystemCalculated(false);
                                     }}

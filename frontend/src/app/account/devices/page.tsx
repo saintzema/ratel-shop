@@ -7,9 +7,9 @@ import { Laptop, Smartphone, Tablet, Monitor, Trash2 } from "lucide-react";
 
 export default function DevicesPage() {
     const devices = [
-        { id: 1, type: "laptop", name: "RatelShop Web on MacBook Pro", last_active: "Active Now", icon: Laptop },
-        { id: 2, type: "phone", name: "RatelShop App on iPhone 13", last_active: "Yesterday", icon: Smartphone },
-        { id: 3, type: "tablet", name: "RatelShop on iPad Air", last_active: "Feb 10, 2024", icon: Tablet },
+        { id: 1, type: "laptop", name: "FairPrice Web on MacBook Pro", last_active: "Active Now", icon: Laptop },
+        { id: 2, type: "phone", name: "FairPrice App on iPhone 13", last_active: "Yesterday", icon: Smartphone },
+        { id: 3, type: "tablet", name: "FairPrice on iPad Air", last_active: "Feb 10, 2024", icon: Tablet },
     ];
 
     return (
@@ -28,7 +28,7 @@ export default function DevicesPage() {
 
                 <div className="space-y-6">
                     <p className="text-sm text-gray-600">
-                        RatelShop apps customized for your registered devices.
+                        FairPrice apps customized for your registered devices.
                     </p>
 
                     <div className="grid gap-4">

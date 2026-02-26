@@ -19,10 +19,14 @@ export interface ProductSuggestion {
     category: string;
     approxPrice: number;
     sourceUrl?: string;
+    image_url?: string;
+    specs?: Record<string, string>;
 }
 
 export type PriceAnalysis = {
     productName: string;
+    description?: string;
+    image_url?: string;
     marketAverage: number;
     recommendedPrice: number;
     sources: PriceData[];
@@ -80,24 +84,26 @@ export class PriceEngine {
     /**
      * Fetches real-time price data from Google Custom Search
      */
-    static async analyzePrice(productName: string): Promise<PriceAnalysis> {
+    static async analyzePrice(productName: string, anchorPrice?: number): Promise<PriceAnalysis> {
         try {
             const response = await fetch("/api/gemini-price", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ productName, region: "Nigeria", mode: "analyze" })
+                body: JSON.stringify({ productName, region: "Nigeria", mode: "analyze", anchorPrice })
             });
 
             if (!response.ok) {
                 console.warn("Gemini API failed, falling back to simulation");
-                return this.simulatePriceAnalysis(productName);
+                return this.simulatePriceAnalysis(productName, anchorPrice);
             }
 
             const data = await response.json();
 
             // Map API response to PriceAnalysis
             return {
-                productName,
+                productName: data.productName || productName,
+                description: data.description,
+                image_url: data.image_url,
                 marketAverage: data.marketAverage,
                 recommendedPrice: data.recommendedPrice,
                 sources: data.sources || [],
@@ -112,7 +118,7 @@ export class PriceEngine {
 
         } catch (error) {
             console.error("Price Engine Analysis Failed:", error);
-            return this.simulatePriceAnalysis(productName);
+            return this.simulatePriceAnalysis(productName, anchorPrice);
         }
     }
 
@@ -161,7 +167,7 @@ export class PriceEngine {
             const marketMultiplier = 1.08 + seeded(1) * 0.07;
             const marketAverage = Math.round(basePrice * marketMultiplier);
 
-            // Ratel recommended is the best/fair price
+            // FairPrice recommended is the best/fair price
             const recommendedPrice = basePrice;
 
             // Generate realistic source prices with Nigerian stores
