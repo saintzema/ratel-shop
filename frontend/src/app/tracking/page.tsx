@@ -52,7 +52,7 @@ export default function TrackingPage() {
 
     if (isLoading || !user) {
         return <div className="min-h-screen flex items-center justify-center bg-gray-50">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ratel-orange"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-orange"></div>
         </div>;
     }
 
@@ -64,13 +64,13 @@ export default function TrackingPage() {
 
             <main className="flex-1 flex flex-col">
                 {/* Hero Section - Hidden on Print */}
-                <div className="bg-ratel-green-900 py-16 px-4 text-center relative overflow-hidden print:hidden">
+                <div className="bg-brand-green-900 py-16 px-4 text-center relative overflow-hidden print:hidden">
                     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-10"></div>
                     <div className="relative z-10 max-w-2xl mx-auto">
                         <h1 className="text-3xl md:text-4xl font-black text-white mb-4 tracking-tight">
                             Track Your Order
                         </h1>
-                        <p className="text-ratel-green-100 mb-8 text-lg">
+                        <p className="text-brand-green-100 mb-8 text-lg">
                             Enter your tracking number or order ID to see real-time updates.
                         </p>
 
@@ -78,13 +78,13 @@ export default function TrackingPage() {
                             <div className="relative flex-1">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                                 <Input
-                                    placeholder="e.g., RATEL-8XJ92KLD"
-                                    className="pl-10 h-12 text-base bg-white border-0 shadow-lg text-gray-900 placeholder:text-gray-400 focus-visible:ring-offset-0 focus-visible:ring-ratel-orange"
+                                    placeholder="e.g., FP-8XJ92KLD"
+                                    className="pl-10 h-12 text-base bg-white border-0 shadow-lg text-gray-900 placeholder:text-gray-400 focus-visible:ring-offset-0 focus-visible:ring-brand-orange"
                                     value={trackingId}
                                     onChange={(e) => setTrackingId(e.target.value)}
                                 />
                             </div>
-                            <Button type="submit" className="h-12 px-6 bg-ratel-orange hover:bg-orange-500 text-black font-bold shadow-lg">
+                            <Button type="submit" className="h-12 px-6 bg-brand-orange hover:bg-orange-500 text-black font-bold shadow-lg">
                                 Track
                             </Button>
                         </form>
@@ -104,7 +104,7 @@ export default function TrackingPage() {
                             <div className="hidden print:block mb-8 border-b border-gray-200 pb-4">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <h1 className="text-2xl font-bold text-ratel-green-900">INVOICE & TRACKING</h1>
+                                        <h1 className="text-2xl font-bold text-brand-green-900">INVOICE & TRACKING</h1>
                                         <p className="text-sm text-gray-500 mt-1">FairPrice Information Services</p>
                                     </div>
                                     <div className="text-right">
@@ -117,7 +117,7 @@ export default function TrackingPage() {
                             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-gray-300">
                                 <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-4 print:bg-white print:border-b-2 print:border-gray-200">
                                     <div className="flex items-center gap-3">
-                                        <div className="bg-ratel-green-100 p-2 rounded-full text-ratel-green-700 print:hidden">
+                                        <div className="bg-brand-green-100 p-2 rounded-full text-brand-green-700 print:hidden">
                                             <Package className="h-5 w-5" />
                                         </div>
                                         <div>

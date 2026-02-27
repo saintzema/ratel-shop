@@ -75,15 +75,15 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                                                 onClose();
                                             }}
                                             className={`w-full flex items-center justify-between p-3 rounded-lg text-sm font-medium transition-colors ${currentLocation === loc
-                                                ? "bg-ratel-green-50 text-ratel-green-700"
+                                                ? "bg-brand-green-50 text-brand-green-700"
                                                 : "hover:bg-gray-100 text-gray-700"
                                                 }`}
                                         >
                                             <span className="flex items-center gap-3">
-                                                <MapPin className={`h-4 w-4 ${currentLocation === loc ? "text-ratel-green-600" : "text-gray-400"}`} />
+                                                <MapPin className={`h-4 w-4 ${currentLocation === loc ? "text-brand-green-600" : "text-gray-400"}`} />
                                                 {loc}
                                             </span>
-                                            {currentLocation === loc && <Check className="h-4 w-4 text-ratel-green-600" />}
+                                            {currentLocation === loc && <Check className="h-4 w-4 text-brand-green-600" />}
                                         </button>
                                     ))
                                 ) : (
@@ -97,7 +97,7 @@ export function LocationModal({ isOpen, onClose, currentLocation, onSelectLocati
                         <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 bg-ratel-orange text-black text-sm font-bold rounded-lg hover:bg-amber-500 transition-colors shadow-sm"
+                                className="px-4 py-2 bg-brand-orange text-black text-sm font-bold rounded-lg hover:bg-amber-500 transition-colors shadow-sm"
                             >
                                 Done
                             </button>

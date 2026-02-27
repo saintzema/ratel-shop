@@ -18,7 +18,7 @@ export default function VerifiedSellersPage() {
             <main className="flex-1 container mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="bg-white border rounded-2xl p-8 mb-8 text-center shadow-sm">
-                    <div className="w-16 h-16 bg-green-100 text-ratel-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 bg-green-100 text-brand-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                         <ShieldCheck className="h-8 w-8" />
                     </div>
                     <h1 className="text-3xl font-bold mb-2">Superadmin Verified Sellers</h1>
@@ -35,7 +35,7 @@ export default function VerifiedSellersPage() {
                         { title: "Escrow Protection", desc: "Your money is held safely until you confirm the item is as described." }
                     ].map((item, i) => (
                         <div key={i} className="bg-white p-6 rounded-xl border flex items-start gap-4">
-                            <CheckCircle2 className="h-6 w-6 text-ratel-green-600 flex-shrink-0" />
+                            <CheckCircle2 className="h-6 w-6 text-brand-green-600 flex-shrink-0" />
                             <div>
                                 <h3 className="font-bold mb-1">{item.title}</h3>
                                 <p className="text-sm text-gray-500">{item.desc}</p>
@@ -46,7 +46,7 @@ export default function VerifiedSellersPage() {
 
                 {/* Products Section */}
                 <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                    <ShieldCheck className="text-ratel-green-600" /> Verified Listings
+                    <ShieldCheck className="text-brand-green-600" /> Verified Listings
                 </h2>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
@@ -56,7 +56,7 @@ export default function VerifiedSellersPage() {
                 </div>
 
                 {/* CTA for Sellers */}
-                <div className="mt-16 bg-gradient-to-r from-ratel-green-900 to-black text-white rounded-2xl p-8 md:p-12 text-center">
+                <div className="mt-16 bg-gradient-to-r from-brand-green-900 to-black text-white rounded-2xl p-8 md:p-12 text-center">
                     <h2 className="text-3xl font-bold mb-4">Are you a honest seller?</h2>
                     <p className="text-green-100 mb-8 max-w-xl mx-auto">
                         Join the movement. Get verified, earn the badge, and build trust with millions of Nigerian customers.

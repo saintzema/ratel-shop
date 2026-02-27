@@ -129,8 +129,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-xl relative z-20">
                             <div className="flex items-center gap-3">
                                 <div className="relative">
-                                    <div className="w-10 h-10 rounded-full bg-ratel-green-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                                        <span className="font-black text-ratel-green-700 text-lg">Z</span>
+                                    <div className="w-10 h-10 rounded-full bg-brand-green-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
+                                        <span className="font-black text-brand-green-700 text-lg">Z</span>
                                     </div>
                                     <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                                 </div>
@@ -179,8 +179,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                                         {/* Avatar */}
                                         <div className="shrink-0 mt-auto">
                                             {msg.sender === "ziva" ? (
-                                                <div className="w-6 h-6 rounded-full bg-ratel-green-100 flex items-center justify-center border border-ratel-green-200">
-                                                    <span className="text-[10px] font-bold text-ratel-green-700">Z</span>
+                                                <div className="w-6 h-6 rounded-full bg-brand-green-100 flex items-center justify-center border border-brand-green-200">
+                                                    <span className="text-[10px] font-bold text-brand-green-700">Z</span>
                                                 </div>
                                             ) : msg.sender === "admin" ? (
                                                 <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
@@ -215,8 +215,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                                     <div className="flex gap-2 max-w-[80%] flex-row">
                                         <div className="shrink-0 mt-auto">
-                                            <div className="w-6 h-6 rounded-full bg-ratel-green-100 flex items-center justify-center border border-ratel-green-200">
-                                                <span className="text-[10px] font-bold text-ratel-green-700">Z</span>
+                                            <div className="w-6 h-6 rounded-full bg-brand-green-100 flex items-center justify-center border border-brand-green-200">
+                                                <span className="text-[10px] font-bold text-brand-green-700">Z</span>
                                             </div>
                                         </div>
                                         <div className="px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm rounded-bl-sm flex gap-1.5 items-center">

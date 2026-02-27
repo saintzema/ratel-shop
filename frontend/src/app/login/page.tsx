@@ -256,7 +256,7 @@ export default function UnifiedAuthPage() {
                                         key={idx}
                                         className={cn(
                                             "h-2 rounded-full transition-all duration-300",
-                                            idx === currentBg ? "w-6 bg-ratel-green-400" : "w-2 bg-white/50"
+                                            idx === currentBg ? "w-6 bg-brand-green-400" : "w-2 bg-white/50"
                                         )}
                                     />
                                 ))}
@@ -303,7 +303,7 @@ export default function UnifiedAuthPage() {
                                                 type="text"
                                                 required
                                                 placeholder="you@email.com"
-                                                className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10 transition-all px-4"
+                                                className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
                                                 value={identifier}
                                                 onChange={(e) => setIdentifier(e.target.value)}
                                                 list="email-domains"
@@ -332,7 +332,7 @@ export default function UnifiedAuthPage() {
                                         <Button
                                             type="submit"
                                             disabled={isLoading || !identifier.trim()}
-                                            className="w-full h-[52px] bg-[#d2d2d7]/50 hover:bg-ratel-green-600 hover:text-white text-[#1d1d1f] font-bold text-[16px] rounded-xl transition-all disabled:opacity-50 mt-2"
+                                            className="w-full h-[52px] bg-[#d2d2d7]/50 hover:bg-brand-green-600 hover:text-white text-[#1d1d1f] font-bold text-[16px] rounded-xl transition-all disabled:opacity-50 mt-2"
                                         >
                                             {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-[#1d1d1f]" /> : "Login"}
                                         </Button>
@@ -375,7 +375,7 @@ export default function UnifiedAuthPage() {
                                             <p className="text-[13px] text-[#86868b] font-medium">Signing in as</p>
                                             <p className="text-[15px] font-medium text-[#1d1d1f] truncate">{identifier}</p>
                                         </div>
-                                        <button onClick={() => setStep("identifier")} className="ml-auto text-[13px] text-ratel-green-600 hover:underline font-bold px-2 py-1">
+                                        <button onClick={() => setStep("identifier")} className="ml-auto text-[13px] text-brand-green-600 hover:underline font-bold px-2 py-1">
                                             Change
                                         </button>
                                     </div>
@@ -388,7 +388,7 @@ export default function UnifiedAuthPage() {
                                                     ref={passwordInputRef}
                                                     type={showPassword ? "text" : "password"}
                                                     required
-                                                    className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10 transition-all px-4 pr-12"
+                                                    className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4 pr-12"
                                                     value={password}
                                                     onChange={(e) => setPassword(e.target.value)}
                                                 />
@@ -400,13 +400,13 @@ export default function UnifiedAuthPage() {
 
                                         <div className="flex items-center justify-between">
                                             <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" className="rounded text-ratel-green-600 focus:ring-ratel-green-500/20" defaultChecked />
+                                                <input type="checkbox" className="rounded text-brand-green-600 focus:ring-brand-green-500/20" defaultChecked />
                                                 <span className="text-[13px] text-[#1d1d1f] font-medium">Remember Password</span>
                                             </label>
-                                            <Link href="#" className="text-[13px] font-bold text-ratel-green-600 hover:underline">Forgot Password?</Link>
+                                            <Link href="#" className="text-[13px] font-bold text-brand-green-600 hover:underline">Forgot Password?</Link>
                                         </div>
 
-                                        <Button type="submit" disabled={isLoading || !password} className="w-full h-[52px] bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-bold text-[16px] rounded-xl transition-all">
+                                        <Button type="submit" disabled={isLoading || !password} className="w-full h-[52px] bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-[16px] rounded-xl transition-all">
                                             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Login"}
                                         </Button>
                                     </form>
@@ -428,7 +428,7 @@ export default function UnifiedAuthPage() {
                                         <div className="inline-flex items-center gap-2 bg-[#f5f5f7] px-4 py-2 rounded-full border border-gray-100">
                                             <span className="text-[13px] text-[#86868b]">Creating account for</span>
                                             <span className="text-[13px] font-medium text-[#1d1d1f]">{identifier}</span>
-                                            <button onClick={() => setStep("identifier")} className="ml-1 text-ratel-green-600 hover:underline text-[12px] font-medium">Edit</button>
+                                            <button onClick={() => setStep("identifier")} className="ml-1 text-brand-green-600 hover:underline text-[12px] font-medium">Edit</button>
                                         </div>
                                     </div>
 
@@ -446,7 +446,7 @@ export default function UnifiedAuthPage() {
                                                 type={showPassword ? "text" : "password"}
                                                 required
                                                 placeholder="Create New Password"
-                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10 transition-all px-4 pr-12"
+                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4 pr-12"
                                                 value={password}
                                                 onChange={(e) => setPassword(e.target.value)}
                                             />
@@ -460,7 +460,7 @@ export default function UnifiedAuthPage() {
                                                 type={showConfirmPassword ? "text" : "password"}
                                                 required
                                                 placeholder="Confirm Password"
-                                                className={`w-full h-14 bg-white text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl transition-all px-4 pr-12 border ${confirmPassword.length > 0 ? (passwordsMatch ? 'border-emerald-500 focus:ring-4 focus:ring-emerald-500/10' : 'border-red-500 focus:ring-4 focus:ring-red-500/10') : 'border-[#d2d2d7] focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10'}`}
+                                                className={`w-full h-14 bg-white text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl transition-all px-4 pr-12 border ${confirmPassword.length > 0 ? (passwordsMatch ? 'border-emerald-500 focus:ring-4 focus:ring-emerald-500/10' : 'border-red-500 focus:ring-4 focus:ring-red-500/10') : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10'}`}
                                                 value={confirmPassword}
                                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                             />
@@ -477,7 +477,7 @@ export default function UnifiedAuthPage() {
                                             </div>
                                         )}
 
-                                        <Button type="submit" disabled={!allPasswordChecksPassed || !passwordsMatch} className="w-full h-14 bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-medium text-[17px] rounded-xl transition-all mt-4">
+                                        <Button type="submit" disabled={!allPasswordChecksPassed || !passwordsMatch} className="w-full h-14 bg-brand-green-600 hover:bg-brand-green-700 text-white font-medium text-[17px] rounded-xl transition-all mt-4">
                                             Continue
                                         </Button>
                                     </form>
@@ -527,7 +527,7 @@ export default function UnifiedAuthPage() {
                                             type="text"
                                             required
                                             placeholder="First Name"
-                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10 transition-all px-4"
+                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
                                             value={firstName}
                                             onChange={(e) => setFirstName(e.target.value)}
                                         />
@@ -535,7 +535,7 @@ export default function UnifiedAuthPage() {
                                             type="text"
                                             required
                                             placeholder="Last Name"
-                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10 transition-all px-4"
+                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
                                             value={lastName}
                                             onChange={(e) => setLastName(e.target.value)}
                                         />
@@ -545,13 +545,13 @@ export default function UnifiedAuthPage() {
                                             <Input
                                                 type="date"
                                                 placeholder="Birthday"
-                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-ratel-green-500 focus:ring-4 focus:ring-ratel-green-500/10 transition-all px-4"
+                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
                                                 value={birthday}
                                                 onChange={(e) => setBirthday(e.target.value)}
                                             />
                                         </div>
 
-                                        <Button type="submit" disabled={!firstName || !lastName} className="w-full h-14 bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-medium text-[17px] rounded-xl transition-all mt-4">
+                                        <Button type="submit" disabled={!firstName || !lastName} className="w-full h-14 bg-brand-green-600 hover:bg-brand-green-700 text-white font-medium text-[17px] rounded-xl transition-all mt-4">
                                             Continue
                                         </Button>
                                     </form>
@@ -579,7 +579,7 @@ export default function UnifiedAuthPage() {
                                             <Input
                                                 key={idx}
                                                 id={`otp-${idx}`}
-                                                className="w-12 h-14 text-center text-xl font-bold bg-[#F5F5F7] border-transparent focus:border-ratel-green-500 focus:ring-2 focus:ring-ratel-green-500/20 focus:bg-white rounded-xl"
+                                                className="w-12 h-14 text-center text-xl font-bold bg-[#F5F5F7] border-transparent focus:border-brand-green-500 focus:ring-2 focus:ring-brand-green-500/20 focus:bg-white rounded-xl"
                                                 maxLength={1}
                                                 autoFocus={idx === 0}
                                                 inputMode="numeric"
@@ -601,13 +601,13 @@ export default function UnifiedAuthPage() {
                                     </div>
 
                                     <div className="mb-8">
-                                        <button className="text-sm text-ratel-green-600 font-bold hover:underline">
+                                        <button className="text-sm text-brand-green-600 font-bold hover:underline">
                                             Didn't send me a code?
                                         </button>
                                     </div>
 
                                     <div className="space-y-3">
-                                        <Button onClick={() => handleFinalizeRegistration(false)} disabled={isLoading} className="w-full h-14 bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-medium text-[17px] rounded-xl transition-all shadow-sm">
+                                        <Button onClick={() => handleFinalizeRegistration(false)} disabled={isLoading} className="w-full h-14 bg-brand-green-600 hover:bg-brand-green-700 text-white font-medium text-[17px] rounded-xl transition-all shadow-sm">
                                             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Sign In"}
                                         </Button>
                                     </div>

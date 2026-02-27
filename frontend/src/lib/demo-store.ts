@@ -6,17 +6,17 @@ import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, 
 class DemoStoreService {
     private static instance: DemoStoreService;
     public readonly STORAGE_KEYS = {
-        NEGOTIATIONS: "ratel_demo_negotiations",
-        ORDERS: "ratel_demo_orders",
-        SELLERS: "ratel_demo_sellers",
-        PRODUCTS: "ratel_demo_products",
-        CURRENT_SELLER: "ratel_demo_current_seller",
-        NOTIFICATIONS: "ratel_demo_notifications",
-        KYC: "ratel_demo_kyc",
-        COMPLAINTS: "ratel_demo_complaints",
-        PAYOUTS: "ratel_demo_payouts",
-        SUPPORT_MESSAGES: "ratel_demo_support_messages",
-        DISPUTES: "ratel_demo_disputes",
+        NEGOTIATIONS: "fairprice_demo_negotiations",
+        ORDERS: "fairprice_demo_orders",
+        SELLERS: "fairprice_demo_sellers",
+        PRODUCTS: "fairprice_demo_products",
+        CURRENT_SELLER: "fairprice_demo_current_seller",
+        NOTIFICATIONS: "fairprice_demo_notifications",
+        KYC: "fairprice_demo_kyc",
+        COMPLAINTS: "fairprice_demo_complaints",
+        PAYOUTS: "fairprice_demo_payouts",
+        SUPPORT_MESSAGES: "fairprice_demo_support_messages",
+        DISPUTES: "fairprice_demo_disputes",
     };
 
     private constructor() {
@@ -36,12 +36,12 @@ class DemoStoreService {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
         const DATA_VERSION = "7";
-        const currentVersion = localStorage.getItem("ratel_data_version");
+        const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
             // Clear all stale data and re-seed with latest
             Object.values(this.STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-            localStorage.setItem("ratel_data_version", DATA_VERSION);
+            localStorage.setItem("fairprice_data_version", DATA_VERSION);
         }
 
         if (!localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS)) {
@@ -194,7 +194,7 @@ class DemoStoreService {
         const product = products.find(p => p.id === order.product_id) || sourceProduct;
         if (!product) throw new Error("Product not found");
 
-        const orderId = `ZMA-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+        const orderId = `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
 
         const now = new Date();
         const trackingSteps = [
@@ -267,7 +267,7 @@ class DemoStoreService {
         const products = this.getProducts();
 
         // Mock AI analysis for price flag
-        const priceFlag: "fair" | "overpriced" | "too_low" | "none" | "great_deal" =
+        const priceFlag: "fair" | "overpriced" | "too_low" | "none" =
             product.price > (product.recommended_price || product.price * 1.2) ? "overpriced" :
                 product.price < (product.recommended_price || product.price * 0.8) ? "too_low" : "fair";
 
@@ -292,28 +292,29 @@ class DemoStoreService {
         return newProduct;
     }
 
-    // Add a fully-formed global product (preserves id, seller, etc.)
-    addGlobalProduct(product: Product) {
-        const products = this.getProducts();
-        // Avoid duplicates
-        if (products.some(p => p.id === product.id)) return product;
-        const updated = [product, ...products]; // Newest first
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-        window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
-        return product;
-    }
-
     addRawProduct(product: Product) {
-        const products = this.getProducts();
-        const updated = [product, ...products];
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        let products = this.getProducts();
+        if (products.some(p => p.id === product.id)) return product;
 
-        // Also add to global search history (we will use a separate key or just rely on the products list if they have 'global-partners' seller_id)
-        const historyJson = localStorage.getItem("ratel_demo_global_search_history") || "[]";
-        const history = JSON.parse(historyJson);
-        history.push({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
-        localStorage.setItem("ratel_demo_global_search_history", JSON.stringify(history));
+        products.unshift(product);
+        if (products.length > 500) products.length = 500; // soft limit
+
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+        } catch (e) {
+            // Force aggressive trim if quota exceeded
+            products.length = 150;
+            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+        }
+
+        // Also add to global search history 
+        try {
+            const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
+            const history = JSON.parse(historyJson);
+            history.unshift({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
+            if (history.length > 50) history.length = 50;
+            localStorage.setItem("fairprice_demo_global_search_history", JSON.stringify(history));
+        } catch (e) { }
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
@@ -326,6 +327,31 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    setCachedGlobalResults(query: string, products: Product[]) {
+        localStorage.setItem(`fairprice_global_search_${query.toLowerCase().trim()}`, JSON.stringify(products));
+    }
+
+    getCachedGlobalResults(query: string): Product[] | null {
+        if (typeof window === "undefined") return null;
+        const data = localStorage.getItem(`fairprice_global_search_${query.toLowerCase().trim()}`);
+        return data ? JSON.parse(data) : null;
+    }
+
+    getSearchHistoryProducts(): Product[] {
+        if (typeof window === "undefined") return [];
+        const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
+        const history = JSON.parse(historyJson);
+        const products = this.getProducts();
+        // Return recently viewed products from history that exist in the products array
+        const historyProducts = history
+            .map((h: any) => products.find((p) => p.id === h.productId))
+            .filter(Boolean)
+            .reverse(); // Most recent first
+
+        // Deduplicate by id
+        return historyProducts.filter((v: Product, i: number, a: Product[]) => a.findIndex(t => (t.id === v.id)) === i);
     }
 
     deleteProduct(id: string) {
@@ -349,30 +375,7 @@ class DemoStoreService {
         const order = orders.find(o => o.id === id);
         if (!order) return;
 
-        const updated = orders.map(o => {
-            if (o.id !== id) return o;
-            const changes: Partial<Order> = { escrow_status };
-
-            // When escrow is released, also mark order as delivered
-            if (escrow_status === "released") {
-                changes.status = "delivered";
-                const steps = o.tracking_steps || [];
-                const hasDelivered = steps.some(s => s.status.toLowerCase().includes("delivered"));
-                if (!hasDelivered) {
-                    changes.tracking_steps = [
-                        ...steps,
-                        {
-                            status: "Delivered",
-                            location: "Destination",
-                            timestamp: new Date().toISOString(),
-                            completed: true
-                        }
-                    ];
-                }
-            }
-
-            return { ...o, ...changes };
-        });
+        const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Notify Seller if released

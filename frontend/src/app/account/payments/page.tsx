@@ -19,7 +19,7 @@ interface PaymentMethod {
     isDefault: boolean;
 }
 
-const STORAGE_KEY = "ratel_payment_methods";
+const STORAGE_KEY = "fp_payment_methods";
 
 export default function PaymentsPage() {
     const [methods, setMethods] = useState<PaymentMethod[]>([]);

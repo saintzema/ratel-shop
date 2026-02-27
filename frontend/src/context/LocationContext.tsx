@@ -17,7 +17,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Load from local storage if available
-        const savedLocation = localStorage.getItem("ratel-location");
+        const savedLocation = localStorage.getItem("fp-location");
         if (savedLocation) {
             setLocation(savedLocation);
         }
@@ -27,7 +27,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
         // Update delivery date when location changes
         const date = getDeliveryDate(location);
         setDeliveryDate(date);
-        localStorage.setItem("ratel-location", location);
+        localStorage.setItem("fp-location", location);
     }, [location]);
 
     return (

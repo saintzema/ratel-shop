@@ -35,18 +35,18 @@ export function MobileBottomNav() {
                             href={item.href}
                             className={cn(
                                 "flex flex-col items-center justify-center w-full h-full space-y-1 relative transition-colors",
-                                isActive ? "text-ratel-green-600" : "text-gray-500 hover:text-gray-900"
+                                isActive ? "text-brand-green-600" : "text-gray-500 hover:text-gray-900"
                             )}
                         >
                             <div className="relative">
-                                <Icon className={cn("h-6 w-6", isActive && "fill-ratel-green-600/20")} strokeWidth={isActive ? 2.5 : 2} />
+                                <Icon className={cn("h-6 w-6", isActive && "fill-brand-green-600/20")} strokeWidth={isActive ? 2.5 : 2} />
                                 {item.count !== undefined && item.count > 0 && (
                                     <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 border border-white">
                                         {item.count}
                                     </span>
                                 )}
                             </div>
-                            <span className={cn("text-[10px] font-medium tracking-wide", isActive ? "font-bold text-ratel-green-600" : "")}>
+                            <span className={cn("text-[10px] font-medium tracking-wide", isActive ? "font-bold text-brand-green-600" : "")}>
                                 {item.name}
                             </span>
                         </Link>

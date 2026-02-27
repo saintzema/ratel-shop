@@ -27,7 +27,7 @@ export const DEMO_SELLERS: Seller[] = [
         user_id: "u3",
         business_name: "EV & Power Hub",
         description: "Leading the Nigerian green energy revolution. Solar systems and Electric Vehicles.",
-        logo_url: "/sellers/ratel-power.png",
+        logo_url: "/sellers/fp-power.png",
         category: "energy",
         verified: true,
         rating: 4.9,
@@ -196,7 +196,7 @@ export const DEMO_SELLERS: Seller[] = [
     {
         id: "global-partners",
         user_id: "global_partner",
-        business_name: "Global Partners",
+        business_name: "Global Stores",
         description: "Verified global products sourced through FairPrice AI and protected by our Escrow system.",
         logo_url: "",
         category: "electronics",
@@ -205,7 +205,7 @@ export const DEMO_SELLERS: Seller[] = [
         trust_score: 99,
         status: "active",
         kyc_status: "approved",
-        created_at: "2026-01-01T00:00:00Z",
+        created_at: "2025-12-01T00:00:00Z",
     }
 ];
 
@@ -2172,7 +2172,7 @@ export const DEMO_PRODUCTS: Product[] = [
     },
     // Global Sourcing Items (Temu Inspired)
     {
-        id: "temu_1", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_1", seller_id: "global-partners", seller_name: "Global Stores",
         name: "3-in-1 Black Replacement Cover Accessories Kit with Canopy & Shoulder Pads for Baby Infant Stroller",
         description: "High-quality accessories kit for strollers and car seats.",
         price: 78159, original_price: 128594, recommended_price: 78000,
@@ -2181,7 +2181,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 111, sold_count: 676, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_2", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_2", seller_id: "global-partners", seller_name: "Global Stores",
         name: "Compatible for Strollers & Car Seat Organizer Storage Bag with Zipper",
         description: "Machine-Washable Travel Stroller Organizer storage bag.",
         price: 14815, original_price: 48831, recommended_price: 15000,
@@ -2190,7 +2190,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 80, sold_count: 320, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_3", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_3", seller_id: "global-partners", seller_name: "Global Stores",
         name: "3pcs Baby Stroller Cushion Set + Includes 2pcs Safety Belt Shoulder Pads",
         description: "Cationic Baby Stroller Mat Suitable for All Seasons, Washable.",
         price: 16069, original_price: 53611, recommended_price: 16000,
@@ -2199,7 +2199,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 45, sold_count: 150, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_4", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_4", seller_id: "global-partners", seller_name: "Global Stores",
         name: "1-Person Stroller Windproof And Warm Cover",
         description: "Polyester Fiber, Multi-Color, Winter Cold Protection Foot Cover For Stroller Additions",
         price: 8207, original_price: 15193, recommended_price: 8500,
@@ -2208,7 +2208,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.3, review_count: 22, sold_count: 80, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_5", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_5", seller_id: "global-partners", seller_name: "Global Stores",
         name: "Child Car Seat Cushion, Suitable for Newborns",
         description: "Breathable Mesh Child Car Seat Cushion with Padded Sponge, Universal Support.",
         price: 13945, original_price: 25710, recommended_price: 14000,
@@ -2217,7 +2217,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.9, review_count: 230, sold_count: 900, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_6", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_6", seller_id: "global-partners", seller_name: "Global Stores",
         name: "Lightweight And Ultra-Lightweight Stroller for Infants",
         description: "Suitable for Babies Aged 0-3, Can Be Used for Sitting Or Lying Down.",
         price: 182882, original_price: 1405072, recommended_price: 185000,
@@ -2226,7 +2226,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 56, sold_count: 240, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_7", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_7", seller_id: "global-partners", seller_name: "Global Stores",
         name: "Stroller Replacement Trio: Seat Mat, Sunshade & Shoulder Covers",
         description: "Value Kit | Trio Protection | All-in-One Care for Complete Stroller Comfort",
         price: 62241, original_price: 142158, recommended_price: 65000,
@@ -2235,7 +2235,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 34, sold_count: 110, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_8", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_8", seller_id: "global-partners", seller_name: "Global Stores",
         name: "High-view Four-wheel Baby Stroller | Convertible Seat",
         description: "Lightweight and Compact, Kinderwagen, Pram, Carbon Steel Structure.",
         price: 350100, original_price: 450000, recommended_price: 350000,
@@ -2244,7 +2244,7 @@ export const DEMO_PRODUCTS: Product[] = [
         avg_rating: 5.0, review_count: 12, sold_count: 50, created_at: "2026-02-20T10:00:00Z"
     },
     {
-        id: "temu_9", seller_id: "global-partners", seller_name: "Global Partners",
+        id: "temu_9", seller_id: "global-partners", seller_name: "Global Stores",
         name: "Gb Compact Baby Pushchair Featuring One-Handed Folding",
         description: "Reclining Seats, Stroller, All-Terrain Shock absorption.",
         price: 236451, original_price: 265361, recommended_price: 235000,
@@ -2274,7 +2274,7 @@ export const DEMO_REVIEWS: Review[] = [
     { id: "r2", user_id: "u11", user_name: "Amaka N.", product_id: "p1", rating: 4, title: "Great but took 3 days", body: "Phone is perfect. Delivery was slower than expected though. 3 days to Abuja.", verified_purchase: true, created_at: "2026-01-20T10:00:00Z" },
     { id: "r3", user_id: "u12", user_name: "Emeka I.", product_id: "p2", rating: 5, title: "iPhone 15 Pro Max is worth every naira", body: "Upgraded from iPhone 12. The camera and performance are night and day. TechHub Lagos is legit.", verified_purchase: true, created_at: "2026-01-10T10:00:00Z" },
     { id: "r4", user_id: "u13", user_name: "Funke A.", product_id: "p4", rating: 5, title: "Best car purchase ever", body: "The Tesla Model 3 is amazing! Smooth acceleration, the autopilot is incredible for Lagos traffic, and I charge at home overnight. Zero fuel costs. Delivered from the US in 3 weeks.", verified_purchase: true, created_at: "2026-01-05T10:00:00Z" },
-    { id: "r5", user_id: "u14", user_name: "Tunde B.", product_id: "p9", rating: 1, title: "SCAM! Don't buy!", body: "Price too low to be real. Phone never arrived. Seller not responding. RATEL should ban this seller!", verified_purchase: false, created_at: "2026-02-01T10:00:00Z" },
+    { id: "r5", user_id: "u14", user_name: "Tunde B.", product_id: "p9", rating: 1, title: "SCAM! Don't buy!", body: "Price too low to be real. Phone never arrived. Seller not responding. They should ban this seller!", verified_purchase: false, created_at: "2026-02-01T10:00:00Z" },
 ];
 
 // ─── Price Alerts ───────────────────────────────────────────
@@ -2437,12 +2437,12 @@ export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
 export function getDemoPriceComparison(productId: string): PriceComparison {
     const product = DEMO_PRODUCTS.find((p) => p.id === productId);
     if (!product) {
-        return { market_low: 0, market_high: 0, market_avg: 0, ratel_best: 0, current_price: 0, flag: "none", savings: 0 };
+        return { market_low: 0, market_high: 0, market_avg: 0, fp_best: 0, current_price: 0, flag: "none", savings: 0 };
     }
     const avgPrice = product.recommended_price || product.price;
     const marketLow = Math.round(avgPrice * 0.9);
     const marketHigh = Math.round(avgPrice * 1.35);
-    const ratelBest = DEMO_PRODUCTS
+    const fpBest = DEMO_PRODUCTS
         .filter((p) => p.name.split("—")[0].trim() === product.name.split("—")[0].trim() && p.id !== product.id)
         .reduce((best, p) => (p.price < best ? p.price : best), product.price);
 
@@ -2450,7 +2450,7 @@ export function getDemoPriceComparison(productId: string): PriceComparison {
         market_low: marketLow,
         market_high: marketHigh,
         market_avg: avgPrice,
-        ratel_best: ratelBest,
+        fp_best: fpBest,
         current_price: product.price,
         flag: product.price_flag,
         savings: product.original_price ? product.original_price - product.price : 0,

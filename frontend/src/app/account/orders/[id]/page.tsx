@@ -79,7 +79,7 @@ export default function OrderDetailsPage() {
                 <Navbar />
                 <main className="flex-1 container mx-auto px-4 py-8 pt-24 max-w-3xl flex items-center justify-center">
                     <div className="text-center">
-                        <div className="h-12 w-12 border-4 border-gray-200 border-t-ratel-green-600 rounded-full animate-spin mx-auto mb-4"></div>
+                        <div className="h-12 w-12 border-4 border-gray-200 border-t-brand-green-600 rounded-full animate-spin mx-auto mb-4"></div>
                         <p className="text-gray-500">Loading order details...</p>
                     </div>
                 </main>
@@ -141,7 +141,7 @@ export default function OrderDetailsPage() {
                 <div class="section">
                     <div class="section-title">Payment Summary</div>
                     <div class="row"><span>Subtotal</span><span>₦${(order.amount / 100).toLocaleString()}</span></div>
-                    <div class="row"><span>Shipping</span><span>₦${((Number(localStorage.getItem("ratel_doorstep_fee")) || 4000) / 100).toLocaleString()}</span></div>
+                    <div class="row"><span>Shipping</span><span>₦${((Number(localStorage.getItem("fp_doorstep_fee")) || 4000) / 100).toLocaleString()}</span></div>
                     <div class="row total"><span>Total</span><span>₦${(order.amount / 100).toLocaleString()}</span></div>
                 </div>
                 <div class="section">
@@ -216,7 +216,7 @@ export default function OrderDetailsPage() {
                                 {order.escrow_status === "disputed" ? (
                                     <AlertTriangle className="h-8 w-8 text-rose-600" />
                                 ) : order.status === "delivered" ? (
-                                    <CheckCircle className="h-8 w-8 text-ratel-green-600" />
+                                    <CheckCircle className="h-8 w-8 text-brand-green-600" />
                                 ) : order.status === "shipped" ? (
                                     <Truck className="h-8 w-8 text-blue-600" />
                                 ) : (
@@ -239,13 +239,13 @@ export default function OrderDetailsPage() {
                                 <>
                                     <div className="h-2 bg-gray-100 rounded-full mt-4 overflow-hidden">
                                         <div
-                                            className={`h-full rounded-full ${order.status === "delivered" ? "bg-ratel-green-600 w-full" : order.status === "shipped" ? "bg-blue-600 w-2/3" : "bg-amber-500 w-1/3"}`}
+                                            className={`h-full rounded-full ${order.status === "delivered" ? "bg-brand-green-600 w-full" : order.status === "shipped" ? "bg-blue-600 w-2/3" : "bg-amber-500 w-1/3"}`}
                                         />
                                     </div>
                                     <div className="flex justify-between text-xs font-bold text-gray-400 mt-2 uppercase tracking-wide">
                                         <span className={order.status !== "pending" ? "text-amber-600" : ""}>Ordered</span>
                                         <span className={order.status === "shipped" || order.status === "delivered" ? "text-blue-600" : ""}>Shipped</span>
-                                        <span className={order.status === "delivered" ? "text-ratel-green-600" : ""}>Delivered</span>
+                                        <span className={order.status === "delivered" ? "text-brand-green-600" : ""}>Delivered</span>
                                     </div>
                                 </>
                             )}
@@ -273,11 +273,11 @@ export default function OrderDetailsPage() {
                                     <img src={order.product?.image_url} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" />
                                 </div>
                                 <div>
-                                    <Link href={`/product/${order.product_id}`} className="font-bold text-gray-900 hover:text-ratel-green-600 line-clamp-2">
+                                    <Link href={`/product/${order.product_id}`} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
                                         {order.product?.name || "Product"}
                                     </Link>
                                     <p className="text-sm text-gray-500 mt-1">Quantity: {(order as any).quantity || 1}</p>
-                                    <p className="font-bold text-ratel-green-600 mt-1">{formatPrice((order as any).total_price || order.amount)}</p>
+                                    <p className="font-bold text-brand-green-600 mt-1">{formatPrice((order as any).total_price || order.amount)}</p>
                                 </div>
                             </div>
                         </div>
@@ -299,7 +299,7 @@ export default function OrderDetailsPage() {
                             </div>
                             <div className="flex justify-between py-2 pt-4">
                                 <span className="font-bold text-gray-900">Grand Total</span>
-                                <span className="font-black text-xl text-ratel-green-600">{formatPrice(order.amount)}</span>
+                                <span className="font-black text-xl text-brand-green-600">{formatPrice(order.amount)}</span>
                             </div>
                         </div>
                     </div>
@@ -312,7 +312,7 @@ export default function OrderDetailsPage() {
                                 <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Escrow Status</span>
                                 <Badge className={
                                     order.escrow_status === "released"
-                                        ? "bg-ratel-green-100 text-ratel-green-700 hover:bg-ratel-green-100 border-none"
+                                        ? "bg-brand-green-100 text-brand-green-700 hover:bg-brand-green-100 border-none"
                                         : order.escrow_status === "disputed"
                                             ? "bg-rose-100 text-rose-700 hover:bg-rose-100 border-none"
                                             : order.escrow_status === "refunded"
@@ -326,12 +326,12 @@ export default function OrderDetailsPage() {
                             {order.escrow_status === "held" && (
                                 <>
                                     <div className="flex items-start gap-3 text-sm text-zinc-600 mb-4 bg-white p-3 rounded-lg border border-zinc-200">
-                                        <ShieldCheck className="h-5 w-5 text-ratel-green-600 shrink-0" />
+                                        <ShieldCheck className="h-5 w-5 text-brand-green-600 shrink-0" />
                                         <p>Your payment is currently held in escrow. The seller will only be paid once you confirm delivery.</p>
                                     </div>
                                     <Button
                                         onClick={handleReleaseEscrow}
-                                        className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-xl font-bold py-6 shadow-lg shadow-ratel-green-600/20"
+                                        className="w-full bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl font-bold py-6 shadow-lg shadow-brand-green-600/20"
                                     >
                                         Confirm Delivery & Release Payment
                                     </Button>
@@ -339,7 +339,7 @@ export default function OrderDetailsPage() {
                             )}
                             {order.escrow_status === "released" && (
                                 <div className="text-center py-4">
-                                    <CheckCircle className="h-8 w-8 text-ratel-green-600 mx-auto mb-2" />
+                                    <CheckCircle className="h-8 w-8 text-brand-green-600 mx-auto mb-2" />
                                     <p className="font-bold text-gray-900">Payment Released</p>
                                     <p className="text-xs text-gray-500">Transaction completed successfully.</p>
                                 </div>
@@ -362,7 +362,7 @@ export default function OrderDetailsPage() {
                                             <p className="text-xs text-zinc-500">Issue resolved with the seller? You can close this dispute and release the payment.</p>
                                             <Button
                                                 onClick={handleBuyerResolve}
-                                                className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-xl font-bold h-10 flex items-center gap-2"
+                                                className="w-full bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl font-bold h-10 flex items-center gap-2"
                                             >
                                                 <ThumbsUp className="h-4 w-4" /> Resolve & Release Payment
                                             </Button>

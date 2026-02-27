@@ -107,7 +107,7 @@ export function NotificationBell() {
                                 <button
                                     onClick={handleMarkAllRead}
                                     disabled={isLoading}
-                                    className="text-xs font-bold text-ratel-green-600 hover:text-ratel-green-700 flex items-center gap-1"
+                                    className="text-xs font-bold text-brand-green-600 hover:text-brand-green-700 flex items-center gap-1"
                                 >
                                     {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                                     Mark all read
@@ -135,7 +135,7 @@ export function NotificationBell() {
                                         >
                                             <div className={cn(
                                                 "shrink-0 w-2 h-2 rounded-full mt-2",
-                                                !n.read ? "bg-ratel-green-500" : "bg-transparent"
+                                                !n.read ? "bg-brand-green-500" : "bg-transparent"
                                             )} />
                                             <div className="flex-1 space-y-1">
                                                 <p className={cn("text-sm text-gray-900 leading-snug", !n.read && "font-semibold")}>

@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Initialize from localStorage
-        const storedUser = localStorage.getItem("ratel_user");
+        const storedUser = localStorage.getItem("fp_user");
         if (storedUser) {
             try {
                 const parsed = JSON.parse(storedUser);
@@ -29,7 +29,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (!parsed.role) {
                     parsed.role = "customer";
                     // Optionally update storage to fix it permanently
-                    localStorage.setItem("ratel_user", JSON.stringify(parsed));
+                    localStorage.setItem("fp_user", JSON.stringify(parsed));
                 }
                 setUser(parsed);
             } catch (e) {
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Synchronize across tabs and state updates
         const handleStorageChange = () => {
-            const updatedUser = localStorage.getItem("ratel_user");
+            const updatedUser = localStorage.getItem("fp_user");
             if (updatedUser) {
                 const parsed = JSON.parse(updatedUser);
                 if (!parsed.role) parsed.role = "customer";
@@ -52,38 +52,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         window.addEventListener("storage", handleStorageChange);
-        window.addEventListener("ratel-auth-update", handleStorageChange);
+        window.addEventListener("fp-auth-update", handleStorageChange);
 
         return () => {
             window.removeEventListener("storage", handleStorageChange);
-            window.removeEventListener("ratel-auth-update", handleStorageChange);
+            window.removeEventListener("fp-auth-update", handleStorageChange);
         };
     }, []);
 
     const login = (userData: User) => {
-        localStorage.setItem("ratel_user", JSON.stringify(userData));
+        localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
-        window.dispatchEvent(new Event("ratel-auth-update"));
+        window.dispatchEvent(new Event("fp-auth-update"));
     };
 
     const logout = () => {
-        localStorage.removeItem("ratel_user");
+        localStorage.removeItem("fp_user");
         setUser(null);
-        window.dispatchEvent(new Event("ratel-auth-update"));
+        window.dispatchEvent(new Event("fp-auth-update"));
     };
 
     const register = (userData: User) => {
-        localStorage.setItem("ratel_user", JSON.stringify(userData));
+        localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
-        window.dispatchEvent(new Event("ratel-auth-update"));
+        window.dispatchEvent(new Event("fp-auth-update"));
     };
 
     const updateUser = (userData: Partial<User>) => {
         if (!user) return;
         const updated = { ...user, ...userData };
-        localStorage.setItem("ratel_user", JSON.stringify(updated));
+        localStorage.setItem("fp_user", JSON.stringify(updated));
         setUser(updated);
-        window.dispatchEvent(new Event("ratel-auth-update"));
+        window.dispatchEvent(new Event("fp-auth-update"));
     };
 
     return (

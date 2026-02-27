@@ -63,7 +63,7 @@ export function RequestDepositModal({ isOpen, onClose, productName, targetPrice,
                             <div className="space-y-4">
                                 <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-100">
                                     <p className="font-bold text-sm text-zinc-800 line-clamp-2">{productName}</p>
-                                    <p className="text-xs text-zinc-500 mt-1">Sourced via Global Partners</p>
+                                    <p className="text-xs text-zinc-500 mt-1">Sourced via Global Stores</p>
                                 </div>
 
                                 <div className="space-y-3">

@@ -69,11 +69,11 @@ export default function AccountPage() {
                     {cards.map((card, i) => (
                         <Link href={card.href} key={i} className="block group">
                             <div className="border border-gray-300 rounded-lg p-6 flex items-start gap-4 hover:bg-gray-50 transition-colors h-full">
-                                <div className="bg-gray-100 p-3 rounded-full group-hover:bg-ratel-green-100 group-hover:text-ratel-green-700 transition-colors">
-                                    <card.icon className="h-8 w-8 text-gray-500 group-hover:text-ratel-green-700" />
+                                <div className="bg-gray-100 p-3 rounded-full group-hover:bg-brand-green-100 group-hover:text-brand-green-700 transition-colors">
+                                    <card.icon className="h-8 w-8 text-gray-500 group-hover:text-brand-green-700" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-normal text-gray-900 group-hover:underline decoration-ratel-orange">{card.title}</h3>
+                                    <h3 className="text-lg font-normal text-gray-900 group-hover:underline decoration-brand-orange">{card.title}</h3>
                                     <p className="text-sm text-gray-500 mt-1">{card.desc}</p>
                                 </div>
                             </div>

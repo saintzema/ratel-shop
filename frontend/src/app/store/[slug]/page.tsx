@@ -159,7 +159,7 @@ export default function StoreProfile() {
                     <div className="-mt-16 md:-mt-20 flex flex-col md:flex-row md:items-end gap-6 pb-6">
                         {/* Avatar */}
                         <div className="h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar">
-                            <div className="h-full w-full rounded-2xl bg-gradient-to-br from-ratel-green-600 to-emerald-500 flex items-center justify-center text-white text-5xl font-bold shadow-inner overflow-hidden relative">
+                            <div className="h-full w-full rounded-2xl bg-gradient-to-br from-brand-green-600 to-emerald-500 flex items-center justify-center text-white text-5xl font-bold shadow-inner overflow-hidden relative">
                                 {seller.logo_url ? (
                                     <img src={seller.logo_url} alt="" className="h-full w-full object-cover" />
                                 ) : (
@@ -194,7 +194,7 @@ export default function StoreProfile() {
                         {/* Actions */}
                         <div className="flex gap-3 mt-4 md:mt-0 w-full md:w-auto">
                             <Button
-                                className="flex-1 md:flex-none bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full font-bold shadow-lg shadow-ratel-green-600/20 px-8 h-12"
+                                className="flex-1 md:flex-none bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-full font-bold shadow-lg shadow-brand-green-600/20 px-8 h-12"
                                 onClick={() => setShowContactModal(true)}
                             >
                                 <MessageCircle className="h-4 w-4 mr-2" />
@@ -219,7 +219,7 @@ export default function StoreProfile() {
 
                     {/* Navigation Tabs */}
                     <div className="flex items-center gap-8 border-t border-gray-100 text-sm font-bold tracking-wide mt-2">
-                        <button className="py-4 border-b-2 border-ratel-green-500 text-ratel-green-600">Products</button>
+                        <button className="py-4 border-b-2 border-brand-green-500 text-brand-green-600">Products</button>
                         <button className="py-4 border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors">About</button>
                         <button className="py-4 border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors">Reviews</button>
                         <button className="py-4 border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors">Policies</button>
@@ -237,7 +237,7 @@ export default function StoreProfile() {
                             <div className="space-y-2">
                                 {["All Products", "Phones & Tablets", "Electronics", "Fashion", "Beauty"].map((cat, i) => (
                                     <div key={i} className={`flex items-center justify-between group cursor-pointer p-2 rounded-lg transition-colors ${i === 0 ? "bg-white shadow-sm" : "hover:bg-white/50"}`}>
-                                        <span className={`text-sm ${i === 0 ? "font-bold text-ratel-green-600" : "font-medium text-gray-600 group-hover:text-gray-900"}`}>{cat}</span>
+                                        <span className={`text-sm ${i === 0 ? "font-bold text-brand-green-600" : "font-medium text-gray-600 group-hover:text-gray-900"}`}>{cat}</span>
                                         <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{i === 0 ? products.length : [3, 5, 7, 2][i - 1] || 4}</span>
                                     </div>
                                 ))}
@@ -289,7 +289,7 @@ export default function StoreProfile() {
                                 <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
                                 <Input
                                     placeholder={`Search in ${seller.business_name}...`}
-                                    className="pl-12 h-12 rounded-full border-none shadow-lg bg-white/90 backdrop-blur-md focus:ring-2 focus:ring-ratel-green-500/20 text-base"
+                                    className="pl-12 h-12 rounded-full border-none shadow-lg bg-white/90 backdrop-blur-md focus:ring-2 focus:ring-brand-green-500/20 text-base"
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
@@ -336,7 +336,7 @@ export default function StoreProfile() {
 
                                             {/* Details */}
                                             <div className="p-5 flex-1 flex flex-col">
-                                                <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 min-h-[2.5rem] group-hover:text-ratel-green-600 transition-colors">
+                                                <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-green-600 transition-colors">
                                                     {product.name}
                                                 </h3>
                                                 <div className="mt-auto pt-4 flex items-end justify-between">
@@ -346,7 +346,7 @@ export default function StoreProfile() {
                                                             {formatPrice(product.price)}
                                                         </p>
                                                     </div>
-                                                    <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-ratel-green-600 group-hover:text-white transition-colors">
+                                                    <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-brand-green-600 group-hover:text-white transition-colors">
                                                         <Package className="h-4 w-4" />
                                                     </div>
                                                 </div>

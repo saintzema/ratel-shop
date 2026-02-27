@@ -57,7 +57,7 @@ export default function CategoryPage() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-ratel-green-50 flex flex-col font-sans text-gray-900">
+        <div className="min-h-screen bg-brand-green-50 flex flex-col font-sans text-gray-900">
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-6 flex gap-6">
@@ -73,8 +73,8 @@ export default function CategoryPage() {
                                     <Link
                                         href={`/category/${cat.value}`}
                                         className={cn(
-                                            "block hover:text-ratel-green-600 transition-colors",
-                                            slug === cat.value ? "font-bold text-ratel-green-700 bg-white shadow-sm rounded-md px-2 py-1" : "text-gray-700"
+                                            "block hover:text-brand-green-600 transition-colors",
+                                            slug === cat.value ? "font-bold text-brand-green-700 bg-white shadow-sm rounded-md px-2 py-1" : "text-gray-700"
                                         )}
                                     >
                                         <ChevronRight className="inline h-3 w-3 mr-1 text-gray-400" />
@@ -91,7 +91,7 @@ export default function CategoryPage() {
 
                         {/* Display selected range */}
                         <div className="text-center mb-3">
-                            <span className="text-sm font-semibold text-ratel-green-700 bg-ratel-green-50 px-3 py-1 rounded-full border border-ratel-green-200">
+                            <span className="text-sm font-semibold text-brand-green-700 bg-brand-green-50 px-3 py-1 rounded-full border border-brand-green-200">
                                 {formatNaira(priceMin)} — {formatNaira(priceMax)}
                             </span>
                         </div>
@@ -121,8 +121,8 @@ export default function CategoryPage() {
                                     className={cn(
                                         "text-xs px-2.5 py-1 rounded-full border transition-colors font-medium",
                                         priceMin === preset.min && priceMax === preset.max
-                                            ? "bg-ratel-green-600 text-white border-ratel-green-600"
-                                            : "bg-white text-gray-600 border-gray-300 hover:border-ratel-green-400 hover:text-ratel-green-600"
+                                            ? "bg-brand-green-600 text-white border-brand-green-600"
+                                            : "bg-white text-gray-600 border-gray-300 hover:border-brand-green-400 hover:text-brand-green-600"
                                     )}
                                 >
                                     {preset.label}
@@ -146,13 +146,13 @@ export default function CategoryPage() {
                         <h3 className="font-bold text-sm mb-2 text-black border-b border-gray-200 pb-1">Avg. Customer Review</h3>
                         <div className="space-y-1">
                             {[4, 3, 2, 1].map(rating => (
-                                <div key={rating} className="flex items-center gap-1 text-sm cursor-pointer hover:text-ratel-green-600 group">
+                                <div key={rating} className="flex items-center gap-1 text-sm cursor-pointer hover:text-brand-green-600 group">
                                     <div className="flex text-amber-400">
                                         {[...Array(5)].map((_, i) => (
                                             <Star key={i} className={cn("h-4 w-4", i < rating ? "fill-current" : "text-gray-300")} />
                                         ))}
                                     </div>
-                                    <span className="text-gray-700 group-hover:text-ratel-green-600 font-medium">& Up</span>
+                                    <span className="text-gray-700 group-hover:text-brand-green-600 font-medium">& Up</span>
                                 </div>
                             ))}
                         </div>
@@ -162,12 +162,12 @@ export default function CategoryPage() {
                     <div>
                         <h3 className="font-bold text-sm mb-2 text-black border-b border-gray-200 pb-1">Seller Type</h3>
                         <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-ratel-green-600 group">
-                                <input type="checkbox" className="rounded border-gray-400 text-ratel-green-600 focus:ring-ratel-green-600" />
-                                <span className="flex items-center gap-1 text-gray-800"><ShieldCheck className="h-3 w-3 text-ratel-green-600" /> Superadmin Verified</span>
+                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-brand-green-600 group">
+                                <input type="checkbox" className="rounded border-gray-400 text-brand-green-600 focus:ring-brand-green-600" />
+                                <span className="flex items-center gap-1 text-gray-800"><ShieldCheck className="h-3 w-3 text-brand-green-600" /> Superadmin Verified</span>
                             </label>
-                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-ratel-green-600 group">
-                                <input type="checkbox" className="rounded border-gray-400 text-ratel-green-600 focus:ring-ratel-green-600" />
+                            <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-brand-green-600 group">
+                                <input type="checkbox" className="rounded border-gray-400 text-brand-green-600 focus:ring-brand-green-600" />
                                 <span className="text-gray-800">FairPrice Fulfillment</span>
                             </label>
                         </div>
@@ -178,14 +178,14 @@ export default function CategoryPage() {
                 <div className="flex-1">
                     <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
                         <h1 className="font-bold text-lg capitalize mb-2 sm:mb-0 text-black">
-                            {products.length} results for <span className="text-ratel-green-700">"{categoryLabel}"</span>
+                            {products.length} results for <span className="text-brand-green-700">"{categoryLabel}"</span>
                         </h1>
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-gray-600 font-medium">Sort by:</span>
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value)}
-                                className="text-sm bg-transparent border-gray-300 rounded focus:ring-ratel-green-500 font-medium cursor-pointer text-gray-800"
+                                className="text-sm bg-transparent border-gray-300 rounded focus:ring-brand-green-500 font-medium cursor-pointer text-gray-800"
                             >
                                 <option value="featured">Featured</option>
                                 <option value="price_asc">Price: Low to High</option>
@@ -209,7 +209,7 @@ export default function CategoryPage() {
                     {products.length === 0 && (
                         <div className="text-center py-16">
                             <p className="text-gray-500 text-lg mb-2">No products found in this price range</p>
-                            <button onClick={handleReset} className="text-ratel-green-600 hover:underline font-semibold">
+                            <button onClick={handleReset} className="text-brand-green-600 hover:underline font-semibold">
                                 Reset price filter
                             </button>
                         </div>
@@ -258,7 +258,7 @@ function DualRangeSlider({
 
             {/* Active range highlight */}
             <div
-                className="absolute h-1.5 bg-ratel-green-500 rounded-full"
+                className="absolute h-1.5 bg-brand-green-500 rounded-full"
                 style={{ left: `calc(${minPercent}% + 4px)`, right: `calc(${100 - maxPercent}% + 4px)` }}
             />
 
@@ -279,7 +279,7 @@ function DualRangeSlider({
                     [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
                     [&::-webkit-slider-thumb]:rounded-full
                     [&::-webkit-slider-thumb]:bg-white
-                    [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-ratel-green-500
+                    [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-brand-green-500
                     [&::-webkit-slider-thumb]:shadow-md
                     [&::-webkit-slider-thumb]:cursor-pointer
                     [&::-webkit-slider-thumb]:transition-transform
@@ -289,7 +289,7 @@ function DualRangeSlider({
                     [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5
                     [&::-moz-range-thumb]:rounded-full
                     [&::-moz-range-thumb]:bg-white
-                    [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-ratel-green-500
+                    [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-brand-green-500
                     [&::-moz-range-thumb]:cursor-pointer"
                 style={{ width: '100%' }}
             />
@@ -311,7 +311,7 @@ function DualRangeSlider({
                     [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:w-5
                     [&::-webkit-slider-thumb]:rounded-full
                     [&::-webkit-slider-thumb]:bg-white
-                    [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-ratel-green-500
+                    [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-brand-green-500
                     [&::-webkit-slider-thumb]:shadow-md
                     [&::-webkit-slider-thumb]:cursor-pointer
                     [&::-webkit-slider-thumb]:transition-transform
@@ -321,7 +321,7 @@ function DualRangeSlider({
                     [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:w-5
                     [&::-moz-range-thumb]:rounded-full
                     [&::-moz-range-thumb]:bg-white
-                    [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-ratel-green-500
+                    [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-brand-green-500
                     [&::-moz-range-thumb]:cursor-pointer"
                 style={{ width: '100%' }}
             />

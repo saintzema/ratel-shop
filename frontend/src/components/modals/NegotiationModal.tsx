@@ -138,7 +138,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             <DialogContent className="sm:max-w-[425px] bg-white text-black border-zinc-200">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-                        <Tag className="h-5 w-5 text-ratel-green-600" />
+                        <Tag className="h-5 w-5 text-brand-green-600" />
                         Suggest a Fair Price
                     </DialogTitle>
                     <DialogDescription className="text-zinc-500">
@@ -206,7 +206,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     type="text"
                                     inputMode="numeric"
                                     placeholder="e.g. 45,000"
-                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-ratel-green-600 focus:border-ratel-green-600 font-medium ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-brand-green-600 focus:border-brand-green-600 font-medium ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
                                     value={proposedPrice ? Number(proposedPrice).toLocaleString() : ""}
                                     onChange={(e) => {
                                         const rawValue = e.target.value.replace(/,/g, "").replace(/\D/g, "");
@@ -233,7 +233,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             <Textarea
                                 id="message"
                                 placeholder="Explain why you are suggesting this price..."
-                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[100px] focus:ring-ratel-green-600 focus:border-ratel-green-600"
+                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[100px] focus:ring-brand-green-600 focus:border-brand-green-600"
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                             />
@@ -247,7 +247,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                         <DialogFooter>
                             <Button
                                 type="submit"
-                                className="w-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full font-bold h-11"
+                                className="w-full bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-full font-bold h-11"
                                 disabled={isSubmitting || !proposedPrice || isAnalyzing}
                             >
                                 {isSubmitting ? "Sending Request..." : "Send Negotiation Request"}
@@ -256,8 +256,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                     </form>
                 ) : (
                     <div className="py-8 text-center space-y-4">
-                        <div className="w-16 h-16 bg-ratel-green-100 rounded-full flex items-center justify-center mx-auto">
-                            <MessageSquare className="h-8 w-8 text-ratel-green-600" />
+                        <div className="w-16 h-16 bg-brand-green-100 rounded-full flex items-center justify-center mx-auto">
+                            <MessageSquare className="h-8 w-8 text-brand-green-600" />
                         </div>
                         <h3 className="text-xl font-bold">Request Sent!</h3>
                         <p className="text-zinc-500 text-sm px-4">

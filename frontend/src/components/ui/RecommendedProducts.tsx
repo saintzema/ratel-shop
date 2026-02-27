@@ -17,7 +17,7 @@ export function RecommendedProducts({
     products,
     title = "Recommended For You",
     subtitle = "Based on your activity",
-    icon = <TrendingUp className="h-5 w-5 text-ratel-green-600" />,
+    icon = <TrendingUp className="h-5 w-5 text-brand-green-600" />,
 }: RecommendedProductsProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -91,7 +91,7 @@ export function RecommendedProducts({
                 </div>
                 <Link
                     href="/search"
-                    className="text-sm font-semibold text-blue-600 hover:text-ratel-orange hover:underline flex items-center transition-colors whitespace-nowrap"
+                    className="text-sm font-semibold text-blue-600 hover:text-brand-orange hover:underline flex items-center transition-colors whitespace-nowrap"
                 >
                     View all recommendations <ChevronRight className="h-4 w-4 ml-0.5" />
                 </Link>
@@ -102,7 +102,7 @@ export function RecommendedProducts({
                 {canScrollLeft && (
                     <button
                         onClick={() => scroll("left")}
-                        className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl rounded-full flex items-center justify-center text-gray-800 hover:text-ratel-orange hover:scale-110 transition-all opacity-0 group-hover/recommender:opacity-100"
+                        className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl rounded-full flex items-center justify-center text-gray-800 hover:text-brand-orange hover:scale-110 transition-all opacity-0 group-hover/recommender:opacity-100"
                         aria-label="Scroll left"
                     >
                         <ChevronLeft className="h-5 w-5" />
@@ -113,7 +113,7 @@ export function RecommendedProducts({
                 {canScrollRight && (
                     <button
                         onClick={() => scroll("right")}
-                        className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl rounded-full flex items-center justify-center text-gray-800 hover:text-ratel-orange hover:scale-110 transition-all opacity-0 group-hover/recommender:opacity-100"
+                        className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl rounded-full flex items-center justify-center text-gray-800 hover:text-brand-orange hover:scale-110 transition-all opacity-0 group-hover/recommender:opacity-100"
                         aria-label="Scroll right"
                     >
                         <ChevronRight className="h-5 w-5" />

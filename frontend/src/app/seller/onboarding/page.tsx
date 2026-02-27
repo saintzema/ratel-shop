@@ -81,14 +81,14 @@ export default function KYCOnboarding() {
             <div className="w-full max-w-2xl mb-8">
                 <div className="flex justify-between mb-2">
                     {["Business Info", "Identity", "Bank Details", "Review"].map((label, i) => (
-                        <div key={i} className={`text-xs font-bold ${step > i + 1 ? "text-ratel-green-600" : step === i + 1 ? "text-black" : "text-gray-400"}`}>
+                        <div key={i} className={`text-xs font-bold ${step > i + 1 ? "text-brand-green-600" : step === i + 1 ? "text-black" : "text-gray-400"}`}>
                             {label}
                         </div>
                     ))}
                 </div>
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                     <motion.div
-                        className="h-full bg-ratel-green-600"
+                        className="h-full bg-brand-green-600"
                         initial={{ width: 0 }}
                         animate={{ width: `${(step / 4) * 100}%` }}
                         transition={{ type: "spring", stiffness: 100 }}
@@ -97,7 +97,7 @@ export default function KYCOnboarding() {
             </div>
 
             <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border overflow-hidden">
-                <div className="bg-ratel-green-600 p-6 text-white text-center">
+                <div className="bg-brand-green-600 p-6 text-white text-center">
                     <h1 className="text-2xl font-bold">Seller Verification</h1>
                     <p className="text-green-100 text-sm">Join Nigeria's most trusted marketplace. Let's get you verified.</p>
                 </div>
@@ -137,7 +137,7 @@ export default function KYCOnboarding() {
                                             placeholder="oresglosshub"
                                             value={storeUrl}
                                             onChange={(e) => setStoreUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                            className="rounded-r-none border-r-0 border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-ratel-green-600"
+                                            className="rounded-r-none border-r-0 border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-brand-green-600"
                                             required
                                         />
                                         <div className="bg-gray-100 flex items-center px-4 rounded-r-md border border-gray-300 border-l-0 text-gray-500 text-sm font-medium">
@@ -164,7 +164,7 @@ export default function KYCOnboarding() {
                                         <select
                                             value={weeklyOrders}
                                             onChange={(e) => setWeeklyOrders(e.target.value)}
-                                            className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600 focus-visible:border-transparent"
+                                            className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent"
                                             required
                                         >
                                             <option value="">Select an option</option>
@@ -180,7 +180,7 @@ export default function KYCOnboarding() {
                                         <select
                                             value={staffCount}
                                             onChange={(e) => setStaffCount(e.target.value)}
-                                            className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600 focus-visible:border-transparent"
+                                            className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent"
                                             required
                                         >
                                             <option value="">Select an option</option>
@@ -198,7 +198,7 @@ export default function KYCOnboarding() {
                                         <select
                                             value={physicalStores}
                                             onChange={(e) => setPhysicalStores(e.target.value)}
-                                            className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600 focus-visible:border-transparent"
+                                            className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent"
                                             required
                                         >
                                             <option value="">Select an option</option>
@@ -215,7 +215,7 @@ export default function KYCOnboarding() {
                                                 <div
                                                     key={curr}
                                                     onClick={() => toggleCurrency(curr)}
-                                                    className={`border rounded-md px-3 py-2 text-sm text-center cursor-pointer transition-colors select-none ${currencies.includes(curr) ? "bg-ratel-green-50 border-ratel-green-600 text-ratel-green-700 font-medium" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                                                    className={`border rounded-md px-3 py-2 text-sm text-center cursor-pointer transition-colors select-none ${currencies.includes(curr) ? "bg-brand-green-50 border-brand-green-600 text-brand-green-700 font-medium" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50"}`}
                                                 >
                                                     {curr}
                                                 </div>
@@ -235,7 +235,7 @@ export default function KYCOnboarding() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                <div className="flex items-center gap-3 mb-4 text-ratel-green-600">
+                                <div className="flex items-center gap-3 mb-4 text-brand-green-600">
                                     <User className="h-6 w-6" />
                                     <h2 className="text-xl font-bold">Identity Verification</h2>
                                 </div>
@@ -244,7 +244,7 @@ export default function KYCOnboarding() {
                                     <label className="text-sm font-medium">Document Type</label>
                                     <div className="grid grid-cols-3 gap-3">
                                         {["NIN Slip", "Intl. Passport", "Driver License"].map(doc => (
-                                            <div key={doc} className="border rounded-lg p-3 text-center cursor-pointer hover:border-ratel-green-600 hover:bg-green-50 transition">
+                                            <div key={doc} className="border rounded-lg p-3 text-center cursor-pointer hover:border-brand-green-600 hover:bg-green-50 transition">
                                                 {doc}
                                             </div>
                                         ))}
@@ -280,14 +280,14 @@ export default function KYCOnboarding() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="space-y-4"
                             >
-                                <div className="flex items-center gap-3 mb-4 text-ratel-green-600">
+                                <div className="flex items-center gap-3 mb-4 text-brand-green-600">
                                     <CreditCard className="h-6 w-6" />
                                     <h2 className="text-xl font-bold">Bank Account</h2>
                                 </div>
 
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Bank Name</label>
-                                    <select className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600">
+                                    <select className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600">
                                         <option value="">Select Bank</option>
                                         <option value="Access Bank">Access Bank</option>
                                         <option value="Citibank Nigeria">Citibank Nigeria</option>
@@ -344,7 +344,7 @@ export default function KYCOnboarding() {
                                 exit={{ opacity: 0, x: -20 }}
                                 className="text-center py-8"
                             >
-                                <div className="w-20 h-20 bg-green-100 text-ratel-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <div className="w-20 h-20 bg-green-100 text-brand-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
                                     <Check className="h-10 w-10" />
                                 </div>
                                 <h2 className="text-2xl font-bold mb-2">You're almost there!</h2>
@@ -369,14 +369,14 @@ export default function KYCOnboarding() {
                     </Button>
 
                     {step < 4 ? (
-                        <Button onClick={nextStep} className="bg-ratel-green-600 hover:bg-ratel-green-700">
+                        <Button onClick={nextStep} className="bg-brand-green-600 hover:bg-brand-green-700">
                             Next Step <ChevronRight className="ml-2 h-4 w-4" />
                         </Button>
                     ) : (
                         <Button
                             onClick={handleSubmit}
                             disabled={isLoading}
-                            className="bg-ratel-green-600 hover:bg-ratel-green-700 px-6"
+                            className="bg-brand-green-600 hover:bg-brand-green-700 px-6"
                         >
                             {isLoading ? "Submitting..." : "Submit Application"}
                         </Button>

@@ -157,7 +157,7 @@ export default function CategoryManagement() {
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">Taxonomy & Categories</h2>
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Organize products into categories and subcategories</p>
                 </div>
-                <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-xl font-bold text-xs px-5 h-10">
+                <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl font-bold text-xs px-5 h-10">
                     <Plus className="h-4 w-4 mr-1.5" /> Add Category
                 </Button>
             </div>
@@ -200,7 +200,7 @@ export default function CategoryManagement() {
                                         isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400" /> : <ChevronRight className="h-4 w-4 text-gray-400" />
                                     ) : <div className="w-4" />}
                                 </button>
-                                <FolderTree className="h-4 w-4 text-ratel-green-600 shrink-0" />
+                                <FolderTree className="h-4 w-4 text-brand-green-600 shrink-0" />
 
                                 {editingId === cat.id ? (
                                     <div className="flex gap-2 flex-1">

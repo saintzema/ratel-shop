@@ -40,7 +40,7 @@ export async function POST(request: Request) {
 
         const newOrder = await db.order.create({
             data: {
-                id: body.tracking_id || `RATEL-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+                id: body.tracking_id || `FP-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
                 customerId: body.customer_id,
                 customerName: body.customer_name,
                 productId: body.product_id,

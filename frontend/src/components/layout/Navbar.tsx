@@ -28,7 +28,13 @@ import {
     BookOpen,
     Wrench,
     Paintbrush,
-    Package
+    Package,
+    History,
+    TrendingUp,
+    Flame,
+    Shield,
+    Lock,
+    ArrowRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -220,11 +226,10 @@ export function Navbar() {
         }
     }, [searchQuery]);
 
-    // Debounced global search — only fetches after user stops typing for 300ms AND has typed 2+ words
+    // Debounced global search — fetches after user stops typing for 400ms
     useEffect(() => {
         const trimmed = searchQuery.trim();
-        const wordCount = trimmed.split(/\s+/).filter(Boolean).length;
-        if (trimmed.length <= 2 || wordCount < 2) {
+        if (trimmed.length <= 2) {
             setGlobalResults([]);
             setIsGlobalSearching(false);
             return;
@@ -246,12 +251,66 @@ export function Navbar() {
                 })
                 .catch(() => { })
                 .finally(() => setIsGlobalSearching(false));
-        }, 300); // Super fast 300ms debounce
+        }, 400);
 
         return () => {
             clearTimeout(fetchTimer);
         };
     }, [searchQuery]);
+
+    // Helper: Cache all current nav results to sessionStorage, add global to DemoStore, and navigate
+    const navigateWithResults = (clickedProductId: string) => {
+        // Convert global results into Product objects and add to DemoStore
+        const globalAsProducts = globalResults.map((r, i) => {
+            const product = {
+                id: `global_${Date.now()}_${i}`,
+                name: r.name,
+                price: r.approxPrice || 0,
+                original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+                category: r.category || 'electronics',
+                description: `${r.name} - sourced globally via FairPrice AI for the best deal.`,
+                image_url: '',
+                images: [],
+                seller_id: 'global-partners',
+                seller_name: 'Global Partner Store',
+                price_flag: 'fair' as const,
+                sold_count: Math.floor(Math.random() * 200) + 10,
+                review_count: Math.floor(Math.random() * 50) + 5,
+                avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
+                is_active: true,
+                created_at: new Date().toISOString(),
+                recommended_price: r.approxPrice,
+                specs: {},
+            };
+            DemoStore.addRawProduct(product as any);
+            return product;
+        });
+
+        // Resolve __global_ prefix to actual product ID
+        let resolvedClickedId = clickedProductId;
+        if (clickedProductId.startsWith('__global_')) {
+            const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
+            if (globalAsProducts[idx]) {
+                resolvedClickedId = globalAsProducts[idx].id;
+            }
+        }
+
+        // Build combined results: local suggestions + global products
+        const combinedResults = [
+            ...suggestions.map(p => ({ ...p, _source: 'local' })),
+            ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
+        ];
+
+        // Cache to sessionStorage so the search page can read them
+        try {
+            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
+            sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
+            sessionStorage.setItem('fp_nav_search_query', searchQuery);
+        } catch (e) { /* quota exceeded — fail silently */ }
+
+        setShowSuggestions(false);
+        router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+    };
 
     // Close suggestions when clicking outside
     useEffect(() => {
@@ -269,10 +328,15 @@ export function Navbar() {
 
     const handleSearch = () => {
         if (searchQuery.trim()) {
-            setShowSuggestions(false);
-            const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
-            const catValue = catMatch ? catMatch.value : "All";
-            router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
+            // Cache current results before navigating
+            if (suggestions.length > 0 || globalResults.length > 0) {
+                navigateWithResults('');
+            } else {
+                setShowSuggestions(false);
+                const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                const catValue = catMatch ? catMatch.value : "All";
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
+            }
         }
     };
 
@@ -326,15 +390,15 @@ export function Navbar() {
                     </button>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center max-w-3xl mx-2 md:mx-4 relative" ref={searchRef}>
-                        <div className="flex h-11 w-full rounded-xl bg-white text-black overflow-visible border border-gray-300 focus-within:border-ratel-orange focus-within:shadow-[0_0_0_3px_rgba(249,115,22,0.15)] transition-all relative">
+                    <div className="flex flex-1 items-center max-w-2xl mx-2 md:mx-4 relative" ref={searchRef}>
+                        <div className="flex h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:ring-2 focus-within:ring-brand-green-500">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
                                 <button
                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-                                    className="hidden sm:flex h-full items-center gap-1 bg-gray-100 px-3 text-xs text-gray-700 hover:bg-gray-200 border-r border-gray-300 transition-colors rounded-l-lg cursor-pointer whitespace-nowrap"
+                                    className="hidden sm:flex h-full items-center gap-1 bg-gray-50 px-4 text-xs font-bold text-gray-700 hover:bg-gray-100 border-r border-gray-200 transition-colors rounded-l-2xl cursor-pointer whitespace-nowrap"
                                 >
-                                    {selectedCategory} <ChevronDown className="h-3 w-3" />
+                                    {selectedCategory} <ChevronDown className="h-3 w-3 opacity-60" />
                                 </button>
 
                                 <AnimatePresence>
@@ -353,7 +417,7 @@ export function Navbar() {
                                                     }}
                                                     className={cn(
                                                         "w-full text-left px-3 py-2 text-sm rounded-md transition-colors",
-                                                        selectedCategory === "All" ? "bg-ratel-green-50 text-ratel-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
+                                                        selectedCategory === "All" ? "bg-brand-green-50 text-brand-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
                                                     )}
                                                 >
                                                     All Categories
@@ -367,7 +431,7 @@ export function Navbar() {
                                                         }}
                                                         className={cn(
                                                             "w-full text-left px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2",
-                                                            selectedCategory === cat.label ? "bg-ratel-green-50 text-ratel-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
+                                                            selectedCategory === cat.label ? "bg-brand-green-50 text-brand-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
                                                         )}
                                                     >
                                                         <span>{cat.icon}</span>
@@ -381,36 +445,79 @@ export function Navbar() {
                             </div>
 
                             <Input
-                                className="flex-1 border-0 bg-transparent px-4 text-sm focus-visible:ring-0 placeholder:text-gray-500 rounded-none h-full text-black"
-                                placeholder="Search FairPrice..."
+                                className="flex-1 border-0 bg-transparent px-5 text-sm focus-visible:ring-0 placeholder:text-gray-400 rounded-none h-full text-gray-900 font-medium"
+                                placeholder="Search products, brands and categories..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                onFocus={() => searchQuery.length > 1 && setShowSuggestions(true)}
+                                onFocus={() => setShowSuggestions(true)}
                                 onKeyDown={handleKeyDown}
                             />
 
                             <Button
                                 onClick={handleSearch}
-                                className="h-full rounded-r-lg rounded-l-none px-5 bg-ratel-orange hover:bg-amber-500 text-black border-none transition-colors duration-300 cursor-pointer relative"
+                                className="h-full rounded-r-2xl rounded-l-none px-6 bg-brand-green-600 hover:bg-brand-green-700 text-white border-none transition-all duration-300 cursor-pointer relative"
                             >
                                 <Search className="h-5 w-5" />
-                                <Sparkles className="h-2.5 w-2.5 absolute top-1.5 right-1.5 text-white/80" />
+                                <Sparkles className="h-2.5 w-2.5 absolute top-2 right-2 text-white animate-pulse" />
                             </Button>
                         </div>
 
-                        {/* Predictive Search Dropdown — Amazon Style */}
+
+                        {/* Predictive Search Dropdown */}
                         <AnimatePresence>
-                            {showSuggestions && (suggestions.length > 0 || categorySuggestions.length > 0 || searchQuery.trim().length > 1) && (
+                            {showSuggestions && (
                                 <motion.div
                                     initial={{ opacity: 0, y: -10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     transition={{ duration: 0.1 }}
-                                    className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden z-[9999] max-h-[420px] overflow-y-auto"
+                                    className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[480px] overflow-y-auto"
                                 >
+                                    {/* Empty State: Recent & Trending (Temu-style) */}
+                                    {searchQuery.trim().length === 0 && (
+                                        <div className="p-5">
+                                            <div className="mb-5">
+                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><Search className="h-3.5 w-3.5" /> Recent Searches</h3>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['iPhone 15 Pro Max', 'Solar Panels 500W', 'Samsung S24 Ultra', 'PS5 Console'].map(term => (
+                                                        <button key={term} onClick={() => { setSearchQuery(term); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                            {term}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Right Now</h3>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
+                                                        <button key={term} onClick={() => { setSearchQuery(term); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                            <Zap className="h-3 w-3" />
+                                                            {term}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* AI Searching Animation */}
+                                    {searchQuery.trim().length > 0 && isGlobalSearching && (
+                                        <div className="p-4 border-b border-gray-100/50 bg-gradient-to-r from-emerald-50/50 to-emerald-100/30">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center animate-pulse">
+                                                    <Sparkles className="h-4 w-4 text-emerald-600 animate-spin-slow" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-emerald-800">Deep Searching for exactly what you need...</span>
+                                                    <span className="text-[11px] font-medium text-emerald-600/80">Comparing Global Partners. Results appearing shortly.</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Category Suggestions */}
-                                    {categorySuggestions.length > 0 && (
-                                        <div className="border-b border-gray-100">
+                                    {searchQuery.trim().length > 0 && categorySuggestions.length > 0 && (
+                                        <div className="border-b border-gray-100/50">
                                             {categorySuggestions.map((catLabel, i) => {
                                                 const catValue = CATEGORIES.find(c => c.label === catLabel)?.value || "All";
                                                 return (
@@ -419,8 +526,8 @@ export function Navbar() {
                                                         key={catLabel}
                                                         onClick={() => setShowSuggestions(false)}
                                                         className={cn(
-                                                            "flex items-center gap-3 px-4 py-2.5 transition-colors text-sm",
-                                                            activeIndex === i ? "bg-blue-50" : "hover:bg-gray-50"
+                                                            "flex items-center gap-3 px-4 py-3 transition-colors text-sm",
+                                                            activeIndex === i ? "bg-blue-50/50" : "hover:bg-gray-50/50"
                                                         )}
                                                     >
                                                         <Search className="h-4 w-4 text-gray-400 shrink-0" />
@@ -434,8 +541,8 @@ export function Navbar() {
                                     )}
 
                                     {/* Text Autocomplete Suggestions (instant, no API) */}
-                                    {autocompleteSuggestions.length > 0 && suggestions.length === 0 && (
-                                        <div className="border-b border-gray-100">
+                                    {searchQuery.trim().length > 0 && autocompleteSuggestions.length > 0 && suggestions.length === 0 && (
+                                        <div className="border-b border-gray-100/50">
                                             {autocompleteSuggestions.map((suggestion, i) => (
                                                 <button
                                                     key={i}
@@ -443,10 +550,10 @@ export function Navbar() {
                                                         setSearchQuery(suggestion);
                                                         setAutocompleteSuggestions([]);
                                                     }}
-                                                    className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors text-left"
                                                 >
                                                     <Search className="h-4 w-4 text-gray-300 shrink-0" />
-                                                    <span className="text-sm text-gray-700">{suggestion}</span>
+                                                    <span className="text-sm font-medium text-gray-700">{suggestion}</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -456,30 +563,23 @@ export function Navbar() {
                                     {suggestions.map((product, i) => {
                                         const idx = categorySuggestions.length + i;
                                         return (
-                                            <Link
-                                                href={`/product/${product.id}`}
+                                            <button
                                                 key={product.id}
-                                                onClick={() => setShowSuggestions(false)}
+                                                onClick={() => navigateWithResults(product.id)}
                                                 className={cn(
-                                                    "flex items-center gap-4 p-3 transition-colors border-b border-gray-50 last:border-0",
+                                                    "w-full flex items-center gap-4 p-3 transition-colors border-b border-gray-50 last:border-0 text-left",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
                                                 )}
                                             >
                                                 <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
                                                     <img
-                                                        src={product.images?.[0] || product.image_url}
+                                                        src={product.images?.[0] || product.image_url || '/assets/images/placeholder-product.svg'}
                                                         alt={product.name}
                                                         className="w-full h-full object-contain"
                                                         onError={(e) => {
-                                                            // Hide the broken image and show category icon fallback
-                                                            e.currentTarget.style.display = 'none';
-                                                            const fallback = e.currentTarget.nextElementSibling;
-                                                            if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                                            e.currentTarget.src = '/assets/images/placeholder-product.svg';
                                                         }}
                                                     />
-                                                    <div className="absolute inset-0 hidden items-center justify-center">
-                                                        <CategoryIconFallback category={product.category} />
-                                                    </div>
                                                 </div>
                                                 <div className="flex flex-col flex-1 min-w-0">
                                                     <span className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</span>
@@ -494,7 +594,7 @@ export function Navbar() {
                                                 {product.price_flag === "fair" && (
                                                     <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full uppercase shrink-0">Fair</span>
                                                 )}
-                                            </Link>
+                                            </button>
                                         );
                                     })}
 
@@ -517,40 +617,39 @@ export function Navbar() {
                                         </div>
                                     )}
 
+                                    {/* GLOBAL FAIRPRICE RESULTS */}
                                     {globalResults.length > 0 && (
-                                        <div className="border-t border-emerald-50">
-                                            <div className="px-4 py-2 bg-emerald-50/50 flex items-center gap-2 text-xs text-emerald-700 font-bold">
-                                                <Globe className="h-3.5 w-3.5" />
-                                                Global Results — Click to analyze price
+                                        <div className="border-t border-gray-100">
+                                            <div className="px-4 py-2.5 flex items-center gap-2 text-xs font-black text-emerald-700 uppercase tracking-wider">
+                                                <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
+                                                GLOBAL FAIRPRICE RESULTS
                                             </div>
-                                            {globalResults.map((result, i) => (
+                                            {globalResults.slice(0, 4).map((result, i) => (
                                                 <button
                                                     key={i}
                                                     onClick={() => {
-                                                        setPriceIntelQuery(result.name);
-                                                        setIsPriceIntelOpen(true);
-                                                        setShowSuggestions(false);
+                                                        // The navigateWithResults will create the global product and cache it
+                                                        navigateWithResults(`__global_${i}`);
                                                     }}
-                                                    className="w-full flex items-center gap-3 p-3 transition-colors border-b border-gray-50 last:border-0 hover:bg-emerald-50/50 text-left"
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
                                                 >
-                                                    <div className="h-10 w-10 shrink-0 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg flex items-center justify-center">
-                                                        <Globe className="h-5 w-5 text-emerald-500" />
+                                                    <div className="h-10 w-10 shrink-0 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden">
+                                                        <img src="/assets/images/placeholder-product.svg" alt="Global Result" className="w-full h-full object-contain" />
                                                     </div>
                                                     <div className="flex flex-col flex-1 min-w-0">
                                                         <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <span className="text-xs font-bold text-emerald-600">₦{result.approxPrice?.toLocaleString()}</span>
-                                                            <span className="text-[10px] text-gray-400">·</span>
-                                                            <span className="text-[10px] text-gray-400 capitalize">{result.category}</span>
+                                                            <span className="text-[11px] text-emerald-600/80">Global Partner Store</span>
                                                         </div>
                                                     </div>
-                                                    <span className="text-[8px] font-black text-white bg-emerald-500 px-2 py-0.5 rounded-full uppercase shrink-0 shadow-sm">Analyze</span>
+                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded uppercase shrink-0 border border-emerald-100">FAIR</span>
                                                 </button>
                                             ))}
                                         </div>
                                     )}
 
-                                    {/* Global Search / Calculate Fair Price CTA */}
+                                    {/* Calculate Fair Price CTA */}
                                     {searchQuery.trim().length > 1 && (
                                         <button
                                             onClick={() => {
@@ -611,7 +710,7 @@ export function Navbar() {
                                     {!user ? (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 text-center">
                                             <Link href="/login" onClick={() => setIsAccountMenuOpen(false)}>
-                                                <Button className="w-full bg-gradient-to-r from-ratel-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2">Sign in</Button>
+                                                <Button className="w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2">Sign in</Button>
                                             </Link>
                                             <p className="text-[11px] text-gray-500">
                                                 New customer? <Link href="/login" className="text-blue-600 hover:underline" onClick={() => setIsAccountMenuOpen(false)}>Start here.</Link>
@@ -620,9 +719,9 @@ export function Navbar() {
                                     ) : (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3">
                                             <Link href="/account" onClick={() => setIsAccountMenuOpen(false)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                                                <div className="h-10 w-10 min-w-10 rounded-full bg-gradient-to-br from-ratel-green-600 to-emerald-400 flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden">
+                                                <div className="h-10 w-10 min-w-10 rounded-full bg-gradient-to-br from-brand-green-600 to-emerald-400 flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden">
                                                     {(() => {
-                                                        const pic = typeof window !== 'undefined' ? localStorage.getItem('ratel_profile_pic') : null;
+                                                        const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
                                                         return pic ? <img src={pic} alt="" className="w-full h-full object-cover" /> : user.name.charAt(0).toUpperCase();
                                                     })()}
                                                 </div>
@@ -689,7 +788,7 @@ export function Navbar() {
                             {cartCount > 0 && (
                                 <Badge
                                     key={`cart-badge-${bounceKey}`}
-                                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center rounded-full bg-ratel-orange text-black font-bold p-0 border-2 border-transparent animate-cart-bounce"
+                                    className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center rounded-full bg-brand-orange text-black font-bold p-0 border-2 border-transparent animate-cart-bounce"
                                 >
                                     {cartCount}
                                 </Badge>
@@ -699,36 +798,28 @@ export function Navbar() {
                     </Link>
                 </div>
 
-                {/* Bottom Bar - Navigation */}
-                <div className="flex w-full items-center gap-4 liquid-glass-sub px-4 py-2 text-sm text-white/90 overflow-x-auto no-scrollbar scroll-smooth relative z-0">
-                    <button
-                        onClick={toggleSidebar}
-                        className="flex items-center gap-1 font-bold hover:bg-white/10 px-2 py-1 rounded transition-all text-white"
-                    >
-                        <Menu className="h-5 w-5" /> All
-                    </button>
-
-                    {[
-                        { label: "Best-Selling Items", href: "/search?sort=bestselling" },
-                        { label: "5-Star Rated", href: "/search?rating=5" },
-                        { label: "New In", href: "/search?sort=newest" },
-                        { label: "Categories", href: "#" },
-                        { label: "Today's Deals", href: "/deals" },
-                        { label: "Verified Listings", href: "/search?verified=true" },
-                        { label: "Electronics", href: "/category/electronics" },
-                        { label: "Phones", href: "/category/phones" },
-                        { label: "Solar Energy", href: "/category/solar" },
-                        { label: "Cars", href: "/category/cars" },
-                        { label: "Help", href: "/help" },
-                    ].map((item) => (
-                        <Link
-                            key={item.label}
-                            href={item.href}
-                            className="whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all"
-                        >
-                            {item.label}
+                {/* Bottom Bar - SubNavbar */}
+                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-4 py-1.5 text-sm text-white overflow-x-auto no-scrollbar scroll-smooth relative z-0 border-t border-white/10">
+                    {/* Left: Navigation Links */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        <Link href="/search?sort=bestselling" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
+                            <Sparkles className="w-3.5 h-3.5" /> Best-Selling Items
                         </Link>
-                    ))}
+                        <Link href="/search?rating=5" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
+                            <TrendingUp className="w-3.5 h-3.5" /> 5-Star Rated
+                        </Link>
+                        <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
+                            <Flame className="w-3.5 h-3.5" /> New In
+                        </Link>
+                    </div>
+                    {/* Right: Trust Badges */}
+                    <div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px]">
+                        <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Secure privacy</span>
+                        <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Purchase protection</span>
+                        <Link href="#" className="flex items-center gap-1 font-bold text-white hover:text-brand-orange transition-colors">
+                            FairPrice keeps you safe <ArrowRight className="w-3 h-3" />
+                        </Link>
+                    </div>
                 </div>
             </header>
 
@@ -761,7 +852,7 @@ export function Navbar() {
                             transition={{ type: "tween", duration: 0.3 }}
                             className="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-xl overflow-y-auto"
                         >
-                            <div className="flex items-center justify-between bg-ratel-green-600 px-6 py-3 text-white font-bold text-lg">
+                            <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
                                 {user ? (
                                     <div className="flex items-center gap-2">
                                         <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}

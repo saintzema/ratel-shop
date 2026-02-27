@@ -87,8 +87,8 @@ function NotificationToast({ notification, onClose }: { notification: Notificati
                 {/* Icon / Avatar */}
                 <div className="shrink-0">
                     {notification.type === "ziva" && (
-                        <div className="w-10 h-10 rounded-full bg-ratel-green-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden relative">
-                            <span className="font-black text-ratel-green-700 text-lg">Z</span>
+                        <div className="w-10 h-10 rounded-full bg-brand-green-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden relative">
+                            <span className="font-black text-brand-green-700 text-lg">Z</span>
                             <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-white" />
                         </div>
                     )}

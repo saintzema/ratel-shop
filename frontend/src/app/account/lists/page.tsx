@@ -120,7 +120,7 @@ export default function ListsPage() {
                                         </Link>
                                         <div className="p-4">
                                             <Link href={`/product/${product.id}`}>
-                                                <h3 className="text-sm font-bold text-gray-900 line-clamp-2 mb-2 group-hover:text-ratel-green-600 transition-colors">
+                                                <h3 className="text-sm font-bold text-gray-900 line-clamp-2 mb-2 group-hover:text-brand-green-600 transition-colors">
                                                     {product.name}
                                                 </h3>
                                             </Link>
@@ -133,7 +133,7 @@ export default function ListsPage() {
                                                 </div>
                                                 <Button
                                                     size="sm"
-                                                    className="rounded-full bg-ratel-green-600 hover:bg-ratel-green-700 text-white h-9 px-4 text-xs font-bold"
+                                                    className="rounded-full bg-brand-green-600 hover:bg-brand-green-700 text-white h-9 px-4 text-xs font-bold"
                                                     onClick={() => addToCart(product)}
                                                 >
                                                     <ShoppingCart className="h-3.5 w-3.5 mr-1" />
@@ -172,11 +172,11 @@ export default function ListsPage() {
                                     <div key={seller.id} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
                                         {/* Seller Header */}
                                         <div className="p-5 flex items-center gap-4 border-b border-gray-50">
-                                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-ratel-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-xl shadow-lg">
+                                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-brand-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-xl shadow-lg">
                                                 {seller.business_name.charAt(0)}
                                             </div>
                                             <div className="flex-1">
-                                                <Link href={`/store/${seller.id}`} className="font-bold text-lg text-gray-900 hover:text-ratel-green-600 transition-colors">
+                                                <Link href={`/store/${seller.id}`} className="font-bold text-lg text-gray-900 hover:text-brand-green-600 transition-colors">
                                                     {seller.business_name}
                                                 </Link>
                                                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">

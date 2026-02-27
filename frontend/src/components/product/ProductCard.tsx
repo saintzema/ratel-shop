@@ -68,7 +68,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     {/* Sponsored Ad Tag */}
                     {product.is_sponsored && (
                         <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-tl-2xl rounded-br-2xl shadow-md border-b border-r border-white/10 flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-ratel-green-400 animate-pulse" /> Sponsored
+                            <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
                         </div>
                     )}
                     {/* Discount Badge */}
@@ -126,7 +126,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                 </div>
 
                 <div className="px-3 pt-3 flex flex-col flex-1">
-                    <h3 className="text-sm font-bold line-clamp-2 mb-2 group-hover:text-ratel-green-600 transition-colors leading-snug min-h-[40px]">
+                    <h3 className="text-sm font-bold line-clamp-2 mb-2 group-hover:text-brand-green-600 transition-colors leading-snug min-h-[40px]">
                         {product.name}
                     </h3>
 
@@ -164,7 +164,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                 {product.price_flag === "overpriced" ? (
                     <div className="flex gap-1.5 overflow-hidden">
                         <Button
-                            className="flex-1 min-w-0 bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
+                            className="flex-1 min-w-0 bg-brand-green-600 text-white font-black hover:bg-brand-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();
@@ -182,7 +182,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                         >
                             <Button
                                 variant="outline"
-                                className="w-full border-2 border-ratel-orange text-ratel-orange font-black hover:bg-ratel-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm text-xs gap-1 px-2"
+                                className="w-full border-2 border-brand-orange text-brand-orange font-black hover:bg-brand-orange hover:text-black transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm text-xs gap-1 px-2"
                                 size="sm"
                             >
                                 <span className="truncate">Negotiate</span>
@@ -192,7 +192,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                 ) : (
                     <>
                         <Button
-                            className="w-full bg-ratel-green-600 text-white font-black hover:bg-ratel-green-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
+                            className="w-full bg-brand-green-600 text-white font-black hover:bg-brand-green-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();
@@ -211,7 +211,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                         {addedToCart && (
                             <Button
                                 variant="outline"
-                                className="w-full mt-1.5 rounded-xl h-8 text-xs font-bold border-ratel-green-200 text-ratel-green-700 hover:bg-ratel-green-50 relative z-20 md:hidden"
+                                className="w-full mt-1.5 rounded-xl h-8 text-xs font-bold border-brand-green-200 text-brand-green-700 hover:bg-brand-green-50 relative z-20 md:hidden"
                                 size="sm"
                                 onClick={(e) => {
                                     e.preventDefault();

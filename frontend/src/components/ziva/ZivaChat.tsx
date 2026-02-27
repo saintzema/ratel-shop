@@ -65,7 +65,7 @@ function detectIntent(input: string): DetectedIntent {
     }
 
     // Order tracking
-    if (/RATEL-[A-Z0-9]+/i.test(lower) || /\b(track|order|delivery|shipped|where.*(order|package)|status)\b/i.test(lower)) {
+    if (/FP-[A-Z0-9]+/i.test(lower) || /\b(track|order|delivery|shipped|where.*(order|package)|status)\b/i.test(lower)) {
         return { intent: "track_order", query: input };
     }
 
@@ -277,7 +277,7 @@ export function ZivaChat() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        userEmail: user?.email || "guest@ratelshop.com",
+                        userEmail: user?.email || "guest@globalstores.shop",
                         userName: user?.name || "Guest",
                         reason: data.escalationReason || "Customer Requested Support",
                         transcript: messages.map(m => `${m.role}: ${m.content}`).join("\n")
@@ -287,7 +287,7 @@ export function ZivaChat() {
                 // Also persist to admin inbox (DemoStore)
                 DemoStore.addSupportMessage({
                     user_name: user?.name || "Guest",
-                    user_email: user?.email || "guest@ratelshop.com",
+                    user_email: user?.email || "guest@globalstores.shop",
                     subject: data.escalationReason || "Ziva AI Escalation",
                     message: messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n"),
                     source: "ziva_escalation",

@@ -295,7 +295,7 @@ export default function SellerDashboard() {
                 return (
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                         <h2 className="font-bold text-sm mb-4 flex items-center gap-2 text-gray-900">
-                            <AlertTriangle className="h-4 w-4 text-ratel-orange" />
+                            <AlertTriangle className="h-4 w-4 text-brand-orange" />
                             AI Price Alerts
                         </h2>
 

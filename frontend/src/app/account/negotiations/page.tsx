@@ -113,7 +113,7 @@ export default function NegotiationsPage() {
                             <h3 className="font-bold text-lg text-gray-900">No negotiations found</h3>
                             <p className="text-gray-500">You haven&apos;t made any offers yet.</p>
                             <Link href="/">
-                                <Button className="mt-4 rounded-full font-bold bg-ratel-green-600 hover:bg-ratel-green-700 text-white">Start Shopping</Button>
+                                <Button className="mt-4 rounded-full font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white">Start Shopping</Button>
                             </Link>
                         </div>
                     ) : (
@@ -136,7 +136,7 @@ export default function NegotiationsPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4 mb-4">
                                                 <div className="min-w-0">
-                                                    <Link href={`/product/${product.id}`} className="font-bold text-base sm:text-lg hover:text-ratel-green-400 text-gray-900 line-clamp-2 transition-colors">
+                                                    <Link href={`/product/${product.id}`} className="font-bold text-base sm:text-lg hover:text-brand-green-400 text-gray-900 line-clamp-2 transition-colors">
                                                         {product.name}
                                                     </Link>
                                                     <p className="text-xs sm:text-sm text-gray-500">Sold by {product.seller_name}</p>
@@ -150,7 +150,7 @@ export default function NegotiationsPage() {
                                                         <Badge className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-none animate-pulse text-[10px] sm:text-xs">Counter Offer</Badge>
                                                     )}
                                                     {neg.status === "accepted" && (
-                                                        <Badge className="bg-ratel-green-500/20 text-ratel-green-400 hover:bg-ratel-green-500/30 border-none text-[10px] sm:text-xs">Accepted</Badge>
+                                                        <Badge className="bg-brand-green-500/20 text-brand-green-400 hover:bg-brand-green-500/30 border-none text-[10px] sm:text-xs">Accepted</Badge>
                                                     )}
                                                     {neg.status === "rejected" && (
                                                         <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border-none text-[10px] sm:text-xs">Rejected</Badge>
@@ -189,7 +189,7 @@ export default function NegotiationsPage() {
                                                     <>
                                                         <Button
                                                             onClick={() => handleAction(neg.id, "accepted")}
-                                                            className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-bold rounded-full text-xs sm:text-sm h-9 sm:h-10"
+                                                            className="bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold rounded-full text-xs sm:text-sm h-9 sm:h-10"
                                                         >
                                                             <CheckCircle className="w-4 h-4 mr-1.5" />
                                                             Accept
@@ -209,8 +209,8 @@ export default function NegotiationsPage() {
                                                         onClick={() => handleAddToCart(neg, product)}
                                                         disabled={justAdded}
                                                         className={`rounded-full font-bold text-xs sm:text-sm h-9 sm:h-10 shadow-lg transition-all ${justAdded
-                                                            ? "bg-ratel-green-600 text-white shadow-ratel-green-500/20"
-                                                            : "bg-ratel-orange hover:bg-amber-500 text-black shadow-orange-500/20"
+                                                            ? "bg-brand-green-600 text-white shadow-brand-green-500/20"
+                                                            : "bg-brand-orange hover:bg-amber-500 text-black shadow-orange-500/20"
                                                             }`}
                                                     >
                                                         {justAdded ? (

@@ -9,13 +9,13 @@ const buttonVariants = cva(
     {
         variants: {
             variant: {
-                default: "bg-ratel-green-600 text-white hover:bg-ratel-green-700",
-                destructive: "bg-ratel-red text-white hover:bg-red-600",
+                default: "bg-brand-green-600 text-white hover:bg-brand-green-700",
+                destructive: "bg-brand-red text-white hover:bg-red-600",
                 outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
                 secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
                 ghost: "hover:bg-accent hover:text-accent-foreground",
                 link: "text-primary underline-offset-4 hover:underline",
-                amazon: "bg-ratel-orange text-black hover:bg-amber-600 font-bold shadow-sm", // Amazon Buy Now style
+                amazon: "bg-brand-orange text-black hover:bg-amber-600 font-bold shadow-sm", // Amazon Buy Now style
                 "apple-glass":
                     "bg-white/10 backdrop-blur-md border border-white/20 text-white shadow-lg hover:bg-white/20 transition-all duration-300 hover:scale-105 active:scale-95",
             },

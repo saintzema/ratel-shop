@@ -515,7 +515,7 @@ export default function EscrowManagement() {
                                         const order = DemoStore.getOrders().find(o => o.id === chatModal.orderId);
                                         const sellerId = order?.seller_id;
                                         return DemoStore.getAdminMessagesForOrder(chatModal.orderId!).map((msg, i) => {
-                                            const isCustomer = msg.user_email !== undefined && msg.user_email !== "admin@ratel.shop";
+                                            const isCustomer = msg.user_email !== undefined && msg.user_email !== "admin@globalstores.shop";
                                             return (
                                                 <div key={i} className={cn("flex flex-col max-w-[85%]", isCustomer ? "items-start" : "items-end self-end ml-auto")}>
                                                     <span className="text-[10px] font-bold text-gray-500 mb-1 ml-1">{isCustomer ? "Buyer" : "Seller"}</span>

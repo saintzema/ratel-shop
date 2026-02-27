@@ -167,7 +167,7 @@ export default function AdminLayout({
                                 <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 border-gray-100 shadow-xl mt-2 z-50 bg-white">
                                     <DropdownMenuLabel className="font-black text-gray-900 text-sm py-2 px-3">
                                         Superadmin
-                                        <p className="text-xs font-bold text-gray-500 mt-0.5">admin@ratelshop.com</p>
+                                        <p className="text-xs font-bold text-gray-500 mt-0.5">admin@globalstores.shop</p>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 my-1" />
                                     <Link href="/admin/settings">

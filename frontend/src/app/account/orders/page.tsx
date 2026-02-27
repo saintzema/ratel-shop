@@ -38,7 +38,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     pending: { label: "Processing", color: "text-amber-400", bg: "bg-amber-500/10", dot: "bg-amber-400" },
     processing: { label: "Processing", color: "text-amber-400", bg: "bg-amber-500/10", dot: "bg-amber-400" },
     shipped: { label: "In Transit", color: "text-blue-400", bg: "bg-blue-500/10", dot: "bg-blue-400" },
-    delivered: { label: "Delivered", color: "text-ratel-green-400", bg: "bg-ratel-green-500/10", dot: "bg-ratel-green-400" },
+    delivered: { label: "Delivered", color: "text-brand-green-400", bg: "bg-brand-green-500/10", dot: "bg-brand-green-400" },
     cancelled: { label: "Cancelled", color: "text-red-400", bg: "bg-red-500/10", dot: "bg-red-400" },
 };
 
@@ -149,7 +149,7 @@ function OrdersContent() {
                                         placeholder="Search orders..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full bg-white border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-ratel-green-500 transition-colors"
+                                        className="w-full bg-white border border-gray-200 rounded-lg pl-9 pr-4 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-brand-green-500 transition-colors"
                                     />
                                 </div>
                                 <div className="flex gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
@@ -196,7 +196,7 @@ function OrdersContent() {
                                     <h3 className="text-sm font-bold text-gray-900">No orders found</h3>
                                     <p className="text-xs text-gray-500 mt-1 mb-4">Explore the marketplace and find great deals.</p>
                                     <Link href="/">
-                                        <Button size="sm" className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-lg text-xs font-semibold px-4">Start Shopping</Button>
+                                        <Button size="sm" className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg text-xs font-semibold px-4">Start Shopping</Button>
                                     </Link>
                                 </div>
                             ) : (
@@ -224,7 +224,7 @@ function OrdersContent() {
 
                                                     {/* Product Info */}
                                                     <div className="min-w-0">
-                                                        <Link href={`/product/${order.product_id}`} className="text-sm font-medium text-gray-900 hover:text-ratel-green-400 transition-colors line-clamp-1 block">
+                                                        <Link href={`/product/${order.product_id}`} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
                                                             {order.product?.name || "Product"}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
@@ -334,11 +334,11 @@ function OrdersContent() {
                         <div className="bg-white backdrop-blur-[12px] rounded-xl border border-gray-200 shadow-lg overflow-hidden">
                             <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                    <Handshake className="h-4 w-4 text-ratel-green-400" />
+                                    <Handshake className="h-4 w-4 text-brand-green-400" />
                                     <h3 className="text-sm font-bold text-gray-900">Active Negotiations</h3>
                                 </div>
                                 {activeNegotiations.length > 0 && (
-                                    <Badge className="bg-ratel-green-500/20 text-ratel-green-400 border-none text-[10px] font-bold">{activeNegotiations.length}</Badge>
+                                    <Badge className="bg-brand-green-500/20 text-brand-green-400 border-none text-[10px] font-bold">{activeNegotiations.length}</Badge>
                                 )}
                             </div>
 
@@ -346,7 +346,7 @@ function OrdersContent() {
                                 <div className="p-6 text-center">
                                     <p className="text-xs text-gray-400">No active negotiations</p>
                                     <Link href="/">
-                                        <Button variant="link" size="sm" className="text-xs text-ratel-green-400 mt-1 p-0">Browse products</Button>
+                                        <Button variant="link" size="sm" className="text-xs text-brand-green-400 mt-1 p-0">Browse products</Button>
                                     </Link>
                                 </div>
                             ) : (
@@ -360,7 +360,7 @@ function OrdersContent() {
                                                         <p className="text-xs font-semibold text-gray-900 line-clamp-1">{negProduct?.name || "Product"}</p>
                                                         <div className="flex items-center gap-1.5 mt-1">
                                                             {neg.status === "accepted" ? (
-                                                                <Badge className="bg-ratel-green-500/20 text-ratel-green-400 border-none text-[9px] font-bold px-1.5 py-0">Accepted</Badge>
+                                                                <Badge className="bg-brand-green-500/20 text-brand-green-400 border-none text-[9px] font-bold px-1.5 py-0">Accepted</Badge>
                                                             ) : (
                                                                 <Badge className="bg-amber-500/20 text-amber-400 border-none text-[9px] font-bold px-1.5 py-0">Pending</Badge>
                                                             )}
@@ -369,7 +369,7 @@ function OrdersContent() {
                                                     </div>
                                                     {neg.status === "accepted" ? (
                                                         <Link href={`/checkout?negotiationId=${neg.id}`}>
-                                                            <Button size="sm" className="text-[10px] font-bold bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-lg h-7 px-3">
+                                                            <Button size="sm" className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-3">
                                                                 Buy <ArrowRight className="h-3 w-3 ml-1" />
                                                             </Button>
                                                         </Link>
@@ -404,7 +404,7 @@ function OrdersContent() {
                                                 <Button
                                                     size="sm"
                                                     onClick={() => handleReleaseEscrow(order.id)}
-                                                    className="text-[10px] font-bold bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-lg h-7 px-3"
+                                                    className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-3"
                                                 >
                                                     Release Funds
                                                 </Button>
@@ -500,7 +500,7 @@ function OrdersContent() {
                                     ) : selectedOrderForTracking.escrow_status === "refunded" ? (
                                         <ShieldCheck className="h-4 w-4 text-gray-400" />
                                     ) : (
-                                        <ShieldCheck className={`h-4 w-4 ${selectedOrderForTracking.escrow_status === 'released' ? 'text-ratel-green-500' : 'text-amber-500'}`} />
+                                        <ShieldCheck className={`h-4 w-4 ${selectedOrderForTracking.escrow_status === 'released' ? 'text-brand-green-500' : 'text-amber-500'}`} />
                                     )}
                                     <span className="text-xs font-semibold text-gray-500">
                                         {selectedOrderForTracking.escrow_status === "held" ? "Funds held in escrow" :
@@ -516,7 +516,7 @@ function OrdersContent() {
                                             handleReleaseEscrow(selectedOrderForTracking.id);
                                             setSelectedOrderForTracking(null);
                                         }}
-                                        className="text-[10px] font-bold bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-lg h-7 px-3"
+                                        className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-3"
                                     >
                                         Release
                                     </Button>
@@ -533,7 +533,7 @@ function OrdersContent() {
                                             { status: "Order Placed", location: "System", timestamp: selectedOrderForTracking.created_at, completed: true }
                                         ]).map((step, i) => (
                                             <div key={i} className="relative flex gap-4 pl-8">
-                                                <div className={`absolute left-0 top-0.5 w-6 h-6 rounded-full flex items-center justify-center z-10 ${step.completed ? 'bg-ratel-green-500 text-gray-900' : 'bg-gray-100 text-gray-400'
+                                                <div className={`absolute left-0 top-0.5 w-6 h-6 rounded-full flex items-center justify-center z-10 ${step.completed ? 'bg-brand-green-500 text-gray-900' : 'bg-gray-100 text-gray-400'
                                                     }`}>
                                                     {step.completed ? <CheckCircle className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                                                 </div>
@@ -556,7 +556,7 @@ function OrdersContent() {
                                             handleBuyAgain(selectedOrderForTracking);
                                             setSelectedOrderForTracking(null);
                                         }}
-                                        className="flex-1 bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-lg text-xs font-semibold"
+                                        className="flex-1 bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg text-xs font-semibold"
                                     >
                                         <RotateCcw className="h-3 w-3 mr-1.5" /> Buy Again
                                     </Button>
@@ -608,7 +608,7 @@ export default function OrdersPage() {
     return (
         <Suspense fallback={
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="w-8 h-8 rounded-full border-4 border-gray-200 border-t-ratel-green-600 animate-spin" />
+                <div className="w-8 h-8 rounded-full border-4 border-gray-200 border-t-brand-green-600 animate-spin" />
             </div>
         }>
             <OrdersContent />

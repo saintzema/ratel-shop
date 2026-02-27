@@ -23,7 +23,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 function getCartKey(userEmail?: string | null): string {
-    return userEmail ? `ratel-cart-${userEmail}` : "ratel-cart-guest";
+    return userEmail ? `fp-cart-${userEmail}` : "fp-cart-guest";
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {

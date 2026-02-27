@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <!-- Yellow background -->
+  <rect width="400" height="400" fill="#FDE047"/>
+  <!-- Shopping bag body -->
+  <path d="M100 150 L85 360 C84 370 90 380 100 380 L300 380 C310 380 316 370 315 360 L300 150 Z" fill="#059669" opacity="0.9"/>
+  <path d="M100 150 L85 360 C84 370 90 380 100 380 L300 380 C310 380 316 370 315 360 L300 150 Z" fill="url(#bagGrad)"/>
+  <!-- Bag shine -->
+  <path d="M100 150 L85 360 C84 370 90 380 100 380 L200 380 L188 150 Z" fill="white" opacity="0.08"/>
+  <!-- Handles -->
+  <path d="M145 150 C145 100 155 70 200 70 C245 70 255 100 255 150" stroke="#047857" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <path d="M145 150 C145 100 155 70 200 70 C245 70 255 100 255 150" stroke="#059669" stroke-width="8" fill="none" stroke-linecap="round"/>
+  <!-- FAIR PRICE text -->
+  <text x="200" y="260" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="900" fill="white" letter-spacing="3">FAIR</text>
+  <text x="200" y="300" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="36" font-weight="900" fill="white" letter-spacing="3">PRICE</text>
+  <!-- Small sparkle -->
+  <circle cx="270" cy="200" r="3" fill="white" opacity="0.6"/>
+  <circle cx="130" cy="220" r="2" fill="white" opacity="0.4"/>
+  <circle cx="250" cy="330" r="2.5" fill="white" opacity="0.3"/>
+  <!-- Gradient definition -->
+  <defs>
+    <linearGradient id="bagGrad" x1="85" y1="150" x2="315" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10B981" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#065F46" stop-opacity="0.3"/>
+    </linearGradient>
+  </defs>
+</svg>

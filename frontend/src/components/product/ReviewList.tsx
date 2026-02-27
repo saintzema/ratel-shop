@@ -72,7 +72,7 @@ export function ReviewList({ productId }: { productId: string }) {
                             <div className="text-xs text-gray-500 mb-2">
                                 Reviewed on {new Date(review.created_at).toLocaleDateString()}
                                 {review.verified_purchase && (
-                                    <span className="ml-2 text-ratel-orange font-bold hover:text-amber-600 cursor-pointer">Verified Purchase</span>
+                                    <span className="ml-2 text-brand-orange font-bold hover:text-amber-600 cursor-pointer">Verified Purchase</span>
                                 )}
                             </div>
 

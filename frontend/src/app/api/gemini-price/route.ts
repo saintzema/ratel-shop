@@ -131,7 +131,7 @@ export async function POST(req: Request) {
             - NEVER mention ANY specific store, website, vendor, or marketplace name ANYWHERE in your response.
             - This includes: Jumia, Konga, Jiji, Shop9ja, NaijaMart, AliExpress, Temu, Amazon, eBay, Alibaba, Made-in-China, Slot, PCPlace, Cars45, Ubuy, or ANY other store.
             - Do NOT mention any country or region where a vendor is based (e.g., "a South African vendor").
-            - Use ONLY these labels: "Global Partners", "Verified Local Vendor", "local market", "authorized distributor", "online marketplace".
+            - Use ONLY these labels: "Global Stores", "Verified Local Vendor", "local market", "authorized distributor", "online marketplace".
             - The justification MUST NOT reference any real store name or specific prices. Say "available from verified local vendors at competitive rates" instead.
             
             VEHICLE & CONDITION RULES:
@@ -150,7 +150,7 @@ export async function POST(req: Request) {
                 "recommendedPrice": number,
                 "currency": "₦",
                 "sources": [
-                    { "source": "Global Partners (Direct Source)", "price": number, "type": "global", "url": "https://..." },
+                    { "source": "Global Stores (Direct Source)", "price": number, "type": "global", "url": "https://..." },
                     { "source": "Local Vendor (Verified Local Vendor)", "price": number, "type": "local", "url": "https://..." }
                 ],
                 "priceDirection": "rising" | "stable" | "falling",
@@ -175,7 +175,7 @@ export async function POST(req: Request) {
             - NEVER mention any store, vendor, website name, or vendor country in ANY field including justification, description, and sources.
             - NEVER mention specific price numbers in the justification field.
             - marketAverage MUST be a realistic non-zero number.
-            - Use "Global Partners" for international sources and "Verified Local Vendor" for local sources.
+            - Use "Global Stores" for international sources and "Verified Local Vendor" for local sources.
             - Output ONLY raw, valid JSON. NO markdown. NO conversational text before or after the JSON. Start your response strictly with { and end with }. 
             `;
         }

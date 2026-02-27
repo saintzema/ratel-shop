@@ -49,7 +49,7 @@ export default function GovernanceCenter() {
         if (!composeText.trim()) return;
         DemoStore.addSupportMessage({
             user_name: "Admin",
-            user_email: "admin@ratelshop.com",
+            user_email: "admin@globalstores.shop",
             subject: `Re: Case #${msgModal.caseId} — Message to ${msgModal.userName}`,
             message: composeText,
             source: "contact_form",

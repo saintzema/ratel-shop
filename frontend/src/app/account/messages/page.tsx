@@ -24,7 +24,7 @@ export default function MessagesPage() {
 
     useEffect(() => {
         // Load from localStorage or generate demo messages
-        const saved = localStorage.getItem("ratel_user_messages");
+        const saved = localStorage.getItem("fp_user_messages");
         if (saved) {
             setMessages(JSON.parse(saved));
         } else {
@@ -47,14 +47,14 @@ export default function MessagesPage() {
                 }] : [])
             ];
             setMessages(demo);
-            localStorage.setItem("ratel_user_messages", JSON.stringify(demo));
+            localStorage.setItem("fp_user_messages", JSON.stringify(demo));
         }
     }, []);
 
     const markRead = (id: string) => {
         const updated = messages.map(m => m.id === id ? { ...m, read: true } : m);
         setMessages(updated);
-        localStorage.setItem("ratel_user_messages", JSON.stringify(updated));
+        localStorage.setItem("fp_user_messages", JSON.stringify(updated));
     };
 
     const unreadCount = messages.filter(m => !m.read).length;

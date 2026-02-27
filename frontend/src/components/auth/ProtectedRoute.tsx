@@ -38,7 +38,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     if (isLoading || !isAuthorized) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50/80 backdrop-blur-sm z-50">
-                <Loader2 className="h-10 w-10 animate-spin text-ratel-green-600 mb-4" />
+                <Loader2 className="h-10 w-10 animate-spin text-brand-green-600 mb-4" />
                 <h3 className="text-lg font-extrabold text-gray-900 tracking-tight">Authenticating Secure Session...</h3>
                 <p className="text-sm text-gray-500 font-medium mt-1">Nigeria's AI-regulated fair price platform.</p>
             </div>

@@ -105,7 +105,7 @@ export default function BannerManagement() {
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight">Homepage Banners</h2>
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Manage hero carousels and promotional banners</p>
                 </div>
-                <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-xl font-bold text-xs px-5 h-10">
+                <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl font-bold text-xs px-5 h-10">
                     <Plus className="h-4 w-4 mr-1.5" /> Add Banner
                 </Button>
             </div>
@@ -120,7 +120,7 @@ export default function BannerManagement() {
                         <Input placeholder="Link (e.g. /category/deals)" value={newLink} onChange={e => setNewLink(e.target.value)} className="rounded-xl" />
                     </div>
                     <div className="flex gap-2">
-                        <Button onClick={addBanner} disabled={!newTitle.trim()} className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-xl text-xs font-bold px-5">Save</Button>
+                        <Button onClick={addBanner} disabled={!newTitle.trim()} className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl text-xs font-bold px-5">Save</Button>
                         <Button variant="ghost" onClick={() => setShowAddForm(false)} className="rounded-xl text-xs font-bold text-gray-400">Cancel</Button>
                     </div>
                 </div>

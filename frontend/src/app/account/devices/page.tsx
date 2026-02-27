@@ -20,10 +20,10 @@ export default function DevicesPage() {
                 <h1 className="text-3xl font-normal mb-2">Manage Your Content and Devices</h1>
 
                 <div className="border-b border-gray-200 flex gap-8 mb-8">
-                    <button className="py-2 border-b-2 border-ratel-orange font-bold text-gray-900">Devices</button>
-                    <button className="py-2 border-b-2 border-transparent hover:text-ratel-orange text-gray-500">Content</button>
-                    <button className="py-2 border-b-2 border-transparent hover:text-ratel-orange text-gray-500">Preferences</button>
-                    <button className="py-2 border-b-2 border-transparent hover:text-ratel-orange text-gray-500">Privacy Settings</button>
+                    <button className="py-2 border-b-2 border-brand-orange font-bold text-gray-900">Devices</button>
+                    <button className="py-2 border-b-2 border-transparent hover:text-brand-orange text-gray-500">Content</button>
+                    <button className="py-2 border-b-2 border-transparent hover:text-brand-orange text-gray-500">Preferences</button>
+                    <button className="py-2 border-b-2 border-transparent hover:text-brand-orange text-gray-500">Privacy Settings</button>
                 </div>
 
                 <div className="space-y-6">

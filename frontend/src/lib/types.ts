@@ -172,7 +172,7 @@ export interface PriceComparison {
     market_low: number;
     market_high: number;
     market_avg: number;
-    ratel_best: number;
+    fp_best: number;
     current_price: number;
     flag: "fair" | "overpriced" | "too_low" | "none" | "great_deal";
     savings: number;
@@ -198,20 +198,20 @@ export interface Notification {
 export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
 
 export const CATEGORIES: { value: ProductCategory; label: string; icon: string }[] = [
-    { value: "phones", label: "Phones & Tablets", icon: "📱" },
-    { value: "computers", label: "Computers & Laptops", icon: "💻" },
+    { value: "phones", label: "Phones", icon: "📱" },
+    { value: "computers", label: "Computers", icon: "💻" },
     { value: "electronics", label: "Electronics", icon: "🔌" },
     { value: "fashion", label: "Fashion", icon: "👗" },
-    { value: "beauty", label: "Beauty & Health", icon: "💄" },
-    { value: "home", label: "Home & Kitchen", icon: "🏠" },
-    { value: "fitness", label: "Gym & Fitness", icon: "💪" },
-    { value: "office", label: "Office Furniture & Accessories", icon: "🪑" },
-    { value: "furniture", label: "Home Furniture", icon: "🛋️" },
-    { value: "grocery", label: "Groceries & Supermarket", icon: "🛒" },
-    { value: "baby", label: "Baby Products", icon: "👶" },
-    { value: "sports", label: "Sports & Outdoors", icon: "⚽" },
+    { value: "beauty", label: "Beauty", icon: "💄" },
+    { value: "home", label: "Home", icon: "🏠" },
+    { value: "fitness", label: "Gym", icon: "💪" },
+    { value: "office", label: "Office", icon: "🪑" },
+    { value: "furniture", label: "Furniture", icon: "🛋️" },
+    { value: "grocery", label: "Grocery", icon: "🛒" },
+    { value: "baby", label: "Baby", icon: "👶" },
+    { value: "sports", label: "Sports", icon: "⚽" },
     { value: "cars", label: "Cars", icon: "🚗" },
-    { value: "energy", label: "Energy & Solar", icon: "⚡" },
+    { value: "energy", label: "Energy", icon: "⚡" },
     { value: "gaming", label: "Gaming", icon: "🎮" },
 ];
 

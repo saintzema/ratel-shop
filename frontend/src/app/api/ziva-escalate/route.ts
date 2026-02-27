@@ -22,7 +22,7 @@ export async function POST(req: Request) {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    from: "Ziva AI <ziva@ratelshop.com>", // You'll need a verified domain for this to work perfectly on Resend
+                    from: "Ziva AI <ziva@globalstores.shop>", // You'll need a verified domain for this to work perfectly on Resend
                     to: ESCALATION_EMAIL,
                     subject: `[Escalation] ${reason} - ${userName}`,
                     html: `

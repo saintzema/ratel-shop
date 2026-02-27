@@ -36,7 +36,7 @@ export default function SellerLoginPage() {
                     {DEMO_SELLERS.map((seller) => (
                         <div
                             key={seller.id}
-                            className="bg-white p-6 rounded-xl border border-zinc-200 hover:border-ratel-green-600 transition-all cursor-pointer group shadow-sm hover:shadow-md"
+                            className="bg-white p-6 rounded-xl border border-zinc-200 hover:border-brand-green-600 transition-all cursor-pointer group shadow-sm hover:shadow-md"
                             onClick={() => handleLogin(seller.id)}
                         >
                             <div className="flex items-start gap-4">
@@ -49,7 +49,7 @@ export default function SellerLoginPage() {
                                 </div>
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                        <h3 className="font-bold text-lg group-hover:text-ratel-green-600 transition-colors">
+                                        <h3 className="font-bold text-lg group-hover:text-brand-green-600 transition-colors">
                                             {seller.business_name}
                                         </h3>
                                         {seller.verified && (
@@ -67,7 +67,7 @@ export default function SellerLoginPage() {
                                 <div className="self-center">
                                     <Button
                                         disabled={loadingId === seller.id}
-                                        className="rounded-full bg-black text-white hover:bg-ratel-green-600 w-[100px]"
+                                        className="rounded-full bg-black text-white hover:bg-brand-green-600 w-[100px]"
                                     >
                                         {loadingId === seller.id ? "Logging in..." : "Login"}
                                     </Button>

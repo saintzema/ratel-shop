@@ -73,7 +73,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 email,
                 amount,
                 currency: "NGN",
-                ref: `RATEL_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                ref: `FP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 metadata: {
                     custom_fields: [
                         { display_name: "Platform", variable_name: "platform", value: "FairPrice" },

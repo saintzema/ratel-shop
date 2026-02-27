@@ -234,7 +234,7 @@ export default function Home() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section ─── */}
-          <section className="relative h-[600px] w-full overflow-hidden bg-black">
+          <section className="relative h-[380px] w-full overflow-hidden bg-black">
             <div className="absolute inset-0">
               <img
 
@@ -256,31 +256,16 @@ export default function Home() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="text-6xl md:text-8xl font-black tracking-tighter mb-6 text-balance drop-shadow-2xl"
+                className="text-5xl md:text-7xl font-black tracking-tighter mb-8 text-balance drop-shadow-2xl"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-ratel-green-400 to-emerald-400">Fair</span>Price
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-green-400 to-emerald-400">Fair</span>Price
               </motion.h1>
-              <motion.p
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3, duration: 0.8 }}
-                className="text-xl md:text-3xl text-gray-200 mb-10 max-w-3xl mx-auto font-medium drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]"
-              >
-                Nigeria's first AI-regulated marketplace. <br className="hidden md:block" /> Shop smarter. Pay fairer.
-              </motion.p>
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.5 }}
-                className="flex flex-col md:flex-row justify-center gap-6"
+                transition={{ delay: 0.3 }}
+                className="flex justify-center"
               >
-                <Button
-                  size="lg"
-                  className="rounded-full px-10 py-7 text-xl bg-white text-black hover:bg-gray-200 border-none shadow-2xl transition-all hover:scale-105"
-                  onClick={scrollToProducts}
-                >
-                  Start Shopping
-                </Button>
                 <Button
                   size="lg"
                   variant="apple-glass"
@@ -299,7 +284,7 @@ export default function Home() {
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 mb-6 relative z-40">
-                <BestSellersScroller title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-ratel-green-600" />} autoScroll={true} />
+                <BestSellersScroller title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll={true} />
               </section>
             )}
 
@@ -316,7 +301,7 @@ export default function Home() {
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (
               <section className="container mx-auto px-4 mb-6">
-                <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-ratel-green-600" />} />
+                <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} />
               </section>
             )}
 
@@ -325,7 +310,7 @@ export default function Home() {
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 space-y-6 mb-6">
-                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-ratel-green-600" />} />
+                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} />
                 <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} />
                 <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} />
                 <ProductSlider title="Computers & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} />
@@ -387,7 +372,7 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
                 loading="lazy"
               />
             </div>
-            <span className="text-xs font-medium text-gray-600 group-hover/tile:text-ratel-green-600 transition-colors text-center leading-tight">
+            <span className="text-xs font-medium text-gray-600 group-hover/tile:text-brand-green-600 transition-colors text-center leading-tight">
               {sub.label}
             </span>
           </Link>
@@ -397,7 +382,7 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
       {/* Bottom Link */}
       <Link
         href={card.link}
-        className="text-sm font-semibold text-blue-600 hover:text-ratel-orange hover:underline mt-4 inline-block transition-colors"
+        className="text-sm font-semibold text-blue-600 hover:text-brand-orange hover:underline mt-4 inline-block transition-colors"
       >
         {card.linkText}
       </Link>
@@ -464,7 +449,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false }
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
         </h2>
-        <Link href={link} className="text-sm font-semibold text-blue-600 hover:text-ratel-orange hover:underline flex items-center gap-0.5 transition-colors">
+        <Link href={link} className="text-sm font-semibold text-blue-600 hover:text-brand-orange hover:underline flex items-center gap-0.5 transition-colors">
           See all <ChevronRight className="h-4 w-4" />
         </Link>
       </div>
@@ -536,7 +521,7 @@ function ScrollerProductCard({ product }: { product: any }) {
   }, [addToCart, product]);
 
   return (
-    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-ratel-green-200 p-2 pb-3">
+    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3">
       <Link href={`/product/${product.id}`} className="flex flex-col flex-1 h-full relative">
         <div
           className="w-full h-[200px] bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
@@ -545,7 +530,7 @@ function ScrollerProductCard({ product }: { product: any }) {
           {/* Sponsored Ad Tag */}
           {product.is_sponsored && (
             <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-widest rounded-tl-lg rounded-br-lg shadow-md border-b border-r border-white/10 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-ratel-green-400 animate-pulse" /> Ad
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Ad
             </div>
           )}
           <img
@@ -561,7 +546,7 @@ function ScrollerProductCard({ product }: { product: any }) {
             </div>
           )}
         </div>
-        <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-ratel-green-600 transition-colors pr-6">
+        <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6">
           {product.name}
         </p>
       </Link>
@@ -573,7 +558,7 @@ function ScrollerProductCard({ product }: { product: any }) {
           onClick={handleAddToCart}
           className={`w-full text-xs font-bold h-9 rounded-lg shadow-sm transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer active:scale-95 ${addedToCart
             ? "bg-emerald-600 text-white"
-            : "bg-ratel-green-600 hover:bg-ratel-green-700 text-white hover:shadow-md"
+            : "bg-brand-green-600 hover:bg-brand-green-700 text-white hover:shadow-md"
             }`}
         >
           {addedToCart ? (
@@ -637,7 +622,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
         </h2>
-        <Link href={link} className="text-xs md:text-sm text-blue-600 hover:text-ratel-orange hover:underline ml-auto flex items-center font-semibold transition-colors whitespace-nowrap">
+        <Link href={link} className="text-xs md:text-sm text-blue-600 hover:text-brand-orange hover:underline ml-auto flex items-center font-semibold transition-colors whitespace-nowrap">
           See more <ChevronRight className="h-4 w-4" />
         </Link>
       </div>
@@ -647,7 +632,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
         {canScrollLeft && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-ratel-orange transition-all opacity-0 group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-0 group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
             aria-label="Scroll left"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -658,7 +643,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
         {canScrollRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-ratel-orange transition-all opacity-0 group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-0 group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
             aria-label="Scroll right"
           >
             <ChevronRight className="h-5 w-5" />

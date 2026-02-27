@@ -60,7 +60,7 @@ export default function CatalogControl() {
 
     const filtered = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
-        const isGlobal = p.seller_name.toLowerCase().includes("ratel global");
+        const isGlobal = p.seller_name.toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
             (filter === "flagged" && p.price_flag !== "fair") ||
             (filter === "fair" && p.price_flag === "fair") ||
@@ -90,7 +90,7 @@ export default function CatalogControl() {
         setIsSyncModalOpen(true);
         setIsSyncing(true);
         setTimeout(() => {
-            const globalProducts = products.filter(p => p.seller_name.toLowerCase().includes("ratel global"));
+            const globalProducts = products.filter(p => p.seller_name.toLowerCase().includes("global store"));
             const report = globalProducts.map(p => {
                 const rawMarketPrice = p.price * (Math.random() * (1.15 - 0.85) + 0.85); // +/- 15% drift simulation
                 return {
@@ -166,7 +166,7 @@ export default function CatalogControl() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <Button onClick={handleInitiateSync} className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20" title="Syncs prices for Global Partners items against live 3rd party APIs (e.g. Amazon, BestBuy)">
+                <Button onClick={handleInitiateSync} className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20" title="Syncs prices for Global Stores items against live 3rd party APIs (e.g. Amazon, BestBuy)">
                     <Globe className="mr-2 h-4 w-4" /> Sync Global Prices
                 </Button>
             </div>
@@ -185,7 +185,7 @@ export default function CatalogControl() {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filtered.map((p) => {
-                                const isGlobal = p.seller_name.toLowerCase().includes("ratel global");
+                                const isGlobal = p.seller_name.toLowerCase().includes("global store");
                                 return (
                                     <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                         <td className="px-6 py-4 align-middle">

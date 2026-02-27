@@ -40,7 +40,7 @@ export function FloatingCart() {
                     whileTap={{ scale: 0.9 }}
                     onClick={() => router.push("/cart")}
                     // Show only on mobile (hidden on md and above)
-                    className="md:hidden fixed z-[999] right-4 bottom-28 w-14 h-14 bg-gradient-to-tr from-ratel-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
+                    className="md:hidden fixed z-[999] right-4 bottom-28 w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
                     style={{ WebkitTapHighlightColor: "transparent" }}
                 >
                     <motion.div

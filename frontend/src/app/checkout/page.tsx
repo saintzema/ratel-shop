@@ -45,7 +45,7 @@ function DiscountSection() {
 
     const handleApply = () => {
         if (!code) return;
-        if (code.toLowerCase() === "ratel2026") {
+        if (code.toLowerCase() === "save2026") {
             setApplied(true);
             setMsg("Discount Applied: 10% OFF");
         } else {
@@ -60,7 +60,7 @@ function DiscountSection() {
                 <Tag className="h-4 w-4 text-gray-400" />
                 <Input
                     placeholder="Enter discount code"
-                    className="max-w-xs h-9 text-sm border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-ratel-orange/50 focus:ring-ratel-orange/20"
+                    className="max-w-xs h-9 text-sm border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-brand-orange/50 focus:ring-brand-orange/20"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     disabled={applied}
@@ -106,12 +106,12 @@ interface SavedAddress {
 function getSavedAddresses(): SavedAddress[] {
     if (typeof window === "undefined") return [];
     try {
-        return JSON.parse(localStorage.getItem("ratel_saved_addresses") || "[]");
+        return JSON.parse(localStorage.getItem("fp_saved_addresses") || "[]");
     } catch { return []; }
 }
 
 function persistAddresses(addresses: SavedAddress[]) {
-    localStorage.setItem("ratel_saved_addresses", JSON.stringify(addresses));
+    localStorage.setItem("fp_saved_addresses", JSON.stringify(addresses));
 }
 
 function CheckoutContent() {
@@ -288,8 +288,8 @@ function CheckoutContent() {
         }
 
         if (typeof window !== "undefined") {
-            setBaseDoorFee(Number(localStorage.getItem("ratel_doorstep_fee")) || 4000);
-            setBasePickupFee(Number(localStorage.getItem("ratel_pickup_fee")) || 2500);
+            setBaseDoorFee(Number(localStorage.getItem("fp_doorstep_fee")) || 4000);
+            setBasePickupFee(Number(localStorage.getItem("fp_pickup_fee")) || 2500);
         }
     }, [user]);
 
@@ -495,10 +495,10 @@ function CheckoutContent() {
                 <div className="flex-1 space-y-6">
 
                     {/* Step 1: Shipping Address */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 1 ? 'border-ratel-green-500 ring-1 ring-ratel-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
                         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => checkoutStep > 1 && setCheckoutStep(1)}>
                             <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-ratel-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
                                     {checkoutStep > 1 ? <Check className="h-4 w-4" /> : '1'}
                                 </span>
                                 Shipping Address
@@ -506,7 +506,7 @@ function CheckoutContent() {
                             {checkoutStep > 1 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setCheckoutStep(1); }}
-                                    className="text-xs font-bold text-blue-600 hover:text-ratel-orange"
+                                    className="text-xs font-bold text-blue-600 hover:text-brand-orange"
                                 >
                                     CHANGE
                                 </button>
@@ -520,7 +520,7 @@ function CheckoutContent() {
                                     <div className="mb-4">
                                         <button
                                             onClick={() => setShowAddressPicker(!showAddressPicker)}
-                                            className="w-full flex items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 hover:border-ratel-orange/50 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                                            className="w-full flex items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 hover:border-brand-orange/50 text-sm text-gray-600 hover:text-gray-900 transition-colors"
                                         >
                                             <span className="flex items-center gap-2">
                                                 <MapPin className="h-4 w-4" />
@@ -555,13 +555,13 @@ function CheckoutContent() {
                                         <div className="flex bg-gray-100 p-1 rounded-xl">
                                             <button
                                                 onClick={() => setDeliveryMethod("doorstep")}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${deliveryMethod === "doorstep" ? 'bg-white shadow-sm text-ratel-green-600' : 'text-gray-500 hover:text-gray-900'}`}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${deliveryMethod === "doorstep" ? 'bg-white shadow-sm text-brand-green-600' : 'text-gray-500 hover:text-gray-900'}`}
                                             >
                                                 <Truck className="h-4 w-4" /> Door Delivery ({formatPrice(Math.round(baseDoorFee * shippingMultiplier))})
                                             </button>
                                             <button
                                                 onClick={() => setDeliveryMethod("pickup")}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${deliveryMethod === "pickup" ? 'bg-white shadow-sm text-ratel-green-600' : 'text-gray-500 hover:text-gray-900'}`}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${deliveryMethod === "pickup" ? 'bg-white shadow-sm text-brand-green-600' : 'text-gray-500 hover:text-gray-900'}`}
                                             >
                                                 <MapPin className="h-4 w-4" /> Pickup Station ({formatPrice(Math.round(basePickupFee * shippingMultiplier))})
                                             </button>
@@ -574,7 +574,7 @@ function CheckoutContent() {
                                                     value={address.firstName}
                                                     onChange={e => setAddress({ ...address, firstName: e.target.value })}
                                                     placeholder="Enter first name"
-                                                    className="rounded-xl border-gray-300 bg-white focus:border-ratel-orange/50 focus:ring-ratel-orange/20"
+                                                    className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                 />
                                             </div>
                                             <div className="space-y-1">
@@ -583,7 +583,7 @@ function CheckoutContent() {
                                                     value={address.lastName}
                                                     onChange={e => setAddress({ ...address, lastName: e.target.value })}
                                                     placeholder="Enter last name"
-                                                    className="rounded-xl border-gray-300 bg-white focus:border-ratel-orange/50 focus:ring-ratel-orange/20"
+                                                    className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                 />
                                             </div>
                                         </div>
@@ -596,7 +596,7 @@ function CheckoutContent() {
                                                     value={address.email}
                                                     onChange={e => setAddress({ ...address, email: e.target.value })}
                                                     placeholder="your@email.com"
-                                                    className="rounded-xl border-gray-300 bg-white focus:border-ratel-orange/50 focus:ring-ratel-orange/20"
+                                                    className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                 />
                                             </div>
                                         )}
@@ -613,7 +613,7 @@ function CheckoutContent() {
                                                 onChange={e => setAddress({ ...address, phone: e.target.value })}
                                                 placeholder="+234 xxx xxx xxxx"
                                                 required
-                                                className="rounded-xl border-gray-300 bg-white focus:border-ratel-orange/50 focus:ring-ratel-orange/20"
+                                                className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                             />
                                         </div>
 
@@ -626,7 +626,7 @@ function CheckoutContent() {
                                                         onChange={e => setAddress({ ...address, street: e.target.value })}
                                                         placeholder="123 Example Street, Lekki Phase 1"
                                                         required
-                                                        className="rounded-xl border-gray-300 bg-white focus:border-ratel-orange/50 focus:ring-ratel-orange/20"
+                                                        className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                     />
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -808,7 +808,7 @@ function CheckoutContent() {
                                     <div className="space-y-4">
                                         <div className="flex items-start gap-4">
                                             <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
-                                                {deliveryMethod === "pickup" ? <MapPin className="h-5 w-5 text-ratel-green-600" /> : <Truck className="h-5 w-5 text-gray-400" />}
+                                                {deliveryMethod === "pickup" ? <MapPin className="h-5 w-5 text-brand-green-600" /> : <Truck className="h-5 w-5 text-gray-400" />}
                                             </div>
                                             <div>
                                                 <p className="font-bold text-gray-900">{address.firstName} {address.lastName}</p>
@@ -816,7 +816,7 @@ function CheckoutContent() {
                                                     <p className="text-sm text-gray-500 mt-1">{address.street}{address.street && ", "}{address.city}</p>
                                                 ) : (
                                                     <p className="text-sm text-gray-500 mt-1">
-                                                        <span className="font-bold text-ratel-green-600">Pickup Station:</span> {pickupDetails.station}, {pickupDetails.city}, {pickupDetails.state}
+                                                        <span className="font-bold text-brand-green-600">Pickup Station:</span> {pickupDetails.station}, {pickupDetails.city}, {pickupDetails.state}
                                                     </p>
                                                 )}
                                                 <p className="text-sm text-gray-500 flex items-center gap-2 mt-1.5 font-medium">
@@ -833,7 +833,7 @@ function CheckoutContent() {
                                         {!user && (
                                             <div className="pt-4 border-t border-gray-100">
                                                 <label className="flex items-center gap-3 cursor-pointer group">
-                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${createAccount ? "bg-ratel-green-600 border-ratel-green-600" : "border-gray-300 group-hover:border-ratel-green-600"}`}>
+                                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${createAccount ? "bg-brand-green-600 border-brand-green-600" : "border-gray-300 group-hover:border-brand-green-600"}`}>
                                                         {createAccount && <Check className="h-3 w-3 text-white" />}
                                                         <input
                                                             type="checkbox"
@@ -849,7 +849,7 @@ function CheckoutContent() {
                                         <div className="mt-6 flex justify-end">
                                             <Button
                                                 onClick={() => setCheckoutStep(2)}
-                                                className="w-full md:w-auto bg-ratel-green-600 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 text-white rounded-xl font-bold px-8"
+                                                className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 text-white rounded-xl font-bold px-8"
                                             >
                                                 PROCEED TO PAYMENT
                                             </Button>
@@ -874,10 +874,10 @@ function CheckoutContent() {
                     </section>
 
                     {/* Step 2: Payment Method */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 2 ? 'border-ratel-green-500 ring-1 ring-ratel-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
                         <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 2 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`} onClick={() => checkoutStep > 2 ? setCheckoutStep(2) : checkoutStep === 1 && address.street.trim() && setCheckoutStep(2)}>
                             <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 2 ? 'text-gray-900' : 'text-gray-400'}`}>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 2 ? 'bg-black text-white' : checkoutStep > 2 ? 'bg-ratel-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 2 ? 'bg-black text-white' : checkoutStep > 2 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                                     {checkoutStep > 2 ? <Check className="h-4 w-4" /> : '2'}
                                 </div>
                                 Payment Method
@@ -885,7 +885,7 @@ function CheckoutContent() {
                             {checkoutStep > 2 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setCheckoutStep(2); }}
-                                    className="text-xs font-bold text-blue-600 hover:text-ratel-orange"
+                                    className="text-xs font-bold text-blue-600 hover:text-brand-orange"
                                 >
                                     CHANGE
                                 </button>
@@ -895,8 +895,8 @@ function CheckoutContent() {
                         {checkoutStep === 2 && (
                             <div className="p-6 space-y-3">
                                 {/* Paystack (Online Payment) */}
-                                <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'paystack' ? 'border-ratel-orange/50 bg-orange-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                    <input type="radio" name="payment" checked={paymentMethod === 'paystack'} onChange={() => setPaymentMethod('paystack')} className="h-5 w-5 text-ratel-orange focus:ring-ratel-orange" />
+                                <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'paystack' ? 'border-brand-orange/50 bg-orange-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <input type="radio" name="payment" checked={paymentMethod === 'paystack'} onChange={() => setPaymentMethod('paystack')} className="h-5 w-5 text-brand-orange focus:ring-brand-orange" />
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <span className="font-bold text-gray-900">Paystack (Card / Bank Transfer)</span>
@@ -937,7 +937,7 @@ function CheckoutContent() {
                                 <div className="mt-6 flex justify-end">
                                     <Button
                                         onClick={() => setCheckoutStep(3)}
-                                        className="w-full md:w-auto bg-ratel-green-600 hover:bg-emerald-600 text-white rounded-lg font-bold"
+                                        className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 text-white rounded-lg font-bold"
                                     >
                                         PROCEED TO SUMMARY
                                     </Button>
@@ -958,7 +958,7 @@ function CheckoutContent() {
                     </section>
 
                     {/* Step 3: Review Items */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 3 ? 'border-ratel-green-500 ring-1 ring-ratel-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 3 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
                         <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 3 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}>
                             <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 3 ? 'text-gray-900' : 'text-gray-400'}`}>
                                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 3 ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}`}>3</div>
@@ -1017,9 +1017,9 @@ function CheckoutContent() {
                                                                 >
                                                                     <h3 className="font-bold text-gray-900 line-clamp-1 group-hover/item:text-emerald-600 transition-colors">{item.product.name}</h3>
                                                                     <div className="flex items-center gap-2 mt-1">
-                                                                        <span className="font-bold text-ratel-green-600">{formatPrice(item.price)}</span>
+                                                                        <span className="font-bold text-brand-green-600">{formatPrice(item.price)}</span>
                                                                         {item.isNegotiated && (
-                                                                            <span className="text-[10px] bg-ratel-green-100 text-ratel-green-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                                                                            <span className="text-[10px] bg-brand-green-100 text-brand-green-700 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
                                                                                 <Tag className="h-3 w-3" /> Negotiated Price
                                                                             </span>
                                                                         )}
@@ -1093,6 +1093,7 @@ function CheckoutContent() {
                             </p>
                         </div>
 
+
                         {/* Item thumbnails */}
                         <div className="space-y-3 border-b border-gray-100 pb-4 mb-4">
                             <h4 className="text-xs font-bold uppercase text-gray-400">Items ({checkoutItems.reduce((a, b) => a + b.quantity, 0)})</h4>
@@ -1139,13 +1140,13 @@ function CheckoutContent() {
                         <div className="lg:hidden fixed bottom-[60px] left-0 right-0 p-4 bg-white border-t-2 border-gray-100 z-[90] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
                             <div className="flex items-center justify-between mb-3 px-1">
                                 <span className="font-bold text-gray-500 uppercase tracking-widest text-xs">Total</span>
-                                <span className="font-black text-xl text-ratel-orange">{formatPrice(total)}</span>
+                                <span className="font-black text-xl text-brand-orange">{formatPrice(total)}</span>
                             </div>
                             <Button
                                 size="lg"
                                 onClick={handlePlaceOrder}
                                 disabled={isProcessing}
-                                className="w-full rounded-xl bg-gradient-to-r from-ratel-green-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white font-black h-14 shadow-xl shadow-emerald-500/20 text-lg transition-all"
+                                className="w-full rounded-xl bg-gradient-to-r from-brand-green-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white font-black h-14 shadow-xl shadow-emerald-500/20 text-lg transition-all"
                             >
                                 {isProcessing ? "Processing..." : "Confirm & Pay"}
                             </Button>
@@ -1215,7 +1216,7 @@ function CheckoutContent() {
                                             <ShieldCheck className="h-4 w-4 text-emerald-500" /> Verified Escrow
                                         </div>
                                         <div className="flex items-center gap-2 text-xs font-bold text-gray-600">
-                                            {previewProduct.seller_id === "ratel-concierge" ? <Globe className="h-4 w-4 text-blue-500" /> : <Package className="h-4 w-4 text-gray-400" />}
+                                            {previewProduct.seller_id === "global-store" ? <Globe className="h-4 w-4 text-blue-500" /> : <Package className="h-4 w-4 text-gray-400" />}
                                             {previewProduct.seller_name}
                                         </div>
                                     </div>

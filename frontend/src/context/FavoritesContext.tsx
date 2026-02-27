@@ -26,8 +26,8 @@ const FavoritesContext = createContext<FavoritesContextType>({
     favoriteStoresCount: 0,
 });
 
-const PRODUCTS_KEY = "ratel_demo_favorites";
-const STORES_KEY = "ratel_favorite_stores";
+const PRODUCTS_KEY = "fp_demo_favorites";
+const STORES_KEY = "fp_favorite_stores";
 
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     const [favorites, setFavorites] = useState<string[]>([]);

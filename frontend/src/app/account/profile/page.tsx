@@ -31,7 +31,7 @@ export default function ProfilePage() {
     const [profilePic, setProfilePic] = useState<string | null>(null);
 
     useEffect(() => {
-        const saved = localStorage.getItem('ratel_profile_pic');
+        const saved = localStorage.getItem('fp_profile_pic');
         if (saved) setProfilePic(saved);
     }, []);
 
@@ -42,7 +42,7 @@ export default function ProfilePage() {
         reader.onloadend = () => {
             const dataUrl = reader.result as string;
             setProfilePic(dataUrl);
-            localStorage.setItem('ratel_profile_pic', dataUrl);
+            localStorage.setItem('fp_profile_pic', dataUrl);
         };
         reader.readAsDataURL(file);
     };

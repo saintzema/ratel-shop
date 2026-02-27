@@ -27,8 +27,8 @@ const PLANS = [
         price: "₦5,000",
         duration: "per month",
         description: "For growing businesses needing more power.",
-        icon: <TrendingUp className="h-6 w-6 text-ratel-green-600" />,
-        color: "ratel-green",
+        icon: <TrendingUp className="h-6 w-6 text-brand-green-600" />,
+        color: "brand-green",
         popular: true,
         features: [
             "Up to 500 Products",
@@ -107,7 +107,7 @@ export default function BillingPage() {
                             onClick={() => setBillingCycle("annually")}
                             className={`px-6 py-2.5 rounded-xl text-sm font-bold tracking-widest uppercase transition-all z-10 flex items-center gap-2 ${billingCycle === "annually" ? "text-gray-900 shadow-sm bg-white" : "text-gray-500 hover:text-gray-900"}`}
                         >
-                            Annually <span className="text-[10px] bg-ratel-green-100 text-ratel-green-800 px-2 py-0.5 rounded-full font-black">Save 20%</span>
+                            Annually <span className="text-[10px] bg-brand-green-100 text-brand-green-800 px-2 py-0.5 rounded-full font-black">Save 20%</span>
                         </button>
                     </div>
                 </div>
@@ -120,11 +120,11 @@ export default function BillingPage() {
                     return (
                         <div
                             key={plan.name}
-                            className={`relative bg-white rounded-[32px] border flex flex-col transition-all duration-300 ${plan.popular ? 'border-ratel-green-500 shadow-[0_8px_40px_rgba(22,163,74,0.12)] scale-105 z-10' : 'border-gray-200 hover:border-gray-300 hover:shadow-xl'}`}
+                            className={`relative bg-white rounded-[32px] border flex flex-col transition-all duration-300 ${plan.popular ? 'border-brand-green-500 shadow-[0_8px_40px_rgba(22,163,74,0.12)] scale-105 z-10' : 'border-gray-200 hover:border-gray-300 hover:shadow-xl'}`}
                         >
                             {plan.popular && (
                                 <div className="absolute -top-4 left-0 right-0 flex justify-center">
-                                    <div className="bg-ratel-green-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
+                                    <div className="bg-brand-green-600 text-white text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full shadow-lg">
                                         Most Popular
                                     </div>
                                 </div>
@@ -133,7 +133,7 @@ export default function BillingPage() {
                             <div className="p-8 pb-6 border-b border-gray-100">
                                 <div className="flex items-center justify-between mb-4">
                                     <h3 className="text-xl font-bold tracking-tight text-gray-900">{plan.name}</h3>
-                                    <div className={`p-2 rounded-xl ${plan.color === 'ratel-green' ? 'bg-ratel-green-50' : plan.color === 'blue' ? 'bg-blue-50' : plan.color === 'amber' ? 'bg-amber-50' : 'bg-gray-50'}`}>
+                                    <div className={`p-2 rounded-xl ${plan.color === 'brand-green' ? 'bg-brand-green-50' : plan.color === 'blue' ? 'bg-blue-50' : plan.color === 'amber' ? 'bg-amber-50' : 'bg-gray-50'}`}>
                                         {plan.icon}
                                     </div>
                                 </div>
@@ -152,7 +152,7 @@ export default function BillingPage() {
                                 <ul className="space-y-4 mb-8 flex-1">
                                     {plan.features.map((feature, i) => (
                                         <li key={i} className="flex flex-items gap-3">
-                                            <CheckCircle2 className={`h-5 w-5 shrink-0 ${plan.popular ? 'text-ratel-green-500' : 'text-gray-400'}`} />
+                                            <CheckCircle2 className={`h-5 w-5 shrink-0 ${plan.popular ? 'text-brand-green-500' : 'text-gray-400'}`} />
                                             <span className="text-[13px] font-medium text-gray-700">{feature}</span>
                                         </li>
                                     ))}
@@ -164,7 +164,7 @@ export default function BillingPage() {
                                     className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-items gap-2 items-center justify-center ${plan.current
                                         ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
                                         : plan.popular
-                                            ? 'bg-ratel-green-600 hover:bg-ratel-green-700 text-white shadow-ratel-green-600/20 hover:shadow-lg'
+                                            ? 'bg-brand-green-600 hover:bg-brand-green-700 text-white shadow-brand-green-600/20 hover:shadow-lg'
                                             : 'bg-gray-900 hover:bg-black text-white'}`}
                                 >
                                     {isProcessing ? (
@@ -183,7 +183,7 @@ export default function BillingPage() {
 
             {/* Enterprise / Multiple Business Banner */}
             <div className="max-w-7xl mx-auto mt-16 bg-gray-900 rounded-[32px] p-8 md:p-12 text-white relative overflow-hidden shadow-2xl shadow-gray-900/40 border border-gray-800">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-ratel-green-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute top-0 right-0 w-96 h-96 bg-brand-green-500/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
                 <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
                     <div className="max-w-2xl">
                         <h2 className="text-3xl font-black tracking-tight mb-4">Running Multiple Ventures?</h2>
@@ -192,10 +192,10 @@ export default function BillingPage() {
                         </p>
                         <div className="flex gap-4">
                             <div className="bg-white/10 px-4 py-2 rounded-xl flex items-center gap-2 border border-white/5">
-                                <CheckCircle2 className="h-4 w-4 text-ratel-green-400" /> <span className="text-sm font-bold">One Login</span>
+                                <CheckCircle2 className="h-4 w-4 text-brand-green-400" /> <span className="text-sm font-bold">One Login</span>
                             </div>
                             <div className="bg-white/10 px-4 py-2 rounded-xl flex items-center gap-2 border border-white/5">
-                                <CheckCircle2 className="h-4 w-4 text-ratel-green-400" /> <span className="text-sm font-bold">Separate Inventories</span>
+                                <CheckCircle2 className="h-4 w-4 text-brand-green-400" /> <span className="text-sm font-bold">Separate Inventories</span>
                             </div>
                         </div>
                     </div>

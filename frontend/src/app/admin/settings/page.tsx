@@ -134,8 +134,8 @@ export default function AdminSettings() {
         setIsFlushing(true);
         setTimeout(() => {
             // Clear all cached data except user auth
-            const keysToKeep = ["ratel_auth_user", "ratel_data_version"];
-            const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith("ratel_demo_") && !keysToKeep.includes(k));
+            const keysToKeep = ["fp_auth_user", "fp_data_version"];
+            const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith("fp_demo_") && !keysToKeep.includes(k));
             keysToRemove.forEach(k => localStorage.removeItem(k));
             window.dispatchEvent(new Event("storage"));
             setIsFlushing(false);

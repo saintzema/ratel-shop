@@ -20,7 +20,7 @@ interface Address {
     type: "home" | "work" | "other";
 }
 
-const STORAGE_KEY = "ratel_saved_addresses";
+const STORAGE_KEY = "fp_saved_addresses";
 
 export default function AddressesPage() {
     const [addresses, setAddresses] = useState<Address[]>([]);

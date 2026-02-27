@@ -1,17 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  /* Nigerian Green Palette */
-  --ratel-green-50: #e8f5e9;
-  --ratel-green-100: #c8e6c9;
-  --ratel-green-500: #0a6847;
+  /* Global Store Green Palette */
+  --brand-green-50: #e8f5e9;
+  --brand-green-100: #c8e6c9;
+  --brand-green-500: #0a6847;
   /* Primary */
-  --ratel-green-600: #054d33;
-  --ratel-green-900: #022c1e;
+  --brand-green-600: #054d33;
+  --brand-green-900: #022c1e;
 
   /* Conversion Colors */
-  --ratel-orange: #f59e0b;
-  --ratel-red: #ef4444;
+  --brand-orange: #f59e0b;
+  --brand-red: #ef4444;
 
   --background: #ffffff;
   --background-ash: #eaeded;
@@ -19,7 +19,7 @@
   --foreground: #000000;
   --hero-overlay: #eaeded;
 
-  --primary: var(--ratel-green-500);
+  --primary: var(--brand-green-500);
   --primary-foreground: #ffffff;
 
   --muted: #f3f3f3;
@@ -37,7 +37,7 @@
 /* Light theme only — no dark mode */
 
 @theme inline {
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: "Manrope Variable", -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -54,12 +54,12 @@
   --color-border: var(--border);
   --color-input: var(--input);
 
-  --color-ratel-green: var(--ratel-green-500);
-  --color-ratel-green-400: #10b981;
-  --color-ratel-green-600: var(--ratel-green-600);
-  --color-ratel-green-900: var(--ratel-green-900);
-  --color-ratel-orange: var(--ratel-orange);
-  --color-ratel-red: var(--ratel-red);
+  --color-brand-green: var(--brand-green-500);
+  --color-brand-green-400: #10b981;
+  --color-brand-green-600: var(--brand-green-600);
+  --color-brand-green-900: var(--brand-green-900);
+  --color-brand-orange: var(--brand-orange);
+  --color-brand-red: var(--brand-red);
 
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: calc(var(--radius) - 2px);

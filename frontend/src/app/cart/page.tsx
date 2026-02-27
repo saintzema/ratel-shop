@@ -65,7 +65,7 @@ export default function CartPage() {
                                     {/* Details */}
                                     <div className="flex-1">
                                         <div className="flex justify-between items-start">
-                                            <Link href={`/product/${product.id}`} className="font-medium text-lg hover:text-ratel-orange hover:underline line-clamp-2">
+                                            <Link href={`/product/${product.id}`} className="font-medium text-lg hover:text-brand-orange hover:underline line-clamp-2">
                                                 {product.name}
                                             </Link>
                                             <div className="font-bold text-lg">{formatPrice(product.price)}</div>
@@ -129,6 +129,7 @@ export default function CartPage() {
                     <div className="mt-6 text-right text-lg">
                         Subtotal ({cartCount} items): <span className="font-bold">{formatPrice(cartTotal)}</span>
                     </div>
+
                 </div>
 
                 {/* Right Sidebar: Checkout (Desktop Only) */}
@@ -169,8 +170,8 @@ export default function CartPage() {
                                             <img src={p.image_url} className="w-full h-full object-contain mix-blend-multiply" />
                                         </div>
                                         <div className="text-xs min-w-0">
-                                            <div className="line-clamp-2 mb-1 group-hover:text-ratel-orange">{p.name}</div>
-                                            <div className="font-bold text-ratel-red">{formatPrice(p.price)}</div>
+                                            <div className="line-clamp-2 mb-1 group-hover:text-brand-orange">{p.name}</div>
+                                            <div className="font-bold text-brand-red">{formatPrice(p.price)}</div>
                                         </div>
                                     </Link>
                                     <button
@@ -205,7 +206,7 @@ export default function CartPage() {
                                     <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
                                         <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
                                     </div>
-                                    <h3 className="text-xs sm:text-sm text-gray-700 line-clamp-2 min-h-[2.5rem] group-hover:text-ratel-orange">
+                                    <h3 className="text-xs sm:text-sm text-gray-700 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-orange">
                                         {product.name}
                                     </h3>
                                     <p className="font-bold text-sm sm:text-base text-gray-900 mt-1">{formatPrice(product.price)}</p>
@@ -244,10 +245,10 @@ export default function CartPage() {
                 <div className="lg:hidden fixed bottom-[60px] left-0 right-0 bg-white border-t p-4 z-[90] flex items-center justify-between shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.1)]">
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Total</p>
-                        <p className="text-xl font-black text-ratel-orange">{formatPrice(cartTotal)}</p>
+                        <p className="text-xl font-black text-brand-orange">{formatPrice(cartTotal)}</p>
                     </div>
                     <Link href="/checkout">
-                        <Button className="bg-ratel-orange hover:bg-orange-600 text-white font-bold rounded-lg px-8 h-12 shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+                        <Button className="bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-lg px-8 h-12 shadow-md hover:shadow-lg transition-all flex items-center gap-2">
                             <span>CHECKOUT ({cartCount})</span>
                         </Button>
                     </Link>

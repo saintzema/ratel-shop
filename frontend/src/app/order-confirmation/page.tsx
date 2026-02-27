@@ -24,7 +24,7 @@ export default function OrderConfirmationPage() {
 
                     <div className="bg-gray-50 rounded-xl p-4 mb-8 text-left border border-gray-100">
                         <div className="flex items-start gap-3">
-                            <Package className="h-5 w-5 text-ratel-green-600 mt-0.5" />
+                            <Package className="h-5 w-5 text-brand-green-600 mt-0.5" />
                             <div>
                                 <p className="font-bold text-sm text-gray-900">Order #ORD-247813</p>
                                 <p className="text-xs text-gray-500 mt-1">Estimated Delivery: Feb 14, 2026</p>
@@ -34,7 +34,7 @@ export default function OrderConfirmationPage() {
 
                     <div className="flex flex-col gap-3">
                         <Link href="/">
-                            <Button className="w-full rounded-xl bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-bold h-12 shadow-lg shadow-ratel-green-600/20">
+                            <Button className="w-full rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold h-12 shadow-lg shadow-brand-green-600/20">
                                 Continue Shopping
                             </Button>
                         </Link>

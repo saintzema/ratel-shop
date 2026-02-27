@@ -50,7 +50,7 @@ export function ConfirmationModal({
                             onConfirm();
                             onClose();
                         }}
-                        className={variant === "danger" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-ratel-green-600 hover:bg-ratel-green-700 text-white"}
+                        className={variant === "danger" ? "bg-red-600 hover:bg-red-700 text-white" : "bg-brand-green-600 hover:bg-brand-green-700 text-white"}
                     >
                         {confirmLabel}
                     </Button>

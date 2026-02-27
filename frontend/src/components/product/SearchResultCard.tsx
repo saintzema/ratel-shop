@@ -92,7 +92,7 @@ export function SearchResultCard({
                     </div>
                 )}
                 {isBestSeller && (
-                    <div className="absolute top-0 left-0 bg-ratel-orange text-white text-[10px] font-bold px-3 py-1.5 z-10 rounded-br-lg uppercase tracking-wider">
+                    <div className="absolute top-0 left-0 bg-brand-orange text-white text-[10px] font-bold px-3 py-1.5 z-10 rounded-br-lg uppercase tracking-wider">
                         Best Seller
                     </div>
                 )}
@@ -142,7 +142,7 @@ export function SearchResultCard({
             <div className="flex-1 flex flex-col pt-1">
                 {isSponsored && <span className="text-[10px] text-gray-400 font-medium mb-1">Sponsored</span>}
 
-                <Link href={`/product/${product.id}`} className="group-hover:text-ratel-green-600 transition-colors">
+                <Link href={`/product/${product.id}`} className="group-hover:text-brand-green-600 transition-colors">
                     <h2 className="text-xl font-medium leading-tight mb-1 line-clamp-2">
                         {product.name}
                     </h2>
@@ -210,7 +210,7 @@ export function SearchResultCard({
                 {/* Action Section */}
                 <div className="flex items-center gap-3">
                     <Button
-                        className="bg-ratel-green-600 hover:bg-ratel-green-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
+                        className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToCart(product); }}
                     >
                         <ShoppingCart className="h-4 w-4" /> Add to cart

@@ -104,7 +104,7 @@ export default function SellerSettingsPage() {
     };
 
     if (loading || !seller) {
-        return <div className="p-8 flex items-center justify-center min-h-[60vh]"><div className="animate-spin h-8 w-8 border-4 border-ratel-green-600 border-t-transparent rounded-full" /></div>;
+        return <div className="p-8 flex items-center justify-center min-h-[60vh]"><div className="animate-spin h-8 w-8 border-4 border-brand-green-600 border-t-transparent rounded-full" /></div>;
     }
 
     return (
@@ -126,7 +126,7 @@ export default function SellerSettingsPage() {
 
                 {/* Branding Section */}
                 <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">
-                    <div className="flex items-center gap-2 mb-6 text-ratel-green-600">
+                    <div className="flex items-center gap-2 mb-6 text-brand-green-600">
                         <Store className="h-5 w-5" />
                         <h2 className="font-bold uppercase tracking-widest text-xs">Branding & Identity</h2>
                     </div>
@@ -141,7 +141,7 @@ export default function SellerSettingsPage() {
                                         value={formData.store_url}
                                         onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
                                         placeholder="your-store-name"
-                                        className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-r-none focus-visible:ring-1 focus-visible:border-ratel-green-600 font-medium text-gray-900 pr-24"
+                                        className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-r-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pr-24"
                                     />
                                     <div className="absolute right-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-l-0 rounded-r-xl px-4 text-gray-500 text-sm font-semibold pointer-events-none">
                                         .fairprice.ng
@@ -158,7 +158,7 @@ export default function SellerSettingsPage() {
                                     value={formData.business_name}
                                     onChange={e => setFormData({ ...formData, business_name: e.target.value })}
                                     placeholder="Enter your business name"
-                                    className="h-12 bg-gray-50 border-gray-200 rounded-xl focus-visible:ring-ratel-green-600 focus-visible:border-ratel-green-600"
+                                    className="h-12 bg-gray-50 border-gray-200 rounded-xl focus-visible:ring-brand-green-600 focus-visible:border-brand-green-600"
                                 />
                             </div>
 
@@ -168,7 +168,7 @@ export default function SellerSettingsPage() {
                                     value={formData.description}
                                     onChange={e => setFormData({ ...formData, description: e.target.value })}
                                     placeholder="Describe your store to customers..."
-                                    className="min-h-[100px] bg-gray-50 border-gray-200 rounded-xl resize-none focus-visible:ring-ratel-green-600 focus-visible:border-ratel-green-600"
+                                    className="min-h-[100px] bg-gray-50 border-gray-200 rounded-xl resize-none focus-visible:ring-brand-green-600 focus-visible:border-brand-green-600"
                                 />
                             </div>
                         </div>
@@ -196,7 +196,7 @@ export default function SellerSettingsPage() {
                                     </div>
                                     <div className="space-y-2 flex-1">
                                         <p className="text-xs text-gray-500 font-medium">Recommended size: 500x500px (JPG, PNG)</p>
-                                        <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()} className="h-9 hover:bg-ratel-green-50 hover:text-ratel-green-700 hover:border-ratel-green-200 text-xs font-bold uppercase tracking-widest transition-colors w-full sm:w-auto">
+                                        <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()} className="h-9 hover:bg-brand-green-50 hover:text-brand-green-700 hover:border-brand-green-200 text-xs font-bold uppercase tracking-widest transition-colors w-full sm:w-auto">
                                             <Upload className="h-3 w-3 mr-2" /> Select Image
                                         </Button>
                                     </div>
@@ -229,7 +229,7 @@ export default function SellerSettingsPage() {
 
                 {/* Operations Section */}
                 <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">
-                    <div className="flex items-center gap-2 mb-6 text-ratel-green-600">
+                    <div className="flex items-center gap-2 mb-6 text-brand-green-600">
                         <Users className="h-5 w-5" />
                         <h2 className="font-bold uppercase tracking-widest text-xs">Business Operations</h2>
                     </div>
@@ -241,7 +241,7 @@ export default function SellerSettingsPage() {
                                 value={formData.location}
                                 onChange={e => setFormData({ ...formData, location: e.target.value })}
                                 placeholder="E.g. Lagos, Nigeria"
-                                className="h-12 bg-gray-50 border-gray-200 rounded-xl focus-visible:ring-ratel-green-600 focus-visible:border-ratel-green-600"
+                                className="h-12 bg-gray-50 border-gray-200 rounded-xl focus-visible:ring-brand-green-600 focus-visible:border-brand-green-600"
                             />
                         </div>
 
@@ -252,7 +252,7 @@ export default function SellerSettingsPage() {
                                     <div
                                         key={curr}
                                         onClick={() => toggleCurrency(curr)}
-                                        className={`border rounded-lg px-3 py-2 text-sm text-center cursor-pointer transition-all active:scale-95 select-none ${formData.currencies.includes(curr) ? "bg-ratel-green-50 border-ratel-green-500 text-ratel-green-800 font-bold shadow-sm" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 font-medium"}`}
+                                        className={`border rounded-lg px-3 py-2 text-sm text-center cursor-pointer transition-all active:scale-95 select-none ${formData.currencies.includes(curr) ? "bg-brand-green-50 border-brand-green-500 text-brand-green-800 font-bold shadow-sm" : "bg-white border-gray-200 text-gray-600 hover:bg-gray-50 font-medium"}`}
                                     >
                                         {curr}
                                     </div>
@@ -265,7 +265,7 @@ export default function SellerSettingsPage() {
                             <select
                                 value={formData.weekly_orders}
                                 onChange={e => setFormData({ ...formData, weekly_orders: e.target.value })}
-                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600 focus-visible:border-transparent font-medium"
+                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent font-medium"
                             >
                                 <option value="">Select an option...</option>
                                 <option value="Just starting">Just starting out</option>
@@ -281,7 +281,7 @@ export default function SellerSettingsPage() {
                             <select
                                 value={formData.staff_count}
                                 onChange={e => setFormData({ ...formData, staff_count: e.target.value })}
-                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600 focus-visible:border-transparent font-medium"
+                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent font-medium"
                             >
                                 <option value="">Select an option...</option>
                                 <option value="Just me">Just me</option>
@@ -296,7 +296,7 @@ export default function SellerSettingsPage() {
                             <select
                                 value={formData.physical_stores}
                                 onChange={e => setFormData({ ...formData, physical_stores: e.target.value })}
-                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ratel-green-600 focus-visible:border-transparent font-medium"
+                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent font-medium"
                             >
                                 <option value="">Select an option...</option>
                                 <option value="None (Online only)">None (Online only)</option>
@@ -317,7 +317,7 @@ export default function SellerSettingsPage() {
                                     initial={{ opacity: 0, x: -10 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     exit={{ opacity: 0, x: -10 }}
-                                    className="flex items-center gap-2 text-ratel-green-700 bg-ratel-green-50 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[11px] border border-ratel-green-200"
+                                    className="flex items-center gap-2 text-brand-green-700 bg-brand-green-50 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[11px] border border-brand-green-200"
                                 >
                                     <CheckCircle2 className="h-4 w-4" />
                                     <span>Store Settings Saved Successfully!</span>
@@ -327,7 +327,7 @@ export default function SellerSettingsPage() {
                     </div>
                     <Button
                         disabled={saving}
-                        className="w-full sm:w-auto bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-black uppercase tracking-widest h-14 px-10 rounded-[16px] shadow-lg shadow-ratel-green-600/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                        className="w-full sm:w-auto bg-brand-green-600 hover:bg-brand-green-700 text-white font-black uppercase tracking-widest h-14 px-10 rounded-[16px] shadow-lg shadow-brand-green-600/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
                     >
                         {saving ? (
                             <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />

@@ -54,7 +54,7 @@ export function PwaManager() {
     if (!showInstallPrompt) return null;
 
     return (
-        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96 bg-white rounded-2xl shadow-ratel-glow border border-gray-200 p-4 z-50 flex flex-col gap-3 animate-in slide-in-from-bottom-5">
+        <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-auto md:right-6 md:w-96 bg-white rounded-2xl shadow-fp-glow border border-gray-200 p-4 z-50 flex flex-col gap-3 animate-in slide-in-from-bottom-5">
             <button
                 onClick={handleDismiss}
                 className="absolute top-3 right-3 text-gray-400 hover:text-black"
@@ -62,8 +62,8 @@ export function PwaManager() {
                 <X className="h-4 w-4" />
             </button>
             <div className="flex gap-4 items-center pr-6">
-                <div className="h-12 w-12 bg-ratel-green-900 rounded-xl flex items-center justify-center shrink-0">
-                    <Download className="h-6 w-6 text-ratel-green-400" />
+                <div className="h-12 w-12 bg-brand-green-900 rounded-xl flex items-center justify-center shrink-0">
+                    <Download className="h-6 w-6 text-brand-green-400" />
                 </div>
                 <div>
                     <h3 className="font-bold text-sm text-black">Install FairPrice App</h3>
@@ -79,7 +79,7 @@ export function PwaManager() {
                     Maybe Later
                 </Button>
                 <Button
-                    className="flex-1 rounded-xl h-9 text-xs font-bold bg-ratel-green-600 hover:bg-ratel-green-700 text-white"
+                    className="flex-1 rounded-xl h-9 text-xs font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white"
                     onClick={handleInstall}
                 >
                     Install Now

@@ -90,7 +90,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
         setSending(true);
 
         // Save message to localStorage
-        const msgKey = "ratel_seller_messages";
+        const msgKey = "fp_seller_messages";
         const existing = JSON.parse(localStorage.getItem(msgKey) || "[]");
         existing.push({
             id: `msg_${Date.now()}`,
@@ -123,7 +123,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
             <DialogContent className="sm:max-w-[480px] bg-white text-black border-zinc-200">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-                        <MessageCircle className="h-5 w-5 text-ratel-green-600" />
+                        <MessageCircle className="h-5 w-5 text-brand-green-600" />
                         Contact {seller.business_name}
                     </DialogTitle>
                     <DialogDescription className="text-zinc-500">
@@ -140,7 +140,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                         <p className="text-sm text-zinc-500 max-w-xs mx-auto">
                             {seller.business_name} typically responds within 1 hour. You'll receive a notification when they reply.
                         </p>
-                        <Button onClick={handleClose} className="rounded-full px-8 bg-ratel-green-600 hover:bg-ratel-green-700 text-white">
+                        <Button onClick={handleClose} className="rounded-full px-8 bg-brand-green-600 hover:bg-brand-green-700 text-white">
                             Done
                         </Button>
                     </div>
@@ -148,7 +148,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                     <div className="space-y-4 py-2">
                         {/* Seller info */}
                         <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-ratel-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-sm">
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-sm">
                                 {seller.business_name.charAt(0)}
                             </div>
                             <div className="flex-1">
@@ -167,7 +167,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                                         key={cat.value}
                                         onClick={() => setCategory(cat.value)}
                                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${category === cat.value
-                                                ? "bg-ratel-green-600 text-white"
+                                                ? "bg-brand-green-600 text-white"
                                                 : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                                             }`}
                                     >
@@ -184,7 +184,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                                 value={message}
                                 onChange={e => handleMessageChange(e.target.value)}
                                 placeholder="Hi, I'm interested in your product. Can you tell me more about..."
-                                className="min-h-[120px] rounded-xl border-zinc-200 focus:border-ratel-green-500 focus:ring-ratel-green-500/20 resize-none"
+                                className="min-h-[120px] rounded-xl border-zinc-200 focus:border-brand-green-500 focus:ring-brand-green-500/20 resize-none"
                                 maxLength={1000}
                             />
                             <p className="text-[10px] text-zinc-400 text-right">{message.length}/1000</p>
@@ -208,7 +208,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                         <Button
                             onClick={handleSend}
                             disabled={!message.trim() || sending || !!filterWarning}
-                            className="w-full rounded-xl h-11 bg-ratel-green-600 hover:bg-ratel-green-700 text-white font-bold"
+                            className="w-full rounded-xl h-11 bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold"
                         >
                             {sending ? (
                                 <>Sending...</>

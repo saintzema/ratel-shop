@@ -447,7 +447,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
 
                 // Create a brief info-packed description if specs are available
                 const specSummary = specs ? Object.entries(specs).map(([k, v]) => `${k}: ${v}`).join(" • ") : "";
-                const generatedDesc = specSummary ? `${productName} featuring ${specSummary}` : `High-quality ${productName} sourced securely via global partners.`;
+                const generatedDesc = specSummary ? `${productName} featuring ${specSummary}` : `High-quality ${productName} sourced securely via global stores.`;
 
                 intel = {
                     name: productName,
@@ -503,7 +503,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                 const newGlobalProduct: Product = {
                     id: newId,
                     seller_id: "global-partners",
-                    seller_name: "Global Partners",
+                    seller_name: "Global Stores",
                     name: intel.name,
                     description: intel.description || `Global import sourced securely via real-time market analysis.`,
                     price: intel.fairBestPrice,
@@ -624,7 +624,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                 {isAnalyzing ? "Analyzing Market Data..." : "Searching Available Products..."}
                                             </h3>
                                             <p className="text-gray-600 text-xs mt-1">
-                                                {isAnalyzing ? "Deep checking prices across stores" : "Fetching from catalog and global partners"}
+                                                {isAnalyzing ? "Deep checking prices across stores" : "Fetching from catalog and global stores"}
                                             </p>
                                         </div>
                                     </motion.div>
@@ -847,7 +847,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                         const sourcingProduct: Product = {
                             id: `source-${Date.now()}`,
                             seller_id: "global-partners",
-                            seller_name: "Global Partners",
+                            seller_name: "Global Stores",
                             name: `[Sourcing Request] ${result.name}`,
                             description: result.description || `Special sourcing request for ${result.name}.`,
                             price: result.fairBestPrice,
