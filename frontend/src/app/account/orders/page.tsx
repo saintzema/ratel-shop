@@ -216,9 +216,10 @@ function OrdersContent() {
                                                     {/* Thumbnail */}
                                                     <div className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0">
                                                         <img
-                                                            src={order.product?.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158"}
+                                                            src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                             alt={order.product?.name || "Product"}
                                                             className="h-full w-full object-contain"
+                                                            onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }}
                                                         />
                                                     </div>
 
@@ -273,9 +274,10 @@ function OrdersContent() {
                                                     <div className="flex items-center gap-3">
                                                         <div className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0">
                                                             <img
-                                                                src={order.product?.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158"}
+                                                                src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                                 alt={order.product?.name || "Product"}
                                                                 className="h-full w-full object-contain"
+                                                                onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }}
                                                             />
                                                         </div>
                                                         <div className="flex-1 min-w-0">
@@ -476,9 +478,10 @@ function OrdersContent() {
                             <div className="p-5 flex items-center gap-4 border-b border-gray-200">
                                 <div className="h-16 w-16 bg-white rounded-xl border border-gray-200 p-2 shrink-0">
                                     <img
-                                        src={selectedOrderForTracking.product?.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
+                                        src={selectedOrderForTracking.product?.image_url || "/assets/images/placeholder.png"}
                                         alt={selectedOrderForTracking.product?.name || "Product"}
                                         className="h-full w-full object-contain"
+                                        onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }}
                                     />
                                 </div>
                                 <div className="flex-1 min-w-0">

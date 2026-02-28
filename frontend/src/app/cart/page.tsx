@@ -15,6 +15,8 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { DEMO_PRODUCTS } from "@/lib/data";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
 
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+
 export default function CartPage() {
     const { location, deliveryDate } = useLocation();
     const { cart, removeFromCart, updateQuantity, cartTotal, cartCount, clearCart, addToCart } = useCart();
@@ -22,6 +24,10 @@ export default function CartPage() {
     const router = useRouter();
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
     const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+    // View More state
+    const [loadedMore, setLoadedMore] = useState(false);
+    const [visibleProductsCount, setVisibleProductsCount] = useState(8);
 
     return (
         <div className="min-h-screen bg-white flex flex-col">
@@ -59,7 +65,7 @@ export default function CartPage() {
                                 <div key={product.id} className="flex gap-4 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
                                     {/* Image */}
                                     <Link href={`/product/${product.id}`} className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
-                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply" />
+                                        <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                     </Link>
 
                                     {/* Details */}
@@ -270,6 +276,44 @@ export default function CartPage() {
                             <span>CHECKOUT ({cartCount})</span>
                         </Button>
                     </Link>
+                </div>
+            )}
+            {/* View More + You May Also Like */}
+            {cart.length > 0 && (
+                <div className="container mx-auto px-4 mt-8 mb-16 max-w-7xl">
+                    <div className="flex flex-col items-center gap-8 mt-6">
+                        <Button
+                            variant="outline"
+                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                            onClick={() => {
+                                if (!loadedMore) {
+                                    setLoadedMore(true);
+                                } else {
+                                    setVisibleProductsCount(prev => prev + 8);
+                                }
+                            }}
+                        >
+                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
+
+                    {/* You May Also Like — more products from the same or related categories */}
+                    {visibleProductsCount > 8 && (() => {
+                        const youMayLike = DEMO_PRODUCTS
+                            .filter(p => !cart.map(c => c.product.id).includes(p.id))
+                            .sort(() => Math.random() - 0.5)
+                            .slice(0, visibleProductsCount - 8);
+                        if (youMayLike.length === 0) return null;
+                        return (
+                            <div className="mt-8">
+                                <RecommendedProducts
+                                    products={youMayLike}
+                                    title="You May Also Like"
+                                    subtitle="More deals you don't want to miss"
+                                />
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
 

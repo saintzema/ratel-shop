@@ -131,7 +131,7 @@ export default function OrderDetailsPage() {
                 <div class="section">
                     <div class="section-title">Product</div>
                     <div class="product">
-                        <img src="${order.product?.image_url}" alt="" />
+                        <img src="${order.product?.image_url || "/assets/images/placeholder.png"}" alt="" onerror="this.src='/assets/images/placeholder.png';" />
                         <div>
                             <p style="font-weight:bold">${order.product?.name || "Product"}</p>
                             <p style="color:#888;font-size:12px">Qty: 1</p>
@@ -270,9 +270,7 @@ export default function OrderDetailsPage() {
                             <h2 className="font-bold text-lg mb-4 text-gray-900">Items in this order</h2>
                             <div className="flex gap-4">
                                 <div className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0">
-                                    <img src={order.product?.image_url} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" />
-                                </div>
-                                <div>
+                                    <img src={order.product?.image_url || "/assets/images/placeholder.png"} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                     <Link href={`/product/${order.product_id}`} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
                                         {order.product?.name || "Product"}
                                     </Link>
