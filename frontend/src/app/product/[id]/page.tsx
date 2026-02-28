@@ -137,13 +137,15 @@ export default function ProductDetailPage() {
     const allProducts = DemoStore.getProducts();
     const allSellers = DemoStore.getSellers();
 
-    let product = allProducts.find((p) => p.id === id) || DEMO_PRODUCTS.find((p) => p.id === id) || DEMO_DEALS.map(d => d.product).find((p) => p.id === id);
+    // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
+    const decodedId = id ? decodeURIComponent(id) : id;
+    let product = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || DEMO_PRODUCTS.find((p) => p.id === decodedId) || DEMO_PRODUCTS.find((p) => p.id === id) || DEMO_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
 
     // Auto-hydrate global product from URL if missing from store cache
-    if (!product && id?.startsWith('global_')) {
-        // id format is like "global_samsung_galaxy_s24_ultra"
-        const namePart = id.replace('global_', '').replace(/_/g, ' ');
-        const name = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+    if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
+        // id format: "global-starlink-standard-kit-gen-3" or legacy "global_samsung_galaxy_s24_ultra"
+        const namePart = decodedId.replace(/^global[-_]/, '').replace(/[-_]/g, ' ');
+        const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
         product = {
             id,
@@ -155,7 +157,7 @@ export default function ProductDetailPage() {
             image_url: "",
             images: [],
             seller_id: 'global-partners',
-            seller_name: 'Global Partner Store',
+            seller_name: 'Global Stores',
             price_flag: 'fair',
             sold_count: 50,
             review_count: 12,
@@ -186,6 +188,24 @@ export default function ProductDetailPage() {
             verified: true,
             rating: 4.9,
             trust_score: 99,
+            status: "active",
+            kyc_status: "approved",
+            created_at: "2026-01-01T00:00:00Z",
+        } as any;
+    }
+
+    // Fallback for any product whose seller isn't registered (e.g. temu marketplace sellers)
+    if (!seller && product) {
+        seller = {
+            id: product.seller_id,
+            user_id: product.seller_id,
+            business_name: product.seller_name || "FairPrice Marketplace",
+            description: `Verified marketplace seller on FairPrice. All purchases are protected by our Escrow system.`,
+            logo_url: "/assets/images/placeholder.png",
+            category: product.category || "electronics",
+            verified: true,
+            rating: 4.7,
+            trust_score: 95,
             status: "active",
             kyc_status: "approved",
             created_at: "2026-01-01T00:00:00Z",
@@ -1073,7 +1093,7 @@ export default function ProductDetailPage() {
 
                             <Button
                                 variant="outline"
-                                className="rounded-full px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                                className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
                                 onClick={() => {
                                     if (!loadedMore) {
                                         setLoadedMore(true);
@@ -1085,12 +1105,46 @@ export default function ProductDetailPage() {
                                 VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
                             </Button>
                         </div>
+
                         <RecommendedProducts
                             products={alsoBoughtProducts}
                             title="Customers Also Bought"
                             subtitle="Frequently purchased together"
                             icon={<ShoppingCart className="h-5 w-5 text-blue-500" />}
                         />
+
+                        {/* View More + You May Also Like */}
+                        <div className="flex flex-col items-center gap-8 mt-6">
+                            <Button
+                                variant="outline"
+                                className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                                onClick={() => {
+                                    if (!loadedMore) {
+                                        setLoadedMore(true);
+                                    } else {
+                                        setVisibleProductsCount(prev => prev + 8);
+                                    }
+                                }}
+                            >
+                                VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                            </Button>
+                        </div>
+
+                        {/* You May Also Like — more products from the same or related categories */}
+                        {visibleProductsCount > 8 && (() => {
+                            const youMayLike = allProducts
+                                .filter(p => p.id !== product?.id && !similarProducts.includes(p) && !alsoBoughtProducts.includes(p))
+                                .sort(() => Math.random() - 0.5)
+                                .slice(0, visibleProductsCount - 8);
+                            if (youMayLike.length === 0) return null;
+                            return (
+                                <RecommendedProducts
+                                    products={youMayLike}
+                                    title="You May Also Like"
+                                    subtitle="Curated picks based on this product"
+                                />
+                            );
+                        })()}
                     </div>
                 )}
 

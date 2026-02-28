@@ -251,7 +251,7 @@ export function Navbar() {
                 })
                 .catch(() => { })
                 .finally(() => setIsGlobalSearching(false));
-        }, 400);
+        }, 250);
 
         return () => {
             clearTimeout(fetchTimer);
@@ -261,18 +261,36 @@ export function Navbar() {
     // Helper: Cache all current nav results to sessionStorage, add global to DemoStore, and navigate
     const navigateWithResults = (clickedProductId: string) => {
         // Convert global results into Product objects and add to DemoStore
-        const globalAsProducts = globalResults.map((r, i) => {
+        const globalAsProducts = globalResults.map((r: any, i: number) => {
+            // Generate a slug-based ID for human-readable URLs
+            const slug = r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            const productId = `global-${slug}`;
+
+            // Check if this product already exists in DemoStore (deduplication)
+            const existing = DemoStore.getProducts().find(p => p.id === productId);
+            if (existing) {
+                // Update existing product with any new data from API
+                if (r.specs && Object.keys(r.specs).length > 0) {
+                    DemoStore.updateProduct(productId, {
+                        specs: r.specs,
+                        ...(r.image_url ? { image_url: r.image_url } : {}),
+                        ...(r.description ? { description: r.description } : {}),
+                    });
+                }
+                return existing;
+            }
+
             const product = {
-                id: `global_${Date.now()}_${i}`,
+                id: productId,
                 name: r.name,
                 price: r.approxPrice || 0,
                 original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
                 category: r.category || 'electronics',
-                description: `${r.name} - sourced globally via FairPrice AI for the best deal.`,
-                image_url: '',
+                description: r.description || `${r.name} - sourced globally via FairPrice AI for the best deal.`,
+                image_url: r.image_url || '',
                 images: [],
                 seller_id: 'global-partners',
-                seller_name: 'Global Partner Store',
+                seller_name: 'Global Stores',
                 price_flag: 'fair' as const,
                 sold_count: Math.floor(Math.random() * 200) + 10,
                 review_count: Math.floor(Math.random() * 50) + 5,
@@ -280,7 +298,9 @@ export function Navbar() {
                 is_active: true,
                 created_at: new Date().toISOString(),
                 recommended_price: r.approxPrice,
-                specs: {},
+                specs: r.specs || {},
+                condition: r.condition || 'new',
+                source_url: r.sourceUrl || '',
             };
             DemoStore.addRawProduct(product as any);
             return product;

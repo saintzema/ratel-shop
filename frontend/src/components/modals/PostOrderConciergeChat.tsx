@@ -140,7 +140,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                         {/* Product Context Banner */}
                         {product && (
                             <div className="bg-gray-50 px-4 py-3 flex items-center gap-3 border-b border-gray-100 shrink-0">
-                                <img src={product.image_url} alt={product.name} className="w-10 h-10 rounded-lg object-cover bg-white border border-gray-200" />
+                                <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-10 h-10 rounded-lg object-cover bg-white border border-gray-200" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-gray-900 truncate">{product.name}</p>
                                     <p className="text-[10px] text-gray-500 font-medium">Order {orderId || "#RS-PENDING"}</p>

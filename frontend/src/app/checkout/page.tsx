@@ -138,6 +138,10 @@ function CheckoutContent() {
     const [showPaystack, setShowPaystack] = useState(false);
     const [isEditingAddress, setIsEditingAddress] = useState(true); // Default open for guests
     const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1);
+
+    // Added state for the "View More" feature
+    const [loadedMore, setLoadedMore] = useState(false);
+    const [visibleProductsCount, setVisibleProductsCount] = useState(8);
     const [paymentMethod, setPaymentMethod] = useState<"paystack" | "cod">("paystack");
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
@@ -1276,11 +1280,11 @@ function CheckoutContent() {
                                 <div key={i} className="flex items-center gap-3">
                                     <div className="w-12 h-12 bg-white rounded-lg border border-gray-100 p-1 shrink-0 overflow-hidden flex items-center justify-center">
                                         <img
-                                            src={item.product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
+                                            src={item.product.image_url || "/assets/images/placeholder.png"}
                                             alt={item.product.name}
                                             className="w-full h-full object-contain"
                                             onError={e => {
-                                                e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80";
+                                                e.currentTarget.src = "/assets/images/placeholder.png";
                                             }}
                                         />
                                     </div>
@@ -1301,7 +1305,7 @@ function CheckoutContent() {
                             <div className="flex justify-between text-gray-600">
                                 <span>Delivery fees:</span>
                                 {paymentMethod === 'paystack' ? (
-                                    <span className="font-bold text-emerald-600">FREE ✨</span>
+                                    <span className="font-bold text-emerald-600">FREE </span>
                                 ) : (
                                     <span className="font-medium">{formatPrice(shipping)}</span>
                                 )}
@@ -1340,6 +1344,42 @@ function CheckoutContent() {
                     title="Frequently Bought Together"
                     subtitle="Customers also added these items"
                 />
+                <div className="text-center mt-4">
+                    {/* View More + You May Also Like */}
+                    <div className="flex flex-col items-center gap-8 mt-6">
+                        <Button
+                            variant="outline"
+                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                            onClick={() => {
+                                if (!loadedMore) {
+                                    setLoadedMore(true);
+                                } else {
+                                    setVisibleProductsCount(prev => prev + 8);
+                                }
+                            }}
+                        >
+                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
+
+                    {/* You May Also Like — more products from the same or related categories */}
+                    {visibleProductsCount > 8 && (() => {
+                        const youMayLike = DemoStore.getProducts()
+                            .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
+                            .sort(() => Math.random() - 0.5)
+                            .slice(0, visibleProductsCount - 8);
+                        if (youMayLike.length === 0) return null;
+                        return (
+                            <div className="mt-8 text-left">
+                                <RecommendedProducts
+                                    products={youMayLike}
+                                    title="You May Also Like"
+                                    subtitle="More deals you don't want to miss"
+                                />
+                            </div>
+                        );
+                    })()}
+                </div>
             </div>
 
             <AnimatePresence>

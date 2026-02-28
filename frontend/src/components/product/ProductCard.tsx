@@ -116,11 +116,11 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     )}
 
                     <img
-                        src={product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80"}
+                        src={product.image_url || "/assets/images/placeholder.png"}
                         alt={product.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={(e) => {
-                            e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80";
+                            e.currentTarget.src = "/assets/images/placeholder.png";
                         }}
                     />
                 </div>

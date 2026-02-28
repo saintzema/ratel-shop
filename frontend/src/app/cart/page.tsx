@@ -195,50 +195,68 @@ export default function CartPage() {
                 </div>
             </main>
 
-            {/* Customers Also Viewed - Horizontal Scroll */}
-            {cart.length > 0 && (
-                <div className="container mx-auto px-4 mb-8 lg:mb-12 hidden lg:block lg:pb-0">
-                    <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
-                        <h2 className="text-lg font-bold mb-4">Customers also viewed</h2>
-                        <div className="flex overflow-x-auto gap-4 pb-4 snap-x" style={{ scrollbarWidth: "none" }}>
-                            {DEMO_PRODUCTS.slice(0, 8).map(product => (
-                                <Link key={product.id} href={`/product/${product.id}`} className="shrink-0 w-36 sm:w-48 group snap-start">
-                                    <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
-                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
-                                    </div>
-                                    <h3 className="text-xs sm:text-sm text-gray-700 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-orange">
-                                        {product.name}
-                                    </h3>
-                                    <p className="font-bold text-sm sm:text-base text-gray-900 mt-1">{formatPrice(product.price)}</p>
-                                </Link>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="lg:hidden">
-                {cart.length > 0 && (
-                    <div className="container mx-auto px-4 mb-4 pb-0">
-                        <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
-                            <h2 className="text-lg font-bold mb-4">Customers also viewed</h2>
-                            <div className="flex overflow-x-auto gap-4 pb-4 snap-x -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
-                                {DEMO_PRODUCTS.slice(0, 8).map(product => (
-                                    <Link key={product.id} href={`/product/${product.id}`} className="shrink-0 w-36 group snap-start">
-                                        <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
-                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
-                                        </div>
-                                        <h3 className="text-xs text-gray-700 line-clamp-2 min-h-[2.5rem]">
-                                            {product.name}
-                                        </h3>
-                                        <p className="font-bold text-sm text-gray-900 mt-1">{formatPrice(product.price)}</p>
+            {/* Similar Items in Category - Horizontal Scroll */}
+            {cart.length > 0 && (() => {
+                const cartCategories = [...new Set(cart.map(c => c.product.category).filter(Boolean))];
+                const similarProducts = DEMO_PRODUCTS
+                    .filter(p => cartCategories.includes(p.category) && !cart.some(c => c.product.id === p.id))
+                    .slice(0, 12);
+                const primaryCategory = cartCategories[0] || 'electronics';
+                if (similarProducts.length === 0) return null;
+                return (
+                    <>
+                        <div className="container mx-auto px-4 mb-8 lg:mb-12 hidden lg:block lg:pb-0">
+                            <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
+                                <h2 className="text-lg font-bold mb-4">Similar Items in Category</h2>
+                                <div className="flex overflow-x-auto gap-4 pb-4 snap-x" style={{ scrollbarWidth: "none" }}>
+                                    {similarProducts.map(product => (
+                                        <Link key={product.id} href={`/product/${product.id}`} className="shrink-0 w-36 sm:w-48 group snap-start">
+                                            <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
+                                                <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
+                                            </div>
+                                            <h3 className="text-xs sm:text-sm text-gray-700 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-orange">
+                                                {product.name}
+                                            </h3>
+                                            <p className="font-bold text-sm sm:text-base text-gray-900 mt-1">{formatPrice(product.price)}</p>
+                                        </Link>
+                                    ))}
+                                </div>
+                                <div className="text-center mt-2">
+                                    <Link href={`/search?q=${encodeURIComponent(primaryCategory)}`}>
+                                        <Button variant="outline" className="rounded-full px-8 font-bold text-sm">View More</Button>
                                     </Link>
-                                ))}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
+
+                        <div className="lg:hidden">
+                            <div className="container mx-auto px-4 mb-4 pb-0">
+                                <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
+                                    <h2 className="text-lg font-bold mb-4">Similar Items in Category</h2>
+                                    <div className="flex overflow-x-auto gap-4 pb-4 snap-x -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
+                                        {similarProducts.map(product => (
+                                            <Link key={product.id} href={`/product/${product.id}`} className="shrink-0 w-36 group snap-start">
+                                                <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
+                                                    <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
+                                                </div>
+                                                <h3 className="text-xs text-gray-700 line-clamp-2 min-h-[2.5rem]">
+                                                    {product.name}
+                                                </h3>
+                                                <p className="font-bold text-sm text-gray-900 mt-1">{formatPrice(product.price)}</p>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                    <div className="text-center mt-2">
+                                        <Link href={`/search?q=${encodeURIComponent(primaryCategory)}`}>
+                                            <Button variant="outline" className="rounded-full px-8 font-bold text-sm w-full">View More</Button>
+                                        </Link>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                );
+            })()}
 
             {/* Mobile Sticky Checkout Bar */}
             {cart.length > 0 && (

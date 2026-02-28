@@ -95,9 +95,9 @@ export function MessageBox() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 60 }}
                         transition={{ type: "spring", damping: 30, stiffness: 350 }}
-                        className="relative w-full md:w-[480px] h-[85vh] md:h-[600px] md:max-h-[80vh] flex flex-col overflow-hidden md:rounded-2xl rounded-t-2xl shadow-2xl border border-white/20"
+                        className="relative w-[calc(100%-1rem)] md:w-[480px] h-[70vh] md:h-[600px] md:max-h-[80vh] flex flex-col overflow-hidden rounded-2xl shadow-2xl border border-white/20 mb-2 md:mb-0"
                         style={{
-                            background: "rgba(255, 255, 255, 0.92)",
+                            background: "rgba(255, 255, 255, 0.95)",
                             backdropFilter: "blur(40px) saturate(180%)",
                             WebkitBackdropFilter: "blur(40px) saturate(180%)",
                         }}
@@ -201,8 +201,8 @@ export function MessageBox() {
                                                 )}
                                                 <div
                                                     className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed ${msg.sender === "user"
-                                                            ? "bg-black text-white rounded-br-sm"
-                                                            : "bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-sm"
+                                                        ? "bg-black text-white rounded-br-sm"
+                                                        : "bg-white text-gray-800 border border-gray-100 shadow-sm rounded-bl-sm"
                                                         }`}
                                                 >
                                                     {msg.text}
