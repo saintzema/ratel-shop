@@ -8,7 +8,26 @@ export interface User {
     avatar_url?: string;
     location?: string;
     birthday?: string;
+    isPremium?: boolean;
+    premiumExpiresAt?: string;
+    referralCode?: string;
+    referredBy?: string;
+    emailVerified?: boolean;
     created_at: string;
+}
+
+export interface Coupon {
+    id: string;
+    code: string;
+    amount: number;
+    userId: string;
+    issuedBy: "system" | "admin" | "referral";
+    reason: string;
+    isUsed: boolean;
+    usedAt?: string;
+    expiresAt: string;
+    createdAt: string;
+    revokedAt?: string;
 }
 
 export interface Seller {
@@ -71,7 +90,7 @@ export interface Order {
     product_id: string;
     seller_id: string;
     amount: number;
-    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "returned";
     escrow_status: "held" | "seller_confirmed" | "buyer_confirmed" | "auto_release_eligible" | "released" | "disputed" | "refunded";
     shipping_address: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";

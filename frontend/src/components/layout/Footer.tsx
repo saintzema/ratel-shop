@@ -286,22 +286,23 @@ export function Footer() {
             </h4>
             <div className="flex gap-2 flex-wrap items-center">
               {[
-                "Verve",
-                "Visa",
-                "Mastercard",
-                "Amex",
-                "Discover",
-                "Maestro",
-                "Diners Club",
-                "JCB",
-                "Apple Pay",
-                "Google Pay",
+                { name: "Verve", color: "#00425F" },
+                { name: "Visa", color: "#1A1F71" },
+                { name: "Mastercard", color: "#EB001B" },
+                { name: "Amex", color: "#006FCF" },
+                { name: "Discover", color: "#FF6000" },
+                { name: "Maestro", color: "#CC0000" },
+                { name: "Diners Club", color: "#004A97" },
+                { name: "JCB", color: "#003087" },
+                { name: "Apple Pay", color: "#000000" },
+                { name: "Google Pay", color: "#4285F4" },
               ].map((method) => (
                 <div
-                  key={method}
-                  className="bg-white px-2 py-1 rounded text-[10px] font-bold text-gray-800 flex items-center justify-center h-6 border border-gray-200"
+                  key={method.name}
+                  className="bg-white px-2.5 py-1 rounded text-[10px] font-bold text-gray-800 flex items-center justify-center h-6 border border-gray-200 gap-1"
                 >
-                  {method}
+                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: method.color }} />
+                  {method.name}
                 </div>
               ))}
             </div>

@@ -96,9 +96,37 @@ function OrdersContent() {
         };
     }, []);
 
-    const handleReleaseEscrow = (orderId: string) => {
-        DemoStore.updateOrderEscrow(orderId, "released");
+    const handleConfirmDelivery = (orderId: string) => {
+        DemoStore.updateOrderStatus(orderId, "delivered");
+        DemoStore.releaseEscrow(orderId);
         loadData();
+    };
+
+    const handleCancelOrder = (orderId: string) => {
+        if (confirm("Are you sure you want to cancel this order?")) {
+            DemoStore.updateOrderStatus(orderId, "cancelled");
+            DemoStore.addNotification({
+                userId: user?.email || "guest",
+                type: "order",
+                message: `Order Cancelled — Your order #${orderId.split('_')[1]?.substring(0, 8) || orderId.substring(0, 8)} has been cancelled successfully.`,
+                link: "/account/orders"
+            });
+            loadData();
+        }
+    };
+
+    const handleReturnOrder = (orderId: string) => {
+        if (confirm("Are you sure you want to initiate a return for this order?")) {
+            // Note: In a real app this would trigger a return flow.
+            DemoStore.updateOrderStatus(orderId, "returned");
+            DemoStore.addNotification({
+                userId: user?.email || "guest",
+                type: "order",
+                message: `Return Initiated — Your return request for order #${orderId.split('_')[1]?.substring(0, 8) || orderId.substring(0, 8)} has been received. We will contact you shortly with instructions.`,
+                link: "/account/orders"
+            });
+            loadData();
+        }
     };
 
     const handleBuyAgain = (order: Order) => {
@@ -252,17 +280,33 @@ function OrdersContent() {
 
                                                     {/* Actions */}
                                                     <div className="flex justify-end gap-1">
+                                                        {(order.status === "pending" || order.status === "processing") && (
+                                                            <button
+                                                                onClick={() => handleCancelOrder(order.id)}
+                                                                className="text-[11px] font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                        )}
                                                         {order.status === "delivered" && (
                                                             <button
                                                                 onClick={() => handleBuyAgain(order)}
-                                                                className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                                                className="text-[11px] font-semibold text-gray-500 hover:text-brand-green-600 px-2 py-1 rounded hover:bg-brand-green-50 transition-colors"
                                                             >
                                                                 Buy Again
                                                             </button>
                                                         )}
+                                                        {order.status === "delivered" && (
+                                                            <button
+                                                                onClick={() => handleReturnOrder(order.id)}
+                                                                className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                                            >
+                                                                Return
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => setSelectedOrderForTracking(order)}
-                                                            className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                                            className="text-[11px] font-semibold text-brand-green-600 hover:text-brand-green-700 px-2 py-1 rounded hover:bg-brand-green-50 transition-colors"
                                                         >
                                                             Details
                                                         </button>
@@ -294,12 +338,22 @@ function OrdersContent() {
                                                         <span className="text-sm font-bold text-gray-900">{formatPrice(order.amount)}</span>
                                                     </div>
                                                     <div className="flex gap-2">
+                                                        {(order.status === "pending" || order.status === "processing") && (
+                                                            <Button size="sm" variant="outline" onClick={() => handleCancelOrder(order.id)} className="flex-1 text-xs rounded-lg font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 bg-transparent px-1">
+                                                                Cancel
+                                                            </Button>
+                                                        )}
                                                         {order.status === "delivered" && (
-                                                            <Button size="sm" variant="outline" onClick={() => handleBuyAgain(order)} className="flex-1 text-xs rounded-lg font-semibold border-gray-300 text-gray-900 hover:bg-gray-100 bg-transparent">
+                                                            <Button size="sm" variant="outline" onClick={() => handleBuyAgain(order)} className="flex-1 text-xs rounded-lg font-semibold border-brand-green-200 text-brand-green-700 hover:bg-brand-green-50 bg-transparent px-1">
                                                                 <RotateCcw className="h-3 w-3 mr-1" /> Buy Again
                                                             </Button>
                                                         )}
-                                                        <Button size="sm" variant="outline" onClick={() => setSelectedOrderForTracking(order)} className="flex-1 text-xs rounded-lg font-semibold border-gray-300 text-gray-900 hover:bg-gray-100 bg-transparent">
+                                                        {order.status === "delivered" && (
+                                                            <Button size="sm" variant="outline" onClick={() => handleReturnOrder(order.id)} className="flex-1 text-xs rounded-lg font-semibold border-gray-300 text-gray-700 hover:bg-gray-100 bg-transparent px-1">
+                                                                Return
+                                                            </Button>
+                                                        )}
+                                                        <Button size="sm" variant="outline" onClick={() => setSelectedOrderForTracking(order)} className="flex-1 text-xs rounded-lg font-semibold border-brand-green-600/30 text-brand-green-700 hover:bg-brand-green-50 bg-transparent px-1">
                                                             <Truck className="h-3 w-3 mr-1" /> Details
                                                         </Button>
                                                     </div>
@@ -405,10 +459,10 @@ function OrdersContent() {
                                                 <span className="text-xs font-bold text-gray-900">{formatPrice(order.amount)}</span>
                                                 <Button
                                                     size="sm"
-                                                    onClick={() => handleReleaseEscrow(order.id)}
+                                                    onClick={() => handleConfirmDelivery(order.id)}
                                                     className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-3"
                                                 >
-                                                    Release Funds
+                                                    Confirm Delivery
                                                 </Button>
                                             </div>
                                         </div>
@@ -516,12 +570,12 @@ function OrdersContent() {
                                     <Button
                                         size="sm"
                                         onClick={() => {
-                                            handleReleaseEscrow(selectedOrderForTracking.id);
+                                            handleConfirmDelivery(selectedOrderForTracking.id);
                                             setSelectedOrderForTracking(null);
                                         }}
                                         className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-3"
                                     >
-                                        Release
+                                        Confirm Delivery
                                     </Button>
                                 )}
                             </div>

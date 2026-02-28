@@ -34,7 +34,8 @@ import {
     Flame,
     Shield,
     Lock,
-    ArrowRight
+    ArrowRight,
+    Crown
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -114,7 +115,7 @@ export function Navbar() {
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-    // Amazon-style search scoring algorithm
+    // Search scoring algorithm
     const scoreProduct = (product: typeof DEMO_PRODUCTS[0], query: string): number => {
         const q = query.toLowerCase();
         const name = product.name.toLowerCase();
@@ -208,8 +209,8 @@ export function Navbar() {
                         .map(p => p.name)
                         .slice(0, 2);
                     autoSuggs.push(...nameSuggs);
-                    if (autoSuggs.length < 4) autoSuggs.push(`${trimQ} best deal`);
-                    if (autoSuggs.length < 4) autoSuggs.push(`Buy ${trimQ} online`);
+                    if (autoSuggs.length < 4) autoSuggs.push(`${trimQ} brand new`);
+                    if (autoSuggs.length < 4) autoSuggs.push(`Buy ${trimQ} used`);
                 }
             }
             setAutocompleteSuggestions(autoSuggs.slice(0, 4));
@@ -632,7 +633,7 @@ export function Navbar() {
                                         <div className="border-t border-emerald-50 px-4 py-3">
                                             <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mb-2">
                                                 <Globe className="h-3.5 w-3.5 animate-spin" />
-                                                Searching global markets...
+                                                Finding the best prices for you...
                                             </div>
                                             {[1, 2, 3].map(i => (
                                                 <div key={i} className="flex items-center gap-3 p-2.5 animate-pulse">
@@ -651,7 +652,7 @@ export function Navbar() {
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2.5 flex items-center gap-2 text-xs font-black text-emerald-700 uppercase tracking-wider">
                                                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
-                                                GLOBAL FAIRPRICE RESULTS
+                                                MORE FAIRPRICE RESULTS
                                             </div>
                                             {globalResults.slice(0, 4).map((result, i) => (
                                                 <button
@@ -704,7 +705,7 @@ export function Navbar() {
                                                     Calculate Fair Price
                                                 </span>
                                                 <span className="text-[11px] text-emerald-600/80 line-clamp-1">
-                                                    Search globally for "{searchQuery}" and get the best deal
+                                                    Deep Search for "{searchQuery}" and get the best deals
                                                 </span>
                                             </div>
                                             <span className="text-emerald-500 font-bold text-xs shrink-0">→</span>
@@ -756,14 +757,25 @@ export function Navbar() {
                                     ) : (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3">
                                             <Link href="/account" onClick={() => setIsAccountMenuOpen(false)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                                                <div className="h-10 w-10 min-w-10 rounded-full bg-gradient-to-br from-brand-green-600 to-emerald-400 flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden">
+                                                <div className={cn(
+                                                    "h-10 w-10 min-w-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative",
+                                                    user.isPremium ? "bg-gradient-to-br from-amber-400 to-amber-600 ring-2 ring-amber-400 ring-offset-1" : "bg-gradient-to-br from-brand-green-600 to-emerald-400"
+                                                )}>
                                                     {(() => {
                                                         const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
                                                         return pic ? <img src={pic} alt="" className="w-full h-full object-cover" /> : user.name.charAt(0).toUpperCase();
                                                     })()}
+                                                    {user.isPremium && (
+                                                        <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+                                                            <Crown className="h-3 w-3 text-amber-500" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <p className="font-bold text-gray-900 truncate">{user.name}</p>
+                                                    <p className="font-bold text-gray-900 truncate flex items-center gap-1">
+                                                        {user.name}
+                                                        {user.isPremium && <Crown className="h-3 w-3 text-amber-500" />}
+                                                    </p>
                                                     <p className="text-xs text-gray-500 truncate">{user.email || 'user@example.com'}</p>
                                                 </div>
                                             </Link>
@@ -838,16 +850,22 @@ export function Navbar() {
                 {/* Bottom Bar - SubNavbar */}
                 <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-4 py-1.5 text-sm text-white overflow-hidden border-t border-white/10">
                     {/* Left: Navigation Links */}
-                    <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[65%] sm:max-w-[75%]">
-                        <Link href="/search?sort=bestselling" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
-                            <Sparkles className="w-3.5 h-3.5" /> Best-Selling Items
+                    <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]">
+                        <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
+                            <Sparkles className="w-3.5 h-3.5" /> Best-Selling
                         </Link>
                         <Link href="/search?rating=5" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
                             <TrendingUp className="w-3.5 h-3.5" /> 5-Star Rated
                         </Link>
-                        <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
+                        {/* <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
                             <Flame className="w-3.5 h-3.5" /> New In
-                        </Link>
+                        </Link> */}
+                        <span className="flex items-center px-2">
+                            Free Delivery
+                        </span>
+                        <span>
+                            ₦1,000 refund on late delivery
+                        </span>
                     </div>
                     {/* Right: Trust Badges */}
                     <div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end">

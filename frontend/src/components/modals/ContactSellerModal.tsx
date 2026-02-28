@@ -6,6 +6,7 @@ import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Seller } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
+import { useMessages } from "@/context/MessageContext";
 import { ShieldCheck, AlertTriangle, Send, MessageCircle, CheckCircle2 } from "lucide-react";
 
 interface ContactSellerModalProps {
@@ -31,6 +32,9 @@ const BLOCKED_PATTERNS = [
     // URLs
     { pattern: /https?:\/\/[^\s]+/gi, label: "URL/link" },
     { pattern: /\bwww\.[^\s]+/gi, label: "URL/link" },
+    // Account numbers / banking
+    { pattern: /[\d\s-]{10,}/g, label: "Account Number / NUBAN" },
+    { pattern: /\b(opay|palmpay|kuda|moniepoint|bank|transfer|account|send money)\b/gi, label: "Bank Transfer Keywords" },
 ];
 
 function filterMessage(text: string): { isClean: boolean; blockedTypes: string[] } {
@@ -49,11 +53,13 @@ function filterMessage(text: string): { isClean: boolean; blockedTypes: string[]
 
 export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerModalProps) {
     const { user } = useAuth();
+    const { startConversation, openMessageBox } = useMessages();
     const [message, setMessage] = useState("");
     const [category, setCategory] = useState<string>("general");
     const [sending, setSending] = useState(false);
     const [sent, setSent] = useState(false);
     const [filterWarning, setFilterWarning] = useState<string | null>(null);
+    const [convId, setConvId] = useState<string | null>(null);
 
     const categories = [
         { value: "general", label: "General Inquiry" },
@@ -89,21 +95,12 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
 
         setSending(true);
 
-        // Save message to localStorage
-        const msgKey = "fp_seller_messages";
-        const existing = JSON.parse(localStorage.getItem(msgKey) || "[]");
-        existing.push({
-            id: `msg_${Date.now()}`,
-            seller_id: seller.id,
-            seller_name: seller.business_name,
-            sender_id: user?.email || "guest",
-            sender_name: user?.name || "Guest",
-            category,
-            message: message.trim(),
-            timestamp: new Date().toISOString(),
-            read: false,
-        });
-        localStorage.setItem(msgKey, JSON.stringify(existing));
+        const orderId = `inquiry_${seller.id}`;
+        const catLabel = categories.find(c => c.value === category)?.label || category;
+        const initialMsg = `[${catLabel}] ${message.trim()}`;
+
+        const newConvId = startConversation(orderId, seller.business_name, seller.logo_url, initialMsg);
+        setConvId(newConvId);
 
         await new Promise(r => setTimeout(r, 800));
         setSending(false);
@@ -113,9 +110,13 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
     const handleClose = () => {
         setMessage("");
         setCategory("general");
+        const wasSent = sent;
         setSent(false);
         setFilterWarning(null);
         onClose();
+        if (wasSent && convId) {
+            openMessageBox(convId);
+        }
     };
 
     return (
@@ -167,8 +168,8 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                                         key={cat.value}
                                         onClick={() => setCategory(cat.value)}
                                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${category === cat.value
-                                                ? "bg-brand-green-600 text-white"
-                                                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                                            ? "bg-brand-green-600 text-white"
+                                            : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
                                             }`}
                                     >
                                         {cat.label}

@@ -960,7 +960,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                     }
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Search any product (e.g. 'Tes' -> Tesla)..."
+                placeholder="Search any product to get Fair Market Price"
                 className="w-full h-12 rounded-xl pl-11 pr-24 text-sm text-gray-900 placeholder:text-gray-900/25 focus:outline-none transition-all font-medium"
                 style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}
                 disabled={isLoading}

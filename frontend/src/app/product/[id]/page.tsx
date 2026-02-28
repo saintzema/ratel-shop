@@ -129,6 +129,11 @@ export default function ProductDetailPage() {
     const [visibleReviewsCount, setVisibleReviewsCount] = useState(3);
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
 
+    // Review Submission States
+    const [isWritingReview, setIsWritingReview] = useState(false);
+    const [newReview, setNewReview] = useState({ rating: 0, title: "", body: "" });
+    const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -228,15 +233,18 @@ export default function ProductDetailPage() {
     const similarProducts = allProducts.filter((p) => p.category === product?.category && p.id !== product?.id).slice(0, 15);
     const alsoBoughtProducts = allProducts.filter((p) => p.id !== product?.id).slice(2, 17); // Randomize for 'Also Bought'
 
-    // Realistic Nigerian Reviews fallback
-    let productReviews = DEMO_REVIEWS.filter((r) => r.product_id === product?.id);
+    // Fetch Reviews from DemoStore
+    let productReviews = DemoStore.getReviews(product?.id);
     if (productReviews.length === 0) {
+        const pName = product?.name || "this item";
+        const pCat = product?.category || "product";
+
         productReviews = [
-            { id: "r1", product_id: product?.id || "", user_id: "u1", user_name: "Chukwudi Amaechi", rating: 5, title: "Omo, this thing make sense die!", body: "I wasn't expecting this level of quality considering the active discount. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid deal in Lagos.", verified_purchase: true, helpful_count: 12, images: [], created_at: new Date(Date.now() - 86400000 * 3).toISOString() },
-            { id: "r2", product_id: product?.id || "", user_id: "u2", user_name: "Aisha Bello", rating: 4, title: "Really good but delivery took a bit", body: "The product itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe buying.", verified_purchase: true, helpful_count: 5, images: [], created_at: new Date(Date.now() - 86400000 * 7).toISOString() },
-            { id: "r3", product_id: product?.id || "", user_id: "u3", user_name: "Oluwaseun Adeyemi", rating: 5, title: "100% Legit!", body: "I was skeptical at first about buying this kind of item online in NG, but it came sealed and brand new. The seller was very communicative on WhatsApp.", verified_purchase: true, helpful_count: 24, images: [], created_at: new Date(Date.now() - 86400000 * 12).toISOString() },
-            { id: "r4", product_id: product?.id || "", user_id: "u4", user_name: "Tariq Ibrahim", rating: 4, title: "Nice product, fair price indeed", body: "It's a very solid product. Does everything the specs say. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.", verified_purchase: true, helpful_count: 2, images: [], created_at: new Date(Date.now() - 86400000 * 20).toISOString() },
-            { id: "r5", product_id: product?.id || "", user_id: "u5", user_name: "Ngozi Okafor", rating: 5, title: "Perfect gift for my husband", body: "Bought this for my husband's birthday and he hasn't stopped talking about it. The battery life is surprisingly good. Best price I could find online across Jumia and Konga.", verified_purchase: true, helpful_count: 8, images: [], created_at: new Date(Date.now() - 86400000 * 25).toISOString() },
+            { id: "r1", product_id: product?.id || "", user_id: "u1", user_name: "Chukwudi Amaechi", rating: 5, title: "Omo, this thing make sense die!", body: `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid ${pCat} deal in Lagos.`, verified_purchase: true, helpful_count: 12, images: [], created_at: new Date(Date.now() - 86400000 * 3).toISOString() },
+            { id: "r2", product_id: product?.id || "", user_id: "u2", user_name: "Aisha Bello", rating: 4, title: "Really good but delivery took a bit", body: `The ${pCat} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe buying ${pName}.`, verified_purchase: true, helpful_count: 5, images: [], created_at: new Date(Date.now() - 86400000 * 7).toISOString() },
+            { id: "r3", product_id: product?.id || "", user_id: "u3", user_name: "Oluwaseun Adeyemi", rating: 5, title: "100% Legit!", body: `I was skeptical at first about buying ${pName} online in NG, but it came sealed and brand new. The seller was very communicative on WhatsApp.`, verified_purchase: true, helpful_count: 24, images: [], created_at: new Date(Date.now() - 86400000 * 12).toISOString() },
+            { id: "r4", product_id: product?.id || "", user_id: "u4", user_name: "Tariq Ibrahim", rating: 4, title: "Nice product, fair price indeed", body: `It's a very solid ${pCat}. Does everything the specs say. Deducting one star because the packaging for ${pName} was slightly dented when I went to pick it up at the logistics hub.`, verified_purchase: true, helpful_count: 2, images: [], created_at: new Date(Date.now() - 86400000 * 20).toISOString() },
+            { id: "r5", product_id: product?.id || "", user_id: "u5", user_name: "Ngozi Okafor", rating: 5, title: "Perfect gift for my husband", body: `Bought ${pName} for my husband's birthday and he hasn't stopped talking about it. ${pCat === 'electronics' || pCat === 'phones' ? 'The battery life is surprisingly good.' : 'The quality is great.'} Best price I could find online across Jumia and Konga.`, verified_purchase: true, helpful_count: 8, images: [], created_at: new Date(Date.now() - 86400000 * 25).toISOString() },
         ];
     }
 
@@ -297,7 +305,17 @@ export default function ProductDetailPage() {
             const timer = setTimeout(() => setIsNegotiationOpen(true), 100);
             return () => clearTimeout(timer);
         }
-    }, [product?.id, product?.price_flag]);
+
+        // Auto-open review form if ?review=true is in the URL
+        if (urlParams.get("review") === "true" && user) {
+            setIsWritingReview(true);
+            // Scroll to reviews section (optional, can be done with a ref or hash)
+            setTimeout(() => {
+                const reviewsSection = document.getElementById('reviews-section');
+                if (reviewsSection) reviewsSection.scrollIntoView({ behavior: 'smooth' });
+            }, 500);
+        }
+    }, [product?.id, product?.price_flag, user]);
     const [showAllSpecs, setShowAllSpecs] = useState(false);
     const [zivaOpen, setZivaOpen] = useState(false);
     const [zivaMessages, setZivaMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
@@ -381,6 +399,43 @@ export default function ProductDetailPage() {
         }
         lastTapRef.current = now;
     }, [product, toggleFavorite, isFavorite]);
+
+    const handleSubmitReview = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!user || !product) {
+            alert("You must be logged in to leave a review.");
+            return;
+        }
+        if (newReview.rating === 0) {
+            alert("Please select a rating.");
+            return;
+        }
+
+        setIsSubmittingReview(true);
+        // Simulate API call
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        DemoStore.addReview({
+            product_id: product.id,
+            user_id: user.id,
+            user_name: user.name,
+            rating: newReview.rating,
+            title: newReview.title,
+            body: newReview.body,
+            verified_purchase: true, // Assuming true for demo purposes if they reach this flow
+            helpful_count: 0,
+            images: []
+        });
+
+        setIsWritingReview(false);
+        setNewReview({ rating: 0, title: "", body: "" });
+        setIsSubmittingReview(false);
+
+        // Remove review=true from URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete('review');
+        window.history.replaceState({}, '', url.toString());
+    };
 
     const keyFeatures = React.useMemo(() => {
         if (!product) return [];
@@ -1006,9 +1061,80 @@ export default function ProductDetailPage() {
                 </div>
 
                 {/* Customer Reviews */}
-                {productReviews.length > 0 && (
-                    <div className="mb-12">
-                        <h2 className="text-xl font-black text-gray-900 mb-6">Customer Reviews</h2>
+                {productReviews.length >= 0 && (
+                    <div className="mb-12" id="reviews-section">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xl font-black text-gray-900">Customer Reviews</h2>
+                            <Button
+                                variant="outline"
+                                className="font-bold rounded-full border-gray-300 hover:bg-gray-50"
+                                onClick={() => {
+                                    if (!user) {
+                                        router.push('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
+                                    } else {
+                                        setIsWritingReview(!isWritingReview);
+                                    }
+                                }}
+                            >
+                                {isWritingReview ? "Cancel Review" : "Write a Review"}
+                            </Button>
+                        </div>
+
+                        {/* Leave a Review Form */}
+                        {isWritingReview && user && (
+                            <div className="mb-8 p-6 bg-white border border-gray-200 rounded-2xl shadow-sm">
+                                <h3 className="font-bold text-gray-900 mb-4">Write your review for {product.name}</h3>
+                                <form onSubmit={handleSubmitReview} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-2">Overall Rating</label>
+                                        <div className="flex gap-2">
+                                            {[1, 2, 3, 4, 5].map(star => (
+                                                <button
+                                                    key={star}
+                                                    type="button"
+                                                    onClick={() => setNewReview(prev => ({ ...prev, rating: star }))}
+                                                    className="focus:outline-none"
+                                                >
+                                                    <Star className={`h-8 w-8 transition-colors ${star <= newReview.rating ? "text-amber-400 fill-current" : "text-gray-300 hover:text-amber-200"}`} />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Add a headline</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={newReview.title}
+                                            onChange={(e) => setNewReview(prev => ({ ...prev, title: e.target.value }))}
+                                            placeholder="What's most important to know?"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1">Add a written review</label>
+                                        <textarea
+                                            required
+                                            rows={4}
+                                            value={newReview.body}
+                                            onChange={(e) => setNewReview(prev => ({ ...prev, body: e.target.value }))}
+                                            placeholder="What did you like or dislike? What did you use this product for?"
+                                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none"
+                                        />
+                                    </div>
+                                    <div className="flex justify-end pt-2">
+                                        <Button
+                                            type="submit"
+                                            disabled={isSubmittingReview || newReview.rating === 0 || !newReview.title || !newReview.body}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-full px-8"
+                                        >
+                                            {isSubmittingReview ? "Submitting..." : "Submit Review"}
+                                        </Button>
+                                    </div>
+                                </form>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                             {/* Star Breakdown */}
                             <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
@@ -1036,29 +1162,35 @@ export default function ProductDetailPage() {
 
                             {/* Review List */}
                             <div className="lg:col-span-2 space-y-4">
-                                {productReviews.slice(0, visibleReviewsCount).map(review => (
-                                    <div key={review.id} className="p-5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 uppercase">
-                                                {review.user_name[0]}
-                                            </div>
-                                            <div>
-                                                <span className="font-bold text-sm text-gray-900">{review.user_name}</span>
-                                                {review.verified_purchase && (
-                                                    <Badge className="ml-2 bg-ratel-green-50 text-ratel-green-700 border-ratel-green-100 text-[10px]">Verified Purchase</Badge>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1 mb-1">
-                                            {[1, 2, 3, 4, 5].map(s => (
-                                                <Star key={s} className={`h-3.5 w-3.5 ${s <= review.rating ? "text-amber-400 fill-current" : "text-gray-200"}`} />
-                                            ))}
-                                            <span className="text-sm font-bold text-gray-900 ml-2">{review.title}</span>
-                                        </div>
-                                        <p className="text-sm text-gray-600 leading-relaxed">{review.body}</p>
-                                        <p className="text-xs text-gray-400 mt-2">{new Date(review.created_at).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })}</p>
+                                {productReviews.length === 0 ? (
+                                    <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-100 italic text-gray-500">
+                                        No reviews yet for this product. Be the first to review!
                                     </div>
-                                ))}
+                                ) : (
+                                    productReviews.slice(0, visibleReviewsCount).map(review => (
+                                        <div key={review.id} className="p-5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 uppercase">
+                                                    {review.user_name[0]}
+                                                </div>
+                                                <div>
+                                                    <span className="font-bold text-sm text-gray-900">{review.user_name}</span>
+                                                    {review.verified_purchase && (
+                                                        <Badge className="ml-2 bg-ratel-green-50 text-ratel-green-700 border-ratel-green-100 text-[10px]">Verified Purchase</Badge>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 mb-1">
+                                                {[1, 2, 3, 4, 5].map(s => (
+                                                    <Star key={s} className={`h-3.5 w-3.5 ${s <= review.rating ? "text-amber-400 fill-current" : "text-gray-200"}`} />
+                                                ))}
+                                                <span className="text-sm font-bold text-gray-900 ml-2">{review.title}</span>
+                                            </div>
+                                            <p className="text-sm text-gray-600 leading-relaxed">{review.body}</p>
+                                            <p className="text-xs text-gray-400 mt-2">{new Date(review.created_at).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })}</p>
+                                        </div>
+                                    ))
+                                )}
 
                                 {visibleReviewsCount < productReviews.length && (
                                     <div className="flex justify-center mt-6">

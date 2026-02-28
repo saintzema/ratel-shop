@@ -42,6 +42,7 @@ interface MessageContextType {
     closeMessageBox: () => void;
     dismissNotification: () => void;
     getConversation: (orderId: string) => Conversation | undefined;
+    startConversation: (orderId: string, productName: string, productImage?: string, initialMessage?: string) => string;
 }
 
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
@@ -159,6 +160,37 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         setPendingConversationId(orderId);
     }, []);
 
+    const startConversation = useCallback((orderId: string, productName: string, productImage?: string, initialMessage?: string) => {
+        const existing = conversations.find(c => c.orderId === orderId);
+        if (existing) {
+            if (initialMessage) {
+                sendMessage(existing.id, { sender: "user", text: initialMessage });
+            }
+            return existing.id;
+        }
+
+        const newConvId = `conv_${Date.now()}`;
+        const newMsg: ChatMessage | null = initialMessage ? {
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            sender: "user",
+            text: initialMessage,
+            timestamp: new Date().toISOString()
+        } : null;
+
+        const newConv: Conversation = {
+            id: newConvId,
+            orderId,
+            productName,
+            productImage,
+            messages: newMsg ? [newMsg] : [],
+            unreadCount: 0,
+            lastUpdated: new Date().toISOString()
+        };
+
+        setConversations(prev => [newConv, ...prev]);
+        return newConvId;
+    }, [conversations, sendMessage]);
+
     const markAsRead = useCallback((conversationId: string) => {
         setConversations(prev =>
             prev.map(c => c.id === conversationId ? { ...c, unreadCount: 0 } : c)
@@ -200,6 +232,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
             closeMessageBox,
             dismissNotification,
             getConversation,
+            startConversation,
         }}>
             {children}
         </MessageContext.Provider>

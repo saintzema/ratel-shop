@@ -6,11 +6,12 @@ const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-
 
 export async function POST(req: Request) {
     try {
-        const { message, history, userName } = await req.json();
+        const { message, history, userName, catalogue } = await req.json();
 
         // 1. Prepare Product Context (simplified catalog for prompt)
-        const productContext = DEMO_PRODUCTS.map(p =>
-            `- ${p.name} (${p.category}): ₦${p.price.toLocaleString()} - ${p.description.substring(0, 50)}...`
+        const productsToUse = catalogue || DEMO_PRODUCTS;
+        const productContext = productsToUse.map((p: any) =>
+            `- ID: ${p.id} | Name: ${p.name} (${p.category}) - ₦${p.price.toLocaleString()} ${p.description ? `- ${p.description.substring(0, 50)}...` : ''}`
         ).join("\n");
 
         const systemPrompt = `
@@ -24,13 +25,14 @@ export async function POST(req: Request) {
         
         Capabilities:
         1. Answer questions about FairPrice products and prices using the context above.
-        2. If the user asks for a product NOT in the catalog, suggest they use the "Request Product" feature or offer similar items.
+        2. VERY IMPORTANT: You must ONLY suggest exact product names that exist in the "Current Product Catalog" above. Do not hallucinate or make up products, features, variants or prices. If a user asks for something not in the catalogue, simply say you do not have it in stock.
         3. Determine the "intent" of the user's message.
         4. If the user is angry, complaining about an order, requesting a refund, or asks for human support, set "shouldEscalate" to true.
+        5. For suggested products, MUST provide the exact full Name from the catalogue so the system can link them.
         
         Return a JSON object with this EXACT structure (no markdown):
         {
-            "message": "Your friendly, helpful response in markdown format. Use emojis appropriately.",
+            "message": "Your friendly, helpful response in markdown format. Use emojis!",
             "intent": "greeting" | "product_search" | "price_check" | "complaint" | "general" | "escalation",
             "shouldEscalate": boolean,
             "escalationReason": "Brief reason if escalating, else null",

@@ -1,6 +1,6 @@
 "use client";
 
-import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason } from "./types";
+import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon } from "./types";
 import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS, DEMO_PAYOUTS } from "./data";
 
 class DemoStoreService {
@@ -17,6 +17,10 @@ class DemoStoreService {
         PAYOUTS: "fairprice_demo_payouts",
         SUPPORT_MESSAGES: "fairprice_demo_support_messages",
         DISPUTES: "fairprice_demo_disputes",
+        COUPONS: "fairprice_demo_coupons",
+        REFERRALS: "fairprice_demo_referrals",
+        REVIEWS: "fairprice_demo_reviews",
+        USERS: "fp_user",
     };
 
     private constructor() {
@@ -250,6 +254,15 @@ class DemoStoreService {
         const orders = this.getOrders();
         const updated = [newOrder, ...orders];
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Notify Buyer
+        this.addNotification({
+            userId: order.customer_id,
+            type: "order",
+            message: `Your order #${orderId.substring(0, 8)} for ${product.name} has been placed successfully.`,
+            link: `/account/orders`
+        });
+
         window.dispatchEvent(new Event("storage"));
         // Custom event so we can listen specifically for this
         window.dispatchEvent(new Event("demo-store-update"));
@@ -481,6 +494,25 @@ class DemoStoreService {
         window.dispatchEvent(new Event("storage"));
     }
 
+    sendAdminMessageToUser(userId: string, subject: string, message: string) {
+        // Find the user by ID or Email
+        const usersJson = localStorage.getItem(this.STORAGE_KEYS.USERS);
+        let targetUser = null;
+        if (usersJson) {
+            const users = Object.values(JSON.parse(usersJson));
+            targetUser = users.find((u: any) => u.id === userId || u.email === userId);
+        }
+
+        const actualUserId = targetUser ? (targetUser as any).id : userId;
+
+        this.addNotification({
+            userId: actualUserId,
+            type: "system",
+            message: `[Admin Message: ${subject}] - ${message}`,
+            link: "/account/messages"
+        });
+    }
+
     markAsRead(id: string) {
         const current = this.getNotifications();
         const updated = current.map(n => n.id === id ? { ...n, read: true } : n);
@@ -493,6 +525,31 @@ class DemoStoreService {
         const updated = current.map(n => ({ ...n, read: true }));
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+    }
+
+    // --- User & Premium ---
+    getUser(emailOrId: string) {
+        const stored = localStorage.getItem("fp_user");
+        if (!stored) return null;
+        try {
+            const user = JSON.parse(stored);
+            if (user.email === emailOrId || user.id === emailOrId) return user;
+        } catch { }
+        return null;
+    }
+
+    addPremiumSubscription(userId: string) {
+        const stored = localStorage.getItem("fp_user");
+        if (!stored) return;
+        try {
+            const user = JSON.parse(stored);
+            if (user.id === userId || user.email === userId) {
+                user.isPremium = true;
+                user.premiumExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                localStorage.setItem("fp_user", JSON.stringify(user));
+                window.dispatchEvent(new Event("storage"));
+            }
+        } catch { }
     }
 
     // --- Admin & Governance ---
@@ -624,12 +681,26 @@ class DemoStoreService {
 
     releaseEscrow(orderId: string) {
         const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
             escrow_status: "released" as const,
             escrow_released_at: new Date().toISOString(),
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        if (order) {
+            // Prompt buyer to leave a review
+            this.addNotification({
+                userId: order.customer_id,
+                type: "system",
+                message: `Funds for ${order.product?.name || 'your order'} have been released. Please leave a review!`,
+                link: `/product/${order.product_id}?review=true`,
+            });
+            // Update stats & trigger storage event
+            this.updateOrderEscrow(orderId, "released");
+        }
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -768,6 +839,188 @@ class DemoStoreService {
 
     getAdminMessagesForOrder(orderId: string): SupportMessage[] {
         return this.getSupportMessages().filter(m => m.order_id === orderId);
+    }
+
+    // ─── Coupon System ──────────────────────────────────────
+    getCoupons(userId?: string): Coupon[] {
+        if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.COUPONS);
+        const all: Coupon[] = stored ? JSON.parse(stored) : [];
+        if (!userId) return all;
+        return all.filter(c => c.userId === userId);
+    }
+
+    getActiveCoupons(userId: string): Coupon[] {
+        const now = new Date().toISOString();
+        return this.getCoupons(userId).filter(
+            c => !c.isUsed && !c.revokedAt && c.expiresAt > now
+        );
+    }
+
+    addCoupon(coupon: Omit<Coupon, "id" | "code" | "createdAt" | "isUsed">): Coupon {
+        const all = this.getCoupons();
+        const newCoupon: Coupon = {
+            ...coupon,
+            id: `cpn_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            code: `FP-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+            isUsed: false,
+            createdAt: new Date().toISOString(),
+        };
+        all.unshift(newCoupon);
+        localStorage.setItem(this.STORAGE_KEYS.COUPONS, JSON.stringify(all));
+
+        // Notify user
+        this.addNotification({
+            userId: coupon.userId,
+            type: "system",
+            message: `You received a ₦${coupon.amount.toLocaleString()} coupon! Code: ${newCoupon.code}. ${coupon.reason}`,
+            link: "/account/coupons",
+        });
+
+        window.dispatchEvent(new Event("storage"));
+        return newCoupon;
+    }
+
+    useCoupon(code: string, userId: string): { success: boolean; coupon?: Coupon; error?: string } {
+        const all = this.getCoupons();
+        const now = new Date().toISOString();
+        const coupon = all.find(c => c.code === code && c.userId === userId);
+
+        if (!coupon) return { success: false, error: "Invalid coupon code" };
+        if (coupon.isUsed) return { success: false, error: "Coupon already used" };
+        if (coupon.revokedAt) return { success: false, error: "Coupon has been revoked" };
+        if (coupon.expiresAt < now) return { success: false, error: "Coupon has expired" };
+
+        const updated = all.map(c =>
+            c.id === coupon.id ? { ...c, isUsed: true, usedAt: now } : c
+        );
+        localStorage.setItem(this.STORAGE_KEYS.COUPONS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        return { success: true, coupon };
+    }
+
+    revokeCoupon(id: string) {
+        const all = this.getCoupons();
+        const updated = all.map(c =>
+            c.id === id ? { ...c, revokedAt: new Date().toISOString() } : c
+        );
+        localStorage.setItem(this.STORAGE_KEYS.COUPONS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    // ─── Referral System ────────────────────────────────────
+    getReferrals(referrerCode?: string): any[] {
+        if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.REFERRALS);
+        const all = stored ? JSON.parse(stored) : [];
+        if (!referrerCode) return all;
+        return all.filter((r: any) => r.referrerCode === referrerCode);
+    }
+
+    addReferral(referrerCode: string, referredUserId: string) {
+        const all = this.getReferrals();
+        all.unshift({
+            id: `ref_${Date.now()}`,
+            referrerCode,
+            referredUserId,
+            orderAmount: 0,
+            couponIssued: false,
+            createdAt: new Date().toISOString(),
+        });
+        localStorage.setItem(this.STORAGE_KEYS.REFERRALS, JSON.stringify(all));
+    }
+
+    /** Called after successful order payment to issue referral coupon */
+    processReferralReward(referredUserId: string, orderAmount: number) {
+        const allReferrals = this.getReferrals();
+        const ref = allReferrals.find((r: any) => r.referredUserId === referredUserId && !r.couponIssued);
+        if (!ref) return;
+
+        // Tiered reward
+        let rewardAmount = 1000; // Default ₦1,000
+        if (orderAmount >= 500000) rewardAmount = 5000;
+        else if (orderAmount >= 150000) rewardAmount = 3000;
+
+        // Find referrer user by code
+        const users = typeof window !== "undefined" ? JSON.parse(localStorage.getItem("fp_user") || "null") : null;
+        // For demo, we store referrer code → userId mapping in the referral itself
+        // Issue coupon to the referrer
+        const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
+        this.addCoupon({
+            amount: rewardAmount,
+            userId: ref.referrerCode, // In demo, referrerCode doubles as userId
+            issuedBy: "referral",
+            reason: `Referral reward! Your friend spent ₦${orderAmount.toLocaleString()}.`,
+            expiresAt,
+        });
+
+        // Mark referral as processed
+        const updated = allReferrals.map((r: any) =>
+            r.id === ref.id ? { ...r, couponIssued: true, orderAmount } : r
+        );
+        localStorage.setItem(this.STORAGE_KEYS.REFERRALS, JSON.stringify(updated));
+    }
+
+    // ─── Reviews ────────────────────────────────────────────
+    getReviews(productId?: string): any[] {
+        if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.REVIEWS);
+        const all = stored ? JSON.parse(stored) : [];
+        if (!productId) return all;
+        return all.filter((r: any) => r.product_id === productId);
+    }
+
+    addReview(review: Omit<any, "id" | "created_at">) {
+        const all = this.getReviews();
+        const newReview = {
+            ...review,
+            id: `rev_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            created_at: new Date().toISOString(),
+        };
+        all.unshift(newReview);
+        localStorage.setItem(this.STORAGE_KEYS.REVIEWS, JSON.stringify(all));
+
+        // Update product average rating
+        const products = this.getProducts();
+        const product = products.find(p => p.id === review.product_id);
+        if (product) {
+            const productReviews = all.filter((r: any) => r.product_id === review.product_id);
+            const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
+            const avgRating = totalRating / productReviews.length;
+            this.updateProduct(product.id, {
+                avg_rating: Number(avgRating.toFixed(1)),
+                review_count: productReviews.length,
+            });
+        }
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+        return newReview;
+    }
+
+    deleteReview(id: string) {
+        const all = this.getReviews();
+        const reviewToDelete = all.find(r => r.id === id);
+        if (!reviewToDelete) return;
+
+        const updated = all.filter(r => r.id !== id);
+        localStorage.setItem(this.STORAGE_KEYS.REVIEWS, JSON.stringify(updated));
+
+        // Update product average rating
+        const products = this.getProducts();
+        const product = products.find(p => p.id === reviewToDelete.product_id);
+        if (product) {
+            const productReviews = updated.filter((r: any) => r.product_id === reviewToDelete.product_id);
+            const totalRating = productReviews.reduce((sum, r) => sum + r.rating, 0);
+            const avgRating = productReviews.length > 0 ? totalRating / productReviews.length : 0;
+            this.updateProduct(product.id, {
+                avg_rating: Number(avgRating.toFixed(1)),
+                review_count: productReviews.length,
+            });
+        }
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 }
 

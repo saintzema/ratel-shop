@@ -16,7 +16,9 @@ import {
     DollarSign,
     ShieldCheck,
     Zap,
-    AlertTriangle
+    AlertTriangle,
+    Star,
+    Trash2
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -28,18 +30,24 @@ export default function AdminDashboard() {
     const [complaints, setComplaints] = useState<any[]>([]);
     const [kycs, setKycs] = useState<any[]>([]);
     const [openDisputeCount, setOpenDisputeCount] = useState(0);
+    const [recentReviews, setRecentReviews] = useState<any[]>([]);
+
+    const loadData = () => {
+        setStats(DemoStore.getAdminStats());
+        setComplaints(DemoStore.getComplaints().slice(0, 3));
+        setKycs(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending").slice(0, 3));
+        setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
+        setRecentReviews(DemoStore.getReviews().slice(0, 5));
+    };
 
     useEffect(() => {
-        const loadData = () => {
-            setStats(DemoStore.getAdminStats());
-            setComplaints(DemoStore.getComplaints().slice(0, 3));
-            setKycs(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending").slice(0, 3));
-            setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
-        };
-
         loadData();
         window.addEventListener("storage", loadData);
-        return () => window.removeEventListener("storage", loadData);
+        window.addEventListener("demo-store-update", loadData);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("demo-store-update", loadData);
+        };
     }, []);
 
     if (!stats) return null;
@@ -266,6 +274,64 @@ export default function AdminDashboard() {
                             </div>
                         )}
                     </div>
+                </div>
+            </div>
+
+            {/* Recent Reviews Management */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <div>
+                        <h3 className="text-lg font-black text-gray-900 tracking-tight">Recent Product Reviews</h3>
+                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Monitor & Moderate</p>
+                    </div>
+                </div>
+                <div className="p-2">
+                    {recentReviews.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center p-12 text-center">
+                            <Star className="h-12 w-12 text-gray-300 mb-4 opacity-50" />
+                            <p className="text-sm font-bold text-gray-400">No reviews have been posted yet.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-50">
+                            {recentReviews.map((review) => (
+                                <div key={review.id} className="p-6 hover:bg-gray-50 transition-colors group flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex items-center gap-0.5">
+                                                {[1, 2, 3, 4, 5].map(s => (
+                                                    <Star key={s} className={`h-3 w-3 ${s <= review.rating ? "text-amber-400 fill-current" : "text-gray-200"}`} />
+                                                ))}
+                                            </div>
+                                            <span className="font-bold text-gray-900 text-sm">{review.title}</span>
+                                        </div>
+                                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{review.body}</p>
+                                        <div className="flex items-center gap-2 mt-2 text-[10px] font-bold text-gray-400 uppercase">
+                                            <span>By {review.user_name}</span>
+                                            <span>•</span>
+                                            <span>Product ID: {review.product_id}</span>
+                                            <span>•</span>
+                                            <span>{new Date(review.created_at).toLocaleDateString()}</span>
+                                        </div>
+                                    </div>
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (confirm('Are you sure you want to delete this review?')) {
+                                                    DemoStore.deleteReview(review.id);
+                                                }
+                                            }}
+                                            className="h-8 w-8 p-0 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 font-bold"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

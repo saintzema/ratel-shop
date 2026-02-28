@@ -244,7 +244,14 @@ export function ZivaChat() {
                 body: JSON.stringify({
                     message: userInput,
                     history: recentHistory,
-                    userName: user?.name || "Guest"
+                    userName: user?.name || "Guest",
+                    catalogue: DemoStore.getProducts().map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        price: p.price,
+                        category: p.category,
+                        description: p.description
+                    }))
                 })
             });
 
@@ -356,14 +363,14 @@ export function ZivaChat() {
             }
         }
 
-        // If on a product page and asking about price, inject product context into the message
+        // If on a product page, always inject product context into the message so Ziva knows what we're looking at
         let contextualText = resolvedText;
-        if (currentProduct && /\b(price|cost|good|fair|overpriced|worth|market)\b/i.test(resolvedText)) {
+        if (currentProduct) {
             const comparison = getDemoPriceComparison(currentProduct.id);
             const marketAvg = comparison.market_avg > 0 ? comparison.market_avg : Math.round(currentProduct.price * 1.08);
             const verdict = currentProduct.price <= marketAvg ? 'Good Deal' : 'Above Market';
             // Add invisible context that Ziva API can use
-            contextualText = `${resolvedText} [CONTEXT: Product "${currentProduct.name}" is listed at ${formatPrice(currentProduct.price)}. Market average is ${formatPrice(marketAvg)}. Price flag: ${currentProduct.price_flag || 'fair'}. Verdict: ${verdict}. Category: ${currentProduct.category}. This is the specific product on the page I'm viewing.]`;
+            contextualText = `${resolvedText} [CONTEXT: The user is currently viewing the product "${currentProduct.name}" priced at ${formatPrice(currentProduct.price)}. Market average is ${formatPrice(marketAvg)}. Price flag: ${currentProduct.price_flag || 'fair'}. Verdict: ${verdict}. Category: ${currentProduct.category}. Please use this context if the user asks "this", "it", or questions about the product.]`;
         }
 
         const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: resolvedText };

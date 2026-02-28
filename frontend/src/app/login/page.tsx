@@ -540,15 +540,68 @@ export default function UnifiedAuthPage() {
                                             onChange={(e) => setLastName(e.target.value)}
                                         />
 
-                                        <div className="space-y-1">
+                                        <div className="space-y-1.5">
                                             <label className="text-[13px] text-[#86868b] font-medium pl-1">Birthday (for personalized recommendations)</label>
-                                            <Input
-                                                type="date"
-                                                placeholder="Birthday"
-                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
-                                                value={birthday}
-                                                onChange={(e) => setBirthday(e.target.value)}
-                                            />
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full appearance-none h-14 bg-white/80 backdrop-blur-sm border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all pl-4 pr-8 cursor-pointer font-medium"
+                                                        value={birthday ? new Date(birthday).getMonth() + 1 : ""}
+                                                        onChange={(e) => {
+                                                            const m = e.target.value;
+                                                            const [_, __, d] = (birthday || "2000-01-01").split("-");
+                                                            const y = birthday ? birthday.split("-")[0] : "2000";
+                                                            setBirthday(`${y}-${m.padStart(2, "0")}-${d || "01"}`);
+                                                        }}
+                                                    >
+                                                        <option value="" disabled>Month</option>
+                                                        {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((m, i) => (
+                                                            <option key={m} value={i + 1}>{m}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                                        <svg className="h-4 w-4 text-[#86868b]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                                    </div>
+                                                </div>
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full appearance-none h-14 bg-white/80 backdrop-blur-sm border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all pl-4 pr-8 cursor-pointer font-medium"
+                                                        value={birthday ? parseInt(birthday.split("-")[2]) : ""}
+                                                        onChange={(e) => {
+                                                            const d = e.target.value;
+                                                            const parts = (birthday || "2000-01-01").split("-");
+                                                            setBirthday(`${parts[0]}-${parts[1]}-${d.padStart(2, "0")}`);
+                                                        }}
+                                                    >
+                                                        <option value="" disabled>Day</option>
+                                                        {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                                                            <option key={d} value={d}>{d}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                                        <svg className="h-4 w-4 text-[#86868b]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                                    </div>
+                                                </div>
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full appearance-none h-14 bg-white/80 backdrop-blur-sm border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all pl-4 pr-8 cursor-pointer font-medium"
+                                                        value={birthday ? parseInt(birthday.split("-")[0]) : ""}
+                                                        onChange={(e) => {
+                                                            const y = e.target.value;
+                                                            const parts = (birthday || "2000-01-01").split("-");
+                                                            setBirthday(`${y}-${parts[1]}-${parts[2]}`);
+                                                        }}
+                                                    >
+                                                        <option value="" disabled>Year</option>
+                                                        {Array.from({ length: 60 }, (_, i) => new Date().getFullYear() - i).map(y => (
+                                                            <option key={y} value={y}>{y}</option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                                                        <svg className="h-4 w-4 text-[#86868b]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <Button type="submit" disabled={!firstName || !lastName} className="w-full h-14 bg-brand-green-600 hover:bg-brand-green-700 text-white font-medium text-[17px] rounded-xl transition-all mt-4">

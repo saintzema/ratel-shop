@@ -16,7 +16,8 @@ import {
     User,
     Search,
     Send,
-    Link as LinkIcon
+    Link as LinkIcon,
+    X
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,12 @@ export default function AdminInbox() {
     const [filter, setFilter] = useState<"all" | "new" | "read" | "resolved">("all");
     const [replyText, setReplyText] = useState("");
     const [replySuccess, setReplySuccess] = useState(false);
+
+    const [showCompose, setShowCompose] = useState(false);
+    const [composeTo, setComposeTo] = useState("");
+    const [composeSubject, setComposeSubject] = useState("");
+    const [composeMessage, setComposeMessage] = useState("");
+    const [composeSuccess, setComposeSuccess] = useState(false);
 
     useEffect(() => {
         const load = () => setMessages(DemoStore.getSupportMessages());
@@ -77,6 +84,21 @@ export default function AdminInbox() {
         setSelectedMsg({ ...selectedMsg, status: "resolved" });
     };
 
+    const handleSendCompose = () => {
+        if (!composeTo.trim() || !composeSubject.trim() || !composeMessage.trim()) return;
+
+        DemoStore.sendAdminMessageToUser(composeTo, composeSubject, composeMessage);
+
+        setComposeSuccess(true);
+        setTimeout(() => {
+            setComposeSuccess(false);
+            setShowCompose(false);
+            setComposeTo("");
+            setComposeSubject("");
+            setComposeMessage("");
+        }, 2000);
+    };
+
     const getSourceIcon = (source: SupportMessage["source"]) => {
         switch (source) {
             case "ziva_escalation": return <Zap className="h-3.5 w-3.5 text-emerald-500" />;
@@ -121,12 +143,18 @@ export default function AdminInbox() {
                         User messages, Ziva escalations &amp; support tickets
                     </p>
                 </div>
-                {newCount > 0 && (
-                    <div className="flex items-center gap-2 bg-rose-50 text-rose-700 px-4 py-2 rounded-xl border border-rose-100">
-                        <Mail className="h-4 w-4" />
-                        <span className="text-xs font-black uppercase tracking-wider">{newCount} New Message{newCount !== 1 ? "s" : ""}</span>
-                    </div>
-                )}
+                <div className="flex items-center gap-3">
+                    {newCount > 0 && (
+                        <div className="flex items-center gap-2 bg-rose-50 text-rose-700 px-4 py-2 rounded-xl border border-rose-100">
+                            <Mail className="h-4 w-4" />
+                            <span className="text-xs font-black uppercase tracking-wider">{newCount} New Message{newCount !== 1 ? "s" : ""}</span>
+                        </div>
+                    )}
+                    <Button onClick={() => setShowCompose(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl h-10 px-5 text-xs tracking-wide shadow-lg shadow-indigo-600/20 gap-2">
+                        <MessageSquare className="h-4 w-4" />
+                        Send Message to User
+                    </Button>
+                </div>
             </div>
 
             {/* Filter Tabs */}
@@ -333,6 +361,78 @@ export default function AdminInbox() {
                     )}
                 </div>
             </div>
+
+            {/* Compose Modal */}
+            {showCompose && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+                        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-gray-50 border-t-4 border-t-indigo-500">
+                            <h3 className="font-black text-gray-900 flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4 text-indigo-500" />
+                                New Message to User
+                            </h3>
+                            <button onClick={() => setShowCompose(false)} className="text-gray-400 hover:text-gray-700 transition-colors">
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">User Email or ID</label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <User className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={composeTo}
+                                        onChange={e => setComposeTo(e.target.value)}
+                                        placeholder="e.g. user@example.com"
+                                        className="w-full pl-10 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">Subject</label>
+                                <input
+                                    type="text"
+                                    value={composeSubject}
+                                    onChange={e => setComposeSubject(e.target.value)}
+                                    placeholder="Message subject"
+                                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-700 mb-1.5 uppercase tracking-wider">Message</label>
+                                <textarea
+                                    value={composeMessage}
+                                    onChange={e => setComposeMessage(e.target.value)}
+                                    placeholder="Type your message here..."
+                                    className="w-full px-3 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm min-h-[120px] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                                />
+                            </div>
+
+                            {composeSuccess && (
+                                <div className="p-3 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-100 flex items-center gap-2 font-bold text-xs">
+                                    <CheckCircle2 className="h-4 w-4" /> Message delivered to user's inbox
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-5 border-t border-gray-100 bg-gray-50 flex items-center justify-end gap-3">
+                            <Button variant="outline" onClick={() => setShowCompose(false)} className="rounded-xl h-10 px-5 font-bold">
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleSendCompose}
+                                disabled={!composeTo.trim() || !composeSubject.trim() || !composeMessage.trim() || composeSuccess}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-10 px-6 font-bold tracking-wide"
+                            >
+                                <Send className="h-4 w-4 mr-2" />
+                                Send Message
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

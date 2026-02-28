@@ -313,7 +313,7 @@ export default function StoreProfile() {
                                             {/* Image */}
                                             <div className="aspect-square relative bg-[#F5F5F7] p-6 flex items-center justify-center overflow-hidden">
                                                 <img
-                                                    src={product.image_url}
+                                                    src={product.image_url || "/assets/images/placeholder.png"}
                                                     alt={product.name}
                                                     className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
                                                 />
@@ -346,9 +346,15 @@ export default function StoreProfile() {
                                                             {formatPrice(product.price)}
                                                         </p>
                                                     </div>
-                                                    <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center group-hover:bg-brand-green-600 group-hover:text-white transition-colors">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            // For now it just guides to view, real ATC could be added here
+                                                        }}
+                                                        className="h-9 w-9 rounded-full bg-brand-green-50 flex items-center justify-center text-brand-green-600 group-hover:bg-brand-green-600 group-hover:text-white transition-all hover:scale-110"
+                                                    >
                                                         <Package className="h-4 w-4" />
-                                                    </div>
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>

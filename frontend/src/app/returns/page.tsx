@@ -1,64 +1,48 @@
 "use client";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { RotateCcw, CheckCircle, Clock, AlertTriangle, ArrowRight } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { RotateCcw, Clock, CheckCircle, AlertTriangle, Package } from "lucide-react";
 
 export default function ReturnsPage() {
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans">
             <Navbar />
-            <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
-                <h1 className="text-3xl font-black text-gray-900 mb-2">Returns & Replacements</h1>
-                <p className="text-gray-500 mb-8">Hassle-free returns within 7 days (30 days for Premium members)</p>
-
-                <div className="space-y-6">
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
-                        <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><CheckCircle className="h-5 w-5 text-emerald-600" /> Return Policy</h2>
-                        <ul className="space-y-2 text-sm text-gray-700">
-                            <li>• Items can be returned within <strong>7 days</strong> of delivery (30 days for Premium members)</li>
-                            <li>• Product must be in original condition with all packaging and tags</li>
-                            <li>• Electronics must include all original accessories</li>
-                            <li>• Refunds are processed within <strong>3–5 business days</strong> to your bank account</li>
-                        </ul>
+            <main className="flex-1">
+                <div className="relative bg-gradient-to-br from-amber-700 to-orange-600 text-white py-20 px-6">
+                    <div className="container mx-auto max-w-4xl text-center">
+                        <h1 className="text-4xl md:text-5xl font-black tracking-tight mb-4">Return & Refund Policy</h1>
+                        <p className="text-amber-100 text-lg">Your satisfaction is our priority. Here&apos;s everything you need to know about returns.</p>
                     </div>
-
-                    <div className="border border-gray-200 rounded-2xl p-6">
-                        <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><RotateCcw className="h-5 w-5 text-blue-600" /> How to Return</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            {[
-                                { step: "1", title: "Start a Return", desc: "Go to Your Orders, find the item, click 'Return or Replace'" },
-                                { step: "2", title: "Pack & Ship", desc: "Pack the item securely. We'll arrange free pickup from your address." },
-                                { step: "3", title: "Get Refund", desc: "Once received and inspected, refund goes to your saved bank within 3-5 days." },
-                            ].map((s, i) => (
-                                <div key={i} className="p-4 bg-gray-50 rounded-xl text-center">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-black flex items-center justify-center mx-auto mb-2">{s.step}</div>
-                                    <h3 className="font-bold text-gray-900 mb-1">{s.title}</h3>
-                                    <p className="text-xs text-gray-500">{s.desc}</p>
-                                </div>
-                            ))}
+                </div>
+                <div className="container mx-auto max-w-3xl px-6 py-16 space-y-10">
+                    <section>
+                        <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2"><Clock className="h-5 w-5 text-amber-600" /> Return Window</h2>
+                        <div className="bg-amber-50 rounded-2xl p-6 border border-amber-200">
+                            <p className="text-gray-700 leading-relaxed">You may initiate a return within <strong>7 days</strong> of confirmed delivery. The item must be unused, in its original packaging, and with all tags/accessories intact. Electronics have a <strong>24-hour</strong> return window for DOA (Dead on Arrival) claims.</p>
                         </div>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-                        <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-amber-600" /> Non-Returnable Items</h2>
-                        <ul className="space-y-1 text-sm text-gray-700">
-                            <li>• Perishable goods (food, flowers)</li>
-                            <li>• Personal care items (used cosmetics, underwear)</li>
-                            <li>• Customized/personalized products</li>
-                            <li>• Digital products and gift cards</li>
-                            <li>• Items marked &quot;Final Sale&quot;</li>
+                    </section>
+                    <section>
+                        <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2"><RotateCcw className="h-5 w-5 text-emerald-600" /> How to Return</h2>
+                        <ol className="space-y-3">
+                            {["Go to Your Orders → Select the order → Click 'Initiate Return'", "Choose a return reason and provide photos if applicable", "Our team reviews and approves within 24 hours", "Ship the item back using the pre-paid return label provided", "Refund is processed within 3-5 business days after we receive the item"].map((s, i) => (
+                                <li key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl"><span className="bg-emerald-100 text-emerald-700 font-bold text-xs w-6 h-6 rounded-full flex items-center justify-center shrink-0">{i + 1}</span><span className="text-gray-700 text-sm">{s}</span></li>
+                            ))}
+                        </ol>
+                    </section>
+                    <section>
+                        <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-red-500" /> Non-Returnable Items</h2>
+                        <ul className="space-y-2">
+                            {["Perishable goods (food, flowers)", "Personal care items (opened)", "Customized or personalized products", "Digital products and gift cards", "Items marked 'Final Sale'"].map(item => (
+                                <li key={item} className="flex items-center gap-2 text-sm text-gray-600"><span className="text-red-400">✕</span>{item}</li>
+                            ))}
                         </ul>
-                    </div>
-
-                    <div className="text-center pt-4">
-                        <Link href="/account/orders">
-                            <Button className="bg-black text-white rounded-xl font-bold px-8">
-                                Go to Your Orders <ArrowRight className="h-4 w-4 ml-2" />
-                            </Button>
-                        </Link>
-                    </div>
+                    </section>
+                    <section>
+                        <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2"><Package className="h-5 w-5 text-blue-600" /> Refund Methods</h2>
+                        <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200 text-sm text-gray-700 leading-relaxed">
+                            Refunds are issued to your <strong>original payment method</strong> or as a <strong>FairPrice coupon</strong> (your choice). If you paid via bank transfer, refunds go to the bank account registered in your Payments settings. Coupon refunds are instant; bank refunds take 3-5 business days.
+                        </div>
+                    </section>
                 </div>
             </main>
             <Footer />

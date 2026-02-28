@@ -254,6 +254,8 @@ export default function CategoriesPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [products, setProducts] = useState<Product[]>([]);
     const [activeFilter, setActiveFilter] = useState("all");
+    const [sortBy, setSortBy] = useState<string>("trending");
+    const [showSortMenu, setShowSortMenu] = useState(false);
     const { addToCart } = useCart();
     const router = useRouter();
 
@@ -294,6 +296,17 @@ export default function CategoriesPage() {
         setProducts(filtered);
     }, [activeCategory, activeFilter]);
 
+    // Apply sorting
+    const sortedProducts = [...products].sort((a, b) => {
+        switch (sortBy) {
+            case "price_low": return (a.price || 0) - (b.price || 0);
+            case "price_high": return (b.price || 0) - (a.price || 0);
+            case "rating": return (b.avg_rating || 0) - (a.avg_rating || 0);
+            case "newest": return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+            default: return 0; // trending = keep existing order
+        }
+    });
+
     const handleSearch = () => {
         if (searchQuery.trim()) {
             router.push(`/search?q=${encodeURIComponent(searchQuery)}`);
@@ -310,15 +323,15 @@ export default function CategoriesPage() {
                     </div>
                     <Input
                         type="search"
-                        placeholder="Search for products..."
+                        placeholder="iPhone 17 Pro Max Refurbished..."
                         className="w-full pl-9 pr-10 py-2 h-10 border-2 border-brand-green-600 rounded-full focus-visible:ring-0 focus-visible:border-brand-green-700 bg-white text-sm font-medium"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
                     />
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    {/* <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <Camera className="h-5 w-5 text-gray-500 cursor-pointer" />
-                    </div>
+                    </div> */}
                 </div>
                 <button
                     onClick={handleSearch}
@@ -332,10 +345,10 @@ export default function CategoriesPage() {
             <div className="flex items-center justify-between px-4 py-2 bg-orange-50 border-b border-orange-100/50">
                 <div className="flex items-center gap-4 text-xs font-semibold text-green-700">
                     <div className="flex items-center gap-1">
-                        <Check className="h-3.5 w-3.5" strokeWidth={3} /> Free shipping
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} /> Free shipping with online payment
                     </div>
                     <div className="flex items-center gap-1">
-                        <Check className="h-3.5 w-3.5" strokeWidth={3} /> Price adjustment within 30 days
+                        <Check className="h-3.5 w-3.5" strokeWidth={3} /> Payment on delivery available
                     </div>
                 </div>
                 <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -421,13 +434,24 @@ export default function CategoriesPage() {
                             <h2 className="text-[14px] md:text-base font-bold text-gray-900 tracking-tight">
                                 {activeFilter !== 'all' ? activeFilter : 'Trending items'}
                             </h2>
-                            <button className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-gray-900 font-medium transition-colors">
-                                Sort by <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
-                            </button>
+                            <div className="relative">
+                                <button onClick={() => setShowSortMenu(!showSortMenu)} className="flex items-center gap-1 text-[12px] text-gray-500 hover:text-gray-900 font-medium transition-colors">
+                                    Sort by: {sortBy === 'trending' ? 'Trending' : sortBy === 'price_low' ? 'Price ↑' : sortBy === 'price_high' ? 'Price ↓' : sortBy === 'rating' ? 'Rating' : 'Newest'} <ChevronDown className={`h-3.5 w-3.5 text-gray-400 transition-transform ${showSortMenu ? 'rotate-180' : ''}`} />
+                                </button>
+                                {showSortMenu && (
+                                    <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-30 py-1 min-w-[160px]">
+                                        {[{ key: 'trending', label: 'Trending' }, { key: 'price_low', label: 'Price: Low to High' }, { key: 'price_high', label: 'Price: High to Low' }, { key: 'rating', label: 'Best Rated' }, { key: 'newest', label: 'Newest First' }].map(opt => (
+                                            <button key={opt.key} onClick={() => { setSortBy(opt.key); setShowSortMenu(false); }} className={`w-full text-left px-4 py-2 text-xs hover:bg-gray-50 transition-colors ${sortBy === opt.key ? 'text-emerald-600 font-bold bg-emerald-50' : 'text-gray-700'}`}>
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 -mx-1 md:mx-0">
-                            {products.map(product => (
+                            {sortedProducts.map(product => (
                                 <div key={product.id} className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-md overflow-hidden cursor-pointer" onClick={() => router.push(`/product/${product.id}`)}>
                                     <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
                                         <img
@@ -441,7 +465,7 @@ export default function CategoriesPage() {
                                         {/* Cart Button */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                                            className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-[1.5px] border-white/90 shadow-[0_2px_4px_rgba(0,0,0,0.25)] bg-black/10 flex items-center justify-center transition-colors z-10 hover:bg-black/25"
+                                            className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-[1.5px] border-white/90 shadow-[0_2px_4px_rgba(0,0,0,0.25)] bg-green-600/10 flex items-center justify-center transition-colors z-10 hover:bg-green-600/25"
                                         >
                                             <ShoppingCart className="h-4 w-4 text-white drop-shadow-md" strokeWidth={2.5} />
                                             <div className="absolute top-[1px] right-[3px] font-black text-white text-[11px] leading-none drop-shadow-md">+</div>

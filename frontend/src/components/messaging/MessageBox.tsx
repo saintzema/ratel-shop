@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, MessageCircle, ChevronLeft, Search,
     Bell, Check, CheckCheck, ShoppingBag, Megaphone,
-    Truck, Sparkles, Package
+    Truck, Sparkles, Package, Bot, Headphones, Store, Coins
 } from "lucide-react";
 import { useMessages, Conversation, ChatMessage } from "@/context/MessageContext";
 import { Button } from "@/components/ui/button";
@@ -126,6 +126,17 @@ export function MessageBox() {
 
     const handleSend = () => {
         if (!input.trim() || !selectedConvId) return;
+
+        // Security Filter: Detect and prevent sharing of account numbers and bank details
+        const cleanedText = input.replace(/[\s\-\.\,]/g, '');
+        const has10Digits = /\d{10}/.test(cleanedText);
+        const containsBankKeywords = /\b(opay|palmpay|kuda|bank|moniepoint|account|send money|transfer)\b/i.test(input);
+
+        if (has10Digits || (containsBankKeywords && /\d{8,}/.test(cleanedText))) {
+            alert("Security Alert: Sending account numbers or requesting direct transfers is strictly prohibited on FairPrice for your safety. Please use the secure Escrow checkout.");
+            return;
+        }
+
         sendMessage(selectedConvId, { sender: "user", text: input.trim() });
         setInput("");
     };
@@ -172,7 +183,7 @@ export function MessageBox() {
             case "order": return <Truck className="h-4 w-4 text-blue-500" />;
             case "promo": return <Megaphone className="h-4 w-4 text-orange-500" />;
             case "system": return <Sparkles className="h-4 w-4 text-emerald-500" />;
-            case "negotiation": return <ShoppingBag className="h-4 w-4 text-purple-500" />;
+            case "negotiation": return <Coins className="h-4 w-4 text-purple-500" />;
             default: return <Bell className="h-4 w-4 text-gray-500" />;
         }
     };
@@ -217,7 +228,7 @@ export function MessageBox() {
                             /* ─── CHAT VIEW ────────────────────────── */
                             <>
                                 {/* Chat Header */}
-                                <div className="px-4 py-3 flex items-center gap-3 shrink-0 bg-brand-green-700 text-white">
+                                <div className="px-4 py-3 flex items-center gap-3 shrink-0 bg-brand-green-900 text-white">
                                     <button onClick={handleBack} className="p-1.5 -ml-1 rounded-full hover:bg-white/10 transition-colors">
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
@@ -265,8 +276,11 @@ export function MessageBox() {
                                                 >
                                                     <div className={`max-w-[80%] relative`}>
                                                         {msg.sender !== "user" && (
-                                                            <p className="text-[9px] font-bold text-emerald-700 mb-0.5 px-1">
-                                                                {msg.sender === "ziva" ? "🤖 Ziva AI" : msg.sender === "admin" ? "📋 Support" : "🏪 Seller"}
+                                                            <p className="text-[9px] font-bold text-emerald-700 mb-0.5 px-1 flex items-center gap-1">
+                                                                {msg.sender === "ziva" && <Bot className="h-3 w-3" />}
+                                                                {msg.sender === "admin" && <Headphones className="h-3 w-3" />}
+                                                                {msg.sender === "seller" && <Store className="h-3 w-3" />}
+                                                                {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "Support" : "Seller"}
                                                             </p>
                                                         )}
                                                         <div
@@ -291,7 +305,7 @@ export function MessageBox() {
                                                         )}
                                                         {msg.negotiation && (
                                                             <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-1 text-xs shadow-sm">
-                                                                <p className="font-bold text-amber-800 mb-0.5">💰 Counter Offer</p>
+                                                                <p className="font-bold text-amber-800 mb-0.5 flex items-center gap-1"><Coins className="h-3 w-3" /> Counter Offer</p>
                                                                 <p className="text-amber-700">{msg.negotiation.productName}: <strong>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
                                                             </div>
                                                         )}
@@ -330,7 +344,7 @@ export function MessageBox() {
                             /* ─── LIST VIEW (Chats + Notifications tabs) ─── */
                             <>
                                 {/* Header */}
-                                <div className="shrink-0 bg-brand-green-700 text-white">
+                                <div className="shrink-0 bg-brand-green-900 text-white">
                                     <div className="px-5 pt-4 pb-2 flex items-center justify-between">
                                         <h2 className="text-lg font-bold">Messages</h2>
                                         <button onClick={closeMessageBox} className="p-2 rounded-full hover:bg-white/10 transition-colors">

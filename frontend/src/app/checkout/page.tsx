@@ -6,13 +6,14 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
-import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2 } from "lucide-react";
+import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/context/CartContext";
-import { Product } from "@/lib/types";
+import { Product, Coupon } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
+import { ProductCard } from "@/components/product/ProductCard";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
@@ -39,45 +40,115 @@ function getDeliveryDateRange(): string {
     return `${fmt(early)} – ${fmt(late)}`;
 }
 
-function DiscountSection() {
+function DiscountSection({
+    availableCoupons,
+    appliedCoupon,
+    onApplyCoupon
+}: {
+    availableCoupons: Coupon[];
+    appliedCoupon: Coupon | null;
+    onApplyCoupon: (coupon: Coupon | null) => void;
+}) {
     const [code, setCode] = useState("");
-    const [applied, setApplied] = useState(false);
     const [msg, setMsg] = useState("");
+    const [showDropdown, setShowDropdown] = useState(false);
 
-    const handleApply = () => {
-        if (!code) return;
-        if (code.toLowerCase() === "save2026") {
-            setApplied(true);
-            setMsg("Discount Applied: 10% OFF");
+    const handleApply = (manualCode?: string) => {
+        const targetCode = manualCode || code;
+        if (!targetCode) return;
+
+        const validCoupon = availableCoupons.find(c => c.code.toUpperCase() === targetCode.toUpperCase());
+
+        if (validCoupon) {
+            onApplyCoupon(validCoupon);
+            setMsg(`Discount Applied: ₦${validCoupon.amount.toLocaleString()} OFF`);
+            setShowDropdown(false);
         } else {
-            setMsg("Invalid discount code");
+            setMsg("Invalid or expired discount code");
             setTimeout(() => setMsg(""), 3000);
         }
     };
 
+    const handleRemove = () => {
+        onApplyCoupon(null);
+        setCode("");
+        setMsg("");
+    };
+
     return (
-        <div className="pt-4 space-y-2">
-            <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-gray-400" />
-                <Input
-                    placeholder="Enter discount code"
-                    className="max-w-xs h-9 text-sm border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-brand-orange/50 focus:ring-brand-orange/20"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    disabled={applied}
-                />
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-semibold"
-                    onClick={handleApply}
-                    disabled={applied || !code}
-                >
-                    {applied ? "✓ Applied" : "Apply"}
-                </Button>
-            </div>
-            {msg && (
-                <p className={`text-xs ${applied ? "text-green-600" : "text-red-500"} pl-6 font-bold`}>
+        <div className="pt-4 space-y-3 relative">
+            <label className="text-xs font-bold uppercase text-gray-500">Have a Coupon?</label>
+
+            {appliedCoupon ? (
+                <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl p-3">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
+                            <Tag className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-green-800 tracking-wider text-sm">{appliedCoupon.code}</p>
+                            <p className="text-xs text-green-600 font-medium">₦{appliedCoupon.amount.toLocaleString()} discount applied</p>
+                        </div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={handleRemove} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                        Remove
+                    </Button>
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    {availableCoupons.length > 0 && (
+                        <div className="mb-3">
+                            <button
+                                onClick={() => setShowDropdown(!showDropdown)}
+                                className="w-full flex items-center justify-between bg-emerald-50 border border-emerald-100 p-3 rounded-xl hover:border-emerald-300 transition-colors"
+                            >
+                                <span className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                                    <Tag className="h-4 w-4" /> You have {availableCoupons.length} available coupon(s)
+                                </span>
+                                <ChevronDown className={`h-4 w-4 text-emerald-600 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+                            </button>
+                            {showDropdown && (
+                                <div className="mt-2 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                                    {availableCoupons.map(coupon => (
+                                        <button
+                                            key={coupon.id}
+                                            onClick={() => handleApply(coupon.code)}
+                                            className="w-full text-left p-3 hover:bg-gray-50 flex items-center justify-between group transition-colors"
+                                        >
+                                            <div>
+                                                <p className="font-bold text-gray-900 group-hover:text-brand-green-600 transition-colors">₦{coupon.amount.toLocaleString()} OFF</p>
+                                                <p className="text-xs text-gray-500">{coupon.reason}</p>
+                                            </div>
+                                            <span className="text-[10px] bg-gray-100 text-gray-600 px-2 py-1 rounded font-bold uppercase tracking-wider group-hover:bg-brand-green-100 group-hover:text-brand-green-700 transition-colors">
+                                                Apply
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <Input
+                            placeholder="Enter discount code"
+                            className="max-w-xs h-10 text-sm border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-brand-orange/50 focus:ring-brand-orange/20 rounded-xl"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                        />
+                        <Button
+                            variant="outline"
+                            className="h-10 rounded-xl border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:text-gray-900 font-bold px-6"
+                            onClick={() => handleApply()}
+                            disabled={!code}
+                        >
+                            Apply
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            {msg && !appliedCoupon && (
+                <p className="text-xs text-red-500 font-bold">
                     {msg}
                 </p>
             )}
@@ -145,6 +216,17 @@ function CheckoutContent() {
     const [paymentMethod, setPaymentMethod] = useState<"paystack" | "cod">("paystack");
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
+
+    // Coupon System
+    const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
+    const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+
+    // Initial load effects
+    useEffect(() => {
+        if (user) {
+            setAvailableCoupons(DemoStore.getActiveCoupons(user.id));
+        }
+    }, [user]);
 
     // Email domain autocomplete
     const [emailSuggestions, setEmailSuggestions] = useState<string[]>([]);
@@ -391,15 +473,16 @@ function CheckoutContent() {
     const hasGlobalProduct = checkoutItems.some(item => item.product.seller_id === "global-partners" || item.product.seller_name.toLowerCase().includes("global"));
     const shippingMultiplier = hasGlobalProduct ? 1.5 : 1;
 
-    // Shipping: FREE for online payments (Paystack), charged for pay-on-delivery
-    const shipping = paymentMethod === "paystack" ? 0 : (
+    // Shipping: FREE for online payments (Paystack) OR Premium Users spending ₦50,000+
+    const isPremiumFreeDelivery = user?.isPremium && subtotal >= 50000;
+    const shipping = (paymentMethod === "paystack" || isPremiumFreeDelivery) ? 0 : (
         deliveryMethod === "pickup"
             ? Math.round(basePickupFee * shippingMultiplier)
             : Math.round(baseDoorFee * shippingMultiplier)
     );
 
-    const total = subtotal + shipping;
-    const canPayOnDelivery = subtotal < 50000; // Only allow COD for orders under ₦50k
+    const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
+    const canPayOnDelivery = subtotal < 50000 && !hasGlobalProduct; // Only allow COD for local orders under ₦50k
 
     // Save address to localStorage
     const saveCurrentAddress = () => {
@@ -522,6 +605,10 @@ function CheckoutContent() {
                 DemoStore.updateNegotiationStatus(negotiationId, "purchased");
             } else {
                 clearCart();
+            }
+
+            if (appliedCoupon && user) {
+                DemoStore.useCoupon(appliedCoupon.code, user.id);
             }
 
             // Dispatch event to update navbar/orders page immediately
@@ -1076,10 +1163,12 @@ function CheckoutContent() {
                                     <input type="radio" name="payment" checked={paymentMethod === 'paystack'} onChange={() => setPaymentMethod('paystack')} className="h-5 w-5 text-brand-orange focus:ring-brand-orange" />
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-0.5">
-                                            <span className="font-bold text-gray-900">Paystack (Card / Bank Transfer)</span>
+                                            <span className="font-bold text-gray-900">Add Debit/Credit Card</span>
                                             <CreditCard className="h-4 w-4 text-gray-400" />
                                         </div>
-                                        <p className="text-xs text-gray-500">Secured online payment</p>
+                                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                                            <Lock className="h-3 w-3" /> Your card details are stored securely and encrypted
+                                        </p>
                                         <p className="text-xs text-emerald-600 font-bold mt-1">🎉 FREE delivery when you pay online!</p>
                                     </div>
                                 </label>
@@ -1109,7 +1198,11 @@ function CheckoutContent() {
                                     </div>
                                 )}
 
-                                <DiscountSection />
+                                <DiscountSection
+                                    availableCoupons={availableCoupons}
+                                    appliedCoupon={appliedCoupon}
+                                    onApplyCoupon={setAppliedCoupon}
+                                />
 
                                 <div className="mt-6 flex justify-end">
                                     <Button
@@ -1125,7 +1218,7 @@ function CheckoutContent() {
                             <div className="px-6 py-4 flex items-center gap-4 bg-white opacity-80">
                                 {paymentMethod === 'paystack' ? <CreditCard className="h-5 w-5 text-gray-400" /> : <Truck className="h-5 w-5 text-amber-500" />}
                                 <div>
-                                    <p className="text-sm font-bold text-gray-900">{paymentMethod === 'paystack' ? 'Paystack (Card / Bank Transfer)' : 'Pay on Delivery'}</p>
+                                    <p className="text-sm font-bold text-gray-900">{paymentMethod === 'paystack' ? 'Debit/Credit Card' : 'Pay on Delivery'}</p>
                                     <p className={`text-xs font-medium ${paymentMethod === 'paystack' ? 'text-green-600' : 'text-amber-600'}`}>
                                         {paymentMethod === 'paystack' ? 'Secured online payment · FREE delivery' : `Delivery fee: ${formatPrice(shipping)}`}
                                     </p>
@@ -1304,16 +1397,33 @@ function CheckoutContent() {
                             </div>
                             <div className="flex justify-between text-gray-600">
                                 <span>Delivery fees:</span>
-                                {paymentMethod === 'paystack' ? (
-                                    <span className="font-bold text-emerald-600">FREE </span>
+                                {shipping === 0 ? (
+                                    <span className="font-bold text-emerald-600 flex items-center gap-1">
+                                        FREE
+                                        {user?.isPremium && subtotal >= 50000 && paymentMethod !== 'paystack' && <Crown className="h-3 w-3" />}
+                                    </span>
                                 ) : (
                                     <span className="font-medium">{formatPrice(shipping)}</span>
                                 )}
                             </div>
 
                             <div className="flex justify-between items-end border-t border-gray-200 pt-4 mt-2">
-                                <span className="font-bold text-lg text-gray-900">Total:</span>
-                                <span className="font-black text-2xl text-gray-900">{formatPrice(total)}</span>
+                                <div className="space-y-1">
+                                    <span className="font-bold text-lg text-gray-900 block">Total:</span>
+                                    {appliedCoupon && (
+                                        <span className="text-xs font-bold text-brand-green-600 block bg-brand-green-50 px-2 py-0.5 rounded border border-brand-green-100">
+                                            Saved ₦{appliedCoupon.amount.toLocaleString()}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-right">
+                                    {appliedCoupon && (
+                                        <span className="text-sm text-gray-400 line-through mr-2 font-medium">
+                                            {formatPrice(subtotal + shipping)}
+                                        </span>
+                                    )}
+                                    <span className="font-black text-2xl text-gray-900">{formatPrice(total)}</span>
+                                </div>
                             </div>
                         </div>
 

@@ -555,13 +555,25 @@ function SearchContent() {
       const mappedGlobal = globalResults.map((r, i) => {
         // Create a stable, URL-safe ID from the product name
         const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
+        const descCategories = {
+          electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
+          phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
+          computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
+          default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
+        };
+        const catList = r.category ? r.category.toLowerCase() : "default";
+        let descBase = descCategories.default;
+        if (catList.includes("phone")) descBase = descCategories.phones;
+        else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
+        else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
+
         const product = {
           id: stableId,
           name: r.name,
           price: r.approxPrice || 0,
           original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
           category: r.category || "electronics",
-          description: `${r.name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
+          description: descBase,
           image_url: r.image_url || "/assets/images/placeholder.png",
           seller_id: "global-partners",
           seller_name: "Global Stores",
@@ -597,13 +609,25 @@ function SearchContent() {
     if (!showGlobalResults || globalResults.length === 0) return;
     globalResults.forEach((r) => {
       const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
+      const descCategories = {
+        electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
+        phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
+        computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
+        default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
+      };
+      const catList = r.category ? r.category.toLowerCase() : "default";
+      let descBase = descCategories.default;
+      if (catList.includes("phone")) descBase = descCategories.phones;
+      else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
+      else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
+
       const product = {
         id: stableId,
         name: r.name,
         price: r.approxPrice || 0,
         original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
         category: r.category || "electronics",
-        description: `${r.name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
+        description: descBase,
         image_url: r.image_url || "/assets/images/placeholder.png",
         seller_id: "global-partners",
         seller_name: "Global Stores",
