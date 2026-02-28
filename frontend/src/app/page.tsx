@@ -234,7 +234,7 @@ export default function Home() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section ─── */}
-          <section className="relative h-[380px] w-full overflow-hidden bg-black">
+          <section className="relative h-[250px] md:h-[380px] w-full overflow-hidden bg-black">
             <div className="absolute inset-0">
               <img
 
@@ -256,7 +256,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="text-5xl md:text-7xl font-black tracking-tighter mb-8 text-balance drop-shadow-2xl"
+                className="text-4xl md:text-7xl font-black tracking-tighter mb-4 md:mb-8 text-balance drop-shadow-2xl"
               >
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-green-400 to-emerald-400">Fair</span>Price
               </motion.h1>
@@ -279,12 +279,12 @@ export default function Home() {
           </section>
 
           {/* ─── Content Body ─── */}
-          <div ref={productSectionRef} className="relative z-20 -mt-16">
+          <div ref={productSectionRef} className="relative z-20 -mt-6 md:-mt-16">
 
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 mb-6 relative z-40">
-                <BestSellersScroller title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll={true} />
+                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} />
               </section>
             )}
 
@@ -293,7 +293,7 @@ export default function Home() {
 
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
             <section className="container mx-auto px-4 mb-6">
-              <BestSellersScroller title="Today's Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll />
+              <ProductSlider title="Today's Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} />
             </section>
 
             {/* Category Cards Row 2 Removed */}

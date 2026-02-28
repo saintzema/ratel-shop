@@ -7,8 +7,11 @@ import { LocationProvider } from "@/context/LocationContext";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { FavoritesProvider } from "@/context/FavoritesContext";
+import { MessageProvider } from "@/context/MessageContext";
 import { FloatingCart } from "@/components/ui/FloatingCart";
 import { NotificationProvider } from "@/components/ui/NotificationProvider";
+import { FloatingNotification } from "@/components/ui/FloatingNotification";
+import { MessageBox } from "@/components/messaging/MessageBox";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PwaManager } from "@/components/ui/PwaManager";
 export const metadata: Metadata = {
@@ -40,13 +43,17 @@ export default function RootLayout({
           <AuthProvider>
             <CartProvider>
               <FavoritesProvider>
-                <NotificationProvider>
-                  {children}
-                  <ZivaChat />
-                </NotificationProvider>
+                <MessageProvider>
+                  <NotificationProvider>
+                    {children}
+                    <ZivaChat />
+                    <FloatingNotification />
+                    <MessageBox />
+                  </NotificationProvider>
+                  <MobileBottomNav />
+                </MessageProvider>
               </FavoritesProvider>
               <FloatingCart />
-              <MobileBottomNav />
               <PwaManager />
             </CartProvider>
           </AuthProvider>

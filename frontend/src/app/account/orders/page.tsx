@@ -476,8 +476,8 @@ function OrdersContent() {
                             <div className="p-5 flex items-center gap-4 border-b border-gray-200">
                                 <div className="h-16 w-16 bg-white rounded-xl border border-gray-200 p-2 shrink-0">
                                     <img
-                                        src={selectedOrderForTracking.product?.image_url}
-                                        alt={selectedOrderForTracking.product?.name}
+                                        src={selectedOrderForTracking.product?.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
+                                        alt={selectedOrderForTracking.product?.name || "Product"}
                                         className="h-full w-full object-contain"
                                     />
                                 </div>

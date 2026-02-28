@@ -79,17 +79,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
 
             const lowerText = text.toLowerCase();
             if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
-                zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here.";
-                // Simulated image response delay
-                setTimeout(() => {
-                    setMessages(prev => [...prev, {
-                        id: Date.now().toString() + "_img",
-                        sender: "ziva",
-                        text: "The merchant just provided these images of the actual item ready for dispatch:",
-                        imageUrl: product?.image_url || "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=800&q=80",
-                        timestamp: new Date()
-                    }]);
-                }, 3000);
+                zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here. You'll also receive a notification when the images are ready.";
             } else if (lowerText.includes("ship") || lowerText.includes("delivery")) {
                 zivaText = "Your item is currently being prepared. Based on your location, estimated delivery is within 2-4 business days once handed over to our logistics partners.";
             } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {

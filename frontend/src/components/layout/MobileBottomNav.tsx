@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, ShoppingCart, User } from "lucide-react";
+import { Home, Search, ShoppingCart, MessageCircle } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { useMessages } from "@/context/MessageContext";
 import { cn } from "@/lib/utils";
 
 export function MobileBottomNav() {
     const pathname = usePathname();
     const { cartCount } = useCart();
+    const { totalUnread } = useMessages();
 
     // Hide on specific pages where it might be intrusive
     if (pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
@@ -19,7 +21,7 @@ export function MobileBottomNav() {
         { name: "Home", href: "/", icon: Home },
         { name: "Search", href: "/search", icon: Search },
         { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
-        { name: "Profile", href: "/account", icon: User },
+        { name: "Messages", href: "/account/messages", icon: MessageCircle, count: totalUnread },
     ];
 
     return (

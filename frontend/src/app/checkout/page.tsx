@@ -16,6 +16,7 @@ import { DemoStore } from "@/lib/demo-store";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
+import { PostOrderConciergeChat } from "@/components/modals/PostOrderConciergeChat";
 import { Navbar } from "@/components/layout/Navbar";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 
@@ -135,9 +136,61 @@ function CheckoutContent() {
     const [createAccount, setCreateAccount] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showPaystack, setShowPaystack] = useState(false);
-    const [isEditingAddress, setIsEditingAddress] = useState(false);
+    const [isEditingAddress, setIsEditingAddress] = useState(true); // Default open for guests
     const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1);
     const [paymentMethod, setPaymentMethod] = useState<"paystack" | "cod">("paystack");
+    const [showConcierge, setShowConcierge] = useState(false);
+    const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
+
+    // Email domain autocomplete
+    const [emailSuggestions, setEmailSuggestions] = useState<string[]>([]);
+    const [showEmailDropdown, setShowEmailDropdown] = useState(false);
+    const EMAIL_DOMAINS = ["gmail.com", "icloud.com", "yahoo.com", "hotmail.com", "outlook.com", "protonmail.com", "aol.com", "live.com", "mail.com"];
+
+    // Phone country code + WhatsApp
+    const [countryCode, setCountryCode] = useState("+234");
+    const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+    const [whatsappPhone, setWhatsappPhone] = useState("");
+    const [showWhatsappField, setShowWhatsappField] = useState(false);
+    const [whatsappCountryCode, setWhatsappCountryCode] = useState("+234");
+
+    const COUNTRY_CODES = [
+        { code: "+234", country: "Nigeria", flag: "🇳🇬" },
+        { code: "+233", country: "Ghana", flag: "🇬🇭" },
+        { code: "+254", country: "Kenya", flag: "🇰🇪" },
+        { code: "+27", country: "South Africa", flag: "🇿🇦" },
+        { code: "+1", country: "USA/Canada", flag: "🇺🇸" },
+        { code: "+44", country: "UK", flag: "🇬🇧" },
+        { code: "+91", country: "India", flag: "🇮🇳" },
+        { code: "+86", country: "China", flag: "🇨🇳" },
+        { code: "+971", country: "UAE", flag: "🇦🇪" },
+        { code: "+966", country: "Saudi Arabia", flag: "🇸🇦" },
+        { code: "+49", country: "Germany", flag: "🇩🇪" },
+        { code: "+33", country: "France", flag: "🇫🇷" },
+        { code: "+81", country: "Japan", flag: "🇯🇵" },
+        { code: "+61", country: "Australia", flag: "🇦🇺" },
+        { code: "+55", country: "Brazil", flag: "🇧🇷" },
+        { code: "+237", country: "Cameroon", flag: "🇨🇲" },
+        { code: "+251", country: "Ethiopia", flag: "🇪🇹" },
+        { code: "+255", country: "Tanzania", flag: "🇹🇿" },
+        { code: "+256", country: "Uganda", flag: "🇺🇬" },
+        { code: "+221", country: "Senegal", flag: "🇸🇳" },
+    ];
+
+    const handleEmailChange = (value: string) => {
+        setAddress({ ...address, email: value });
+        const atIdx = value.indexOf("@");
+        if (atIdx >= 1) {
+            const typed = value.substring(atIdx + 1).toLowerCase();
+            const prefix = value.substring(0, atIdx);
+            const filtered = EMAIL_DOMAINS.filter(d => d.startsWith(typed) && d !== typed);
+            setEmailSuggestions(filtered.map(d => `${prefix}@${d}`));
+            setShowEmailDropdown(filtered.length > 0);
+        } else {
+            setEmailSuggestions([]);
+            setShowEmailDropdown(false);
+        }
+    };
 
     const [deliveryMethod, setDeliveryMethod] = useState<"doorstep" | "pickup">("doorstep");
     const [pickupDetails, setPickupDetails] = useState({ state: "", city: "", station: "" });
@@ -273,6 +326,8 @@ function CheckoutContent() {
                     email: user.email,
                     phone: (user as any)?.phone || ""
                 }));
+                // Logged-in users with no saved address need to edit
+                setIsEditingAddress(true);
             }
         } else if (saved.length > 0) {
             const latest = saved[0];
@@ -468,6 +523,11 @@ function CheckoutContent() {
             // Dispatch event to update navbar/orders page immediately
             window.dispatchEvent(new Event("storage"));
 
+            // Set up concierge for the first item
+            if (checkoutItems.length > 0) {
+                setConciergeProduct(checkoutItems[0].product);
+            }
+
             if (!user) {
                 // Auto-create an account for the guest and log them in
                 login({
@@ -477,10 +537,13 @@ function CheckoutContent() {
                     role: "customer",
                     created_at: new Date().toISOString()
                 });
-                router.push("/account/orders?success=true");
-            } else {
-                router.push("/account/orders?success=true");
             }
+            // Show concierge before redirect
+            setShowConcierge(true);
+            // Redirect after a brief delay so user sees the concierge
+            setTimeout(() => {
+                router.push("/account/orders?success=true");
+            }, 500);
         }, 1500);
     };
 
@@ -589,15 +652,39 @@ function CheckoutContent() {
                                         </div>
                                         {/* Only show email for guest users */}
                                         {!user && (
-                                            <div className="space-y-1">
+                                            <div className="space-y-1 relative">
                                                 <label className="text-xs font-bold uppercase text-gray-400">Email Address</label>
                                                 <Input
                                                     type="email"
                                                     value={address.email}
-                                                    onChange={e => setAddress({ ...address, email: e.target.value })}
+                                                    onChange={e => handleEmailChange(e.target.value)}
+                                                    onFocus={() => { if (emailSuggestions.length > 0) setShowEmailDropdown(true); }}
+                                                    onBlur={() => setTimeout(() => setShowEmailDropdown(false), 200)}
                                                     placeholder="your@email.com"
+                                                    autoComplete="off"
                                                     className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
                                                 />
+                                                {/* Email domain autocomplete */}
+                                                {showEmailDropdown && emailSuggestions.length > 0 && (
+                                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-xl overflow-hidden">
+                                                        {emailSuggestions.map((suggestion, i) => (
+                                                            <button
+                                                                key={i}
+                                                                type="button"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => {
+                                                                    setAddress({ ...address, email: suggestion });
+                                                                    setShowEmailDropdown(false);
+                                                                    setEmailSuggestions([]);
+                                                                }}
+                                                                className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-emerald-50 hover:text-emerald-700 transition-colors flex items-center gap-2 font-medium"
+                                                            >
+                                                                <span className="text-gray-400 text-xs">📧</span>
+                                                                {suggestion}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         {user && (
@@ -608,13 +695,77 @@ function CheckoutContent() {
                                         )}
                                         <div className="space-y-1">
                                             <label className="text-xs font-bold uppercase text-gray-400">Phone Number <span className="text-red-400">*</span></label>
-                                            <Input
-                                                value={address.phone}
-                                                onChange={e => setAddress({ ...address, phone: e.target.value })}
-                                                placeholder="+234 xxx xxx xxxx"
-                                                required
-                                                className="rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
-                                            />
+                                            <div className="flex gap-2">
+                                                {/* Country Code Dropdown */}
+                                                <div className="relative">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                                                        className="h-10 px-3 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 transition-colors min-w-[90px]"
+                                                    >
+                                                        <span>{COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🌍"}</span>
+                                                        <span className="font-semibold">{countryCode}</span>
+                                                        <svg className="h-3 w-3 text-gray-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                                    </button>
+                                                    {showCountryDropdown && (
+                                                        <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-xl max-h-52 overflow-y-auto">
+                                                            {COUNTRY_CODES.map(c => (
+                                                                <button
+                                                                    key={c.code}
+                                                                    type="button"
+                                                                    onClick={() => { setCountryCode(c.code); setShowCountryDropdown(false); }}
+                                                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-emerald-50 transition-colors ${countryCode === c.code ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700'}`}
+                                                                >
+                                                                    <span className="text-base">{c.flag}</span>
+                                                                    <span className="flex-1 text-left font-medium">{c.country}</span>
+                                                                    <span className="text-gray-400 text-xs font-mono">{c.code}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <Input
+                                                    value={address.phone}
+                                                    onChange={e => setAddress({ ...address, phone: e.target.value })}
+                                                    placeholder="xxx xxx xxxx"
+                                                    required
+                                                    className="flex-1 rounded-xl border-gray-300 bg-white focus:border-brand-orange/50 focus:ring-brand-orange/20"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* WhatsApp Toggle */}
+                                        <div className="space-y-2">
+                                            <label className="flex items-center gap-3 cursor-pointer group">
+                                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${showWhatsappField ? 'bg-emerald-600 border-emerald-600' : 'border-gray-300 group-hover:border-emerald-400'}`}>
+                                                    {showWhatsappField && <Check className="h-3 w-3 text-white" />}
+                                                    <input type="checkbox" className="hidden" checked={showWhatsappField} onChange={() => setShowWhatsappField(!showWhatsappField)} />
+                                                </div>
+                                                <span className="text-xs font-medium text-gray-600 flex items-center gap-1.5">
+                                                    <svg className="h-4 w-4 text-green-500" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" /></svg>
+                                                    My WhatsApp number is different
+                                                </span>
+                                            </label>
+                                            {showWhatsappField && (
+                                                <div className="flex gap-2 pl-8">
+                                                    <div className="relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { }}
+                                                            className="h-10 px-3 rounded-xl border border-gray-300 bg-white flex items-center gap-1.5 text-sm font-medium text-gray-700 min-w-[90px]"
+                                                        >
+                                                            <span>{COUNTRY_CODES.find(c => c.code === whatsappCountryCode)?.flag || "🌍"}</span>
+                                                            <span className="font-semibold">{whatsappCountryCode}</span>
+                                                        </button>
+                                                    </div>
+                                                    <Input
+                                                        value={whatsappPhone}
+                                                        onChange={e => setWhatsappPhone(e.target.value)}
+                                                        placeholder="WhatsApp number"
+                                                        className="flex-1 rounded-xl border-gray-300 bg-white focus:border-green-400 focus:ring-green-200"
+                                                    />
+                                                </div>
+                                            )}
                                         </div>
 
                                         {deliveryMethod === "doorstep" ? (
@@ -674,6 +825,28 @@ function CheckoutContent() {
                                                         </div>
                                                     </div>
                                                 </div>
+
+                                                {/* Nearest Landmark — helps delivery rider */}
+                                                {pickupDetails.state && address.city && PICKUP_STATIONS[pickupDetails.state]?.[address.city] && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs font-bold uppercase text-gray-400">Nearest Landmark <span className="text-gray-300 normal-case">(helps our rider find you faster)</span></label>
+                                                        <div className="relative">
+                                                            <select
+                                                                className="w-full appearance-none rounded-2xl border border-gray-200 bg-gray-50/80 backdrop-blur-sm text-sm h-12 pl-4 pr-10 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 hover:border-gray-300 transition-all cursor-pointer"
+                                                                value={pickupDetails.station || ""}
+                                                                onChange={e => setPickupDetails({ ...pickupDetails, station: e.target.value })}
+                                                            >
+                                                                <option value="">Select nearest landmark (optional)</option>
+                                                                {PICKUP_STATIONS[pickupDetails.state][address.city].map(landmark => (
+                                                                    <option key={landmark} value={landmark}>{landmark}</option>
+                                                                ))}
+                                                            </select>
+                                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                                                                <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="space-y-4 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
@@ -1000,14 +1173,16 @@ function CheckoutContent() {
                                                     <div key={i} className="flex gap-4 group/item">
                                                         <button
                                                             onClick={(e) => { e.preventDefault(); setPreviewProduct(item.product); }}
-                                                            className="w-20 h-20 bg-gray-50 rounded-xl border border-gray-100 shrink-0 p-2 cursor-pointer hover:border-emerald-300 transition-colors"
+                                                            className="w-20 h-20 bg-white rounded-xl border border-gray-100 shrink-0 p-2 cursor-pointer hover:border-emerald-300 transition-colors flex items-center justify-center overflow-hidden"
                                                         >
-                                                            {item.product.image_url ? (
-                                                                <img src={item.product.image_url} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover/item:scale-105" alt="" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling && ((e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex'); }} />
-                                                            ) : null}
-                                                            <div className={`w-full h-full ${item.product.image_url ? 'hidden' : 'flex'} items-center justify-center bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-lg`}>
-                                                                <span className="text-emerald-600 font-black text-lg">{item.product.name.charAt(0)}</span>
-                                                            </div>
+                                                            <img
+                                                                src={item.product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
+                                                                className="w-full h-full object-contain transition-transform group-hover/item:scale-105"
+                                                                alt={item.product.name}
+                                                                onError={e => {
+                                                                    e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80";
+                                                                }}
+                                                            />
                                                         </button>
                                                         <div className="flex-1">
                                                             <div className="flex justify-between items-start">
@@ -1099,13 +1274,15 @@ function CheckoutContent() {
                             <h4 className="text-xs font-bold uppercase text-gray-400">Items ({checkoutItems.reduce((a, b) => a + b.quantity, 0)})</h4>
                             {checkoutItems.map((item, i) => (
                                 <div key={i} className="flex items-center gap-3">
-                                    <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 p-1 shrink-0 overflow-hidden">
-                                        {item.product.image_url ? (
-                                            <img src={item.product.image_url} alt={item.product.name} className="w-full h-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling && ((e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex'); }} />
-                                        ) : null}
-                                        <div className={`w-full h-full ${item.product.image_url ? 'hidden' : 'flex'} items-center justify-center bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-md`}>
-                                            <span className="text-emerald-500 font-bold text-xs">{item.product.name.charAt(0)}</span>
-                                        </div>
+                                    <div className="w-12 h-12 bg-white rounded-lg border border-gray-100 p-1 shrink-0 overflow-hidden flex items-center justify-center">
+                                        <img
+                                            src={item.product.image_url || "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80"}
+                                            alt={item.product.name}
+                                            className="w-full h-full object-contain"
+                                            onError={e => {
+                                                e.currentTarget.src = "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=200&q=80";
+                                            }}
+                                        />
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-gray-700 line-clamp-1">{item.product.name}</p>
@@ -1234,6 +1411,13 @@ function CheckoutContent() {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Post-Order Concierge Chat */}
+            <PostOrderConciergeChat
+                isOpen={showConcierge}
+                onClose={() => setShowConcierge(false)}
+                product={conciergeProduct}
+            />
         </div >
     );
 }

@@ -116,6 +116,8 @@ export interface Review {
     title: string;
     body: string;
     verified_purchase: boolean;
+    helpful_count?: number;
+    images?: string[];
     created_at: string;
 }
 

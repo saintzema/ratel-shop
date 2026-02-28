@@ -542,22 +542,31 @@ export function Navbar() {
 
                                     {/* Text Autocomplete Suggestions (instant, no API) */}
                                     {searchQuery.trim().length > 0 && autocompleteSuggestions.length > 0 && suggestions.length === 0 && (
-                                        <div className="border-b border-gray-100/50">
-                                            {autocompleteSuggestions.map((suggestion, i) => (
-                                                <button
-                                                    key={i}
-                                                    onClick={() => {
-                                                        setSearchQuery(suggestion);
-                                                        setAutocompleteSuggestions([]);
-                                                    }}
-                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50/50 transition-colors text-left"
-                                                >
-                                                    <Search className="h-4 w-4 text-gray-300 shrink-0" />
-                                                    <span className="text-sm font-medium text-gray-700">{suggestion}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
+                                        <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full pt-2">
+                                            {CATEGORIES.slice(0, 10).map((cat) => {
+                                                const popularCategories = ["Phones", "Computers", "Electronics", "Fashion", "Beauty", "Home", "Gym", "Office", "Furniture", "Grocery"];
+                                                const isPopular = popularCategories.includes(cat.label) || popularCategories.includes(cat.value.charAt(0).toUpperCase() + cat.value.slice(1));
+
+                                                return (
+                                                    <Link
+                                                        href={`/search?category=${cat.value}`}
+                                                        key={cat.label}
+                                                        className="group flex flex-col items-center gap-2 cursor-pointer transition-transform hover:-translate-y-1"
+                                                        onClick={() => setIsCategoryOpen(false)}
+                                                    >
+                                                        <div className={cn(
+                                                            "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm transition-all relative",
+                                                            isPopular ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] group-hover:shadow-[0_0_20px_rgba(16,185,129,0.7)]" : "bg-white/10 group-hover:bg-white/20 border border-white/5"
+                                                        )}>
+                                                            <span className={cn("transition-transform group-hover:scale-110", isPopular ? "text-white" : "text-emerald-400")}>{cat.icon}</span>
+                                                        </div>
+                                                        <span className="text-[10px] sm:text-xs font-medium text-white text-center leading-tight">
+                                                            {cat.label}
+                                                        </span>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>)}
 
                                     {/* Product Suggestions */}
                                     {suggestions.map((product, i) => {
@@ -573,11 +582,11 @@ export function Navbar() {
                                             >
                                                 <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
                                                     <img
-                                                        src={product.images?.[0] || product.image_url || '/assets/images/placeholder-product.svg'}
+                                                        src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
                                                         alt={product.name}
                                                         className="w-full h-full object-contain"
                                                         onError={(e) => {
-                                                            e.currentTarget.src = '/assets/images/placeholder-product.svg';
+                                                            e.currentTarget.src = '/assets/images/placeholder.png';
                                                         }}
                                                     />
                                                 </div>
@@ -633,8 +642,15 @@ export function Navbar() {
                                                     }}
                                                     className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
                                                 >
-                                                    <div className="h-10 w-10 shrink-0 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden">
-                                                        <img src="/assets/images/placeholder-product.svg" alt="Global Result" className="w-full h-full object-contain" />
+                                                    <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
+                                                        <img
+                                                            src={(result as any).image_url || '/assets/images/placeholder.png'}
+                                                            alt={result.name}
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => {
+                                                                e.currentTarget.src = '/assets/images/placeholder.png';
+                                                            }}
+                                                        />
                                                     </div>
                                                     <div className="flex flex-col flex-1 min-w-0">
                                                         <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
@@ -799,9 +815,9 @@ export function Navbar() {
                 </div>
 
                 {/* Bottom Bar - SubNavbar */}
-                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-4 py-1.5 text-sm text-white overflow-x-auto no-scrollbar scroll-smooth relative z-0 border-t border-white/10">
+                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-4 py-1.5 text-sm text-white overflow-hidden border-t border-white/10">
                     {/* Left: Navigation Links */}
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[65%] sm:max-w-[75%]">
                         <Link href="/search?sort=bestselling" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
                             <Sparkles className="w-3.5 h-3.5" /> Best-Selling Items
                         </Link>
@@ -813,10 +829,10 @@ export function Navbar() {
                         </Link>
                     </div>
                     {/* Right: Trust Badges */}
-                    <div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px]">
-                        <span className="flex items-center gap-1"><Lock className="w-3 h-3" /> Secure privacy</span>
-                        <span className="flex items-center gap-1"><Shield className="w-3 h-3" /> Purchase protection</span>
-                        <Link href="#" className="flex items-center gap-1 font-bold text-white hover:text-brand-orange transition-colors">
+                    <div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end">
+                        <span className="flex items-center gap-1 shrink-0"><Lock className="w-3 h-3" /> Secure privacy</span>
+                        <span className="flex items-center gap-1 shrink-0"><Shield className="w-3 h-3" /> Purchase protection</span>
+                        <Link href="#" className="flex items-center gap-1 font-bold text-white hover:text-brand-orange transition-colors shrink-0">
                             FairPrice keeps you safe <ArrowRight className="w-3 h-3" />
                         </Link>
                     </div>

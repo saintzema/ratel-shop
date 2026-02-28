@@ -82,7 +82,10 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 },
                 callback: (response: { reference: string }) => {
                     setStep("success");
-                    setTimeout(() => onSuccess(response.reference), 1000);
+                    setTimeout(() => {
+                        onSuccess(response.reference);
+                        onClose();
+                    }, 2000);
                 },
                 onClose: () => {
                     if (autoStart) {
