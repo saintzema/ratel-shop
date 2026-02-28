@@ -32,38 +32,38 @@ export function FloatingCart() {
 
     return (
         <AnimatePresence>
-            {itemCount > 0 && (
-                <motion.button
-                    initial={{ scale: 0, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0, opacity: 0 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => router.push("/cart")}
-                    // Show only on mobile (hidden on md and above) — positioned above Ziva FAB
-                    className="md:hidden fixed z-[999] right-4 bottom-[8.5rem] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
-                    style={{ WebkitTapHighlightColor: "transparent" }}
+            <motion.button
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => router.push("/cart")}
+                // Show only on mobile (hidden on md and above) — positioned above Ziva FAB
+                className="md:hidden fixed z-[999] right-4 bottom-[8.5rem] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
+                style={{ WebkitTapHighlightColor: "transparent" }}
+            >
+                <motion.div
+                    animate={isBouncing ? {
+                        scale: [1, 1.4, 0.8, 1.2, 1],
+                        rotate: [0, -15, 15, -10, 0]
+                    } : {}}
+                    transition={{ duration: 0.6, ease: "easeInOut" }}
                 >
-                    <motion.div
-                        animate={isBouncing ? {
-                            scale: [1, 1.4, 0.8, 1.2, 1],
-                            rotate: [0, -15, 15, -10, 0]
-                        } : {}}
-                        transition={{ duration: 0.6, ease: "easeInOut" }}
-                    >
-                        <ShoppingCart className="h-6 w-6" />
-                    </motion.div>
+                    <ShoppingCart className="h-6 w-6" />
+                </motion.div>
 
-                    {/* Badge */}
+                {/* Badge */}
+                {itemCount > 0 && (
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         key={itemCount} // Re-animate badge when count changes
-                        className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white shadow-sm"
+                        className="absolute -top-1 -right-1 bg-brand-orange text-black text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-transparent shadow-sm animate-cart-bounce"
                     >
                         {itemCount}
                     </motion.div>
-                </motion.button>
-            )}
+                )}
+            </motion.button>
         </AnimatePresence>
     );
 }

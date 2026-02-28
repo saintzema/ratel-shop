@@ -281,21 +281,7 @@ export default function CartPage() {
             {/* View More + You May Also Like */}
             {cart.length > 0 && (
                 <div className="container mx-auto px-4 mt-8 mb-16 max-w-7xl">
-                    <div className="flex flex-col items-center gap-8 mt-6">
-                        <Button
-                            variant="outline"
-                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
-                            onClick={() => {
-                                if (!loadedMore) {
-                                    setLoadedMore(true);
-                                } else {
-                                    setVisibleProductsCount(prev => prev + 8);
-                                }
-                            }}
-                        >
-                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
-                        </Button>
-                    </div>
+                   
 
                     {/* You May Also Like — more products from the same or related categories */}
                     {visibleProductsCount > 8 && (() => {
@@ -314,6 +300,21 @@ export default function CartPage() {
                             </div>
                         );
                     })()}
+                     <div className="flex flex-col items-center gap-8 mt-6">
+                        <Button
+                            variant="outline"
+                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                            onClick={() => {
+                                if (!loadedMore) {
+                                    setLoadedMore(true);
+                                } else {
+                                    setVisibleProductsCount(prev => prev + 8);
+                                }
+                            }}
+                        >
+                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
                 </div>
             )}
 

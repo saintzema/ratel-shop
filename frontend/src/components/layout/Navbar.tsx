@@ -818,7 +818,7 @@ export function Navbar() {
                     </div>
 
                     {/* Cart */}
-                    <Link href="/cart" className="flex items-end gap-1 hover:bg-white/10 p-2 rounded relative transition-all">
+                    <Link href="/cart" className="hidden md:flex items-end gap-1 hover:bg-white/10 p-2 rounded relative transition-all">
                         <div className="relative">
                             <ShoppingCart className="h-8 w-8 text-white" />
                             {cartCount > 0 && (
