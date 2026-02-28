@@ -2,26 +2,34 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Search, ShoppingCart, MessageCircle } from "lucide-react";
+import { Home, ShoppingCart, MessageCircle, Heart, Search, User } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useMessages } from "@/context/MessageContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 
 export function MobileBottomNav() {
     const pathname = usePathname();
     const { cartCount } = useCart();
     const { totalUnread } = useMessages();
+    const { favoritesCount } = useFavorites();
+    const { user } = useAuth();
+    const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
 
     // Hide on specific pages where it might be intrusive
     if (pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
         return null;
     }
 
+    const profileName = user ? user.name.split(" ")[0] : "Profile";
+
     const navItems = [
         { name: "Home", href: "/", icon: Home },
-        { name: "Search", href: "/search", icon: Search },
-        { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
+        { name: "Categories", href: "/categories", icon: Search },
         { name: "Messages", href: "/account/messages", icon: MessageCircle, count: totalUnread },
+        { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
+        { name: profileName, href: "/account", icon: User, isProfile: true },
     ];
 
     return (
@@ -41,11 +49,28 @@ export function MobileBottomNav() {
                             )}
                         >
                             <div className="relative">
-                                <Icon className={cn("h-6 w-6", isActive && "fill-brand-green-600/20")} strokeWidth={isActive ? 2.5 : 2} />
+                                {item.isProfile ? (
+                                    <div className={cn("h-6 w-6 rounded-full overflow-hidden border-2 flex items-center justify-center bg-gray-100", isActive ? "border-brand-green-600" : "border-gray-300")}>
+                                        {pic ? (
+                                            <img src={pic} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className={cn("h-4 w-4", isActive ? "text-brand-green-600" : "text-gray-400")} strokeWidth={isActive ? 2.5 : 2} />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <Icon className={cn("h-6 w-6", isActive && "fill-brand-green-600/20")} strokeWidth={isActive ? 2.5 : 2} />
+                                )}
+
                                 {item.count !== undefined && item.count > 0 && (
                                     <span className="absolute -top-1 -right-2 bg-red-500 text-white text-[9px] font-black min-w-[16px] h-4 rounded-full flex items-center justify-center px-1 border border-white">
                                         {item.count}
                                     </span>
+                                )}
+                                {item.hasNotification && (
+                                    <>
+                                        <span className="absolute -top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white z-20" />
+                                        <span className="absolute -top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full z-10 animate-ping" />
+                                    </>
                                 )}
                             </div>
                             <span className={cn("text-[10px] font-medium tracking-wide", isActive ? "font-bold text-brand-green-600" : "")}>

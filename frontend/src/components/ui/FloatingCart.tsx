@@ -25,8 +25,8 @@ export function FloatingCart() {
         setPrevCount(itemCount);
     }, [itemCount, prevCount]);
 
-    // Hide the floating cart inside the actual cart page, checkout page, product page, admin, or seller paths
-    if (pathname === "/cart" || pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller") || pathname?.startsWith("/product/")) {
+    // Hide the floating cart inside the actual cart page, checkout page, admin, or seller paths
+    if (pathname === "/cart" || pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
         return null;
     }
 
@@ -38,8 +38,8 @@ export function FloatingCart() {
                 exit={{ scale: 0, opacity: 0 }}
                 whileTap={{ scale: 0.9 }}
                 onClick={() => router.push("/cart")}
-                // Show only on mobile (hidden on md and above) — positioned above Ziva FAB
-                className="md:hidden fixed z-[999] right-4 bottom-[8.5rem] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
+                // Show only on mobile (hidden on md and above) — positioned parallel to Ziva FAB
+                className="md:hidden fixed z-[999] left-4 bottom-[6.5rem] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
                 style={{ WebkitTapHighlightColor: "transparent" }}
             >
                 <motion.div

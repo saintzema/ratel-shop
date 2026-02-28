@@ -14,6 +14,7 @@ import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { DEMO_PRODUCTS } from "@/lib/data";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
+import { ProductCard } from "@/components/product/ProductCard";
 
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 
@@ -119,12 +120,12 @@ export default function CartPage() {
                                             >
                                                 Save for later
                                             </span>
-                                            <span
+                                            {/* <span
                                                 className="text-blue-600 hover:underline cursor-pointer border-l pl-3 border-gray-300"
                                                 onClick={() => router.push(`/search?q=${encodeURIComponent(product.category || product.name)}`)}
                                             >
                                                 See more like this
-                                            </span>
+                                            </span> */}
                                         </div>
                                     </div>
                                 </div>
@@ -269,10 +270,10 @@ export default function CartPage() {
                 <div className="lg:hidden fixed bottom-[60px] left-0 right-0 bg-white border-t p-4 z-[90] flex items-center justify-between shadow-[0_-4px_10px_-1px_rgba(0,0,0,0.1)]">
                     <div>
                         <p className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-0.5">Total</p>
-                        <p className="text-xl font-black text-brand-orange">{formatPrice(cartTotal)}</p>
+                        <p className="text-xl font-black text-green-600">{formatPrice(cartTotal)}</p>
                     </div>
                     <Link href="/checkout">
-                        <Button className="bg-brand-orange hover:bg-orange-600 text-white font-bold rounded-lg px-8 h-12 shadow-md hover:shadow-lg transition-all flex items-center gap-2">
+                        <Button className="bg-green-600 hover:bg-orange-600 text-white font-bold rounded-lg px-8 h-12 shadow-md hover:shadow-lg transition-all flex items-center gap-2">
                             <span>CHECKOUT ({cartCount})</span>
                         </Button>
                     </Link>
@@ -281,7 +282,7 @@ export default function CartPage() {
             {/* View More + You May Also Like */}
             {cart.length > 0 && (
                 <div className="container mx-auto px-4 mt-8 mb-16 max-w-7xl">
-                   
+
 
                     {/* You May Also Like — more products from the same or related categories */}
                     {visibleProductsCount > 8 && (() => {
@@ -289,18 +290,27 @@ export default function CartPage() {
                             .filter(p => !cart.map(c => c.product.id).includes(p.id))
                             .sort(() => Math.random() - 0.5)
                             .slice(0, visibleProductsCount - 8);
+
                         if (youMayLike.length === 0) return null;
+
                         return (
-                            <div className="mt-8">
-                                <RecommendedProducts
-                                    products={youMayLike}
-                                    title="You May Also Like"
-                                    subtitle="More deals you don't want to miss"
-                                />
+                            <div className="mt-8 mb-6">
+                                <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-6 flex items-center gap-2">
+                                    You May Also Like
+                                </h2>
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                                    {youMayLike.map(product => (
+                                        <div key={product.id}>
+                                            <ProductCard product={product} className="h-full w-full" />
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         );
                     })()}
-                     <div className="flex flex-col items-center gap-8 mt-6">
+
+                    {/* View More Button */}
+                    <div className="flex flex-col items-center gap-8 mt-6">
                         <Button
                             variant="outline"
                             className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"

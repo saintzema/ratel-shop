@@ -715,20 +715,21 @@ export function Navbar() {
                         </AnimatePresence>
                     </div>
 
+                    {/* Wishlist Mobile */}
+                    <Link href="/account/favorites" className="md:hidden flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer justify-center items-center relative">
+                        <Heart className="h-6 w-6 text-white" />
+                        <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
+                    </Link>
+
                     {/* Account & Lists Dropdown */}
                     <div
-                        className="relative flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer group justify-center md:justify-start"
+                        className="hidden md:flex relative flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer group justify-start"
                         onMouseEnter={() => setIsAccountMenuOpen(true)}
                         onMouseLeave={() => setIsAccountMenuOpen(false)}
                         onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
                     >
-                        {/* Mobile View */}
-                        <div className="md:hidden flex flex-col items-center">
-                            <User className="h-6 w-6 text-white" />
-                        </div>
-
                         {/* Desktop View */}
-                        <div className="hidden md:flex flex-col">
+                        <div className="flex flex-col">
                             <span className="text-white">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
                             <span className="font-bold text-white flex items-center">Account & Lists <ChevronDown className="ml-1 h-3 w-3" /></span>
                         </div>

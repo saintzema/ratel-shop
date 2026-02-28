@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useAuth } from "@/context/AuthContext";
 
 interface ProductCardProps {
     product: Product;
@@ -18,6 +19,7 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, showDealTimer, className }: ProductCardProps) {
+    const { user } = useAuth();
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const router = useRouter();
@@ -36,6 +38,12 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
             // Double tap detected
             e.preventDefault();
             e.stopPropagation();
+
+            if (!user) {
+                router.push("/login?from=" + encodeURIComponent(window.location.pathname));
+                return;
+            }
+
             if (!favorited) {
                 toggleFavorite(product.id);
             }
@@ -51,12 +59,18 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     const handleHeartClick = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
+
+        if (!user) {
+            router.push("/login?from=" + encodeURIComponent(window.location.pathname));
+            return;
+        }
+
         toggleFavorite(product.id);
         if (!favorited) {
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 900);
         }
-    }, [favorited, toggleFavorite, product.id]);
+    }, [favorited, toggleFavorite, product.id, user, router]);
 
     return (
         <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full", className)}>

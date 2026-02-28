@@ -1345,7 +1345,30 @@ function CheckoutContent() {
                     subtitle="Customers also added these items"
                 />
                 <div className="text-center mt-4">
-                    {/* View More + You May Also Like */}
+                    {/* You May Also Like — more products from the same or related categories */}
+                    {visibleProductsCount > 8 && (() => {
+                        const youMayLike = DemoStore.getProducts()
+                            .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
+                            .sort(() => Math.random() - 0.5)
+                            .slice(0, visibleProductsCount - 8);
+                        if (youMayLike.length === 0) return null;
+                        return (
+                            <div className="mt-8 text-left mb-6">
+                                <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-6 flex items-center gap-2">
+                                    You May Also Like
+                                </h2>
+                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                                    {youMayLike.map(product => (
+                                        <div key={product.id}>
+                                            <ProductCard product={product} className="h-full w-full" />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* View More Button */}
                     <div className="flex flex-col items-center gap-8 mt-6">
                         <Button
                             variant="outline"
@@ -1361,24 +1384,6 @@ function CheckoutContent() {
                             VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
                         </Button>
                     </div>
-
-                    {/* You May Also Like — more products from the same or related categories */}
-                    {visibleProductsCount > 8 && (() => {
-                        const youMayLike = DemoStore.getProducts()
-                            .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
-                            .sort(() => Math.random() - 0.5)
-                            .slice(0, visibleProductsCount - 8);
-                        if (youMayLike.length === 0) return null;
-                        return (
-                            <div className="mt-8 text-left">
-                                <RecommendedProducts
-                                    products={youMayLike}
-                                    title="You May Also Like"
-                                    subtitle="More deals you don't want to miss"
-                                />
-                            </div>
-                        );
-                    })()}
                 </div>
             </div>
 

@@ -425,8 +425,33 @@ function SearchContent() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  const [globalSearchCount, setGlobalSearchCount] = useState(0);
+
   const handleSeeMoreResults = () => {
     setShowGlobalResults(true);
+    // Trigger another global search to fetch more results each time
+    setGlobalSearchCount(prev => prev + 1);
+    if (query && query.trim().length > 2) {
+      setIsGlobalSearching(true);
+      fetch("/api/gemini-price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productName: query, mode: "search", offset: globalSearchCount + 1 }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.suggestions && Array.isArray(data.suggestions)) {
+            setGlobalResults(prev => {
+              const newItems = data.suggestions.filter(
+                (s: any) => !prev.some(p => p.name.toLowerCase() === s.name.toLowerCase())
+              );
+              return [...prev, ...newItems];
+            });
+          }
+        })
+        .catch(() => { })
+        .finally(() => setIsGlobalSearching(false));
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -527,24 +552,36 @@ function SearchContent() {
     }
 
     if (showGlobalResults) {
-      const mappedGlobal = globalResults.map((r, i) => ({
-        id: `global_${query}_${i}`,
-        name: r.name,
-        price: r.approxPrice || 0,
-        original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
-        category: r.category || "electronics",
-        description: r.name,
-        image_url: r.image_url || "/assets/images/placeholder.png",
-        seller_id: "global-partners",
-        seller_name: "Global Partner Store",
-        price_flag: "fair" as const,
-        sold_count: Math.floor(Math.random() * 200) + 10,
-        review_count: Math.floor(Math.random() * 50) + 5,
-        avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
-        is_active: true,
-        created_at: new Date().toISOString(),
-        _source: "global",
-      }));
+      const mappedGlobal = globalResults.map((r, i) => {
+        // Create a stable, URL-safe ID from the product name
+        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
+        const product = {
+          id: stableId,
+          name: r.name,
+          price: r.approxPrice || 0,
+          original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+          category: r.category || "electronics",
+          description: `${r.name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
+          image_url: r.image_url || "/assets/images/placeholder.png",
+          seller_id: "global-partners",
+          seller_name: "Global Stores",
+          price_flag: "fair" as const,
+          sold_count: Math.floor(Math.random() * 200) + 10,
+          review_count: Math.floor(Math.random() * 50) + 5,
+          avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          _source: "global",
+          specs: r.specs || {
+            "Sourcing": "Global Network",
+            "Shipping": "Air Freight (Tracked)",
+            "Warranty": "1 Year International",
+            "Condition": r.condition || "Brand New"
+          },
+        };
+
+        return product;
+      });
       const uniqueGlobal = mappedGlobal.filter(
         (g) =>
           !combined.some((c) => c.name.toLowerCase() === g.name.toLowerCase()),
@@ -553,6 +590,40 @@ function SearchContent() {
     }
     return combined;
   }, [navResults, paginatedProducts, showGlobalResults, globalResults, query]);
+
+  // Persist global products to DemoStore OUTSIDE of render (in a useEffect) to avoid
+  // triggering setState on AuthProvider during render via storage events
+  useEffect(() => {
+    if (!showGlobalResults || globalResults.length === 0) return;
+    globalResults.forEach((r) => {
+      const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
+      const product = {
+        id: stableId,
+        name: r.name,
+        price: r.approxPrice || 0,
+        original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+        category: r.category || "electronics",
+        description: `${r.name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
+        image_url: r.image_url || "/assets/images/placeholder.png",
+        seller_id: "global-partners",
+        seller_name: "Global Stores",
+        price_flag: "fair" as const,
+        sold_count: 50,
+        review_count: 12,
+        avg_rating: 4.5,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        _source: "global",
+        specs: r.specs || {
+          "Sourcing": "Global Network",
+          "Shipping": "Air Freight (Tracked)",
+          "Warranty": "1 Year International",
+          "Condition": r.condition || "Brand New"
+        },
+      };
+      DemoStore.addRawProduct(product as any);
+    });
+  }, [showGlobalResults, globalResults]);
 
   // History tracking logic: Shift to "Customers Also Bought" when query changes
   useEffect(() => {
@@ -902,14 +973,11 @@ function SearchContent() {
           {/* Bottom Row: Results Count */}
           <div className="flex items-center justify-between border-t border-gray-100/60 pt-2 px-1">
             <p className="text-sm text-gray-600 font-medium tracking-tight">
-              Showing 1-{Math.min(20, totalResultCount)} of over{" "}
-              {totalResultCount > 20
-                ? Math.max(totalResultCount, 77)
-                : totalResultCount}{" "}
-              results for{" "}
-              <span className="font-bold text-gray-900">
-                "{query || "All Products"}"
-              </span>
+              {query ? (
+                <span>Showing 1-{paginatedProducts.length || 0} of over <span className="font-bold text-gray-900">{totalResultCount > 20 ? Math.max(totalResultCount, 166) : totalResultCount}</span> results for &quot;<span className="text-brand-orange font-bold italic">{query}</span>&quot;</span>
+              ) : (
+                <span>Showing 1-{paginatedProducts.length || 0} of over <span className="font-bold text-gray-900">{totalResultCount > 20 ? Math.max(totalResultCount, 166) : totalResultCount}</span> results</span>
+              )}
             </p>
           </div>
         </div>
@@ -990,10 +1058,9 @@ function SearchContent() {
               </div>
             )}
 
-            {/* See more results Button */}
+            {/* See more results Button — always visible when there's a valid query */}
             {query &&
               query.trim().length > 2 &&
-              !showGlobalResults &&
               combinedCurrentResults.length > 0 && (
                 <div className="flex justify-center my-10 relative">
                   <div
@@ -1006,10 +1073,15 @@ function SearchContent() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleSeeMoreResults}
-                    className="relative flex items-center gap-2 bg-gradient-to-r from-emerald-500 hover:from-emerald-400 hover:to-teal-500 to-teal-600 text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-emerald-500/20 transition-all z-10"
+                    disabled={isGlobalSearching}
+                    className="relative flex items-center gap-2 bg-gradient-to-r from-emerald-500 hover:from-emerald-400 hover:to-teal-500 to-teal-600 text-white px-8 py-3 rounded-full font-bold shadow-xl shadow-emerald-500/20 transition-all z-10 disabled:opacity-60"
                   >
-                    <Sparkles className="h-5 w-5 animate-pulse" />
-                    See more results
+                    {isGlobalSearching ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-5 w-5 animate-pulse" />
+                    )}
+                    {isGlobalSearching ? 'Loading more...' : 'See more results'}
                   </motion.button>
                 </div>
               )}

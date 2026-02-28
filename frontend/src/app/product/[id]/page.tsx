@@ -143,35 +143,49 @@ export default function ProductDetailPage() {
 
     // Auto-hydrate global product from URL if missing from store cache
     if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
-        // id format: "global-starlink-standard-kit-gen-3" or legacy "global_samsung_galaxy_s24_ultra"
+        // id format: "global-airpods-pro-2" or legacy "global_samsung_galaxy_s24_ultra"
         const namePart = decodedId.replace(/^global[-_]/, '').replace(/[-_]/g, ' ');
-        const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        const nameTokens = namePart.toLowerCase().split(' ').filter(Boolean);
 
-        product = {
-            id,
-            name,
-            price: 500000, // Placeholder base price
-            original_price: 550000,
-            category: "electronics",
-            description: `${name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
-            image_url: "",
-            images: [],
-            seller_id: 'global-partners',
-            seller_name: 'Global Stores',
-            price_flag: 'fair',
-            sold_count: 50,
-            review_count: 12,
-            avg_rating: 4.8,
-            is_active: true,
-            created_at: new Date().toISOString(),
-            recommended_price: 500000,
-            specs: {
-                "Sourcing": "Global Network",
-                "Shipping": "Air Freight (Tracked)",
-                "Warranty": "1 Year International",
-                "Condition": "Brand New"
-            },
-        } as any;
+        // Try to find a matching product already stored in DemoStore by name similarity
+        const allStored = DemoStore.getProducts();
+        const matchByName = allStored.find(p => {
+            const pName = p.name.toLowerCase();
+            // Match if all significant tokens from the ID appear in the product name
+            return nameTokens.length >= 2 && nameTokens.every(t => pName.includes(t));
+        });
+
+        if (matchByName) {
+            product = matchByName;
+        } else {
+            // Last resort: create a minimal placeholder from the URL slug
+            const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            product = {
+                id: decodedId,
+                name,
+                price: 0,
+                original_price: 0,
+                category: "electronics",
+                description: `${name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
+                image_url: "",
+                images: [],
+                seller_id: 'global-partners',
+                seller_name: 'Global Stores',
+                price_flag: 'fair',
+                sold_count: 50,
+                review_count: 12,
+                avg_rating: 4.8,
+                is_active: true,
+                created_at: new Date().toISOString(),
+                recommended_price: 0,
+                specs: {
+                    "Sourcing": "Global Network",
+                    "Shipping": "Air Freight (Tracked)",
+                    "Warranty": "1 Year International",
+                    "Condition": "Brand New"
+                },
+            } as any;
+        }
     }
 
     let seller = allSellers.find((s) => s.id === product?.seller_id) || DEMO_SELLERS.find((s) => s.id === product?.seller_id);
