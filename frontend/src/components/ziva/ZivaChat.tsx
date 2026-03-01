@@ -203,7 +203,7 @@ export function ZivaChat() {
     const messagesAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const { addToCart } = useCart();
+    const { cart, addToCart } = useCart();
     const { user } = useAuth();
 
     useEffect(() => { setMounted(true); }, []);
@@ -380,7 +380,19 @@ export function ZivaChat() {
 
         // Show typing indicator
         const typingId = `typing_${Date.now()}`;
-        setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
+
+        let typingText = "Ziva is thinking...";
+        if (msgText.toLowerCase().includes("price") || msgText.toLowerCase().includes("cost")) {
+            typingText = "Analyzing market prices...";
+        } else if (msgText.toLowerCase().includes("track") || msgText.toLowerCase().includes("order")) {
+            typingText = "Checking logistics database...";
+        } else if (msgText.toLowerCase().includes("negotiate") || msgText.toLowerCase().includes("offer")) {
+            typingText = "Preparing negotiation...";
+        } else if (msgText.toLowerCase().includes("find") || msgText.toLowerCase().includes("search")) {
+            typingText = "Searching catalogue...";
+        }
+
+        setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: typingText, isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
 
         try {
             if (adminActive) {
@@ -445,7 +457,12 @@ export function ZivaChat() {
                         const searchTerms = words.toLowerCase().split(/\s+/).filter(w => w.length > 2);
                         return searchTerms.some(term => pName.includes(term));
                     }).slice(0, 4)
-                    : (currentProduct ? [currentProduct] : allProducts.slice(0, 4));
+                    : (currentProduct ? [currentProduct] : cart.map(c => c.product).slice(0, 4));
+
+                // If cart is empty and no current product, show some popular items to haggle on
+                if (matchedProducts.length === 0) {
+                    matchedProducts = allProducts.filter(p => p.price > 50000).slice(0, 4);
+                }
 
                 setTimeout(() => {
                     setMessages(prev => [
@@ -710,7 +727,7 @@ export function ZivaChat() {
                                                     <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
                                                     <span className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                                                 </div>
-                                                <span className="text-xs text-gray-500">Ziva is thinking...</span>
+                                                <span className="text-xs text-gray-500">{msg.content || "Ziva is thinking..."}</span>
                                             </div>
                                         ) : (
                                             <>
@@ -777,7 +794,19 @@ export function ZivaChat() {
                                                                             )}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex flex-col items-end gap-1 shrink-0">
+                                                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                handleSend(`I want to negotiate the price of ${product.name}`);
+                                                                            }}
+                                                                            className="px-3 py-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1 hover:bg-amber-400"
+                                                                            title="Negotiate Price"
+                                                                        >
+                                                                            <Tag className="h-3 w-3" />
+                                                                            Negotiate
+                                                                        </button>
                                                                         <button
                                                                             onClick={(e) => {
                                                                                 e.preventDefault();

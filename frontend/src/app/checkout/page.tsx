@@ -223,6 +223,7 @@ function CheckoutContent() {
 
     // Initial load effects
     useEffect(() => {
+        setIsClient(true);
         if (user) {
             setAvailableCoupons(DemoStore.getActiveCoupons(user.id));
         }
@@ -579,13 +580,8 @@ function CheckoutContent() {
             // Pay on delivery — skip Paystack, go straight to order confirmation
             finalizeOrder("COD-" + Date.now());
         } else {
-            const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
-            if (paystackKey && paystackKey.startsWith("pk_")) {
-                setShowPaystack(true);
-            } else {
-                // Demo mode — no Paystack key configured
-                finalizeOrder("DEMO-" + Date.now());
-            }
+            // Always show the Paystack UI to make it feel like production
+            setShowPaystack(true);
         }
     };
 
@@ -1464,60 +1460,62 @@ function CheckoutContent() {
             </main >
 
             {/* Global cross-sell at bottom of checkout */}
-            <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
-                <RecommendedProducts
-                    products={DemoStore.getProducts().slice(8, 16)}
-                    title="Frequently Bought Together"
-                    subtitle="Customers also added these items"
-                />
-                <div className="text-center mt-4">
-                    {/* You May Also Like — more products from the same or related categories */}
-                    {visibleProductsCount > 8 && (() => {
-                        const youMayLike = DemoStore.getProducts()
-                            .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
-                            .sort(() => Math.random() - 0.5)
-                            .slice(0, visibleProductsCount - 8);
-                        if (youMayLike.length === 0) return null;
-                        return (
-                            <div className="mt-8 text-left mb-6">
-                                <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-6 flex items-center gap-2">
-                                    You May Also Like
-                                </h2>
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                                    {youMayLike.map(product => (
-                                        <div key={product.id}>
-                                            <ProductCard product={product} className="h-full w-full" />
-                                        </div>
-                                    ))}
+            {isClient && (
+                <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
+                    <RecommendedProducts
+                        products={DemoStore.getProducts().slice(8, 16)}
+                        title="Frequently Bought Together"
+                        subtitle="Customers also added these items"
+                    />
+                    <div className="text-center mt-4">
+                        {/* You May Also Like — more products from the same or related categories */}
+                        {visibleProductsCount > 8 && (() => {
+                            const youMayLike = DemoStore.getProducts()
+                                .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
+                                .sort(() => Math.random() - 0.5)
+                                .slice(0, visibleProductsCount - 8);
+                            if (youMayLike.length === 0) return null;
+                            return (
+                                <div className="mt-8 text-left mb-6">
+                                    <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-6 flex items-center gap-2">
+                                        You May Also Like
+                                    </h2>
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                                        {youMayLike.map(product => (
+                                            <div key={product.id}>
+                                                <ProductCard product={product} className="h-full w-full" />
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })()}
+                            );
+                        })()}
 
-                    {/* View More Button */}
-                    <div className="flex flex-col items-center gap-8 mt-6">
-                        <Button
-                            variant="outline"
-                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
-                            onClick={() => {
-                                if (!loadedMore) {
-                                    setLoadedMore(true);
-                                } else {
-                                    setVisibleProductsCount(prev => prev + 8);
-                                }
-                            }}
-                        >
-                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
-                        </Button>
+                        {/* View More Button */}
+                        <div className="flex flex-col items-center gap-8 mt-6">
+                            <Button
+                                variant="outline"
+                                className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                                onClick={() => {
+                                    if (!loadedMore) {
+                                        setLoadedMore(true);
+                                    } else {
+                                        setVisibleProductsCount(prev => prev + 8);
+                                    }
+                                }}
+                            >
+                                VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                            </Button>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             <AnimatePresence>
                 {showPaystack && (
                     <PaystackCheckout
                         amount={total * 100}
-                        email={user?.email || "guest@example.com"}
+                        email={user?.email || address.email || "guest@example.com"}
                         onSuccess={(ref) => finalizeOrder(ref)}
                         onClose={() => setShowPaystack(false)}
                         autoStart={true}

@@ -85,6 +85,18 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     const startPayment = (key: string) => {
         setStep("processing");
 
+        if (!key || key === "mock_key") {
+            // Simulate Paystack flow for demo mode
+            setTimeout(() => {
+                setStep("success");
+                setTimeout(() => {
+                    onSuccess(`mock_ref_${Date.now()}`);
+                    if (!autoStart) onClose();
+                }, 2000);
+            }, 2000);
+            return;
+        }
+
         try {
             const handler = window.PaystackPop.setup({
                 key,
@@ -103,7 +115,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                     setStep("success");
                     setTimeout(() => {
                         onSuccess(response.reference);
-                        onClose();
+                        if (!autoStart) onClose(); // Only force close if it wasn't autostart (Checkout auto-closes on redirect anyway)
                     }, 2000);
                 },
                 onClose: () => {
@@ -127,25 +139,25 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     useEffect(() => {
         loadPaystackScript()
             .then(() => {
-                if (autoStart && PAYSTACK_PUBLIC_KEY) {
-                    startPayment(PAYSTACK_PUBLIC_KEY);
+                if (autoStart) {
+                    startPayment(PAYSTACK_PUBLIC_KEY || "mock_key");
                 } else {
                     setStep("summary");
                 }
             })
             .catch(() => {
-                setErrorMsg("Could not connect to payment gateway.");
-                setStep("error");
+                if (!PAYSTACK_PUBLIC_KEY) {
+                    if (autoStart) startPayment("mock_key");
+                    else setStep("summary");
+                } else {
+                    setErrorMsg("Could not connect to payment gateway.");
+                    setStep("error");
+                }
             });
     }, [autoStart]);
 
     const initiatePayment = useCallback(() => {
-        if (!PAYSTACK_PUBLIC_KEY) {
-            setErrorMsg("Payment system configuration is missing.");
-            setStep("error");
-            return;
-        }
-        startPayment(PAYSTACK_PUBLIC_KEY);
+        startPayment(PAYSTACK_PUBLIC_KEY || "mock_key");
     }, [PAYSTACK_PUBLIC_KEY]);
 
     return (

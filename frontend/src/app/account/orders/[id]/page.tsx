@@ -269,8 +269,10 @@ export default function OrderDetailsPage() {
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <h2 className="font-bold text-lg mb-4 text-gray-900">Items in this order</h2>
                             <div className="flex gap-4">
-                                <div className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0">
+                                <Link href={`/product/${order.product_id}`} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
                                     <img src={order.product?.image_url || "/assets/images/placeholder.png"} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
+                                </Link>
+                                <div>
                                     <Link href={`/product/${order.product_id}`} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
                                         {order.product?.name || "Product"}
                                     </Link>

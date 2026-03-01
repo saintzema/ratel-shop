@@ -78,7 +78,11 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
             let imageUrl: string | undefined = undefined;
 
             const lowerText = text.toLowerCase();
-            if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
+
+            // Special Handler for explicitly asking about the Order ID
+            if (lowerText.includes("order id") || lowerText.includes("my order")) {
+                zivaText = `Your Order ID is **${orderId || "PENDING"}**. Is there anything specific about this order you need help with?`;
+            } else if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
                 zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here. You'll also receive a notification when the images are ready.";
             } else if (lowerText.includes("ship") || lowerText.includes("delivery")) {
                 zivaText = "Your item is currently being prepared. Based on your location, estimated delivery is within 2-4 business days once handed over to our logistics partners.";

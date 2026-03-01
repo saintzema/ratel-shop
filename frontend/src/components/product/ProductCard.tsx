@@ -81,7 +81,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                 >
                     {/* Sponsored Ad Tag */}
                     {product.is_sponsored && (
-                        <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-tl-2xl rounded-br-2xl shadow-md border-b border-r border-white/10 flex items-center gap-1">
+                        <div className="absolute bottom-0 right-0 z-40 bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-tl-2xl rounded-bl-2xl shadow-md border-b border-r border-white/10 flex items-center gap-1">
                             <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
                         </div>
                     )}
