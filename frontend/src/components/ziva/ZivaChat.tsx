@@ -647,7 +647,10 @@ export function ZivaChat() {
     };
 
     return (
-        <div className="fixed bottom-[18vh] left-4 lg:bottom-12 lg:left-8 z-[50] pointer-events-none">
+        <div className={cn(
+            "fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300",
+            pathname === "/checkout" ? "bottom-[280px] lg:bottom-12" : "bottom-[18vh] lg:bottom-12"
+        )}>
             <AnimatePresence>
                 {isOpen && (
                     <motion.div

@@ -64,6 +64,24 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     const [step, setStep] = useState<"loading" | "summary" | "processing" | "success" | "error">("loading");
     const [errorMsg, setErrorMsg] = useState("");
 
+    const cleanupPaystack = useCallback(() => {
+        document.querySelectorAll('iframe').forEach(iframe => {
+            if (iframe.src.includes('paystack.co') || iframe.name.includes('paystack')) {
+                let el: HTMLElement | null = iframe;
+                while (el && el.parentElement && el.parentElement !== document.body) {
+                    el = el.parentElement;
+                }
+                if (el && el.parentElement === document.body) {
+                    el.remove();
+                }
+            }
+        });
+    }, []);
+
+    useEffect(() => {
+        return () => cleanupPaystack();
+    }, [cleanupPaystack]);
+
     const startPayment = (key: string) => {
         setStep("processing");
 
@@ -81,6 +99,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                     ],
                 },
                 callback: (response: { reference: string }) => {
+                    cleanupPaystack();
                     setStep("success");
                     setTimeout(() => {
                         onSuccess(response.reference);
@@ -88,6 +107,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                     }, 2000);
                 },
                 onClose: () => {
+                    cleanupPaystack();
                     if (autoStart) {
                         onClose();
                     } else {

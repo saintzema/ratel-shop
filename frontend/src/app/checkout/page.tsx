@@ -526,33 +526,45 @@ function CheckoutContent() {
         if (!address.firstName.trim() || !email.trim()) {
             setAddressError(user ? "Please enter your first name." : "Please enter your name and email address.");
             setIsEditingAddress(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            alert(user ? "Please enter your first name." : "Please enter your name and email address.");
             return;
         }
         if (!address.phone.trim()) {
             setAddressError("Please enter your phone number.");
             setIsEditingAddress(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            alert("Please enter your phone number.");
             return;
         }
         if (deliveryMethod === "doorstep") {
             if (!address.street.trim()) {
                 setAddressError("Please enter your street address.");
                 setIsEditingAddress(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                alert("Please enter your street address.");
                 return;
             }
             if (!pickupDetails.state) {
                 setAddressError("Please select your state.");
                 setIsEditingAddress(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                alert("Please select your state.");
                 return;
             }
             if (!address.city.trim()) {
                 setAddressError("Please select your city / area.");
                 setIsEditingAddress(true);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                alert("Please select your city / area.");
                 return;
             }
         }
         if (deliveryMethod === "pickup" && (!pickupDetails.state || !pickupDetails.city || !pickupDetails.station)) {
             setAddressError("Please select a valid pickup station.");
             setIsEditingAddress(true);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            alert("Please select a valid pickup station.");
             return;
         }
         setAddressError("");
@@ -1428,14 +1440,18 @@ function CheckoutContent() {
                         </div>
 
                         {/* Mobile Sticky CTA */}
-                        <div className="lg:hidden fixed bottom-[60px] left-0 right-0 p-4 bg-white border-t-2 border-gray-100 z-[90] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
+                        <div className="lg:hidden fixed bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-white border-t-2 border-slate-100 z-[90] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
                             <div className="flex items-center justify-between mb-3 px-1">
                                 <span className="font-bold text-gray-500 uppercase tracking-widest text-xs">Total</span>
                                 <span className="font-black text-xl text-brand-orange">{formatPrice(total)}</span>
                             </div>
                             <Button
                                 size="lg"
-                                onClick={handlePlaceOrder}
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    handlePlaceOrder();
+                                }}
                                 disabled={isProcessing}
                                 className="w-full rounded-xl bg-gradient-to-r from-brand-green-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-600 text-white font-black h-14 shadow-xl shadow-emerald-500/20 text-lg transition-all"
                             >
@@ -1448,7 +1464,7 @@ function CheckoutContent() {
             </main >
 
             {/* Global cross-sell at bottom of checkout */}
-            <div className="container mx-auto max-w-6xl px-4 mt-6 mb-16">
+            <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
                 <RecommendedProducts
                     products={DemoStore.getProducts().slice(8, 16)}
                     title="Frequently Bought Together"

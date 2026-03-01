@@ -18,7 +18,7 @@ export function MobileBottomNav() {
     const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
 
     // Hide on specific pages where it might be intrusive
-    if (pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
+    if (pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
         return null;
     }
 

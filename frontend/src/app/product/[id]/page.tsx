@@ -416,8 +416,7 @@ export default function ProductDetailPage() {
         if (now - lastTapRef.current < 400) {
             // It's a double tap
             if (product && !isFavorite(product.id)) {
-                // We pass in the full product object to toggleFavorite based on the frontend layout convention
-                toggleFavorite(product);
+                toggleFavorite(product.id);
             }
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 1000);
