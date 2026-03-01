@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { DemoStore } from "@/lib/demo-store";
 import { Seller } from "@/lib/types";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 
 export default function KYCOnboarding() {
     const router = useRouter();
@@ -19,13 +20,19 @@ export default function KYCOnboarding() {
     const [fileName, setFileName] = useState<string | null>(null);
     const [businessName, setBusinessName] = useState("");
     const [storeUrl, setStoreUrl] = useState("");
-    const [location, setLocation] = useState("");
+    const [streetAddress, setStreetAddress] = useState("");
+    const [city, setCity] = useState("");
+    const [stateRegion, setStateRegion] = useState("");
+    const [isRegistered, setIsRegistered] = useState(false);
+    const [cacNumber, setCacNumber] = useState("");
+    const [cacFileName, setCacFileName] = useState<string | null>(null);
+    const [idType, setIdType] = useState<string>("");
     const [weeklyOrders, setWeeklyOrders] = useState("");
     const [currencies, setCurrencies] = useState<string[]>([]);
     const [staffCount, setStaffCount] = useState("");
     const [physicalStores, setPhysicalStores] = useState("");
     const [accountName, setAccountName] = useState("");
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
 
     const toggleCurrency = (currency: string) => {
         setCurrencies(prev =>
@@ -55,7 +62,13 @@ export default function KYCOnboarding() {
             description: "A new seller on FairPrice",
             category: "electronics",
             store_url: storeUrl,
-            location: location,
+            street_address: streetAddress,
+            city: city,
+            state: stateRegion,
+            location: `${city}, ${stateRegion}`,
+            business_registered: isRegistered,
+            cac_rc_number: isRegistered ? cacNumber : undefined,
+            cac_document_url: isRegistered && cacFileName ? `/mock/cac/${cacFileName}` : undefined,
             weekly_orders: weeklyOrders,
             currencies: currencies,
             staff_count: staffCount,
@@ -72,7 +85,32 @@ export default function KYCOnboarding() {
         DemoStore.addSeller(newSeller);
         DemoStore.loginSeller(sellerId);
 
-        router.push("/seller/dashboard");
+        DemoStore.addNotification({
+            userId: sellerId,
+            type: "system",
+            message: `Welcome to FairPrice! Your business profile for ${businessName} has been created.`,
+            link: "/seller/settings"
+        });
+
+        if (user) {
+            updateUser({ role: 'seller' });
+        }
+
+        try {
+            await fetch('/api/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: user?.email,
+                    type: 'SELLER_WELCOME',
+                    payload: { name: businessName }
+                })
+            });
+        } catch (e) { }
+
+        setTimeout(() => {
+            router.push("/seller/dashboard");
+        }, 100);
     };
 
     return (
@@ -147,15 +185,94 @@ export default function KYCOnboarding() {
                                     <p className="text-[11px] text-gray-500">You can unlock a custom .fairprice.ng subdomain on the Pro plan.</p>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Where is your business situated? *</label>
-                                    <Input
-                                        placeholder="E.g. Lagos, Nigeria"
-                                        value={location}
-                                        onChange={(e) => setLocation(e.target.value)}
-                                        className="border border-gray-300"
-                                        required
-                                    />
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Street Address *</label>
+                                        <Input
+                                            placeholder="E.g. 123 Main Street"
+                                            value={streetAddress}
+                                            onChange={(e) => setStreetAddress(e.target.value)}
+                                            className="border border-gray-300"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">State *</label>
+                                            <select
+                                                value={stateRegion}
+                                                onChange={(e) => { setStateRegion(e.target.value); setCity(""); }}
+                                                className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent"
+                                                required
+                                            >
+                                                <option value="">Select State</option>
+                                                {NIGERIAN_STATES.map((s) => (
+                                                    <option key={s.state} value={s.state}>{s.state}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium">City *</label>
+                                            <select
+                                                value={city}
+                                                onChange={(e) => setCity(e.target.value)}
+                                                className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600 focus-visible:border-transparent disabled:opacity-50"
+                                                required
+                                                disabled={!stateRegion}
+                                            >
+                                                <option value="">Select City</option>
+                                                {stateRegion && NIGERIAN_STATES.find(s => s.state === stateRegion)?.cities.map((c) => (
+                                                    <option key={c} value={c}>{c}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3 p-4 bg-gray-50 border border-gray-100 rounded-xl">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <label className="text-sm font-bold text-gray-900 block">Is your business registered with CAC?</label>
+                                            <p className="text-xs text-gray-500">Increases trust score slightly</p>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" className="sr-only peer" checked={isRegistered} onChange={(e) => setIsRegistered(e.target.checked)} />
+                                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-green-600"></div>
+                                        </label>
+                                    </div>
+                                    <AnimatePresence>
+                                        {isRegistered && (
+                                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="space-y-3 overflow-hidden pt-2 border-t border-gray-200 mt-3">
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium">RC Number *</label>
+                                                    <Input
+                                                        placeholder="RC1234567"
+                                                        value={cacNumber}
+                                                        onChange={(e) => setCacNumber(e.target.value)}
+                                                        className="border border-gray-300"
+                                                        required={isRegistered}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-sm font-medium">Upload CAC Certificate *</label>
+                                                    <div className="border border-dashed border-gray-300 rounded-lg p-4 text-center">
+                                                        {cacFileName ? (
+                                                            <div className="flex items-center justify-center gap-2 text-brand-green-600">
+                                                                <Check className="h-4 w-4" />
+                                                                <span className="text-sm font-medium">{cacFileName}</span>
+                                                            </div>
+                                                        ) : (
+                                                            <label className="cursor-pointer">
+                                                                <span className="text-brand-green-600 text-sm font-bold hover:underline">Click to upload</span>
+                                                                <span className="text-gray-500 text-sm"> or drag and drop</span>
+                                                                <input type="file" className="hidden" onChange={(e) => e.target.files && setCacFileName(e.target.files[0].name)} accept="image/*,.pdf" />
+                                                            </label>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -244,29 +361,48 @@ export default function KYCOnboarding() {
                                     <label className="text-sm font-medium">Document Type</label>
                                     <div className="grid grid-cols-3 gap-3">
                                         {["NIN Slip", "Intl. Passport", "Driver License"].map(doc => (
-                                            <div key={doc} className="border rounded-lg p-3 text-center cursor-pointer hover:border-brand-green-600 hover:bg-green-50 transition">
+                                            <div
+                                                key={doc}
+                                                onClick={() => setIdType(doc)}
+                                                className={`border rounded-lg p-3 text-center cursor-pointer transition ${idType === doc ? "bg-brand-green-50 border-brand-green-600 text-brand-green-700 font-medium" : "hover:border-brand-green-600 hover:bg-green-50"}`}
+                                            >
                                                 {doc}
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
-                                <div
-                                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition"
-                                    onClick={() => fileInputRef.current?.click()}
-                                >
-                                    <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
-                                    <p className="text-sm text-gray-600">
-                                        {fileName ? `Selected: ${fileName}` : "Click to upload your ID document"}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (Max 5MB)</p>
-                                    <input
-                                        type="file"
-                                        ref={fileInputRef}
-                                        className="hidden"
-                                        accept=".jpg,.jpeg,.png,.pdf"
-                                        onChange={handleFileChange}
-                                    />
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Upload Document *</label>
+                                    <div
+                                        className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition"
+                                        onClick={() => fileInputRef.current?.click()}
+                                    >
+                                        {fileName ? (
+                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                <div className="h-16 w-16 bg-brand-green-50 rounded-xl flex items-center justify-center mb-1">
+                                                    <Check className="h-8 w-8 text-brand-green-600" />
+                                                </div>
+                                                <span className="text-sm font-medium text-gray-900">{fileName}</span>
+                                                <button onClick={(e) => { e.stopPropagation(); setFileName(null); }} className="text-xs text-rose-500 hover:underline">Remove</button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <Upload className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+                                                <p className="text-sm text-gray-600">
+                                                    Click to upload your ID document
+                                                </p>
+                                                <p className="text-xs text-gray-400 mt-1">JPG, PNG or PDF (Max 5MB)</p>
+                                            </>
+                                        )}
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            className="hidden"
+                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
                                 </div>
                             </motion.div>
                         )}

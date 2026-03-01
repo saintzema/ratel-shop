@@ -61,6 +61,35 @@ export function BroadcastModal({ open, onOpenChange, selectedCustomerIds, onSucc
             const sellerId = DemoStore.getCurrentSellerId();
             if (sellerId) {
                 DemoStore.sendBroadcastMessage(selectedCustomerIds, message);
+
+                // Fire promotional emails to selected customers via Resend
+                try {
+                    const allUsers = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
+                    const sellerName = DemoStore.getSellers().find(s => s.id === sellerId)?.business_name || "FairPrice Partner";
+
+                    selectedCustomerIds.forEach(cid => {
+                        // Attempt to find actual email via registered users, fallback to a mock one if guest
+                        const matchedUser = allUsers.find((u: any) => u.id === cid || u.name === cid);
+                        const targetEmail = matchedUser ? matchedUser.email : 'techzema@gmail.com'; // fallback to user's requested test email if not found in demo localstorage
+                        const targetName = matchedUser ? matchedUser.name : "Customer";
+
+                        fetch("/api/email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                to: targetEmail,
+                                type: "PROMOTIONAL",
+                                payload: {
+                                    name: targetName,
+                                    sellerName: sellerName,
+                                    promoContent: `<p>${message.replace(/\n/g, '<br/>')}</p>`
+                                }
+                            })
+                        }).catch(console.error);
+                    });
+                } catch (e) {
+                    console.error("Failed to send broadcast emails", e);
+                }
             }
 
             setIsSending(false);

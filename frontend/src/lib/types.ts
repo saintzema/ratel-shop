@@ -52,6 +52,12 @@ export interface Seller {
     account_name?: string;
     store_url?: string;
     location?: string;
+    street_address?: string;
+    city?: string;
+    state?: string;
+    business_registered?: boolean;
+    cac_document_url?: string;
+    cac_rc_number?: string;
     weekly_orders?: string;
     currencies?: string[];
     staff_count?: string;

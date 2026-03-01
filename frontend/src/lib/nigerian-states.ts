@@ -22,7 +22,7 @@ export const NIGERIAN_STATES = [
     {
         state: "Oyo",
         cities: ["Ibadan", "Ogbomosho", "Oyo", "Iseyin"],
-        delivery_days: 3
+        delivery_days: 4
     },
     {
         state: "Kano",

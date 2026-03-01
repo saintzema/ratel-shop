@@ -283,7 +283,7 @@ function OrdersContent() {
                                                         {(order.status === "pending" || order.status === "processing") && (
                                                             <button
                                                                 onClick={() => handleCancelOrder(order.id)}
-                                                                className="text-[11px] font-semibold text-rose-500 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                                                                className="text-[11px] font-semibold text-rose-500 hover:text-rose-700 hover:cursor-pointer px-2 py-1 rounded hover:bg-rose-50 transition-colors"
                                                             >
                                                                 Cancel
                                                             </button>
@@ -291,7 +291,7 @@ function OrdersContent() {
                                                         {order.status === "delivered" && (
                                                             <button
                                                                 onClick={() => handleBuyAgain(order)}
-                                                                className="text-[11px] font-semibold text-gray-500 hover:text-brand-green-600 px-2 py-1 rounded hover:bg-brand-green-50 transition-colors"
+                                                                className="text-[11px] font-semibold text-gray-500 hover:text-brand-green-600 hover:cursor-pointer px-1 py-1 rounded hover:bg-brand-green-50 transition-colors"
                                                             >
                                                                 Buy Again
                                                             </button>
@@ -299,14 +299,14 @@ function OrdersContent() {
                                                         {order.status === "delivered" && (
                                                             <button
                                                                 onClick={() => handleReturnOrder(order.id)}
-                                                                className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                                                                className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 hover:cursor-pointer px-1 py-1 rounded hover:bg-gray-100 transition-colors"
                                                             >
                                                                 Return
                                                             </button>
                                                         )}
                                                         <button
                                                             onClick={() => setSelectedOrderForTracking(order)}
-                                                            className="text-[11px] font-semibold text-brand-green-600 hover:text-brand-green-700 px-2 py-1 rounded hover:bg-brand-green-50 transition-colors"
+                                                            className="text-[11px] font-semibold text-brand-green-600 hover:text-brand-green-700 hover:cursor-pointer px-2 py-1 rounded hover:bg-brand-green-50 transition-colors"
                                                         >
                                                             Details
                                                         </button>

@@ -548,36 +548,26 @@ class DemoStoreService {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
         if (!stored) {
-            // Seed initial notifications (generic ones have no userId)
+            // Seed initial notifications (generic ones use "all")
             const initial: AppNotification[] = [
                 {
                     id: "notif_1",
+                    userId: "all",
                     type: "system",
                     message: "Welcome to FairPrice! Complete your profile to get started.",
                     read: false,
                     timestamp: new Date().toISOString(),
                     link: "/account/profile"
-                    // No userId implies generic/system-wide or shown to all (or just standard demo data)
-                },
-                {
-                    id: "notif_2",
-                    type: "order",
-                    message: "Your order #ord_xpl70ukl5 has been shipped!",
-                    read: true,
-                    timestamp: new Date(Date.now() - 86400000).toISOString(),
-                    link: "/account/orders/ord_xpl70ukl5"
                 }
             ];
             localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(initial));
-            // Return defaults if no userId provided, or filter?
-            // For demo purposes, if userId is provided, show matching + global (no userId)
-            return initial.filter(n => !n.userId || n.userId === userId);
+            return initial.filter(n => n.userId === "all" || n.userId === userId);
         }
 
         const all: AppNotification[] = JSON.parse(stored);
         if (!userId) return []; // If no user, show nothing (or strictly public/system promos)
 
-        return all.filter(n => !n.userId || n.userId === userId);
+        return all.filter(n => n.userId === "all" || n.userId === userId);
     }
 
     addNotification(notification: Omit<AppNotification, "id" | "timestamp" | "read">) {
@@ -858,8 +848,26 @@ class DemoStoreService {
             const submission = submissions.find(s => s.id === id);
             if (submission) {
                 const sellers = this.getSellers();
-                const updatedSellers = sellers.map(sel => sel.id === submission.seller_id ? { ...sel, verified: true, kyc_status: "approved" } : sel);
-                localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updatedSellers));
+                const matchedSeller = sellers.find(sel => sel.id === submission.seller_id);
+                if (matchedSeller) {
+                    const updatedSellers = sellers.map(sel => sel.id === submission.seller_id ? { ...sel, verified: true, kyc_status: "approved" } : sel);
+                    localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updatedSellers));
+
+                    // Trigger approval email
+                    try {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'SELLER_APPROVED',
+                                payload: {
+                                    name: matchedSeller.business_name,
+                                    storeUrl: matchedSeller.store_url || matchedSeller.id
+                                }
+                            })
+                        });
+                    } catch (e) { }
+                }
             }
         }
 

@@ -36,6 +36,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationBell } from "@/components/ui/NotificationBell";
 
 export default function SellerLayout({
     children,
@@ -216,12 +217,7 @@ export default function SellerLayout({
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <Button size="icon" variant="ghost" className="relative h-9 w-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100">
-                                <Bell className="h-5 w-5" />
-                                {pendingNegotiations > 0 && (
-                                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse border-2 border-white" />
-                                )}
-                            </Button>
+                            <NotificationBell />
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="relative h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm cursor-pointer p-0 overflow-hidden">

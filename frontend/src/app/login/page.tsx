@@ -40,6 +40,9 @@ export default function UnifiedAuthPage() {
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const redirectPath = searchParams?.get("from") || "/";
 
+    // Email verification state
+    const [sentCode, setSentCode] = useState("");
+
     // Focus management
     const passwordInputRef = useRef<HTMLInputElement>(null);
     const firstNameInputRef = useRef<HTMLInputElement>(null);
@@ -169,10 +172,42 @@ export default function UnifiedAuthPage() {
             setError("Please enter your full name.");
             return;
         }
+
+        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setSentCode(newCode);
+
+        // Dispatch actual verification email
+        const targetEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: targetEmail,
+                type: "VERIFY_EMAIL",
+                payload: { name: firstName.trim(), code: newCode }
+            })
+        }).catch(console.error);
+
+        DemoStore.addNotification({
+            message: `Verification Email Sent: A security code has been sent to ${targetEmail}`,
+            type: "system",
+            link: "#"
+        });
+
         setStep("verification_new");
     };
 
     const handleFinalizeRegistration = (skipped: boolean = false) => {
+        setError("");
+
+        // Collect OTP
+        const enteredCode = Array.from({ length: 6 }).map((_, i) => (document.getElementById(`otp-${i}`) as HTMLInputElement)?.value || "").join("");
+
+        if (!skipped && enteredCode !== sentCode && sentCode) {
+            setError("Invalid verification code. Please check your email.");
+            return;
+        }
+
         setIsLoading(true);
 
         const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
@@ -199,6 +234,26 @@ export default function UnifiedAuthPage() {
             });
             // Persist this user as registered
             saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined);
+
+            // Send Welcome Email
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: regEmail,
+                    type: "WELCOME",
+                    payload: { name: firstName.trim() }
+                })
+            }).catch(console.error);
+
+            // Add Welcome Notification
+            DemoStore.addNotification({
+                userId: "user_" + Math.random().toString(36).substr(2, 9), // It will catch globally anyway for demo
+                message: "Welcome to FairPrice! Your account is created. Explore top global and local deals.",
+                type: "system",
+                link: "/"
+            });
+
             router.push(finalRedirect);
         }, 1200);
     };
@@ -403,7 +458,25 @@ export default function UnifiedAuthPage() {
                                                 <input type="checkbox" className="rounded text-brand-green-600 focus:ring-brand-green-500/20" defaultChecked />
                                                 <span className="text-[13px] text-[#1d1d1f] font-medium">Remember Password</span>
                                             </label>
-                                            <Link href="#" className="text-[13px] font-bold text-brand-green-600 hover:underline">Forgot Password?</Link>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    fetch("/api/email", {
+                                                        method: "POST",
+                                                        headers: { "Content-Type": "application/json" },
+                                                        body: JSON.stringify({
+                                                            to: identifier.includes("@") ? identifier : `${identifier}@example.com`,
+                                                            type: "CHANGE_PASSWORD",
+                                                            payload: { name: identifier.split("@")[0] }
+                                                        })
+                                                    }).catch(console.error);
+                                                    alert("A password reset link has been sent to your email!");
+                                                }}
+                                                className="text-[13px] font-bold text-brand-green-600 hover:underline"
+                                            >
+                                                Forgot Password?
+                                            </button>
                                         </div>
 
                                         <Button type="submit" disabled={isLoading || !password} className="w-full h-[52px] bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-[16px] rounded-xl transition-all">
@@ -626,6 +699,13 @@ export default function UnifiedAuthPage() {
                                     <p className="text-[15px] text-[#86868b] mb-2">
                                         We've sent a code to <br /><span className="font-semibold text-[#1d1d1f]">{identifier}</span>
                                     </p>
+
+                                    {error && (
+                                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex gap-2 mb-4 mx-auto max-w-[300px] justify-center text-left">
+                                            <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                            <p className="text-[13px] text-red-700">{error}</p>
+                                        </div>
+                                    )}
 
                                     <div className="flex gap-2 justify-center mb-6 mt-6">
                                         {[0, 1, 2, 3, 4, 5].map((idx) => (

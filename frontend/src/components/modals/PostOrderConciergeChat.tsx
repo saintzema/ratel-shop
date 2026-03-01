@@ -37,17 +37,38 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
 
     // Initialize chat when opened
     useEffect(() => {
-        if (isOpen && messages.length === 0 && product) {
-            setMessages([
-                {
-                    id: Date.now().toString(),
-                    sender: "ziva",
-                    text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the ${product.name}. How can I assist you with this order before final fulfillment?`,
-                    timestamp: new Date(),
-                }
-            ]);
+        if (isOpen && product && orderId) {
+            const saved = sessionStorage.getItem(`ziva_chat_${orderId}`);
+            if (saved && messages.length === 0) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    const restored = parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
+                    if (restored.length > 0) {
+                        setMessages(restored);
+                        return;
+                    }
+                } catch (e) { }
+            }
+
+            if (messages.length === 0) {
+                setMessages([
+                    {
+                        id: Date.now().toString(),
+                        sender: "ziva",
+                        text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the ${product.name}. How can I assist you with this order before final fulfillment?`,
+                        timestamp: new Date(),
+                    }
+                ]);
+            }
         }
-    }, [isOpen, product, messages.length]);
+    }, [isOpen, product, orderId, messages.length]);
+
+    // Save chat history to session storage
+    useEffect(() => {
+        if (orderId && messages.length > 0) {
+            sessionStorage.setItem(`ziva_chat_${orderId}`, JSON.stringify(messages));
+        }
+    }, [messages, orderId]);
 
     // Auto-scroll
     useEffect(() => {
@@ -80,8 +101,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
             const lowerText = text.toLowerCase();
 
             // Special Handler for explicitly asking about the Order ID
-            if (lowerText.includes("order id") || lowerText.includes("my order")) {
-                zivaText = `Your Order ID is **${orderId || "PENDING"}**. Is there anything specific about this order you need help with?`;
+            if (lowerText.includes("order id") || lowerText.includes("my order") || lowerText.includes("tracking id") || lowerText.includes("tracking code")) {
+                zivaText = `Your Tracking / Order ID is **${orderId || "PENDING"}**. You can use this to track your order. Is there anything specific about this order you need help with?`;
             } else if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
                 zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here. You'll also receive a notification when the images are ready.";
             } else if (lowerText.includes("ship") || lowerText.includes("delivery")) {

@@ -1452,7 +1452,7 @@ export default function ProductDetailPage() {
                             icon={<ShoppingCart className="h-5 w-5 text-blue-500" />}
                         />
 
-                        {/* View More CAB */}
+                        {/* View More CAB
                         {visibleCABCount < alsoBoughtProducts.length && (
                             <div className="flex flex-col items-center gap-8 mt-6">
                                 <Button
@@ -1463,7 +1463,7 @@ export default function ProductDetailPage() {
                                     VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
                                 </Button>
                             </div>
-                        )}
+                        )} */}
 
                         {/* You May Also Like — more products from the same or related categories */}
                         {visibleProductsCount > 8 && (() => {

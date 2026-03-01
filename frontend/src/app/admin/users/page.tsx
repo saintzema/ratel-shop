@@ -122,6 +122,18 @@ export default function UserDirectory() {
                                         <div>
                                             <h4 className="font-bold text-gray-900 text-[15px]">{p.business_name}</h4>
                                             <p className="text-[11px] text-gray-400 font-bold">ID: {p.id.toUpperCase()}</p>
+                                            {p.role === "seller" && p.business_registered && (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
+                                                        RC: {p.cac_rc_number}
+                                                    </span>
+                                                    {p.cac_document_url && (
+                                                        <a href={p.cac_document_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                                                            <ExternalLink className="h-3 w-3" /> View CAC
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </td>

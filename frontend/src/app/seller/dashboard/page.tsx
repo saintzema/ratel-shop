@@ -113,6 +113,7 @@ export default function SellerDashboard() {
     // Computed financials
     const escrowAmount = orders.filter(o => o.escrow_status === "held").reduce((sum, o) => sum + o.amount, 0);
     const releasedAmount = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + o.amount, 0);
+    const totalRevenue = releasedAmount + escrowAmount;
 
     // Platform takes 5% commission on all released funds
     const COMMISSION_RATE = 0.05;
@@ -138,10 +139,10 @@ export default function SellerDashboard() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(DEMO_SELLER_STATS.total_revenue)} trend="+12%" color="emerald" />
-                <StatCard icon={<ShoppingBag />} label="Pending Orders" value={DEMO_SELLER_STATS.new_orders.toString()} color="amber" href="/seller/orders" />
+                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={totalRevenue > 0 ? "+12%" : undefined} color="emerald" />
+                <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" />
                 <StatCard icon={<Package />} label="Active Listings" value={products.length.toString()} color="blue" href="/seller/products" />
-                <StatCard icon={<Star />} label="Trust Score" value={`${DEMO_SELLER_STATS.trust_score}%`} color="purple" />
+                <StatCard icon={<Star />} label="Trust Score" value={`${currentSeller.trust_score || 50}%`} color="purple" />
             </div>
 
             {/* Dispute Alert */}
@@ -324,7 +325,7 @@ export default function SellerDashboard() {
 
                     <div className="divide-y divide-gray-100 flex-1">
                         {pendingNegs.length === 0 ? (
-                            <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No pending negotiations 🎉</div>
+                            <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No pending negotiations</div>
                         ) : (
                             pendingNegs.slice(0, 3).map((neg) => {
                                 const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts().find(p => p.id === neg.product_id);
@@ -385,7 +386,7 @@ export default function SellerDashboard() {
                             <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-100/60 rounded-xl">
                                 <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
                                 <div>
-                                    <h4 className="font-bold text-emerald-800 text-sm">All prices look competitive! ✅</h4>
+                                    <h4 className="font-bold text-emerald-800 text-sm">All prices look competitive!</h4>
                                     <p className="text-xs text-emerald-600/80 mt-0.5">Your product pricing is within market range. Keep it up!</p>
                                 </div>
                             </div>

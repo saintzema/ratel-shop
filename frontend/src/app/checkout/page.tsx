@@ -639,6 +639,27 @@ function CheckoutContent() {
             }
             // Show concierge before redirect
             setShowConcierge(true);
+
+            // Fire off an Order Confirmation Email asynchronously
+            if (user?.email || address.email) {
+                const targetEmail = user?.email || address.email;
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: targetEmail,
+                        type: "ORDER_PLACED",
+                        payload: {
+                            name: address.firstName || "Customer",
+                            orderId: `ORD-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                            productName: checkoutItems.length > 1 ? `${checkoutItems[0].product.name} +${checkoutItems.length - 1} more` : checkoutItems[0].product.name,
+                            amount: checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0),
+                            trackingUrl: `https://fairprice.ng/account/orders`
+                        }
+                    })
+                }).catch(console.error); // Silently catch email errors so checkout doesn't brick
+            }
+
             // Redirect after a brief delay so user sees the concierge
             setTimeout(() => {
                 router.push("/account/orders?success=true");

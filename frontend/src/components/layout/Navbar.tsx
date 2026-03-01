@@ -837,7 +837,11 @@ export function Navbar() {
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
                                         <Link href="/account" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Account</Link>
                                         <Link href="/account/orders" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Orders</Link>
-                                        <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
+                                        {user?.role === 'seller' ? (
+                                            <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
+                                        ) : (
+                                            <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
+                                        )}
                                         <Link href="#" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700">Recommendations</Link>
                                         <Link href="#" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700">Browsing History</Link>
                                     </div>
