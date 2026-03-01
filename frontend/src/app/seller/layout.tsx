@@ -235,7 +235,7 @@ export default function SellerLayout({
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
                                     <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors">
-                                        <Link href={`/store/${currentSeller.id}`} className="w-full flex items-center font-medium">
+                                        <Link href={`/store/${currentSeller.store_url || currentSeller.id}`} className="w-full flex items-center font-medium">
                                             <ShoppingBag className="mr-3 h-4 w-4 text-gray-400" />
                                             View Store Profile
                                         </Link>

@@ -46,6 +46,7 @@ export interface Seller {
     status?: "pending" | "active" | "frozen" | "banned";
     kyc_status: "not_submitted" | "pending" | "approved" | "rejected";
     cover_image_url?: string;
+    cover_image_urls?: string[];
     bank_name?: string;
     account_number?: string;
     account_name?: string;
@@ -93,7 +94,7 @@ export interface Order {
     product_id: string;
     seller_id: string;
     amount: number;
-    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "returned";
+    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "return_requested" | "return_approved" | "return_rejected" | "returned";
     escrow_status: "held" | "seller_confirmed" | "buyer_confirmed" | "auto_release_eligible" | "released" | "disputed" | "refunded";
     shipping_address: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
@@ -114,6 +115,21 @@ export interface Order {
     product?: Product;
     customer_name?: string;
     seller_name?: string;
+}
+
+export interface ReturnRequest {
+    id: string;
+    order_id: string;
+    customer_id: string;
+    seller_id: string;
+    reason: string;
+    description: string;
+    images?: string[];
+    status: "pending" | "approved" | "rejected" | "item_received" | "refunded";
+    seller_notes?: string;
+    admin_notes?: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface NegotiationRequest {

@@ -18,7 +18,7 @@ export default function SponsoredAdsPage() {
     // Action Modals State
     const [extendModalOpen, setExtendModalOpen] = useState(false);
     const [endModalOpen, setEndModalOpen] = useState(false);
-    const [selectedPromo, setSelectedPromo] = useState<Promotion | null>(null);
+    const [selectedPromo, setSelectedPromo] = useState<(Promotion & { product?: Product, seller?: Seller }) | null>(null);
     const [extendDays, setExtendDays] = useState(7);
 
     useEffect(() => {
@@ -28,7 +28,7 @@ export default function SponsoredAdsPage() {
     }, []);
 
     const loadData = () => {
-        const allPromotions = DemoStore.getRawPromotions(); // Custom raw getter
+        const allPromotions = DemoStore.getPromotions(); // Custom raw getter
         const allProducts = DemoStore.getProducts();
         const allSellers = DemoStore.getSellers();
 

@@ -177,7 +177,7 @@ export default function ListsPage() {
                                                 {seller.business_name.charAt(0)}
                                             </div>
                                             <div className="flex-1">
-                                                <Link href={`/store/${seller.id}`} className="font-bold text-lg text-gray-900 hover:text-brand-green-600 transition-colors">
+                                                <Link href={`/store/${seller.store_url || seller.id}`} className="font-bold text-lg text-gray-900 hover:text-brand-green-600 transition-colors">
                                                     {seller.business_name}
                                                 </Link>
                                                 <div className="flex items-center gap-3 text-xs text-gray-500 mt-0.5">
@@ -192,7 +192,7 @@ export default function ListsPage() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <Link href={`/store/${seller.id}`}>
+                                                <Link href={`/store/${seller.store_url || seller.id}`}>
                                                     <Button size="sm" className="rounded-full bg-gray-900 text-white hover:bg-gray-800 font-bold text-xs h-9 px-5">
                                                         Visit Store <ChevronRight className="h-3.5 w-3.5 ml-1" />
                                                     </Button>

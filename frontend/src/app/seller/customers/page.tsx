@@ -18,6 +18,8 @@ import { DemoStore } from "@/lib/demo-store";
 import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { BroadcastModal } from "@/components/modals/BroadcastModal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function CustomersCRMPage() {
     const { user } = useAuth();
@@ -25,6 +27,8 @@ export default function CustomersCRMPage() {
     const [filterBy, setFilterBy] = useState("all");
     const [currentPage, setCurrentPage] = useState(1);
     const [customers, setCustomers] = useState<any[]>([]);
+    const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
+    const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
     const ITEMS_PER_PAGE = 5;
 
     useEffect(() => {
@@ -83,6 +87,21 @@ export default function CustomersCRMPage() {
     const avgLTV = customers.length > 0 ? totalSpendAll / customers.length : 0;
     const vipCount = customers.filter(c => c.status === "VIP").length;
 
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            setSelectedCustomers(new Set(paginatedCustomers.map(c => c.id)));
+        } else {
+            setSelectedCustomers(new Set());
+        }
+    };
+
+    const handleSelectCustomer = (id: string, checked: boolean) => {
+        const next = new Set(selectedCustomers);
+        if (checked) next.add(id);
+        else next.delete(id);
+        setSelectedCustomers(next);
+    };
+
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20 p-4 sm:p-6 lg:p-8">
             {/* Header */}
@@ -95,7 +114,14 @@ export default function CustomersCRMPage() {
                     <Button variant="outline" className="rounded-xl border-gray-200">
                         Export CSV
                     </Button>
-                    {/* Add Customer button removed as requested */}
+                    <Button
+                        onClick={() => setIsBroadcastModalOpen(true)}
+                        disabled={selectedCustomers.size === 0}
+                        className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-bold gap-2"
+                    >
+                        <MessageSquare className="h-4 w-4" />
+                        Broadcast Message {selectedCustomers.size > 0 && `(${selectedCustomers.size})`}
+                    </Button>
                 </div>
             </div>
 
@@ -161,6 +187,13 @@ export default function CustomersCRMPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="bg-white border-b border-gray-100 text-left">
+                                <th className="px-6 py-4 w-12">
+                                    <Checkbox
+                                        checked={paginatedCustomers.length > 0 && selectedCustomers.size === paginatedCustomers.length}
+                                        onCheckedChange={handleSelectAll}
+                                        className="border-gray-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                                    />
+                                </th>
                                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Customer Details</th>
                                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Orders & Spend</th>
                                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status / Last Active</th>
@@ -176,6 +209,13 @@ export default function CustomersCRMPage() {
                                 </tr>
                             ) : paginatedCustomers.map((customer) => (
                                 <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors group">
+                                    <td className="px-6 py-4">
+                                        <Checkbox
+                                            checked={selectedCustomers.has(customer.id)}
+                                            onCheckedChange={(checked) => handleSelectCustomer(customer.id, !!checked)}
+                                            className="border-gray-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                                        />
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-700 font-bold uppercase shrink-0">
@@ -249,6 +289,13 @@ export default function CustomersCRMPage() {
                     </div>
                 )}
             </div>
+
+            <BroadcastModal
+                open={isBroadcastModalOpen}
+                onOpenChange={setIsBroadcastModalOpen}
+                selectedCustomerIds={Array.from(selectedCustomers)}
+                onSuccess={() => setSelectedCustomers(new Set())}
+            />
         </div>
     );
 }

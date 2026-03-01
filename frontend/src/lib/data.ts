@@ -2385,6 +2385,25 @@ export const DEMO_ORDERS: Order[] = [
         ],
         created_at: "2026-02-12T09:15:00Z",
         updated_at: "2026-02-12T09:15:00Z",
+    },
+    {
+        id: "FP-RET551O",
+        customer_id: "u1",
+        product_id: "p10",
+        seller_id: "s1",
+        product: DEMO_PRODUCTS[6],
+        amount: 185000,
+        status: "return_requested",
+        escrow_status: "held",
+        shipping_address: "123 Lekki Phase 1, Lagos",
+        tracking_status: "delivered",
+        tracking_id: "FP-RET551O",
+        tracking_steps: [
+            { status: "Order Placed", location: "Lagos", timestamp: "2026-02-10T10:00:00Z", completed: true },
+            { status: "Delivered", location: "123 Lekki Phase 1", timestamp: "2026-02-12T14:20:00Z", completed: true },
+        ],
+        created_at: "2026-02-10T10:00:00Z",
+        updated_at: "2026-02-13T09:00:00Z",
     }
 ];
 

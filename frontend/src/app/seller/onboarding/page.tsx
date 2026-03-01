@@ -133,18 +133,18 @@ export default function KYCOnboarding() {
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Store URL *</label>
                                     <div className="flex">
+                                        <div className="bg-gray-100 flex items-center px-4 rounded-l-md border border-gray-300 border-r-0 text-gray-500 text-sm font-medium">
+                                            fairprice.ng/store/
+                                        </div>
                                         <Input
                                             placeholder="oresglosshub"
                                             value={storeUrl}
                                             onChange={(e) => setStoreUrl(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                                            className="rounded-r-none border-r-0 border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-brand-green-600"
+                                            className="rounded-l-none border-l-0 border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-brand-green-600"
                                             required
                                         />
-                                        <div className="bg-gray-100 flex items-center px-4 rounded-r-md border border-gray-300 border-l-0 text-gray-500 text-sm font-medium">
-                                            .fairprice.ng
-                                        </div>
                                     </div>
-                                    <p className="text-[11px] text-gray-500">You can connect a custom domain later from settings.</p>
+                                    <p className="text-[11px] text-gray-500">You can unlock a custom .fairprice.ng subdomain on the Pro plan.</p>
                                 </div>
 
                                 <div className="space-y-2">

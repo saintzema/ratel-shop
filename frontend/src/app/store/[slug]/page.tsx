@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     MapPin,
     Star,
@@ -41,6 +42,7 @@ export default function StoreProfile() {
     const [isUpdatingCover, setIsUpdatingCover] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const { isFavoriteStore, toggleFavoriteStore } = useFavorites();
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
     useEffect(() => {
         const slug = params.slug as string;
@@ -50,9 +52,9 @@ export default function StoreProfile() {
             const allSellers = [...DemoStore.getSellers(), ...DEMO_SELLERS];
             // Deduplicate by id, preferring DemoStore version
             const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
-            // find by ID OR by slugified business name
+            // find by store_url OR by ID OR by slugified business name
             const foundSeller = uniqueSellers.find(s =>
-                s.id === slug || s.business_name.toLowerCase().replace(/\s+/g, "-") === slug
+                s.store_url === slug || s.id === slug || s.business_name.toLowerCase().replace(/\s+/g, "-") === slug
             );
 
             if (foundSeller) {
@@ -72,22 +74,36 @@ export default function StoreProfile() {
 
     const isOwner = user && seller && user.id === seller.user_id;
 
-    const handleUpdateCover = () => {
-        if (!seller) return;
+    useEffect(() => {
+        if (!seller || !seller.cover_image_urls || seller.cover_image_urls.length <= 1) return;
+        const interval = setInterval(() => {
+            setCurrentImageIndex(prev => (prev + 1) % (seller.cover_image_urls?.length || 1));
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [seller]);
+
+    const handleUpdateCover = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!seller || !e.target.files?.[0]) return;
         setIsUpdatingCover(true);
-        // Simulate a new image URL
-        const newCovers = [
-            "https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?auto=format&fit=crop&q=80"
-        ];
-        const randomCover = newCovers[Math.floor(Math.random() * newCovers.length)];
+        const file = e.target.files[0];
+        const newUrl = URL.createObjectURL(file);
 
         setTimeout(() => {
-            DemoStore.updateSellerCoverImage(seller.id, randomCover);
+            const currentImages = seller.cover_image_urls || (seller.cover_image_url ? [seller.cover_image_url] : []);
+            const newImages = [...currentImages, newUrl].slice(-3); // Keep only the latest 3
+
+            DemoStore.updateSeller(seller.id, { cover_image_urls: newImages, cover_image_url: newImages[0] });
+            setSeller(prev => prev ? { ...prev, cover_image_urls: newImages, cover_image_url: newImages[0] } : null);
             setIsUpdatingCover(false);
         }, 1000);
+    };
+
+    const handleUpdateLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!seller || !e.target.files?.[0]) return;
+        const file = e.target.files[0];
+        const newUrl = URL.createObjectURL(file);
+        DemoStore.updateSeller(seller.id, { logo_url: newUrl });
+        setSeller(prev => prev ? { ...prev, logo_url: newUrl } : null);
     };
 
     const filteredProducts = products.filter(p =>
@@ -128,29 +144,37 @@ export default function StoreProfile() {
             {/* Header / Cover */}
             <div className="bg-white shadow-sm border-b border-gray-100 relative z-10">
                 <div className="h-48 md:h-80 bg-gray-100 w-full relative overflow-hidden group/cover">
-                    {seller.cover_image_url ? (
-                        <img
-                            src={seller.cover_image_url}
+                    <AnimatePresence mode="popLayout">
+                        <motion.img
+                            key={currentImageIndex}
+                            initial={{ opacity: 0, scale: 1.05 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.8 }}
+                            src={(seller.cover_image_urls && seller.cover_image_urls.length > 0) ? seller.cover_image_urls[currentImageIndex] : (seller.cover_image_url || "https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80")}
                             alt={`${seller.business_name} Cover`}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover absolute inset-0"
+                            style={{ zIndex: 0 }}
                         />
-                    ) : (
-                        <div className="h-full w-full bg-gradient-to-r from-indigo-900 via-purple-900 to-black relative">
-                            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&q=80')] bg-cover bg-center opacity-30 mix-blend-overlay"></div>
+                    </AnimatePresence>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent z-10"></div>
+
+                    {/* Progress indicators for Slider */}
+                    {(seller.cover_image_urls?.length || 0) > 1 && (
+                        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                            {seller.cover_image_urls!.map((_, idx) => (
+                                <div key={idx} className={`h-1.5 rounded-full transition-all duration-300 ${idx === currentImageIndex ? 'w-6 bg-white' : 'w-2 bg-white/40'}`} />
+                            ))}
                         </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
 
                     {isOwner && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/cover:opacity-100 transition-opacity">
-                            <Button
-                                onClick={handleUpdateCover}
-                                disabled={isUpdatingCover}
-                                className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/30 rounded-2xl flex items-center gap-2 px-6 h-12"
-                            >
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover/cover:opacity-100 transition-opacity z-30 cursor-pointer" onClick={() => document.getElementById("cover-upload")?.click()}>
+                            <input type="file" id="cover-upload" accept="image/*" className="hidden" onChange={handleUpdateCover} />
+                            <div className="bg-white/20 hover:bg-white/30 text-white backdrop-blur-md border border-white/30 rounded-2xl flex items-center gap-2 px-6 h-12 font-medium">
                                 {isUpdatingCover ? <Upload className="h-5 w-5 animate-bounce" /> : <Camera className="h-5 w-5" />}
-                                {isUpdatingCover ? "Uploading..." : "Change Store Cover"}
-                            </Button>
+                                {isUpdatingCover ? "Uploading..." : "Click to add Cover (Max 3)"}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -158,12 +182,21 @@ export default function StoreProfile() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
                     <div className="-mt-16 md:-mt-20 flex flex-col md:flex-row md:items-end gap-6 pb-6">
                         {/* Avatar */}
-                        <div className="h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar">
+                        <div
+                            className={`h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar z-30 ${isOwner ? 'cursor-pointer' : ''}`}
+                            onClick={() => isOwner && document.getElementById("logo-upload")?.click()}
+                        >
+                            {isOwner && <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={handleUpdateLogo} />}
                             <div className="h-full w-full rounded-2xl bg-gradient-to-br from-brand-green-600 to-emerald-500 flex items-center justify-center text-white text-5xl font-bold shadow-inner overflow-hidden relative">
                                 {seller.logo_url ? (
                                     <img src={seller.logo_url} alt="" className="h-full w-full object-cover" />
                                 ) : (
                                     seller.business_name.charAt(0)
+                                )}
+                                {isOwner && (
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 flex items-center justify-center transition-opacity">
+                                        <Camera className="h-8 w-8 text-white" />
+                                    </div>
                                 )}
                             </div>
                             <div className="absolute -bottom-2 -right-2 bg-blue-500 text-white p-1.5 rounded-full border-4 border-white shadow-lg" title="Verified Seller">

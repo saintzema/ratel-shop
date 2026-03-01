@@ -1,6 +1,6 @@
 "use client";
 
-import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon } from "./types";
+import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest } from "./types";
 import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS, DEMO_PAYOUTS } from "./data";
 
 class DemoStoreService {
@@ -20,6 +20,7 @@ class DemoStoreService {
         COUPONS: "fairprice_demo_coupons",
         REFERRALS: "fairprice_demo_referrals",
         REVIEWS: "fairprice_demo_reviews",
+        RETURNS: "fairprice_demo_returns",
         USERS: "fp_user",
     };
 
@@ -39,7 +40,7 @@ class DemoStoreService {
     private init() {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
-        const DATA_VERSION = "7";
+        const DATA_VERSION = "8";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -68,6 +69,23 @@ class DemoStoreService {
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PAYOUTS)) {
             localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(DEMO_PAYOUTS));
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.RETURNS)) {
+            const initialReturns: ReturnRequest[] = [
+                {
+                    id: "ret_demo1",
+                    order_id: "FP-RET551O",
+                    customer_id: "u1",
+                    seller_id: "s1",
+                    reason: "Product arrived damaged",
+                    description: "The item box was completely crushed during delivery.",
+                    images: [],
+                    status: "pending",
+                    created_at: "2026-02-13T09:00:00Z",
+                    updated_at: "2026-02-13T09:00:00Z"
+                }
+            ];
+            localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(initialReturns));
         }
     }
 
@@ -98,6 +116,78 @@ class DemoStoreService {
         const current = this.getNegotiations();
         const updated = current.map(n => n.id === id ? { ...n, status } : n);
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    // --- Returns ---
+    getReturnRequests(sellerId?: string): ReturnRequest[] {
+        if (typeof window === "undefined") return [];
+        const all: ReturnRequest[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.RETURNS) || "[]");
+        if (!sellerId) return all;
+        return all.filter(r => r.seller_id === sellerId);
+    }
+
+    createReturnRequest(orderId: string, customerId: string, sellerId: string, reason: string, description: string, images?: string[]): ReturnRequest {
+        const requests = this.getReturnRequests();
+        const newReq: ReturnRequest = {
+            id: `ret_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            order_id: orderId,
+            customer_id: customerId,
+            seller_id: sellerId,
+            reason,
+            description,
+            images,
+            status: "pending",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        requests.unshift(newReq);
+        localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(requests));
+
+        // Update order status
+        this.updateOrderStatus(orderId, "return_requested");
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+
+        return newReq;
+    }
+
+    updateReturnRequestStatus(id: string, status: ReturnRequest["status"], sellerNotes?: string, adminNotes?: string) {
+        const requests = this.getReturnRequests();
+        const req = requests.find(r => r.id === id);
+        if (!req) return;
+
+        const updated = requests.map(r => r.id === id ? {
+            ...r,
+            status,
+            seller_notes: sellerNotes || r.seller_notes,
+            admin_notes: adminNotes || r.admin_notes,
+            updated_at: new Date().toISOString()
+        } : r);
+
+        localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(updated));
+
+        // Sync to order status & escrow
+        if (status === "approved") {
+            this.updateOrderStatus(req.order_id, "return_approved");
+        } else if (status === "rejected") {
+            this.updateOrderStatus(req.order_id, "return_rejected");
+            // If rejected, might unfreeze escrow or leave it for dispute.
+        } else if (status === "item_received" || status === "refunded") {
+            this.updateOrderStatus(req.order_id, "returned");
+            this.updateOrderEscrow(req.order_id, "refunded");
+
+            // Send refund notification
+            this.addNotification({
+                userId: req.customer_id,
+                type: "order",
+                message: `Your return for order #${req.order_id.substring(0, 8)} has been processed and your refund is complete.`,
+                link: `/account/orders/${req.order_id}`
+            });
+        }
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
     }
@@ -999,6 +1089,28 @@ class DemoStoreService {
 
     getAdminMessagesForOrder(orderId: string): SupportMessage[] {
         return this.getSupportMessages().filter(m => m.order_id === orderId);
+    }
+
+    // ─── Broadcast Messaging ────────────────────────────
+    sendBroadcastMessage(customerIds: string[], messageText: string) {
+        const sellerId = this.getCurrentSellerId();
+        const seller = sellerId ? this.getSellers().find(s => s.id === sellerId) : null;
+
+        customerIds.forEach(customerId => {
+            // Give them a notification in their dashboard
+            this.addNotification({
+                userId: customerId,
+                type: "promo",
+                message: `${seller ? seller.business_name : 'A store you follow'} sent you a message: ${messageText}`,
+                link: `/account/messages` // A real app might deep link to a specific chat context
+            });
+
+            // Note: In a complete production system, we might also seed a direct MessageThread array
+            // so it populates in the Buyer's Inbox.
+        });
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 
     // ─── Coupon System ──────────────────────────────────────

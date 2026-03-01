@@ -136,20 +136,49 @@ export default function SellerSettingsPage() {
                         <div className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-xs font-black uppercase tracking-widest text-gray-800">Store Domain URL</label>
-                                <div className="flex relative">
-                                    <Input
-                                        value={formData.store_url}
-                                        onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                                        placeholder="your-store-name"
-                                        className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-r-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pr-24"
-                                    />
-                                    <div className="absolute right-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-l-0 rounded-r-xl px-4 text-gray-500 text-sm font-semibold pointer-events-none">
-                                        .fairprice.ng
-                                    </div>
-                                </div>
-                                <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-1">
-                                    <Globe className="h-3 w-3" /> Share this link with your customers to visit your store directly.
-                                </p>
+                                {seller.subscription_plan === "Starter" ? (
+                                    <>
+                                        <div className="flex relative">
+                                            <div className="absolute left-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-r-0 rounded-l-xl px-4 text-gray-500 text-sm font-semibold pointer-events-none">
+                                                fairprice.ng/store/
+                                            </div>
+                                            <Input
+                                                value={formData.store_url}
+                                                onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                                                placeholder="your-store-name"
+                                                className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-l-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pl-[140px]"
+                                            />
+                                        </div>
+                                        <div className="flex items-start justify-between mt-2 gap-4 bg-brand-green-50/50 p-3 rounded-xl border border-brand-green-100/50">
+                                            <p className="text-[11px] text-gray-600 flex items-center gap-1.5 leading-tight">
+                                                <Globe className="h-3.5 w-3.5 text-brand-green-600 shrink-0" />
+                                                <span>Want a more professional link like <strong>{formData.store_url || 'yourstore'}.fairprice.ng</strong>?</span>
+                                            </p>
+                                            <Link href="/seller/settings/billing">
+                                                <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-100 shrink-0 rounded-lg">
+                                                    Upgrade to Pro
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex relative">
+                                            <Input
+                                                value={formData.store_url}
+                                                onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                                                placeholder="your-store-name"
+                                                className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-r-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pr-24"
+                                            />
+                                            <div className="absolute right-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-l-0 rounded-r-xl px-4 text-gray-500 text-sm font-semibold pointer-events-none">
+                                                .fairprice.ng
+                                            </div>
+                                        </div>
+                                        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-1">
+                                            <Globe className="h-3 w-3" /> Share this link with your customers to visit your store directly.
+                                        </p>
+                                    </>
+                                )}
                             </div>
 
                             <div className="space-y-2">

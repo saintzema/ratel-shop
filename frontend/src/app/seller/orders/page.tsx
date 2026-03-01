@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Order } from "@/lib/types";
+import { Order, ReturnRequest } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
 
 export default function SellerOrders() {
     const [orders, setOrders] = useState<Order[]>([]);
+    const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
     const [search, setSearch] = useState("");
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -36,6 +37,7 @@ export default function SellerOrders() {
         const loadOrders = () => {
             const allOrders = DemoStore.getOrders();
             setOrders(allOrders.filter(o => o.seller_id === sellerId));
+            setReturnRequests(DemoStore.getReturnRequests(sellerId));
         };
 
         loadOrders();
@@ -58,7 +60,10 @@ export default function SellerOrders() {
             case "processing": return { color: "bg-blue-100 text-blue-700 border-blue-200", icon: <Package className="h-3 w-3" />, label: "Processing" };
             case "shipped": return { color: "bg-purple-100 text-purple-700 border-purple-200", icon: <Truck className="h-3 w-3" />, label: "Shipped" };
             case "delivered": return { color: "bg-emerald-100 text-emerald-700 border-emerald-200", icon: <CheckCircle className="h-3 w-3" />, label: "Delivered" };
-            default: return { color: "bg-gray-100 text-gray-700", icon: null, label: status };
+            case "return_requested": return { color: "bg-orange-100 text-orange-700 border-orange-200", icon: <AlertTriangle className="h-3 w-3" />, label: "Return Req." };
+            case "return_approved": return { color: "bg-blue-100 text-blue-700 border-blue-200", icon: <Package className="h-3 w-3" />, label: "Return Appr." };
+            case "returned": return { color: "bg-gray-100 text-gray-700 border-gray-200", icon: <CheckCircle className="h-3 w-3" />, label: "Returned" };
+            default: return { color: "bg-gray-100 text-gray-700 border-gray-200", icon: null, label: status };
         }
     };
 
@@ -75,7 +80,16 @@ export default function SellerOrders() {
     const filtered = orders.filter(o => {
         const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) ||
             o.product?.name?.toLowerCase().includes(search.toLowerCase());
-        const matchStatus = statusFilter === "all" || o.status === statusFilter;
+
+        let matchStatus = false;
+        if (statusFilter === "all") matchStatus = true;
+        else if (statusFilter === "return_requested" || statusFilter === "returns") {
+            // "returns" filter groups all return states
+            matchStatus = ["return_requested", "return_approved", "returned"].includes(o.status);
+        } else {
+            matchStatus = o.status === statusFilter;
+        }
+
         return matchSearch && matchStatus;
     });
 
@@ -129,18 +143,21 @@ export default function SellerOrders() {
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    {["all", "pending", "processing", "shipped", "delivered"].map(s => (
-                        <button
-                            key={s}
-                            onClick={() => setStatusFilter(s)}
-                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${statusFilter === s
-                                ? "bg-gray-900 text-white shadow-sm"
-                                : "bg-gray-50 text-gray-600 hover:bg-gray-100"
-                                }`}
-                        >
-                            {s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                    ))}
+                    {["all", "pending", "processing", "shipped", "delivered", "returns"].map(s => {
+                        const isSelected = statusFilter === s || (s === "returns" && ["return_requested", "return_approved", "returned"].includes(statusFilter));
+                        return (
+                            <button
+                                key={s}
+                                onClick={() => setStatusFilter(s === "returns" ? "return_requested" : s)}
+                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${isSelected
+                                    ? "bg-gray-900 text-white shadow-sm"
+                                    : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                                    }`}
+                            >
+                                {s.charAt(0).toUpperCase() + s.slice(1).replace("_", " ")}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
@@ -302,6 +319,88 @@ export default function SellerOrders() {
                                                             <CheckCircle className="h-3.5 w-3.5" /> Order complete
                                                         </span>
                                                     )}
+
+                                                    {order.status === "return_requested" && (
+                                                        <div className="flex flex-col gap-2 w-full">
+                                                            <div className="bg-orange-50 border border-orange-100 p-3 rounded-xl mb-2">
+                                                                <h5 className="text-[10px] font-bold text-orange-800 uppercase mb-1 flex items-center gap-1">
+                                                                    <AlertTriangle className="h-3 w-3" /> Return Requested
+                                                                </h5>
+                                                                <p className="text-xs text-orange-700">
+                                                                    {returnRequests.find(r => r.order_id === order.id)?.reason || "Buyer requested a return."}
+                                                                </p>
+                                                                <p className="text-[10px] text-orange-600 mt-1 italic">
+                                                                    "{returnRequests.find(r => r.order_id === order.id)?.description}"
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        const req = returnRequests.find(r => r.order_id === order.id);
+                                                                        if (req) {
+                                                                            DemoStore.updateReturnRequestStatus(req.id, "approved");
+                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
+                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        }
+                                                                    }}
+                                                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold h-9 flex-1"
+                                                                >
+                                                                    Approve Return
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        const req = returnRequests.find(r => r.order_id === order.id);
+                                                                        if (req) {
+                                                                            DemoStore.updateReturnRequestStatus(req.id, "rejected");
+                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
+                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        }
+                                                                    }}
+                                                                    className="text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-bold h-9 flex-1"
+                                                                >
+                                                                    Reject Return
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {order.status === "return_approved" && (
+                                                        <div className="flex flex-col gap-2 w-full">
+                                                            <div className="bg-blue-50 border border-blue-100 p-3 rounded-xl mb-2">
+                                                                <span className="text-xs font-bold text-blue-800">Return Approved</span>
+                                                                <p className="text-[11px] text-blue-600 mt-1">Waiting for the buyer to send the item back. Once received, process the refund below.</p>
+                                                            </div>
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const req = returnRequests.find(r => r.order_id === order.id);
+                                                                    if (req) {
+                                                                        DemoStore.updateReturnRequestStatus(req.id, "refunded");
+                                                                        setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
+                                                                        setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                    }
+                                                                }}
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold h-9"
+                                                            >
+                                                                <Package className="h-3 w-3 mr-1.5" /> Mark Item Received & Refund
+                                                            </Button>
+                                                        </div>
+                                                    )}
+
+                                                    {order.status === "return_rejected" && (
+                                                        <span className="text-xs font-semibold text-rose-600 flex items-center gap-1">
+                                                            Return Rejected
+                                                        </span>
+                                                    )}
+
+                                                    {order.status === "returned" && (
+                                                        <span className="text-xs font-semibold text-gray-500 flex items-center gap-1">
+                                                            <CheckCircle className="h-3.5 w-3.5" /> Returned & Refunded
+                                                        </span>
+                                                    )}
                                                     {order.escrow_status === "disputed" && (
                                                         <div className="w-full bg-rose-50 p-3 rounded-xl border border-rose-100">
                                                             <div className="flex items-center gap-2 mb-1">
@@ -323,7 +422,7 @@ export default function SellerOrders() {
             ) : (
                 /* Kanban View */
                 <div className="flex gap-4 overflow-x-auto pb-6 -mx-4 px-4 sm:mx-0 sm:px-0">
-                    {["pending", "processing", "shipped", "delivered"].map((status) => {
+                    {["pending", "processing", "shipped", "delivered", "return_requested", "return_approved", "returned"].map((status) => {
                         const statusConfig = getStatusConfig(status);
                         const statusOrders = filtered.filter(o => o.status === status);
 
@@ -410,6 +509,61 @@ export default function SellerOrders() {
 
                                                         {order.status === "delivered" && (
                                                             <p className="text-[10px] text-emerald-600 font-bold text-center">Completed</p>
+                                                        )}
+
+                                                        {order.status === "return_requested" && (
+                                                            <div className="flex gap-1.5 mt-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => {
+                                                                        const req = returnRequests.find(r => r.order_id === order.id);
+                                                                        if (req) {
+                                                                            DemoStore.updateReturnRequestStatus(req.id, "approved");
+                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
+                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        }
+                                                                    }}
+                                                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
+                                                                >
+                                                                    Approve
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => {
+                                                                        const req = returnRequests.find(r => r.order_id === order.id);
+                                                                        if (req) {
+                                                                            DemoStore.updateReturnRequestStatus(req.id, "rejected");
+                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
+                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        }
+                                                                    }}
+                                                                    className="text-gray-700 border-gray-200 hover:bg-gray-50 rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
+                                                                >
+                                                                    Reject
+                                                                </Button>
+                                                            </div>
+                                                        )}
+
+                                                        {order.status === "return_approved" && (
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => {
+                                                                    const req = returnRequests.find(r => r.order_id === order.id);
+                                                                    if (req) {
+                                                                        DemoStore.updateReturnRequestStatus(req.id, "refunded");
+                                                                        setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
+                                                                        setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                    }
+                                                                }}
+                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold h-7 w-full mt-2 shadow-sm"
+                                                            >
+                                                                <Package className="h-3 w-3 mr-1" /> Refund & Receive
+                                                            </Button>
+                                                        )}
+
+                                                        {order.status === "returned" && (
+                                                            <p className="text-[10px] text-gray-500 font-bold text-center mt-2">Refunded</p>
                                                         )}
                                                     </div>
                                                 </div>

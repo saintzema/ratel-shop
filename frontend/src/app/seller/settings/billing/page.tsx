@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { CheckCircle2, Crown, Zap, TrendingUp, ShieldCheck, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 
 const PLANS = [
     {
@@ -18,7 +19,7 @@ const PLANS = [
             "Basic Analytics",
             "Customer Messaging",
             "Standard Support",
-            "FairPrice Subdomain (.fairprice.ng)",
+            "Standard Store URL",
             "1 Staff Account"
         ]
     },
@@ -34,6 +35,7 @@ const PLANS = [
             "Up to 500 Products",
             "Advanced Analytics & PDF Reports",
             "Connect Custom Domain",
+            "FairPrice Subdomain (.fairprice.ng)",
             "Priority Support",
             "Discount & Coupon Engine",
             "Instagram DM Integration",
@@ -78,6 +80,9 @@ export default function BillingPage() {
     const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">("monthly");
     const [processingPlan, setProcessingPlan] = useState<string | null>(null);
     const [currentPlan, setCurrentPlan] = useState<string>("Starter");
+    const [showPaystack, setShowPaystack] = useState(false);
+    const [paystackAmount, setPaystackAmount] = useState(0);
+    const [paystackPlan, setPaystackPlan] = useState("");
 
     useEffect(() => {
         const seller = DemoStore.getCurrentSeller();
@@ -86,19 +91,33 @@ export default function BillingPage() {
         }
     }, []);
 
-    const handleUpgrade = async (planName: string) => {
-        setProcessingPlan(planName);
-        // Simulate Paystack popup delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        const sellerId = DemoStore.getCurrentSellerId();
-        if (sellerId) {
-            DemoStore.updateSeller(sellerId, { subscription_plan: planName as any });
-            setCurrentPlan(planName);
-            window.dispatchEvent(new Event("storage"));
+    const handleUpgrade = (planName: string, priceStr: string) => {
+        if (priceStr === "Free") {
+            const sellerId = DemoStore.getCurrentSellerId();
+            if (sellerId) {
+                DemoStore.updateSeller(sellerId, { subscription_plan: planName as any });
+                setCurrentPlan(planName);
+                window.dispatchEvent(new Event("storage"));
+            }
+            return;
         }
 
-        setProcessingPlan(null);
+        const price = parseInt(priceStr.replace(/[^\d]/g, ''));
+        const finalPrice = billingCycle === "annually" ? price * 0.8 * 12 : price;
+
+        setPaystackPlan(planName);
+        setPaystackAmount(finalPrice * 100); // kobo
+        setShowPaystack(true);
+    };
+
+    const handlePaystackSuccess = (reference: string) => {
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (sellerId) {
+            DemoStore.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
+            setCurrentPlan(paystackPlan);
+            window.dispatchEvent(new Event("storage"));
+        }
+        setShowPaystack(false);
     };
 
     return (
@@ -175,7 +194,7 @@ export default function BillingPage() {
                                 </ul>
 
                                 <Button
-                                    onClick={() => handleUpgrade(plan.name)}
+                                    onClick={() => handleUpgrade(plan.name, plan.price)}
                                     disabled={isCurrent || isProcessing}
                                     className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-items gap-2 items-center justify-center ${isCurrent
                                         ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
@@ -222,6 +241,16 @@ export default function BillingPage() {
                     </div>
                 </div>
             </div>
+
+            {showPaystack && (
+                <PaystackCheckout
+                    amount={paystackAmount}
+                    email={DemoStore.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    onSuccess={handlePaystackSuccess}
+                    onClose={() => setShowPaystack(false)}
+                    autoStart={true}
+                />
+            )}
         </div>
     );
 }

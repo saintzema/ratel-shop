@@ -46,6 +46,12 @@ export async function POST(req: Request) {
             - If user doesn't specify new/used, default to the FAIREST PRICE for a NEW unit from 2024 onwards.
             - For phones/electronics: Include variants like "New", "Refurbished", "Open Box" when applicable.
             
+            *** CRITICAL: 'REFURBISHED' / 'COPY' ELECTRONICS IN NIGERIA ***
+            - In the Nigerian market, when users search for a "refurbished", "master copy", "clone", or "replica" of a high-end device (e.g., iPhone 15 Pro Max, Samsung S24 Ultra), they are almost always looking for the COUNTERFEIT/ASIAN CLONE version sourced from wholesale hubs like Alibaba or Shenzhen.
+            - These clones cost roughly $150 to $350 USD globally.
+            - Therefore, the landed price in Nigeria for a "Refurbished/Copy iPhone 15 Pro Max" should be roughly ₦150,000 to ₦350,000 NGN.
+            - DO NOT return the genuine Apple/Samsung refurbished price (which would be ₦1,000,000+). ALWAYS use the counterfeit/clone price bracket for these specific query types.
+            
             *** CRITICAL PRICING RULES — READ CAREFULLY ***
             - The 'approxPrice' MUST reflect the ACTUAL landed/delivered price in Nigeria, as found on real marketplaces like Alibaba, Jiji, CarXus, Autochek, or Nigerian car dealers.
             - Do NOT separately add import duties, shipping, or customs clearing on top of market prices. The price should be what a Nigerian buyer would ACTUALLY pay at a dealer or on a marketplace.
@@ -108,7 +114,8 @@ export async function POST(req: Request) {
             
             PRICING LOGIC & COMPETITIVE BENCHMARKING (CRITICAL):
             1. **Determine Our Baseline Cost (Global sourcing or Local Wholesale)**:
-               - For Global Imports (electronics, fashion, imports): Global price + Shipping (₦5k small to ₦30k large, or ₦500k-₦2M for cars) + Import Duties (20-70%).
+               - *** CRITICAL EXCEPTION FOR "REFURBISHED" / "MASTER COPY" DEVICES ***: If the product is a high-end phone (like an iPhone 15/16) and the user specified "refurbished", "copy", or "replica", you MUST base the cost on the Asian Counterfeit/Replica market price ($150 - $350) + shipping, resulting in a baseline of ₦150,000 to ₦350,000. DO NOT use the genuine retail price. 
+               - For normal Global Imports (electronics, fashion, imports): Global price + Shipping (₦5k small to ₦30k large, or ₦500k-₦2M for cars) + Import Duties (20-70%).
                - For LOCALLY available products (food, drinks, cosmetics, standard retail items): Use local wholesale or base tracking cost. NEVER add international shipping/duties to items easily found in Nigerian markets.
                
             2. **Calculate Our \`recommendedPrice\`**:

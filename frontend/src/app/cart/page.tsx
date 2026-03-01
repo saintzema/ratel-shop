@@ -80,7 +80,7 @@ export default function CartPage() {
 
                                         <div className="text-sm text-emerald-600 font-bold mb-1">In Stock</div>
                                         <div className="text-xs text-gray-500 mb-2">
-                                            Sold by <Link href={`/store/${product.seller_id}`} className="text-blue-600 hover:underline">{product.seller_name}</Link>
+                                            Sold by <Link href={`/store/${product.seller_name.toLowerCase().replace(/\\s+/g, '-')}`} className="text-blue-600 hover:underline">{product.seller_name}</Link>
                                         </div>
 
                                         {product.price_flag === "fair" && (
