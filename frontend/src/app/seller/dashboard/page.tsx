@@ -115,8 +115,8 @@ export default function SellerDashboard() {
     const releasedAmount = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + o.amount, 0);
     const totalRevenue = releasedAmount + escrowAmount;
 
-    // Platform takes 5% commission on all released funds
-    const COMMISSION_RATE = 0.05;
+    // Platform takes dynamic commission on all released funds based on tier
+    const COMMISSION_RATE = DemoStore.getSellerCommissionRate(currentSeller);
     const platformFee = releasedAmount * COMMISSION_RATE;
     const availableBalance = releasedAmount - platformFee;
 
@@ -204,7 +204,7 @@ export default function SellerDashboard() {
                     <h3 className="text-3xl font-black text-gray-900 mt-2">
                         {formatPrice(availableBalance)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1 mb-4">After 5% platform commission fees</p>
+                    <p className="text-[11px] text-gray-500 mt-1 mb-4">After {COMMISSION_RATE * 100}% platform commission fees</p>
                     {cashoutSuccess ? (
                         <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-100">
                             <CheckCircle className="h-4 w-4" />

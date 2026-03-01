@@ -245,6 +245,19 @@ class DemoStoreService {
         window.dispatchEvent(new Event("storage"));
     }
 
+    getSellerCommissionRate(seller: Seller): number {
+        if (seller.commission_rate !== undefined) {
+            return seller.commission_rate;
+        }
+
+        const plan = seller.subscription_plan || "Starter";
+        if (plan === "Starter") return 0.01;      // 1%
+        if (plan === "Pro") return 0.005;         // 0.5%
+        if (plan === "Growth" || plan === "Scale") return 0; // Free
+
+        return 0.01; // Default to Starter
+    }
+
     updateSellerCoverImage(id: string, url: string) {
         this.updateSeller(id, { cover_image_url: url });
     }

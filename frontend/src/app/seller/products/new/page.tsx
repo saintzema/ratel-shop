@@ -534,21 +534,23 @@ export default function NewProduct() {
                                 </div>
                             ) : priceAnalysis && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-                                    <div className={`p-4 rounded-xl border ${priceAnalysis.status === "fair" ? "bg-emerald-50 border-emerald-100" : "bg-rose-50 border-rose-100"}`}>
+                                    <div className={`p-4 rounded-xl border ${priceAnalysis.status === "fair" ? "bg-emerald-50 border-emerald-100" : priceAnalysis.status === "too_low" ? "bg-amber-50 border-amber-100" : "bg-rose-50 border-rose-100"}`}>
                                         <div className="flex items-center gap-2 mb-2">
                                             {priceAnalysis.status === "fair" ? (
                                                 <Check className="h-4 w-4 text-emerald-600" />
                                             ) : (
-                                                <Info className="h-4 w-4 text-rose-600" />
+                                                <Info className={`h-4 w-4 ${priceAnalysis.status === "too_low" ? "text-amber-600" : "text-rose-600"}`} />
                                             )}
-                                            <span className={`font-bold text-sm ${priceAnalysis.status === "fair" ? "text-emerald-700" : "text-rose-700"}`}>
-                                                {priceAnalysis.status === "fair" ? "Competitive Price" : "Above Market Average"}
+                                            <span className={`font-bold text-sm ${priceAnalysis.status === "fair" ? "text-emerald-700" : priceAnalysis.status === "too_low" ? "text-amber-700" : "text-rose-700"}`}>
+                                                {priceAnalysis.status === "fair" ? "Competitive Price" : priceAnalysis.status === "too_low" ? "Below Market Average" : "Above Market Average"}
                                             </span>
                                         </div>
                                         <p className="text-xs text-gray-600 leading-relaxed">
                                             {priceAnalysis.status === "fair"
                                                 ? "This price is optimized for high conversion. You qualify for the 'Fair Price' badge."
-                                                : `Your listing is above similar products. Consider lowering to boost sales.`
+                                                : priceAnalysis.status === "too_low"
+                                                    ? "Your listing is significantly below the market average. This might reduce your profit margins."
+                                                    : `Your listing is above similar products. Consider lowering to boost sales.`
                                             }
                                         </p>
                                     </div>

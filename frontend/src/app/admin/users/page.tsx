@@ -16,15 +16,26 @@ import {
     ShoppingBag,
     Star
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { DemoStore } from "@/lib/demo-store";
 
 export default function UserDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
     const [view, setView] = useState<"all" | "sellers" | "buyers">("all");
     const [participants, setParticipants] = useState<any[]>([]);
+
+    // Commission Edit State
+    const [editingCommissionSeller, setEditingCommissionSeller] = useState<any | null>(null);
+    const [commissionInput, setCommissionInput] = useState("");
 
     useEffect(() => {
         const load = () => {
@@ -54,6 +65,24 @@ export default function UserDirectory() {
         const matchesView = view === "all" || (view === "sellers" && p.role === "seller") || (view === "buyers" && p.role === "buyer");
         return matchesSearch && matchesView;
     });
+
+    const handleSaveCommission = () => {
+        if (!editingCommissionSeller) return;
+
+        const rate = parseFloat(commissionInput) / 100;
+        if (!isNaN(rate)) {
+            DemoStore.updateSeller(editingCommissionSeller.id, { commission_rate: rate });
+
+            // Update local state to reflect change immediately
+            setParticipants(prev => prev.map(p =>
+                p.id === editingCommissionSeller.id
+                    ? { ...p, commission_rate: rate }
+                    : p
+            ));
+        }
+
+        setEditingCommissionSeller(null);
+    };
 
     return (
         <div className="space-y-8">
@@ -178,8 +207,8 @@ export default function UserDirectory() {
                                         </div>
                                         {p.role === "seller" && (
                                             <div className="pl-4 border-l border-gray-100 min-w-16">
-                                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Growth</p>
-                                                <p className="text-xs font-black text-emerald-600">+12%</p>
+                                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Plan: {p.subscription_plan || "Starter"}</p>
+                                                <p className="text-xs font-black text-emerald-600">Fee: {DemoStore.getSellerCommissionRate(p) * 100}%</p>
                                             </div>
                                         )}
                                     </div>
@@ -192,6 +221,19 @@ export default function UserDirectory() {
                                         <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
                                             <Mail className="h-4 w-4" />
                                         </Button>
+                                        {p.role === "seller" && (
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-10 rounded-xl bg-white border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-xs px-3 shadow-sm"
+                                                onClick={() => {
+                                                    setEditingCommissionSeller(p);
+                                                    setCommissionInput((DemoStore.getSellerCommissionRate(p) * 100).toString());
+                                                }}
+                                            >
+                                                Edit Fee
+                                            </Button>
+                                        )}
                                         <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-rose-50 hover:text-rose-600 transition-colors">
                                             <Ban className="h-4 w-4" />
                                         </Button>
@@ -215,6 +257,40 @@ export default function UserDirectory() {
                     </div>
                 )}
             </div>
+
+            {/* Commission Edit Dialog */}
+            <Dialog open={!!editingCommissionSeller} onOpenChange={(open) => !open && setEditingCommissionSeller(null)}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900">Platform Service Charge Override</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4 mt-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="commission" className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Custom Commission Rate (%)
+                            </Label>
+                            <Input
+                                id="commission"
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                max="100"
+                                value={commissionInput}
+                                onChange={(e) => setCommissionInput(e.target.value)}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                                placeholder="e.g. 1.5"
+                            />
+                            <p className="text-xs font-medium text-gray-500 mt-1">
+                                Enter the percentage the platform will take from {editingCommissionSeller?.business_name}'s released escrows. This overrides default Subscription Plan rates.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingCommissionSeller(null)}>Cancel</Button>
+                        <Button className="h-12 px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSaveCommission}>Save Rate</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

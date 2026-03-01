@@ -10,7 +10,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-export function NotificationBell() {
+export function NotificationBell({ variant = "light" }: { variant?: "light" | "dark" }) {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
@@ -80,9 +80,12 @@ export function NotificationBell() {
             <button
                 ref={bellRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 rounded-full hover:bg-white/10 transition-colors cursor-pointer"
+                className={cn(
+                    "relative p-2 rounded-full transition-colors cursor-pointer",
+                    variant === "light" ? "hover:bg-white/10" : "hover:bg-gray-100"
+                )}
             >
-                <Bell className="h-6 w-6 text-white animate-bell-swing" />
+                <Bell className={cn("h-6 w-6 animate-bell-swing", variant === "light" ? "text-white" : "text-gray-500 hover:text-gray-900")} />
                 {unreadCount > 0 && (
                     <span className="absolute top-1 right-1 h-4 w-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border border-transparent">
                         {unreadCount > 9 ? "9+" : unreadCount}

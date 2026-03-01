@@ -43,6 +43,7 @@ export interface Seller {
     subscription_plan?: "Starter" | "Pro" | "Growth" | "Scale";
     rating?: number;
     trust_score: number;
+    commission_rate?: number;
     status?: "pending" | "active" | "frozen" | "banned";
     kyc_status: "not_submitted" | "pending" | "approved" | "rejected";
     cover_image_url?: string;

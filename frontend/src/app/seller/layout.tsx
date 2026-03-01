@@ -217,7 +217,7 @@ export default function SellerLayout({
                             </div>
                         </div>
                         <div className="flex items-center gap-3">
-                            <NotificationBell />
+                            <NotificationBell variant="dark" />
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="relative h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm cursor-pointer p-0 overflow-hidden">

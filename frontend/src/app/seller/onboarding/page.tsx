@@ -88,7 +88,7 @@ export default function KYCOnboarding() {
         DemoStore.addNotification({
             userId: sellerId,
             type: "system",
-            message: `Welcome to FairPrice! Your business profile for ${businessName} has been created.`,
+            message: `Welcome to FairPrice! Your KYC details are currently under review. While you wait for verification, you can already start uploading products to your store.`,
             link: "/seller/settings"
         });
 
