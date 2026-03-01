@@ -31,6 +31,7 @@ export default function AdminDashboard() {
     const [kycs, setKycs] = useState<any[]>([]);
     const [openDisputeCount, setOpenDisputeCount] = useState(0);
     const [recentReviews, setRecentReviews] = useState<any[]>([]);
+    const [recentOrders, setRecentOrders] = useState<any[]>([]);
 
     const loadData = () => {
         setStats(DemoStore.getAdminStats());
@@ -38,6 +39,7 @@ export default function AdminDashboard() {
         setKycs(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending").slice(0, 3));
         setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
         setRecentReviews(DemoStore.getReviews().slice(0, 5));
+        setRecentOrders(DemoStore.getOrders().slice(0, 5));
     };
 
     useEffect(() => {
@@ -331,6 +333,85 @@ export default function AdminDashboard() {
                                 </div>
                             ))}
                         </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Recent Platform Orders */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <div>
+                        <h3 className="text-lg font-black text-gray-900 tracking-tight">Recent Platform Orders</h3>
+                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Global Trading Activity</p>
+                    </div>
+                    <Link href="/admin/orders">
+                        <Button variant="ghost" size="sm" className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                            View All <ChevronRight className="ml-1 h-3 w-3" />
+                        </Button>
+                    </Link>
+                </div>
+                <div className="p-0 overflow-x-auto">
+                    {recentOrders.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center p-12 text-center">
+                            <Package className="h-12 w-12 text-gray-300 mb-4 opacity-50" />
+                            <p className="text-sm font-bold text-gray-400">No orders processed yet.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
+                                    <th className="px-6 py-3">Order ID</th>
+                                    <th className="px-6 py-3">Customer</th>
+                                    <th className="px-6 py-3">Product</th>
+                                    <th className="px-6 py-3">Amount</th>
+                                    <th className="px-6 py-3">Status</th>
+                                    <th className="px-6 py-3">Shipping Info</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                                {recentOrders.map((order) => (
+                                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="px-6 py-4 font-mono text-xs text-gray-500">
+                                            {order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}
+                                        </td>
+                                        <td className="px-6 py-4 font-bold text-gray-900">
+                                            {order.customer_id.split('@')[0]}
+                                        </td>
+                                        <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate">
+                                            {order.product?.name || "Product"}
+                                        </td>
+                                        <td className="px-6 py-4 font-black text-gray-900">
+                                            ₦{order.amount.toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={cn(
+                                                "text-[10px] font-black uppercase px-2 py-1 rounded-full",
+                                                order.status === 'delivered' ? "bg-emerald-100 text-emerald-700" :
+                                                    order.status === 'shipped' ? "bg-blue-100 text-blue-700" :
+                                                        "bg-amber-100 text-amber-700"
+                                            )}>
+                                                {order.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-xs">
+                                            {order.status === 'shipped' || order.status === 'delivered' ? (
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="font-bold text-gray-900">{order.carrier || "Standard"}</span>
+                                                    <span className="text-[10px] text-gray-400 font-mono tracking-wider">{order.tracking_id || "N/A"}</span>
+                                                    {order.tracking_steps && order.tracking_steps.length > 0 && (
+                                                        <span className="text-[10px] text-indigo-500 font-bold mt-1">
+                                                            📍 {order.tracking_steps[order.tracking_steps.length - 1].location}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <span className="text-gray-400 italic text-[11px]">Awaiting Dispatch</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     )}
                 </div>
             </div>

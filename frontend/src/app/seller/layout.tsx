@@ -86,7 +86,7 @@ export default function SellerLayout({
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
-        { label: "Negotiations", href: "/seller/dashboard/negotiations", icon: MessageSquare, badge: pendingNegotiations > 0 ? pendingNegotiations.toString() : undefined },
+        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: pendingNegotiations > 0 ? pendingNegotiations.toString() : undefined },
         { label: "Payouts", href: "/seller/dashboard/payouts", icon: Wallet },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
@@ -129,9 +129,19 @@ export default function SellerLayout({
                             </div>
                             <div className="flex-1 min-w-0">
                                 <h2 className="font-bold text-sm text-gray-900 truncate tracking-tight">{currentSeller.business_name}</h2>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                    <span className="text-[11px] text-gray-500 font-medium">Verified Seller</span>
+                                <div className="flex flex-col gap-1 mt-0.5">
+                                    {currentSeller.verified && (
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            <span className="text-[11px] text-gray-500 font-medium">Verified Seller</span>
+                                        </div>
+                                    )}
+                                    {currentSeller.subscription_plan && currentSeller.subscription_plan !== "Starter" && (
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                            <span className="text-[11px] text-amber-600 font-bold tracking-tight">Premium Seller</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

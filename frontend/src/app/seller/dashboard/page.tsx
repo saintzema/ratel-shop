@@ -113,9 +113,16 @@ export default function SellerDashboard() {
     // Computed financials
     const escrowAmount = orders.filter(o => o.escrow_status === "held").reduce((sum, o) => sum + o.amount, 0);
     const releasedAmount = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + o.amount, 0);
-    const availableBalance = releasedAmount;
+
+    // Platform takes 5% commission on all released funds
+    const COMMISSION_RATE = 0.05;
+    const platformFee = releasedAmount * COMMISSION_RATE;
+    const availableBalance = releasedAmount - platformFee;
+
     const pendingNegs = negotiations.filter(n => n.status === "pending");
     const disputedOrders = orders.filter(o => o.escrow_status === "disputed");
+    const newOrders = orders.filter(o => o.status === "pending");
+    const returnedOrders = orders.filter(o => o.status === "returned");
 
     return (
         <div className="space-y-6 max-w-6xl">
@@ -153,18 +160,50 @@ export default function SellerDashboard() {
                 </div>
             )}
 
+            {/* New Orders Alert */}
+            {newOrders.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+                    <ShoppingBag className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-blue-800">
+                            {newOrders.length} new order{newOrders.length !== 1 ? "s" : ""} awaiting shipment
+                        </p>
+                        <p className="text-xs text-blue-600 mt-0.5">Ship orders quickly to maintain a high trust score.</p>
+                    </div>
+                    <Link href="/seller/orders" className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg border border-blue-200">
+                        Process Orders
+                    </Link>
+                </div>
+            )}
+
+            {/* Returns Alert */}
+            {returnedOrders.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                    <Package className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-amber-800">
+                            {returnedOrders.length} return request{returnedOrders.length !== 1 ? "s" : ""}
+                        </p>
+                        <p className="text-xs text-amber-600 mt-0.5">Please review pending returns and arrange for product pickup.</p>
+                    </div>
+                    <Link href="/seller/orders" className="text-xs font-bold text-amber-700 hover:text-amber-800 bg-white px-3 py-1.5 rounded-lg border border-amber-200">
+                        Review Returns
+                    </Link>
+                </div>
+            )}
+
             {/* Revenue & Escrow Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {/* Available Balance */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
                         <Wallet className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Balance</span>
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Payout</span>
                     </div>
                     <h3 className="text-3xl font-black text-gray-900 mt-2">
                         {formatPrice(availableBalance)}
                     </h3>
-                    <p className="text-[11px] text-gray-500 mt-1 mb-4">Ready for withdrawal</p>
+                    <p className="text-[11px] text-gray-500 mt-1 mb-4">After 5% platform commission fees</p>
                     {cashoutSuccess ? (
                         <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-100">
                             <CheckCircle className="h-4 w-4" />
@@ -220,69 +259,112 @@ export default function SellerDashboard() {
                 </div>
             </div>
 
-            {/* Recent Negotiations (max 3) */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                    <h3 className="font-bold text-sm flex items-center gap-2 text-gray-900">
-                        <MessageSquare className="h-4 w-4 text-blue-500" />
-                        Recent Negotiations
-                    </h3>
-                    <Link href="/seller/dashboard/negotiations" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 transition-colors">
-                        View All ({negotiations.length}) <ChevronRight className="h-3 w-3" />
-                    </Link>
-                </div>
+            {/* Recent Activity Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-                <div className="divide-y divide-gray-100">
-                    {pendingNegs.length === 0 ? (
-                        <div className="p-8 text-center text-gray-400 text-sm font-medium">No pending negotiations 🎉</div>
-                    ) : (
-                        pendingNegs.slice(0, 3).map((neg) => {
-                            const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts().find(p => p.id === neg.product_id);
-                            if (!product) return null;
+                {/* Recent Orders (max 3) */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 className="font-bold text-sm flex items-center gap-2 text-gray-900">
+                            <ShoppingBag className="h-4 w-4 text-emerald-500" />
+                            Recent Orders
+                        </h3>
+                        <Link href="/seller/orders" className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 transition-colors">
+                            View All ({newOrders.length}) <ChevronRight className="h-3 w-3" />
+                        </Link>
+                    </div>
 
-                            return (
-                                <div key={neg.id} className="p-5 hover:bg-gray-50/50 transition-colors">
-                                    <div className="flex justify-between items-start gap-4">
-                                        <div className="flex gap-4 flex-1 min-w-0">
-                                            <div className="h-14 w-14 bg-white rounded-xl border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1.5 object-contain">
-                                                <img src={product.image_url} className="w-full h-full mix-blend-multiply" alt="" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
-                                                <div className="flex items-center gap-3 mt-1.5">
-                                                    <span className="text-xs text-gray-400 font-semibold line-through">{formatPrice(product.price)}</span>
-                                                    <span className="text-sm font-black text-blue-600">{formatPrice(neg.proposed_price)}</span>
-                                                    <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700 py-0 flex h-5 px-1.5 items-center font-bold">
-                                                        -{Math.round((1 - neg.proposed_price / product.price) * 100)}%
-                                                    </Badge>
+                    <div className="divide-y divide-gray-100 flex-1">
+                        {newOrders.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No new orders yet 📦</div>
+                        ) : (
+                            newOrders.slice(0, 3).map((order) => {
+                                const product = order.product;
+                                if (!product) return null;
+
+                                return (
+                                    <div key={order.id} className="p-5 hover:bg-gray-50/50 transition-colors">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex gap-4 flex-1 min-w-0">
+                                                <div className="h-14 w-14 bg-white rounded-xl border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1.5">
+                                                    <img src={product.image_url} className="w-full h-full object-contain mix-blend-multiply" alt="" />
                                                 </div>
-                                                {neg.message && (
-                                                    <p className="text-xs text-gray-500 mt-2 line-clamp-1 italic text-balance border-l-2 border-gray-200 pl-2">"{neg.message}"</p>
-                                                )}
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
+                                                    <div className="flex items-center gap-3 mt-1 5">
+                                                        <span className="text-sm font-black text-emerald-600">{formatPrice(order.amount)}</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-gray-500 mt-1 font-medium bg-gray-100 inline-block px-2 py-0.5 rounded-md">#{order.id.split('-')[1] || order.id.substring(0, 8)}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex gap-2 shrink-0">
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleNegAction(neg.id, "accepted")}
-                                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-9 px-4 text-xs font-bold shadow-sm"
-                                            >
-                                                <CheckCircle className="h-4 w-4 mr-1.5" /> Accept
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => handleNegAction(neg.id, "rejected")}
-                                                className="border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-xl h-9 px-4 text-xs font-bold bg-white shadow-sm transition-colors"
-                                            >
-                                                <XCircle className="h-4 w-4 mr-1.5" /> Reject
-                                            </Button>
+                                            <Link href={`/seller/orders`}>
+                                                <Button size="sm" className="bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-xl h-8 px-3 text-xs font-bold shadow-sm transition-colors border">
+                                                    Process
+                                                </Button>
+                                            </Link>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })
-                    )}
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+
+                {/* Recent Negotiations (max 3) */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 className="font-bold text-sm flex items-center gap-2 text-gray-900">
+                            <MessageSquare className="h-4 w-4 text-blue-500" />
+                            Recent Negotiations
+                        </h3>
+                        <Link href="/seller/dashboard/negotiations" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 transition-colors">
+                            View All ({negotiations.length}) <ChevronRight className="h-3 w-3" />
+                        </Link>
+                    </div>
+
+                    <div className="divide-y divide-gray-100 flex-1">
+                        {pendingNegs.length === 0 ? (
+                            <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No pending negotiations 🎉</div>
+                        ) : (
+                            pendingNegs.slice(0, 3).map((neg) => {
+                                const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts().find(p => p.id === neg.product_id);
+                                if (!product) return null;
+
+                                return (
+                                    <div key={neg.id} className="p-5 hover:bg-gray-50/50 transition-colors">
+                                        <div className="flex justify-between items-start gap-4">
+                                            <div className="flex gap-4 flex-1 min-w-0">
+                                                <div className="h-14 w-14 bg-white rounded-xl border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1.5">
+                                                    <img src={product.image_url} className="w-full h-full mix-blend-multiply object-contain" alt="" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
+                                                    <div className="flex items-center gap-3 mt-1.5">
+                                                        <span className="text-xs text-gray-400 font-semibold line-through">{formatPrice(product.price)}</span>
+                                                        <span className="text-sm font-black text-blue-600">{formatPrice(neg.proposed_price)}</span>
+                                                        <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700 py-0 flex h-5 px-1.5 items-center font-bold">
+                                                            -{Math.round((1 - neg.proposed_price / product.price) * 100)}%
+                                                        </Badge>
+                                                    </div>
+                                                    {neg.message && (
+                                                        <p className="text-xs text-gray-500 mt-2 line-clamp-1 italic text-balance border-l-2 border-gray-200 pl-2">"{neg.message}"</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex flex-col gap-2 shrink-0">
+                                                <Button size="sm" onClick={() => handleNegAction(neg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-8 px-4 text-xs font-bold shadow-sm">
+                                                    <CheckCircle className="h-4 w-4 mr-1.5" /> Accept
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => handleNegAction(neg.id, "rejected")} className="border-gray-200 text-gray-600 hover:bg-red-50 hover:text-red-600 hover:border-red-200 rounded-xl h-8 px-4 text-xs font-bold bg-white shadow-sm transition-colors">
+                                                    <XCircle className="h-4 w-4 mr-1.5" /> Reject
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
                 </div>
             </div>
 

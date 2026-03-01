@@ -1,86 +1,87 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
     Users,
     Search,
     Filter,
-    Mail,
-    Phone,
-    MapPin,
     ArrowUpRight,
     Star,
-    MoreHorizontal
+    MessageSquare,
+    ChevronLeft,
+    ChevronRight,
+    MapPin
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-// Mock CRM Data
-const MOCK_CUSTOMERS = [
-    {
-        id: "cus_1",
-        name: "Abiola Ojo",
-        email: "abiola.o@example.com",
-        phone: "+234 801 234 5678",
-        location: "Lagos, Nigeria",
-        totalSpend: "₦450,000",
-        orders: 12,
-        source: "Instagram",
-        status: "VIP",
-        lastActive: "2 hours ago"
-    },
-    {
-        id: "cus_2",
-        name: "Sarah Ibrahim",
-        email: "sarah.ibr@example.com",
-        phone: "+234 705 987 6543",
-        location: "Abuja, Nigeria",
-        totalSpend: "₦125,500",
-        orders: 3,
-        source: "Direct Traffic",
-        status: "Active",
-        lastActive: "1 day ago"
-    },
-    {
-        id: "cus_3",
-        name: "Chukwudi Nze",
-        email: "chuks.n@example.com",
-        phone: "+234 812 345 6789",
-        location: "Port Harcourt, Nigeria",
-        totalSpend: "₦85,000",
-        orders: 2,
-        source: "Organic Search",
-        status: "New",
-        lastActive: "3 days ago"
-    },
-    {
-        id: "cus_4",
-        name: "Grace Etim",
-        email: "grace.e@example.com",
-        phone: "+234 903 456 7890",
-        location: "Calabar, Nigeria",
-        totalSpend: "₦0",
-        orders: 0,
-        source: "Facebook Ads",
-        status: "Lead",
-        lastActive: "5 mins ago"
-    },
-    {
-        id: "cus_5",
-        name: "David Adeleke",
-        email: "davido@example.com",
-        phone: "+234 802 111 2222",
-        location: "Lagos, Nigeria",
-        totalSpend: "₦1,250,000",
-        orders: 45,
-        source: "Referral",
-        status: "VIP",
-        lastActive: "Just now"
-    }
-];
+import { DemoStore } from "@/lib/demo-store";
+import { formatPrice } from "@/lib/utils";
+import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
 
 export default function CustomersCRMPage() {
+    const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState("");
+    const [filterBy, setFilterBy] = useState("all");
+    const [currentPage, setCurrentPage] = useState(1);
+    const [customers, setCustomers] = useState<any[]>([]);
+    const ITEMS_PER_PAGE = 5;
+
+    useEffect(() => {
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (!sellerId) return;
+
+        // Aggregate orders by customer to create the CRM list
+        const allOrders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+        const cusMap = new Map<string, any>();
+
+        allOrders.forEach(order => {
+            const cid = order.customer_id;
+            if (!cusMap.has(cid)) {
+                cusMap.set(cid, {
+                    id: cid,
+                    name: order.customer_name || "Unknown Customer",
+                    email: "Not Provided", // email is not stored on the Order object
+                    location: typeof order.shipping_address === 'string' ? order.shipping_address.split(',')[0] : "Unknown Location",
+                    totalSpend: 0,
+                    orders: 0,
+                    source: "FairPrice Store",
+                    lastActive: new Date(order.created_at),
+                    status: "Active"
+                });
+            }
+            const c = cusMap.get(cid);
+            c.totalSpend += order.amount;
+            c.orders += 1;
+            const orderDate = new Date(order.created_at);
+            if (orderDate > c.lastActive) c.lastActive = orderDate;
+        });
+
+        // Determine VIP Status
+        const cList = Array.from(cusMap.values()).map(c => ({
+            ...c,
+            status: c.totalSpend > 500000 ? "VIP" : c.orders === 1 ? "New" : "Active"
+        }));
+
+        setCustomers(cList.sort((a, b) => b.totalSpend - a.totalSpend));
+    }, [user]);
+
+    const filteredCustomers = useMemo(() => {
+        return customers.filter(c => {
+            const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
+            if (filterBy === "vip" && c.status !== "VIP") return false;
+            if (filterBy === "new" && c.status !== "New") return false;
+            return true;
+        });
+    }, [customers, searchTerm, filterBy]);
+
+    const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE) || 1;
+    const paginatedCustomers = filteredCustomers.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+    const totalSpendAll = customers.reduce((sum, c) => sum + c.totalSpend, 0);
+    const avgLTV = customers.length > 0 ? totalSpendAll / customers.length : 0;
+    const vipCount = customers.filter(c => c.status === "VIP").length;
 
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20 p-4 sm:p-6 lg:p-8">
@@ -88,15 +89,13 @@ export default function CustomersCRMPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-gray-900 tracking-tight">Customer Directory</h1>
-                    <p className="text-sm text-gray-500 font-medium mt-1">Manage relationships, view purchase history, and track customer sources.</p>
+                    <p className="text-sm text-gray-500 font-medium mt-1">Manage relationships, view purchase history, and message buyers.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <Button variant="outline" className="rounded-xl border-gray-200">
                         Export CSV
                     </Button>
-                    <Button className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold tracking-wide shadow-indigo-600/20 shadow-lg">
-                        <Users className="h-4 w-4 mr-2" /> Add Customer
-                    </Button>
+                    {/* Add Customer button removed as requested */}
                 </div>
             </div>
 
@@ -108,7 +107,7 @@ export default function CustomersCRMPage() {
                     </div>
                     <div>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Contacts</p>
-                        <p className="text-2xl font-black text-gray-900">1,248</p>
+                        <p className="text-2xl font-black text-gray-900">{customers.length}</p>
                     </div>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-4">
@@ -117,7 +116,7 @@ export default function CustomersCRMPage() {
                     </div>
                     <div>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">VIP Customers</p>
-                        <p className="text-2xl font-black text-gray-900">42</p>
+                        <p className="text-2xl font-black text-gray-900">{vipCount}</p>
                     </div>
                 </div>
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm flex items-center gap-4">
@@ -126,7 +125,7 @@ export default function CustomersCRMPage() {
                     </div>
                     <div>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Avg. Lifetime Value</p>
-                        <p className="text-2xl font-black text-gray-900">₦84,500</p>
+                        <p className="text-2xl font-black text-gray-900">{formatPrice(avgLTV)}</p>
                     </div>
                 </div>
             </div>
@@ -139,15 +138,21 @@ export default function CustomersCRMPage() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                             value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            placeholder="Search by name, email, or phone..."
-                            className="pl-10 h-12 bg-white border-gray-200 rounded-xl focus-visible:ring-indigo-600 focus-visible:border-indigo-600 w-full"
+                            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            placeholder="Search by name or email..."
+                            className="pl-10 h-10 bg-white border-gray-200 rounded-xl focus-visible:ring-indigo-600 focus-visible:border-indigo-600 w-full"
                         />
                     </div>
                     <div className="flex items-center gap-3">
-                        <Button variant="outline" className="h-12 rounded-xl bg-white text-gray-600 font-bold">
-                            <Filter className="h-4 w-4 mr-2" /> Filter
-                        </Button>
+                        <select
+                            value={filterBy}
+                            onChange={(e) => { setFilterBy(e.target.value); setCurrentPage(1); }}
+                            className="h-10 rounded-xl bg-white border border-gray-200 text-sm font-medium text-gray-600 px-3 outline-none focus:ring-2 focus:ring-indigo-600"
+                        >
+                            <option value="all">All Customers</option>
+                            <option value="vip">VIP Only</option>
+                            <option value="new">New Customers</option>
+                        </select>
                     </div>
                 </div>
 
@@ -156,17 +161,22 @@ export default function CustomersCRMPage() {
                     <table className="w-full">
                         <thead>
                             <tr className="bg-white border-b border-gray-100 text-left">
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Customer</th>
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Contact Info</th>
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Customer Details</th>
                                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Orders & Spend</th>
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Acquisition Source</th>
+                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status / Last Active</th>
                                 <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {MOCK_CUSTOMERS.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.email.toLowerCase().includes(searchTerm.toLowerCase())).map((customer) => (
+                            {paginatedCustomers.length === 0 ? (
+                                <tr>
+                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
+                                        No customers found. Try adjusting your filters.
+                                    </td>
+                                </tr>
+                            ) : paginatedCustomers.map((customer) => (
                                 <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors group">
-                                    <td className="px-6 py-5">
+                                    <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-indigo-700 font-bold uppercase shrink-0">
                                                 {customer.name.charAt(0)}
@@ -187,36 +197,57 @@ export default function CustomersCRMPage() {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-5">
-                                        <div className="space-y-1">
-                                            <p className="text-sm text-gray-600 flex items-center gap-2">
-                                                <Mail className="h-3.5 w-3.5 text-gray-400" /> {customer.email}
-                                            </p>
-                                            <p className="text-sm text-gray-600 flex items-center gap-2">
-                                                <Phone className="h-3.5 w-3.5 text-gray-400" /> {customer.phone}
-                                            </p>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <p className="font-black text-gray-900">{customer.totalSpend}</p>
+                                    <td className="px-6 py-4">
+                                        <p className="font-black text-gray-900">{formatPrice(customer.totalSpend)}</p>
                                         <p className="text-xs text-gray-500 font-medium">{customer.orders} {customer.orders === 1 ? 'order' : 'orders'} total</p>
                                     </td>
-                                    <td className="px-6 py-5">
+                                    <td className="px-6 py-4">
                                         <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-700">
                                             {customer.source}
                                         </span>
-                                        <p className="text-[11px] text-gray-400 mt-1">Active {customer.lastActive}</p>
+                                        <p className="text-[11px] text-gray-400 mt-1">{customer.lastActive.toLocaleDateString()}</p>
                                     </td>
-                                    <td className="px-6 py-5 text-right">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
-                                            <MoreHorizontal className="h-5 w-5" />
-                                        </Button>
+                                    <td className="px-6 py-4 text-right">
+                                        <Link href={`/seller/dashboard/messages?customer=${customer.id}`}>
+                                            <Button variant="outline" size="sm" className="rounded-xl border-gray-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm font-bold gap-1.5 h-9">
+                                                <MessageSquare className="h-3.5 w-3.5" /> Message
+                                            </Button>
+                                        </Link>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="p-4 border-t border-gray-100 flex items-center justify-between bg-white px-6">
+                        <p className="text-sm font-medium text-gray-500">
+                            Showing <span className="font-bold text-gray-900">{((currentPage - 1) * ITEMS_PER_PAGE) + 1}</span> to <span className="font-bold text-gray-900">{Math.min(currentPage * ITEMS_PER_PAGE, filteredCustomers.length)}</span> of <span className="font-bold text-gray-900">{filteredCustomers.length}</span>
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-lg"
+                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0 rounded-lg"
+                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                disabled={currentPage === totalPages}
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

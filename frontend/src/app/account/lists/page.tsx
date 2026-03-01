@@ -65,8 +65,8 @@ export default function ListsPage() {
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
                             className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold transition-all ${activeTab === tab.key
-                                    ? "bg-gray-900 text-gray-900 shadow-lg"
-                                    : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+                                ? "bg-gray-900 text-white shadow-lg"
+                                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
                                 }`}
                         >
                             <tab.icon className="h-4 w-4" />
@@ -94,7 +94,7 @@ export default function ListsPage() {
                                     Tap the heart icon on any product to save it here for easy access later.
                                 </p>
                                 <Link href="/">
-                                    <Button className="rounded-full px-8 bg-gray-900 text-gray-900 hover:bg-gray-800 font-bold">
+                                    <Button className="rounded-full px-8 bg-gray-900 text-white hover:bg-gray-800 font-bold">
                                         Browse Products
                                     </Button>
                                 </Link>
@@ -106,9 +106,10 @@ export default function ListsPage() {
                                         <Link href={`/product/${product.id}`}>
                                             <div className="aspect-square bg-gray-50 p-4 relative">
                                                 <img
-                                                    src={product.image_url}
+                                                    src={product.image_url || product.images?.[0] || '/assets/images/placeholder.png'}
                                                     alt={product.name}
                                                     className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-300"
+                                                    onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
                                                 />
                                                 <button
                                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleFavorite(product.id); }}
@@ -161,7 +162,7 @@ export default function ListsPage() {
                                     Follow stores you love to see their products on your homepage and get notified about new listings.
                                 </p>
                                 <Link href="/">
-                                    <Button className="rounded-full px-8 bg-gray-900 text-gray-900 hover:bg-gray-800 font-bold">
+                                    <Button className="rounded-full px-8 bg-gray-900 text-white hover:bg-gray-800 font-bold">
                                         Discover Stores
                                     </Button>
                                 </Link>
@@ -192,7 +193,7 @@ export default function ListsPage() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <Link href={`/store/${seller.id}`}>
-                                                    <Button size="sm" className="rounded-full bg-gray-900 text-gray-900 hover:bg-gray-800 font-bold text-xs h-9 px-5">
+                                                    <Button size="sm" className="rounded-full bg-gray-900 text-white hover:bg-gray-800 font-bold text-xs h-9 px-5">
                                                         Visit Store <ChevronRight className="h-3.5 w-3.5 ml-1" />
                                                     </Button>
                                                 </Link>
@@ -214,9 +215,10 @@ export default function ListsPage() {
                                                         <Link key={product.id} href={`/product/${product.id}`} className="min-w-[140px] max-w-[140px] shrink-0 group/item">
                                                             <div className="aspect-square bg-gray-50 rounded-lg overflow-hidden border border-gray-100 mb-1.5 p-2">
                                                                 <img
-                                                                    src={product.image_url}
+                                                                    src={product.image_url || product.images?.[0] || '/assets/images/placeholder.png'}
                                                                     alt={product.name}
                                                                     className="w-full h-full object-contain mix-blend-multiply group-hover/item:scale-110 transition-transform duration-300"
+                                                                    onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
                                                                 />
                                                             </div>
                                                             <p className="text-xs text-gray-700 line-clamp-1 font-medium">{product.name}</p>

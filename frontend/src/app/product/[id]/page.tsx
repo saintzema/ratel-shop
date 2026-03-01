@@ -134,6 +134,10 @@ export default function ProductDetailPage() {
     const [newReview, setNewReview] = useState({ rating: 0, title: "", body: "" });
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
+    // Seller Reply States
+    const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
+    const [replyText, setReplyText] = useState("");
+
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -247,8 +251,17 @@ export default function ProductDetailPage() {
             { id: "r5", product_id: product?.id || "", user_id: "u5", user_name: "Ngozi Okafor", rating: 5, title: "Perfect gift for my husband", body: `Bought ${pName} for my husband's birthday and he hasn't stopped talking about it. ${pCat === 'electronics' || pCat === 'phones' ? 'The battery life is surprisingly good.' : 'The quality is great.'} Best price I could find online across Jumia and Konga.`, verified_purchase: true, helpful_count: 8, images: [], created_at: new Date(Date.now() - 86400000 * 25).toISOString() },
         ];
     }
+    const canUserReview = useMemo(() => {
+        if (!user) return false;
+        if (user.role === "seller" && product?.seller_id === user.id) return false;
 
-
+        const orders = DemoStore.getOrders();
+        return orders.some(o =>
+            o.customer_id === user.id &&
+            o.status === "delivered" &&
+            o.product_id === product?.id
+        );
+    }, [user, product?.id, product?.seller_id]);
 
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const allImages = [product?.image_url, ...(product?.images || [])].filter(Boolean);
@@ -524,7 +537,7 @@ export default function ProductDetailPage() {
 
                             {/* Main Image View */}
                             <div
-                                className="flex-1 bg-gray-50 rounded-2xl p-8 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex items-center justify-center order-1 md:order-2 aspect-square md:aspect-auto"
+                                className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex items-center justify-center order-1 md:order-2 aspect-square md:aspect-auto"
                                 onClick={handleDoubleTap}
                             >
                                 {allImages.length > 0 ? (
@@ -535,7 +548,7 @@ export default function ProductDetailPage() {
                                         onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
                                     />
                                 ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center p-8">
+                                    <div className="w-full h-full flex flex-col items-center justify-center p-2">
                                         <img
                                             src="/assets/images/placeholder.png"
                                             alt="No image available"
@@ -683,8 +696,18 @@ export default function ProductDetailPage() {
                                 <h3 className="font-bold text-gray-900">{seller.business_name}</h3>
                                 <div className="flex items-center gap-2 text-xs text-gray-500">
                                     <span>{seller.trust_score}% Trust Score</span>
-                                    <span>•</span>
-                                    <span>{seller.verified ? 'Verified Seller' : 'Unverified'}</span>
+                                    {seller.verified && (
+                                        <>
+                                            <span>•</span>
+                                            <span className="text-emerald-600 font-bold">Verified Seller</span>
+                                        </>
+                                    )}
+                                    {seller.subscription_plan && seller.subscription_plan !== "Starter" && (
+                                        <>
+                                            <span>•</span>
+                                            <span className="text-amber-600 font-bold">Premium Seller</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                             <Link href={`/store/${seller.id}`} className="ml-auto">
@@ -693,7 +716,7 @@ export default function ProductDetailPage() {
                         </div>
 
                         {/* About This Item (Highlights & Key Specs) */}
-                        {(keyFeatures.length > 0 || sizeInfo || weightInfo || ageTarget) && (
+                        {(keyFeatures.length > 0 || sizeInfo || weightInfo || ageTarget || product.subcategory || (product.colors && product.colors.length > 0)) && (
                             <div className="mb-12 bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-100 p-8">
                                 <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
                                     <Tag className="h-5 w-5 text-ratel-green-600" />
@@ -726,6 +749,28 @@ export default function ProductDetailPage() {
                                             <div className="flex flex-col">
                                                 <span className="text-[10px] uppercase font-bold text-gray-400">Weight</span>
                                                 <span className="text-xs font-semibold text-gray-900">{weightInfo}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {product.subcategory && (
+                                        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2">
+                                            <Tag className="h-4 w-4 text-purple-500" />
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase font-bold text-gray-400">Type</span>
+                                                <span className="text-xs font-semibold text-gray-900">{product.subcategory}</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {product.colors && product.colors.length > 0 && (
+                                        <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-4 py-2">
+                                            <Paintbrush className="h-4 w-4 text-pink-500" />
+                                            <div className="flex flex-col">
+                                                <span className="text-[10px] uppercase font-bold text-gray-400">Available Colors</span>
+                                                <div className="flex gap-1 mt-0.5 mt-0.5 flex-wrap">
+                                                    {product.colors.filter(Boolean).map((color, idx) => (
+                                                        <span key={idx} className="text-[10px] font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{color}</span>
+                                                    ))}
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -789,14 +834,19 @@ export default function ProductDetailPage() {
                                         <h3 className="text-lg font-bold text-gray-900">{seller.business_name}</h3>
                                     </Link>
                                     <p className="text-sm text-gray-600 mt-1 leading-relaxed">{seller.description}</p>
-                                    <div className="flex items-center gap-4 mt-3">
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-3">
                                         <div className="flex items-center gap-1 text-sm">
                                             <ShieldCheck className="h-4 w-4 text-ratel-green-500" />
                                             <span className="font-semibold text-gray-700">{seller.trust_score}% Trust</span>
                                         </div>
                                         {seller.verified && (
-                                            <Badge className="bg-ratel-green-50 text-ratel-green-700 border-ratel-green-200 text-xs">
+                                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs">
                                                 ✓ Verified Seller
+                                            </Badge>
+                                        )}
+                                        {seller.subscription_plan && seller.subscription_plan !== "Starter" && (
+                                            <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
+                                                ★ Premium Seller
                                             </Badge>
                                         )}
                                         {seller.created_at && (
@@ -814,7 +864,7 @@ export default function ProductDetailPage() {
                     </div>
                     {/* Right Column (Cart side drawer placeholder) */}
 
-                    <div className="lg:col-span-3 space-y-6">
+                    <div className="lg:col-span-3 space-y-4">
                         <div className="sticky top-24 border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
                             {/* Temu-style Buy Box */}
                             <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -826,9 +876,9 @@ export default function ProductDetailPage() {
                             <div className="p-4 border-b border-gray-100 bg-emerald-50/50">
                                 <div className="flex items-center gap-2 text-sm text-emerald-700 font-bold mb-1">
                                     <CheckCircle2 className="h-4 w-4" />
-                                    <span>Free shipping on immediate payment orders</span>
+                                    <span>Free shipping with online payment.</span>
                                 </div>
-                                <p className="text-xs text-emerald-600/80 pl-6">Delivery guarantee • Refund for any issues• ₦Refund for any issues</p>
+                                <p className="text-xs text-emerald-600/80 pl-6">Delivery guarantee • ₦1000 Refund for late delivery</p>
                             </div>
 
                             <div className="p-5 flex flex-col gap-5">
@@ -1003,7 +1053,7 @@ export default function ProductDetailPage() {
                         <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2 px-1">
                             <Share2 className="h-5 w-5 text-emerald-600" /> Share With Friends
                         </h2>
-                        <div className="grid grid-cols-4 gap-3 sm:gap-4">
+                        <div className="grid grid-cols-4 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
                             <a
                                 href={`https://wa.me/?text=${encodeURIComponent(product.name + ' — ₦' + product.price.toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? window.location.href : ''))}`}
                                 target="_blank"
@@ -1065,19 +1115,21 @@ export default function ProductDetailPage() {
                     <div className="mb-12" id="reviews-section">
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-xl font-black text-gray-900">Customer Reviews</h2>
-                            <Button
-                                variant="outline"
-                                className="font-bold rounded-full border-gray-300 hover:bg-gray-50"
-                                onClick={() => {
-                                    if (!user) {
-                                        router.push('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
-                                    } else {
-                                        setIsWritingReview(!isWritingReview);
-                                    }
-                                }}
-                            >
-                                {isWritingReview ? "Cancel Review" : "Write a Review"}
-                            </Button>
+                            {canUserReview && (
+                                <Button
+                                    variant="outline"
+                                    className="font-bold rounded-full border-gray-300 hover:bg-gray-50"
+                                    onClick={() => {
+                                        if (!user) {
+                                            router.push('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
+                                        } else {
+                                            setIsWritingReview(!isWritingReview);
+                                        }
+                                    }}
+                                >
+                                    {isWritingReview ? "Cancel Review" : "Write a Review"}
+                                </Button>
+                            )}
                         </div>
 
                         {/* Leave a Review Form */}
@@ -1188,6 +1240,50 @@ export default function ProductDetailPage() {
                                             </div>
                                             <p className="text-sm text-gray-600 leading-relaxed">{review.body}</p>
                                             <p className="text-xs text-gray-400 mt-2">{new Date(review.created_at).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })}</p>
+
+                                            {/* Seller Reply Section */}
+                                            {review.seller_reply && (
+                                                <div className="mt-4 pl-4 border-l-2 border-ratel-green-200 bg-ratel-green-50/50 p-3 rounded-r-xl">
+                                                    <p className="text-xs font-bold text-gray-900 mb-1">Response from {product?.seller_name || 'Seller'}</p>
+                                                    <p className="text-sm text-gray-600 italic">"{review.seller_reply}"</p>
+                                                </div>
+                                            )}
+                                            {user?.id === product?.seller_id && !review.seller_reply && (
+                                                <div className="mt-3">
+                                                    {replyingToReviewId === review.id ? (
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={replyText}
+                                                                onChange={(e) => setReplyText(e.target.value)}
+                                                                className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-ratel-green-500"
+                                                                placeholder="Write a reply..."
+                                                            />
+                                                            <Button
+                                                                size="sm"
+                                                                className="bg-ratel-green-600 hover:bg-ratel-green-700 h-auto py-1.5 text-white"
+                                                                onClick={() => {
+                                                                    if (replyText.trim()) {
+                                                                        review.seller_reply = replyText;
+                                                                        setReplyingToReviewId(null);
+                                                                        setReplyText("");
+                                                                    }
+                                                                }}
+                                                            >
+                                                                Reply
+                                                            </Button>
+                                                            <Button size="sm" variant="outline" className="h-auto py-1.5" onClick={() => setReplyingToReviewId(null)}>Cancel</Button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => { setReplyingToReviewId(review.id); setReplyText(""); }}
+                                                            className="text-xs font-bold text-ratel-green-600 hover:underline flex items-center gap-1"
+                                                        >
+                                                            <MessageSquare className="h-3 w-3" /> Reply as Seller
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     ))
                                 )}

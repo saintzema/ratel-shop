@@ -208,6 +208,7 @@ export default function Home() {
   const fitnessProducts = allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")).slice(0, 12);
   const groceryProducts = allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")).slice(0, 12);
   const topPicks = allProducts.slice(0, 30);
+  const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
 
   // ─── From Stores You Follow ──────────────
   const { favoriteStores } = useFavorites();
@@ -285,6 +286,13 @@ export default function Home() {
             {mounted && (
               <section className="container mx-auto px-4 mb-6 relative z-40">
                 <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} />
+              </section>
+            )}
+
+            {/* ═══ Sponsored Products Scroller ═══ */}
+            {mounted && sponsoredProducts.length > 0 && (
+              <section className="container mx-auto px-4 mb-6 relative z-30">
+                <ProductSlider title="Sponsored Collections" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} />
               </section>
             )}
 

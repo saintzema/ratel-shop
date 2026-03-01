@@ -263,6 +263,17 @@ class DemoStoreService {
             link: `/account/orders`
         });
 
+        // Notify Seller
+        const seller = this.getSellers().find(s => s.id === product.seller_id);
+        if (seller) {
+            this.addNotification({
+                userId: seller.owner_email,
+                type: "order",
+                message: `New order #${orderId.substring(0, 8)} for ${product.name}. Please process for shipment.`,
+                link: `/seller/orders`
+            });
+        }
+
         window.dispatchEvent(new Event("storage"));
         // Custom event so we can listen specifically for this
         window.dispatchEvent(new Event("demo-store-update"));
@@ -551,6 +562,112 @@ class DemoStoreService {
             }
         } catch { }
     }
+    // --- Negotiation Chat Messaging ---
+    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string) {
+        const stored = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
+        if (!stored) return;
+        const negs = JSON.parse(stored);
+        const idx = negs.findIndex((n: any) => n.id === negId);
+        if (idx === -1) return;
+        if (!negs[idx].chat_messages) negs[idx].chat_messages = [];
+        negs[idx].chat_messages.push({ sender, text, timestamp: new Date().toISOString() });
+        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    // --- Promotions ---
+    private PROMO_KEY = "fp_promotions";
+    private PROMO_PLANS: Record<string, { days: number; price: number }> = {
+        "7_day": { days: 7, price: 5000 },
+        "14_day": { days: 14, price: 8500 },
+        "30_day": { days: 30, price: 15000 },
+    };
+
+    createPromotion(productId: string, sellerId: string, plan: "7_day" | "14_day" | "30_day") {
+        const planInfo = this.PROMO_PLANS[plan];
+        const now = new Date();
+        const promo = {
+            id: `promo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            product_id: productId,
+            seller_id: sellerId,
+            plan,
+            amount_paid: planInfo.price,
+            started_at: now.toISOString(),
+            expires_at: new Date(now.getTime() + planInfo.days * 24 * 60 * 60 * 1000).toISOString(),
+            status: "active" as const,
+            impressions: 0,
+            clicks: 0,
+        };
+        const stored = localStorage.getItem(this.PROMO_KEY);
+        const all = stored ? JSON.parse(stored) : [];
+        all.push(promo);
+        localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
+        // Mark product as sponsored
+        this.updateProduct(productId, { is_sponsored: true });
+        window.dispatchEvent(new Event("storage"));
+        return promo;
+    }
+
+    getPromotions(sellerId?: string): any[] {
+        const stored = localStorage.getItem(this.PROMO_KEY);
+        const all = stored ? JSON.parse(stored) : [];
+        // Auto-expire
+        const now = new Date().getTime();
+        let changed = false;
+        for (const p of all) {
+            if (p.status === "active" && new Date(p.expires_at).getTime() < now) {
+                p.status = "ended";
+                this.updateProduct(p.product_id, { is_sponsored: false });
+                changed = true;
+            }
+        }
+        if (changed) localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
+        return sellerId ? all.filter((p: any) => p.seller_id === sellerId) : all;
+    }
+
+    getActivePromotions(): any[] {
+        return this.getPromotions().filter((p: any) => p.status === "active");
+    }
+
+    endPromotion(promoId: string) {
+        const stored = localStorage.getItem(this.PROMO_KEY);
+        if (!stored) return;
+        const all = JSON.parse(stored);
+        const promo = all.find((p: any) => p.id === promoId);
+        if (promo) {
+            promo.status = "ended";
+            this.updateProduct(promo.product_id, { is_sponsored: false });
+            localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
+            window.dispatchEvent(new Event("storage"));
+        }
+    }
+
+    extendPromotion(promoId: string, days: number) {
+        const stored = localStorage.getItem(this.PROMO_KEY);
+        if (!stored) return;
+        const all = JSON.parse(stored);
+        const promo = all.find((p: any) => p.id === promoId);
+        if (promo) {
+            const current = new Date(promo.expires_at).getTime();
+            promo.expires_at = new Date(current + days * 24 * 60 * 60 * 1000).toISOString();
+            if (promo.status === "ended") {
+                promo.status = "active";
+                this.updateProduct(promo.product_id, { is_sponsored: true });
+            }
+            localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
+            window.dispatchEvent(new Event("storage"));
+        }
+    }
+
+    getPromoPlan(plan: string) { return this.PROMO_PLANS[plan]; }
+
+    // --- Platform Commission ---
+    static PLATFORM_COMMISSION = 0.05; // 5% commission
+
+    getSellerPayout(orderAmount: number) {
+        const commission = orderAmount * DemoStoreService.PLATFORM_COMMISSION;
+        return { commission, payout: orderAmount - commission, rate: DemoStoreService.PLATFORM_COMMISSION };
+    }
 
     // --- Admin & Governance ---
     getAdminStats() {
@@ -591,6 +708,49 @@ class DemoStoreService {
         const payouts = this.getPayouts();
         const updated = payouts.map(p => p.id === id ? { ...p, status } : p);
         localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(updated));
+
+        // If completed, update the orders that were cashed out
+        if (status === "completed") {
+            const currentPayout = payouts.find(p => p.id === id);
+            if (currentPayout && currentPayout.order_ids) {
+                const orders = this.getOrders();
+                const updatedOrders = orders.map(o =>
+                    currentPayout.order_ids.includes(o.id) ? { ...o, payout_status: "cashed_out" } : o
+                );
+                localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+                window.dispatchEvent(new Event("demo-store-update"));
+            }
+        }
+    }
+
+    requestPayout(sellerId: string, orderIds: string[], amount: number, method: string, bank: string, account_last4: string) {
+        const payouts = this.getPayouts();
+        const seller = this.getSellers().find(s => s.id === sellerId);
+        if (!seller) return;
+
+        const newPayout = {
+            id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            seller_id: sellerId,
+            seller_name: seller.business_name,
+            amount,
+            status: "processing",
+            order_ids: orderIds,
+            method,
+            bank,
+            account_last4,
+            created_at: new Date().toISOString()
+        };
+
+        localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify([newPayout, ...payouts]));
+
+        // Mark orders as pending_payout
+        const orders = this.getOrders();
+        const updatedOrders = orders.map(o =>
+            orderIds.includes(o.id) ? { ...o, payout_status: "pending_payout" } : o
+        );
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+
+        window.dispatchEvent(new Event("storage"));
     }
 
     getKYCSubmissions(): KYCSubmission[] {

@@ -647,7 +647,7 @@ export function ZivaChat() {
     };
 
     return (
-        <div className="fixed bottom-[140px] md:bottom-6 right-4 z-[9999] pointer-events-none">
+        <div className="fixed bottom-6 left-4 z-[9999] pointer-events-none">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
@@ -655,7 +655,7 @@ export function ZivaChat() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="absolute bottom-16 right-0 w-[calc(100vw-3rem)] max-w-[360px] md:w-[420px] md:max-w-none h-[70vh] max-h-[550px] md:h-[85vh] md:max-h-[680px] flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-right"
+                        className="absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none h-[75vh] max-h-[600px] md:h-[70vh] md:max-h-[600px] flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-left"
                         style={{ background: "rgba(15, 15, 20, 0.95)", backdropFilter: "blur(40px) saturate(180%)" }}
                     >
                         {/* Header */}

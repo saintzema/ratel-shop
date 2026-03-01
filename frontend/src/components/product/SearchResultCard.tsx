@@ -10,6 +10,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DemoStore } from "@/lib/demo-store";
 
 // Category icon map for product image fallback
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -54,6 +55,9 @@ export function SearchResultCard({
     const lastTapRef = useRef<number>(0);
     const [showHeartBurst, setShowHeartBurst] = useState(false);
     const [imgError, setImgError] = useState(false);
+
+    // Fetch seller dynamically
+    const seller = DemoStore.getSellers().find(s => s.id === product.seller_id);
 
     const handleDoubleTap = () => {
         const now = Date.now();
@@ -149,8 +153,11 @@ export function SearchResultCard({
                 </Link>
                 <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
                     <span>by <span className="text-blue-600 hover:underline cursor-pointer font-medium">{product.seller_name}</span></span>
-                    {product.price_flag === "fair" && (
+                    {seller?.verified && (
                         <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
+                    )}
+                    {seller?.subscription_plan && seller.subscription_plan !== "Starter" && (
+                        <Badge variant="outline" className="text-[9px] border-amber-200 bg-amber-50 text-amber-700 py-0 px-1.5 h-4">Premium Seller</Badge>
                     )}
                 </div>
 

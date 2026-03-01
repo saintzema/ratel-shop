@@ -298,6 +298,10 @@ export default function CategoriesPage() {
 
     // Apply sorting
     const sortedProducts = [...products].sort((a, b) => {
+        // ALWAYS put sponsored products first
+        if (a.is_sponsored && !b.is_sponsored) return -1;
+        if (!a.is_sponsored && b.is_sponsored) return 1;
+
         switch (sortBy) {
             case "price_low": return (a.price || 0) - (b.price || 0);
             case "price_high": return (b.price || 0) - (a.price || 0);
@@ -461,6 +465,13 @@ export default function CategoriesPage() {
                                             className="w-full h-full object-cover transition-transform duration-500"
                                             onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
                                         />
+
+                                        {/* Sponsored Badge */}
+                                        {product.is_sponsored && (
+                                            <div className="absolute top-2 left-2 bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm z-10 uppercase tracking-widest flex items-center gap-1">
+                                                <span>Sponsored</span>
+                                            </div>
+                                        )}
 
                                         {/* Cart Button */}
                                         <button

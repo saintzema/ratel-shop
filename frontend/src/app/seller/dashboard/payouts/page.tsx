@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
     Wallet, ArrowUpRight, Lock, ShieldCheck, CheckCircle,
-    Clock, Building2, Pencil, X, Save, Download, FileText
+    Clock, Building2, Pencil, X, Save, Download, FileText, CheckSquare, Square
 } from "lucide-react";
 
 export default function PayoutsPage() {
@@ -22,6 +22,8 @@ export default function PayoutsPage() {
     const [accountNumber, setAccountNumber] = useState("");
     const [accountName, setAccountName] = useState("");
     const [savingBank, setSavingBank] = useState(false);
+    const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+    const [payouts, setPayouts] = useState<any[]>([]);
 
     useEffect(() => {
         const sellerId = DemoStore.getCurrentSellerId();
@@ -33,18 +35,48 @@ export default function PayoutsPage() {
             setBankName(s?.bank_name || "");
             setAccountNumber(s?.account_number || "");
             setAccountName(s?.account_name || "");
+            const allPayouts = DemoStore.getPayouts();
+            setPayouts(allPayouts.filter(p => p.seller_id === sellerId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         };
         loadData();
         window.addEventListener("storage", loadData);
         return () => window.removeEventListener("storage", loadData);
     }, []);
 
-    const escrowAmount = orders.filter(o => o.escrow_status === "held").reduce((sum, o) => sum + (o.amount || 0), 0);
-    const releasedAmount = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + (o.amount || 0), 0);
-    const availableBalance = DEMO_SELLER_STATS.total_revenue - escrowAmount;
+    const escrowAmount = orders.filter(o => o.escrow_status === "held" || o.escrow_status === "disputed").reduce((sum, o) => sum + (o.amount || 0), 0);
+    const releasedOrders = orders.filter(o => o.escrow_status === "released");
+    const eligibleOrders = releasedOrders.filter(o => !o.payout_status);
+    const pendingPayoutAmount = orders.filter(o => o.payout_status === "pending_payout").reduce((sum, o) => sum + (o.amount || 0), 0);
+    const completedPayoutAmount = orders.filter(o => o.payout_status === "cashed_out").reduce((sum, o) => sum + (o.amount || 0), 0);
+
+    // Auto-select all by default if empty initially
+    useEffect(() => {
+        if (eligibleOrders.length > 0 && selectedOrderIds.length === 0) {
+            setSelectedOrderIds(eligibleOrders.map(o => o.id));
+        }
+    }, [eligibleOrders.length]);
+
+    const selectedAmount = eligibleOrders.filter(o => selectedOrderIds.includes(o.id)).reduce((sum, o) => sum + (o.amount || 0), 0);
 
     const handleCashout = () => {
+        if (!seller || selectedOrderIds.length === 0 || !bankName || !accountNumber) {
+            alert("Please select orders to cashout and ensure your bank details are complete.");
+            return;
+        }
+
+        const payoutInfo = DemoStore.getSellerPayout(selectedAmount);
+
+        DemoStore.requestPayout(
+            seller.id,
+            selectedOrderIds,
+            payoutInfo.payout, // amount after commission
+            "Bank Transfer",
+            bankName,
+            accountNumber.slice(-4)
+        );
+
         setCashoutSuccess(true);
+        setSelectedOrderIds([]);
         setTimeout(() => setCashoutSuccess(false), 4000);
     };
 
@@ -61,12 +93,6 @@ export default function PayoutsPage() {
         ? "**** **** " + seller.account_number.slice(-4)
         : "Not set";
 
-    const payoutHistory = [
-        { id: "pay_1", amount: 2500000, status: "completed", date: "Feb 5, 2026", method: "Bank Transfer", txId: "TXN-982374-ABCD" },
-        { id: "pay_2", amount: 1800000, status: "completed", date: "Jan 28, 2026", method: "Bank Transfer", txId: "TXN-102938-WXYZ" },
-        { id: "pay_3", amount: 950000, status: "processing", date: "Feb 12, 2026", method: "Mobile Money", txId: "TXN-PENDING-456" },
-    ];
-
     return (
         <div className="space-y-6 max-w-4xl">
             <div>
@@ -79,18 +105,29 @@ export default function PayoutsPage() {
                 <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
                     <div className="relative">
-                        <div className="flex items-center gap-2 mb-1">
-                            <Wallet className="h-4 w-4 text-emerald-200" />
-                            <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider">Available</span>
+                        <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                                <Wallet className="h-4 w-4 text-emerald-200" />
+                                <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider">Available for Cashout</span>
+                            </div>
                         </div>
-                        <h3 className="text-3xl font-black mt-2">{formatPrice(availableBalance)}</h3>
-                        <p className="text-xs text-emerald-200 mt-1">Ready for withdrawal</p>
+                        <h3 className="text-3xl font-black mt-2">{formatPrice(selectedAmount)}</h3>
+                        <p className="text-[10px] text-emerald-200 mt-1 flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3" />
+                            {selectedAmount > 0
+                                ? `After 5% platform comm. (Est. ${formatPrice(DemoStore.getSellerPayout(selectedAmount).payout)})`
+                                : "Select orders below to cashout"}
+                        </p>
                         {cashoutSuccess ? (
                             <div className="flex items-center gap-2 mt-4 text-sm font-bold bg-white/20 px-4 py-2.5 rounded-xl">
                                 <CheckCircle className="h-4 w-4" /> Cashout request submitted!
                             </div>
                         ) : (
-                            <Button onClick={handleCashout} className="mt-4 w-full bg-white text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl h-10 shadow-md">
+                            <Button
+                                onClick={handleCashout}
+                                disabled={selectedOrderIds.length === 0}
+                                className="mt-4 w-full bg-white text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl h-10 shadow-md disabled:opacity-50"
+                            >
                                 <ArrowUpRight className="h-4 w-4 mr-2" /> Request Cashout
                             </Button>
                         )}
@@ -112,17 +149,69 @@ export default function PayoutsPage() {
 
                 <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
-                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Released</span>
+                        <Clock className="h-4 w-4 text-blue-500" />
+                        <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pending Payouts</span>
                     </div>
-                    <h3 className="text-3xl font-black text-emerald-600 mt-2">{formatPrice(releasedAmount)}</h3>
-                    <p className="text-xs text-gray-400 mt-1">Successfully settled</p>
+                    <h3 className="text-3xl font-black text-blue-600 mt-2">{formatPrice(pendingPayoutAmount)}</h3>
+                    <p className="text-xs text-gray-400 mt-1">Processing to your bank</p>
                     <div className="mt-4 w-full bg-gray-100 rounded-full h-2">
-                        <div className="h-full bg-emerald-400 rounded-full transition-all" style={{ width: `${Math.min((releasedAmount / (DEMO_SELLER_STATS.total_revenue || 1)) * 100, 100)}%` }} />
+                        <div className="h-full bg-blue-400 rounded-full transition-all" style={{ width: `100%` }} />
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-2">{orders.filter(o => o.escrow_status === "released").length} orders released</p>
+                    <p className="text-[10px] text-gray-400 mt-2">{payouts.filter(p => p.status === "processing").length} payouts processing</p>
                 </div>
             </div>
+
+            {/* Individual Eligible Orders Selection */}
+            {eligibleOrders.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="font-bold text-sm text-gray-900">Select Orders for Cashout</h2>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs gap-1 font-bold text-indigo-600"
+                            onClick={() => {
+                                if (selectedOrderIds.length === eligibleOrders.length) {
+                                    setSelectedOrderIds([]);
+                                } else {
+                                    setSelectedOrderIds(eligibleOrders.map(o => o.id));
+                                }
+                            }}
+                        >
+                            {selectedOrderIds.length === eligibleOrders.length ? "Deselect All" : "Select All"}
+                        </Button>
+                    </div>
+                    <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto">
+                        {eligibleOrders.map(order => (
+                            <div
+                                key={order.id}
+                                className="flex items-center gap-4 py-3 cursor-pointer hover:bg-gray-50 px-2 rounded-lg"
+                                onClick={() => {
+                                    if (selectedOrderIds.includes(order.id)) {
+                                        setSelectedOrderIds(selectedOrderIds.filter(id => id !== order.id));
+                                    } else {
+                                        setSelectedOrderIds([...selectedOrderIds, order.id]);
+                                    }
+                                }}
+                            >
+                                {selectedOrderIds.includes(order.id) ? (
+                                    <CheckSquare className="h-5 w-5 text-emerald-600" />
+                                ) : (
+                                    <Square className="h-5 w-5 text-gray-300" />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-900 truncate">{order.product?.name}</p>
+                                    <p className="text-[10px] text-gray-400 font-mono">Order: {order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-black text-gray-900">{formatPrice(order.amount)}</p>
+                                    <p className="text-[10px] text-gray-400">Delivered on {new Date(order.escrow_released_at || order.updated_at).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Bank account — Editable */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
@@ -213,11 +302,14 @@ export default function PayoutsPage() {
 
             {/* Payout History */}
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                     <h2 className="font-bold text-sm text-gray-900">Payout History</h2>
+                    <Badge variant="outline" className="text-[10px] bg-gray-50">{payouts.length} total</Badge>
                 </div>
-                <div className="divide-y divide-gray-50">
-                    {payoutHistory.map((payout) => (
+                <div className="divide-y divide-gray-50 max-h-[400px] overflow-y-auto">
+                    {payouts.length === 0 ? (
+                        <div className="p-8 text-center text-sm text-gray-400 font-medium">No payouts requested yet.</div>
+                    ) : payouts.map((payout) => (
                         <div key={payout.id} className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${payout.status === "completed" ? "bg-emerald-100" : "bg-amber-100"}`}>
@@ -225,8 +317,10 @@ export default function PayoutsPage() {
                                 </div>
                                 <div>
                                     <p className="font-bold text-sm text-gray-900">{formatPrice(payout.amount)}</p>
-                                    <p className="text-[11px] text-gray-400 font-medium">{payout.date} • {payout.method}</p>
-                                    <p className="text-[10px] text-gray-400 mt-0.5">Ref: {payout.txId}</p>
+                                    <p className="text-[11px] text-gray-400 font-medium">
+                                        {new Date(payout.created_at).toLocaleDateString()} • {payout.method} ••••{payout.account_last4}
+                                    </p>
+                                    <p className="text-[10px] text-gray-400 mt-0.5 font-mono">Ref: {payout.id}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -234,7 +328,7 @@ export default function PayoutsPage() {
                                     {payout.status === "completed" ? "Completed" : "Processing"}
                                 </Badge>
                                 {payout.status === "completed" && (
-                                    <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-gray-500 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => alert("Simulation: Downloading PDF Receipt for " + payout.txId)}>
+                                    <Button variant="ghost" size="sm" className="h-8 text-xs font-bold text-gray-500 hover:text-indigo-600 hover:bg-indigo-50" onClick={() => alert("Simulation: Downloading PDF Receipt for " + payout.id)}>
                                         <Download className="h-3 w-3 mr-1.5" /> Receipt
                                     </Button>
                                 )}

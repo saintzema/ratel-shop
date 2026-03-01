@@ -54,6 +54,13 @@ export const SearchGridCard = ({
       className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
+        {/* Sponsored Badge */}
+        {product.is_sponsored && (
+          <div className="absolute top-3 left-3 z-30 bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm uppercase tracking-widest flex items-center gap-1">
+            <span>Sponsored</span>
+          </div>
+        )}
+
         {product.price_flag === "fair" && (
           <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 bg-white/90 backdrop-blur-md rounded-full shadow border border-emerald-500/20">
             <ShieldCheck className="h-3 w-3 text-emerald-600" />

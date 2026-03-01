@@ -20,7 +20,8 @@ import {
     ExternalLink,
     RefreshCw,
     Loader2,
-    Edit2
+    Edit2,
+    Plus
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -37,10 +38,17 @@ export default function CatalogControl() {
 
     // Edit Modal State
     const [editingProduct, setEditingProduct] = useState<any | null>(null);
+    const [editName, setEditName] = useState("");
+    const [editCategory, setEditCategory] = useState("");
+    const [editSubcategory, setEditSubcategory] = useState("");
+    const [editColors, setEditColors] = useState("");
+    const [editDescription, setEditDescription] = useState("");
+    const [editSpecs, setEditSpecs] = useState<{ key: string; value: string }[]>([]);
     const [editPrice, setEditPrice] = useState("");
     const [editImage, setEditImage] = useState("");
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState("");
+    const [isGenerating, setIsGenerating] = useState(false);
 
     // Sync Modal State
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -77,6 +85,12 @@ export default function CatalogControl() {
     const handleEditSave = () => {
         if (editingProduct) {
             DemoStore.updateProduct(editingProduct.id, {
+                name: editName || editingProduct.name,
+                category: editCategory || editingProduct.category,
+                subcategory: editSubcategory,
+                colors: editColors.split(",").map(c => c.trim()).filter(Boolean),
+                description: editDescription || editingProduct.description,
+                specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                 price: parseFloat(editPrice) || editingProduct.price,
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
@@ -84,6 +98,37 @@ export default function CatalogControl() {
             });
             setEditingProduct(null);
         }
+    };
+
+    const handleAIGenerate = async () => {
+        if (!editName) return;
+        setIsGenerating(true);
+        try {
+            const res = await fetch("/api/gemini-seller", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productName: editName, category: editCategory })
+            });
+            if (res.ok) {
+                const content = await res.json();
+                setEditDescription(content.description || editDescription);
+                if (content.specs) {
+                    setEditSpecs(Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })));
+                }
+                setEditSubcategory(content.subcategory || editSubcategory);
+                if (content.colors) setEditColors(content.colors.join(", "));
+            }
+        } catch (error) {
+            console.error("AI Generation failed", error);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleSpecChange = (index: number, field: 'key' | 'value', value: string) => {
+        const newSpecs = [...editSpecs];
+        newSpecs[index] = { ...newSpecs[index], [field]: value };
+        setEditSpecs(newSpecs);
     };
 
     const handleInitiateSync = () => {
@@ -250,6 +295,12 @@ export default function CatalogControl() {
                                                     title="Edit product"
                                                     onClick={() => {
                                                         setEditingProduct(p);
+                                                        setEditName(p.name);
+                                                        setEditCategory(p.category || "");
+                                                        setEditSubcategory(p.subcategory || "");
+                                                        setEditColors(p.colors ? p.colors.join(", ") : "");
+                                                        setEditDescription(p.description || "");
+                                                        setEditSpecs(p.specs ? Object.entries(p.specs).map(([key, value]) => ({ key, value: String(value) })) : []);
                                                         setEditPrice(p.price.toString());
                                                         setEditImage(p.image_url);
                                                         setEditExternalUrl(p.external_url || "");
@@ -400,9 +451,20 @@ export default function CatalogControl() {
             <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
                 <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[85vh] overflow-y-auto">
                     <div className="p-8">
-                        <DialogHeader className="mb-6">
-                            <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Modify Details</DialogTitle>
-                            <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-1">{editingProduct?.name}</p>
+                        <DialogHeader className="mb-6 flex flex-row items-center justify-between">
+                            <div>
+                                <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Modify Details</DialogTitle>
+                                <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mt-1">{editingProduct?.name}</p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-xl text-xs font-black uppercase tracking-widest px-4 h-9"
+                                onClick={handleAIGenerate}
+                                disabled={isGenerating || !editName}
+                            >
+                                <RefreshCw className={cn("h-3 w-3", isGenerating && "animate-spin")} />
+                                {isGenerating ? "Generating..." : "AI Auto-Fill"}
+                            </Button>
                         </DialogHeader>
 
                         <div className="space-y-6">
@@ -422,7 +484,78 @@ export default function CatalogControl() {
                             </div>
 
                             <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Product Name</label>
+                                        <Input
+                                            value={editName}
+                                            onChange={(e) => setEditName(e.target.value)}
+                                            className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Category</label>
+                                        <select
+                                            className="w-full bg-gray-50 border border-gray-100 h-10 rounded-xl text-sm font-bold px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            value={editCategory}
+                                            onChange={(e) => setEditCategory(e.target.value)}
+                                        >
+                                            <option value="">Select Category</option>
+                                            <option value="phones">Phones & Tablets</option>
+                                            <option value="electronics">Electronics</option>
+                                            <option value="vehicles">Vehicles</option>
+                                            <option value="energy">Green Energy</option>
+                                            <option value="fashion">Fashion</option>
+                                            <option value="health">Health & Beauty</option>
+                                            <option value="home">Home & Living</option>
+                                            <option value="baby">Baby & Kids</option>
+                                            <option value="fitness">Sports & Fitness</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Subcategory</label>
+                                        <Input
+                                            value={editSubcategory}
+                                            onChange={(e) => setEditSubcategory(e.target.value)}
+                                            className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Colors</label>
+                                        <Input
+                                            value={editColors}
+                                            onChange={(e) => setEditColors(e.target.value)}
+                                            className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
+                                            placeholder="Comma separated"
+                                        />
+                                    </div>
+                                </div>
                                 <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Description</label>
+                                    <textarea
+                                        value={editDescription}
+                                        onChange={(e) => setEditDescription(e.target.value)}
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2">Specifications</label>
+                                    <div className="space-y-2">
+                                        {editSpecs.map((spec, i) => (
+                                            <div key={i} className="flex gap-2">
+                                                <Input value={spec.key} onChange={e => handleSpecChange(i, 'key', e.target.value)} placeholder="Key" className="bg-gray-50 h-9 text-xs font-bold" />
+                                                <Input value={spec.value} onChange={e => handleSpecChange(i, 'value', e.target.value)} placeholder="Value" className="bg-gray-50 h-9 text-xs min-w-[150px]" />
+                                                <Button size="icon" variant="ghost" onClick={() => setEditSpecs(editSpecs.filter((_, idx) => idx !== i))} className="h-9 w-9 text-rose-500 shrink-0"><Trash2 className="h-4 w-4" /></Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button variant="outline" size="sm" onClick={() => setEditSpecs([...editSpecs, { key: '', value: '' }])} className="text-xs h-8 mt-2 w-full border-dashed"><Plus className="h-3 w-3 mr-1" /> Add Spec</Button>
+                                </div>
+
+                                <div className="space-y-2 pt-4 border-t border-gray-100">
                                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Target Price (₦)</label>
                                     <Input
                                         type="number"

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle2, Crown, Zap, TrendingUp, ShieldCheck, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DemoStore } from "@/lib/demo-store";
 
 const PLANS = [
     {
@@ -19,8 +20,7 @@ const PLANS = [
             "Standard Support",
             "FairPrice Subdomain (.fairprice.ng)",
             "1 Staff Account"
-        ],
-        current: true
+        ]
     },
     {
         name: "Pro",
@@ -77,13 +77,28 @@ const PLANS = [
 export default function BillingPage() {
     const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">("monthly");
     const [processingPlan, setProcessingPlan] = useState<string | null>(null);
+    const [currentPlan, setCurrentPlan] = useState<string>("Starter");
+
+    useEffect(() => {
+        const seller = DemoStore.getCurrentSeller();
+        if (seller?.subscription_plan) {
+            setCurrentPlan(seller.subscription_plan);
+        }
+    }, []);
 
     const handleUpgrade = async (planName: string) => {
         setProcessingPlan(planName);
         // Simulate Paystack popup delay
         await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (sellerId) {
+            DemoStore.updateSeller(sellerId, { subscription_plan: planName as any });
+            setCurrentPlan(planName);
+            window.dispatchEvent(new Event("storage"));
+        }
+
         setProcessingPlan(null);
-        alert(`Integration Placeholder: Open Paystack Checkout for ${planName} Plan.`);
     };
 
     return (
@@ -116,6 +131,7 @@ export default function BillingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-7xl mx-auto">
                 {PLANS.map((plan) => {
                     const isProcessing = processingPlan === plan.name;
+                    const isCurrent = currentPlan === plan.name;
 
                     return (
                         <div
@@ -160,8 +176,8 @@ export default function BillingPage() {
 
                                 <Button
                                     onClick={() => handleUpgrade(plan.name)}
-                                    disabled={plan.current || isProcessing}
-                                    className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-items gap-2 items-center justify-center ${plan.current
+                                    disabled={isCurrent || isProcessing}
+                                    className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-items gap-2 items-center justify-center ${isCurrent
                                         ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
                                         : plan.popular
                                             ? 'bg-brand-green-600 hover:bg-brand-green-700 text-white shadow-brand-green-600/20 hover:shadow-lg'
@@ -169,7 +185,7 @@ export default function BillingPage() {
                                 >
                                     {isProcessing ? (
                                         <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />
-                                    ) : plan.current ? (
+                                    ) : isCurrent ? (
                                         <>Current Plan <Check className="h-4 w-4" /></>
                                     ) : (
                                         <>Upgrade to {plan.name} <ArrowRight className="h-4 w-4" /></>

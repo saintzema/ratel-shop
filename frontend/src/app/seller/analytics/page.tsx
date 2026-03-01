@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Download,
     TrendingUp,
@@ -9,19 +9,51 @@ import {
     FileText,
     ArrowUpRight,
     ArrowDownRight,
-    Activity
+    Activity,
+    Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DemoStore } from "@/lib/demo-store";
+import { formatPrice } from "@/lib/utils";
 
 export default function AnalyticsPage() {
     const [downloading, setDownloading] = useState<string | null>(null);
+    const [stats, setStats] = useState({ revenue: 0, orders: 0, conversion: 0, visits: 0 });
+    const [sellerName, setSellerName] = useState("");
+    const [isPrinting, setIsPrinting] = useState(false);
+
+    useEffect(() => {
+        const sellerId = DemoStore.getCurrentSellerId();
+        const seller = DemoStore.getCurrentSeller();
+        if (seller) setSellerName(seller.business_name);
+        if (!sellerId) return;
+
+        const loadData = () => {
+            const orders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+            const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
+            const totalOrders = orders.length;
+            const simulatedVisits = totalOrders === 0 ? 0 : totalOrders * 12 + Math.floor(Math.random() * 50);
+            const conversionRate = simulatedVisits === 0 ? 0 : (totalOrders / simulatedVisits) * 100;
+
+            setStats({
+                revenue: totalRevenue,
+                orders: totalOrders,
+                conversion: conversionRate,
+                visits: simulatedVisits
+            });
+        };
+        loadData();
+    }, []);
 
     const handleDownloadPDF = async (reportType: string) => {
         setDownloading(reportType);
-        // Simulate PDF generation delay
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setDownloading(null);
-        alert(`Integration Placeholder: jspdf / html2pdf.js will generate the ${reportType} report here and trigger a browser download.`);
+        setIsPrinting(true);
+        // Allow state to update and render the print view
+        setTimeout(() => {
+            window.print();
+            setIsPrinting(false);
+            setDownloading(null);
+        }, 500);
     };
 
     return (
@@ -35,12 +67,12 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
                 {[
-                    { title: "Total Revenue", value: "₦2.4M", trend: "+14.5%", up: true },
-                    { title: "Orders", value: "842", trend: "+5.2%", up: true },
-                    { title: "Conversion Rate", value: "3.2%", trend: "-0.4%", up: false },
-                    { title: "Store Visits", value: "14.2k", trend: "+22.1%", up: true }
+                    { title: "Total Revenue", value: formatPrice(stats.revenue), trend: "+14.5%", up: true },
+                    { title: "Orders", value: stats.orders.toString(), trend: "+5.2%", up: true },
+                    { title: "Conversion Rate", value: `${stats.conversion.toFixed(1)}%`, trend: "-0.4%", up: false },
+                    { title: "Store Visits", value: stats.visits.toLocaleString(), trend: "+22.1%", up: true }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white rounded-[24px] border border-gray-100 p-6 shadow-sm">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{stat.title}</p>
@@ -56,7 +88,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* Report Downloads Section */}
-            <div className="bg-white rounded-[32px] border border-gray-100 p-6 md:p-10 shadow-sm relative overflow-hidden">
+            <div className="bg-white rounded-[32px] border border-gray-100 p-6 md:p-10 shadow-sm relative overflow-hidden print:hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
 
                 <div className="relative z-10">
@@ -185,7 +217,7 @@ export default function AnalyticsPage() {
             </div>
 
             {/* In-app chart placeholder */}
-            <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm">
+            <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm print:hidden">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div>
                         <h3 className="text-lg font-bold text-gray-900 tracking-tight">Revenue Overview</h3>
@@ -207,6 +239,61 @@ export default function AnalyticsPage() {
                             <div className={`w-full h-full rounded-t-sm ${height === 100 ? 'bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]' : height > 70 ? 'bg-indigo-400' : 'bg-indigo-200'}`} />
                         </div>
                     ))}
+                </div>
+            </div>
+
+            {/* Print-Only Report Component */}
+            <style jsx global>{`
+                @media print {
+                    body * {
+                        visibility: hidden;
+                    }
+                    #print-report, #print-report * {
+                        visibility: visible;
+                    }
+                    #print-report {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                    }
+                }
+            `}</style>
+
+            <div id="print-report" className="hidden print:block p-8 bg-white text-black font-sans">
+                <div className="border-b-2 border-gray-900 pb-6 mb-8 flex justify-between items-end">
+                    <div>
+                        <h1 className="text-4xl font-black tracking-tighter">RatelShop</h1>
+                        <p className="text-gray-500 font-medium">Business Performance Report</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="font-bold text-xl">{sellerName}</p>
+                        <p className="text-sm text-gray-500">Report: {downloading || "Analytics Report"}</p>
+                        <p className="text-sm text-gray-500">Generated: {new Date().toLocaleDateString()}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-8 mb-12">
+                    <div className="border border-gray-200 p-6 rounded-2xl">
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Total Revenue</p>
+                        <p className="text-4xl font-black">{formatPrice(stats.revenue)}</p>
+                    </div>
+                    <div className="border border-gray-200 p-6 rounded-2xl">
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Total Orders</p>
+                        <p className="text-4xl font-black">{stats.orders}</p>
+                    </div>
+                    <div className="border border-gray-200 p-6 rounded-2xl">
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Store Visits</p>
+                        <p className="text-4xl font-black">{stats.visits.toLocaleString()}</p>
+                    </div>
+                    <div className="border border-gray-200 p-6 rounded-2xl">
+                        <p className="text-sm text-gray-500 uppercase tracking-widest font-bold mb-1">Conversion Rate</p>
+                        <p className="text-4xl font-black">{stats.conversion.toFixed(1)}%</p>
+                    </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-8 mt-12 text-center text-sm text-gray-400 font-medium">
+                    <p>This report was automatically generated from RatelShop Analytics.</p>
                 </div>
             </div>
         </div>

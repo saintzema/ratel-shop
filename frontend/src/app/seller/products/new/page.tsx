@@ -24,6 +24,8 @@ export default function NewProduct() {
         description: "",
         highlights: [] as string[],
         specs: [] as { key: string; value: string }[],
+        subcategory: "",
+        colors: "",
         image_url: "",
         images: [""]
     });
@@ -63,7 +65,9 @@ export default function NewProduct() {
                     ...prev,
                     description: content.description || prev.description,
                     highlights: content.highlights || prev.highlights,
-                    specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs
+                    specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
+                    subcategory: content.subcategory || prev.subcategory,
+                    colors: content.colors ? content.colors.join(", ") : prev.colors
                 }));
             }
         } catch (error) {
@@ -128,25 +132,38 @@ export default function NewProduct() {
         setFormData(prev => ({ ...prev, price: formatted }));
     };
 
+    const compressImage = (file: File, callback: (url: string) => void) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let { width, height } = img;
+                if (width > height && width > 500) { height *= 500 / width; width = 500; }
+                else if (height > 500) { width *= 500 / height; height = 500; }
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+                callback(canvas.toDataURL("image/jpeg", 0.6));
+            };
+            img.src = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleMainImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setFormData(prev => ({ ...prev, image_url: reader.result as string }));
-            reader.readAsDataURL(file);
-        }
+        if (file) compressImage(file, (url) => setFormData(prev => ({ ...prev, image_url: url })));
     };
 
     const handleGalleryImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
+            compressImage(file, (url) => {
                 const newImages = [...formData.images];
-                newImages[index] = reader.result as string;
+                newImages[index] = url;
                 setFormData(prev => ({ ...prev, images: newImages }));
-            };
-            reader.readAsDataURL(file);
+            });
         }
     };
 
@@ -176,6 +193,9 @@ export default function NewProduct() {
             price: isNaN(numericPrice) ? 0 : numericPrice,
             original_price: undefined,
             description: formData.description,
+            subcategory: formData.subcategory,
+            colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
+            specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
             image_url: formData.image_url || "/placeholder.png",
             images: formData.images.filter(url => url.trim() !== ""),
             stock: parseInt(formData.stock) || 1,
@@ -345,8 +365,26 @@ export default function NewProduct() {
                                         <option value="health">Health & Beauty</option>
                                         <option value="home">Home & Living</option>
                                         <option value="baby">Baby & Kids</option>
-                                        <option value="sports">Sports & Fitness</option>
+                                        <option value="fitness">Sports & Fitness</option>
                                     </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Subcategory</label>
+                                    <Input
+                                        placeholder="e.g. Smartphones, Laptops"
+                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.subcategory}
+                                        onChange={(e) => handleChange("subcategory", e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Colors (comma separated)</label>
+                                    <Input
+                                        placeholder="e.g. Space Black, Silver, Gold"
+                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.colors}
+                                        onChange={(e) => handleChange("colors", e.target.value)}
+                                    />
                                 </div>
                             </div>
                             <div className="space-y-2">

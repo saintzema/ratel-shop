@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+
 import { DemoStore } from "@/lib/demo-store";
 import { CATEGORIES } from "@/lib/types";
 import { formatPrice, cn } from "@/lib/utils";
@@ -257,6 +257,7 @@ function SearchContent() {
   const lastQueryRef = React.useRef(query);
   const lastResultsRef = React.useRef<any[]>([]);
   const [showMoreHistory, setShowMoreHistory] = useState<boolean>(false);
+  const [customersAlsoBoughtCount, setCustomersAlsoBoughtCount] = useState(8);
 
   // Read cached nav results on mount when navigated from navbar
   useEffect(() => {
@@ -264,6 +265,17 @@ function SearchContent() {
       try {
         const cachedResults = sessionStorage.getItem("fp_nav_search_results");
         const cachedClicked = sessionStorage.getItem("fp_nav_search_clicked");
+        const cachedQuery = sessionStorage.getItem("fp_nav_search_query");
+        
+        // Clean up sessionStorage ONLY if the query is different, to allow "Back" button to work
+        if (cachedQuery && cachedQuery !== query) {
+          sessionStorage.removeItem("fp_nav_search_results");
+          sessionStorage.removeItem("fp_nav_search_clicked");
+          sessionStorage.removeItem("fp_nav_search_query");
+          setNavResults([]);
+          return;
+        }
+
         if (cachedResults) {
           const parsed = JSON.parse(cachedResults);
           // Sort with clicked product first
@@ -286,19 +298,11 @@ function SearchContent() {
             }
           });
         }
-
-        // Clean up sessionStorage ONLY if the query is different, to allow "Back" button to work
-        const cachedQuery = sessionStorage.getItem("fp_nav_search_query");
-        if (cachedQuery && cachedQuery !== query) {
-          sessionStorage.removeItem("fp_nav_search_results");
-          sessionStorage.removeItem("fp_nav_search_clicked");
-          sessionStorage.removeItem("fp_nav_search_query");
-        }
       } catch {
         /* fail silently */
       }
     }
-  }, [fromNav]);
+  }, [fromNav, query]);
 
   useEffect(() => {
     if (minPriceParam)
@@ -492,6 +496,10 @@ function SearchContent() {
         return true;
       })
       .sort((a, b) => {
+        // Priority to sponsored products
+        if (a.is_sponsored && !b.is_sponsored) return -1;
+        if (!a.is_sponsored && b.is_sponsored) return 1;
+
         switch (sortBy) {
           case "price_asc":
             return a.price - b.price;
@@ -651,22 +659,36 @@ function SearchContent() {
 
   // History tracking logic: Shift to "Customers Also Bought" when query changes
   useEffect(() => {
-    if (query && query !== lastQueryRef.current) {
+    // Only track history if the query ACTUALLY changed from a previous valid query
+    // and don't prematurely clear navResults on the first render pass
+    if (lastQueryRef.current && query && query !== lastQueryRef.current) {
       // A new search occurred. Save the previous one if it had results.
-      if (lastResultsRef.current.length > 0 && lastQueryRef.current) {
-        setHistoryGroups([
+      if (lastResultsRef.current.length > 0) {
+        setHistoryGroups((prev) => [
           { query: lastQueryRef.current, products: lastResultsRef.current },
-        ]);
+          ...prev
+        ].slice(0, 2)); // Keep max 2 previous searches
       }
-      // Reset state for new search
-      lastQueryRef.current = query;
-      setNavResults([]);
+      if (!fromNav) {
+        setNavResults([]);
+      }
       setShowGlobalResults(false);
       setGlobalResults([]);
       setPage(1);
+      setCustomersAlsoBoughtCount(8);
     }
+    lastQueryRef.current = query;
     lastResultsRef.current = combinedCurrentResults;
-  }, [query, combinedCurrentResults, lastQueryRef]);
+  }, [query, combinedCurrentResults, fromNav]);
+
+  // Derived Customers Also Bought - Mix of relevant catalog items
+  const customersAlsoBought = useMemo(() => {
+    // Get popular products from the catalog that aren't already in the current search results
+    const currentIds = new Set(combinedCurrentResults.map(p => p.id));
+    return allProducts
+      .filter(p => !currentIds.has(p.id))
+      .sort((a, b) => b.sold_count - a.sold_count); // Sort by popularity
+  }, [allProducts, combinedCurrentResults]);
 
   // Combined results count (nav results + filtered local products)
   const totalResultCount =
@@ -682,150 +704,6 @@ function SearchContent() {
         <div className="mb-6 w-full flex flex-col gap-3 bg-white/95 pt-3 pb-2 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-4 transition-all duration-300">
           {/* Top Row: Horizontal Scrollable Filters */}
           <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 pt-1 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
-            {/* Main Filters Button - Now opens a Sheet */}
-            <Sheet>
-              <SheetTrigger asChild>
-                <button className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap bg-white text-gray-700 border border-gray-200 hover:border-gray-300 hover:bg-gray-50 active:scale-95 transition-all shadow-sm shrink-0 snap-start">
-                  <Filter className="h-4 w-4 text-gray-500" /> Filters
-                </button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[300px] sm:w-[350px] p-0 flex flex-col bg-white">
-                <SheetHeader className="p-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white z-10 text-left">
-                  <SheetTitle className="text-lg font-bold text-gray-900 m-0 p-0 text-left">Filters</SheetTitle>
-                </SheetHeader>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                  {/* Category Filter */}
-                  <div className="space-y-3">
-                    <h3 className="font-bold text-sm text-gray-900">Category</h3>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 cursor-pointer group">
-                        <div className={cn("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", !selectedCategory || selectedCategory === "all" ? "border-brand-orange bg-brand-orange" : "border-gray-300 group-hover:border-gray-400")}>
-                          {(!selectedCategory || selectedCategory === "all") && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                        </div>
-                        <span className={cn("text-sm", !selectedCategory || selectedCategory === "all" ? "text-gray-900 font-medium" : "text-gray-600")}>All Categories</span>
-                        <input type="radio" className="hidden" checked={!selectedCategory || selectedCategory === "all"} onChange={() => updateFilters({ category: "" })} />
-                      </label>
-                      {CATEGORIES.slice(0, 8).map((cat) => (
-                        <label key={cat.value} className="flex items-center gap-3 cursor-pointer group">
-                          <div className={cn("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", selectedCategory === cat.value ? "border-brand-orange bg-brand-orange" : "border-gray-300 group-hover:border-gray-400")}>
-                            {selectedCategory === cat.value && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                          </div>
-                          <span className={cn("text-sm", selectedCategory === cat.value ? "text-gray-900 font-medium" : "text-gray-600")}>{cat.label}</span>
-                          <input type="radio" className="hidden" checked={selectedCategory === cat.value} onChange={() => updateFilters({ category: cat.value })} />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Price Filter */}
-                  <div className="space-y-3 pt-4 border-t border-gray-100">
-                    <h3 className="font-bold text-sm text-gray-900">Price Range</h3>
-                    <div className="px-2">
-                      <Slider
-                        defaultValue={[priceRange[0], priceRange[1]]}
-                        max={5000000}
-                        step={1000}
-                        onValueChange={(val) => setPriceRange(val)}
-                        onValueCommit={(val) => updateFilters({ minPrice: val[0], maxPrice: val[1] })}
-                        className="my-6"
-                      />
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500 mb-1">Min</p>
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700">
-                          ₦{(priceRange[0] || 0).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="text-gray-400">-</div>
-                      <div className="flex-1">
-                        <p className="text-xs text-gray-500 mb-1">Max</p>
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm font-medium text-gray-700">
-                          ₦{(priceRange[1] || 5000000).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Attribute Filters */}
-                  {categoryFilterGroups.map((group) => (
-                    <div key={group.key} className="space-y-3 pt-4 border-t border-gray-100">
-                      <h3 className="font-bold text-sm text-gray-900">{group.label}</h3>
-
-                      {group.key === 'color' ? (
-                        <div className="flex flex-wrap gap-3">
-                          {group.options.map(opt => {
-                            const isSelected = (attributeFilters[group.key] || []).includes(opt.value);
-                            // Map typical color names to actual hex colors for the UI
-                            const colorMap: Record<string, string> = {
-                              'black': '#000000', 'white': '#FFFFFF', 'gray': '#808080', 'silver': '#C0C0C0',
-                              'red': '#FF0000', 'blue': '#0000FF', 'green': '#008000', 'yellow': '#FFFF00',
-                              'purple': '#800080', 'pink': '#FFC0CB', 'gold': '#FFD700', 'orange': '#FFA500'
-                            };
-                            const hexColor = colorMap[opt.value.toLowerCase()] || '#E5E7EB';
-                            return (
-                              <button
-                                key={opt.value}
-                                onClick={() => toggleAttributeFilter(group.key, opt.value)}
-                                className={cn(
-                                  "w-6 h-6 rounded-full border-2 transition-all",
-                                  isSelected ? "border-brand-orange scale-110 shadow-sm" : "border-transparent hover:scale-110",
-                                  hexColor === '#FFFFFF' ? "border-gray-200" : ""
-                                )}
-                                style={{ backgroundColor: hexColor }}
-                                title={opt.label}
-                                aria-label={`Filter by ${opt.label}`}
-                              />
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {group.options.map((opt) => {
-                            const isSelected = (attributeFilters[group.key] || []).includes(opt.value);
-                            return (
-                              <label key={opt.value} className="flex items-center gap-3 cursor-pointer group">
-                                <div className={cn("w-4 h-4 rounded-full border flex items-center justify-center transition-colors", isSelected ? "border-brand-orange bg-brand-orange" : "border-gray-300 group-hover:border-gray-400")}>
-                                  {isSelected && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
-                                </div>
-                                <span className={cn("text-sm", isSelected ? "text-gray-900 font-medium" : "text-gray-600")}>{opt.label}</span>
-                                <input type="checkbox" className="hidden" checked={isSelected} onChange={() => toggleAttributeFilter(group.key, opt.value)} />
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Footer fixed */}
-                <div className="p-4 border-t border-gray-100 bg-white sticky bottom-0 z-10 grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    className="w-full rounded-xl border-gray-200 text-gray-700 font-bold h-11"
-                    onClick={() => {
-                      setAttributeFilters({});
-                      setPriceRange([0, 5000000]);
-                      setSelectedCategory(null);
-                      setIsVerified(false);
-                      const params = new URLSearchParams();
-                      if (query) params.set("q", query);
-                      router.push(`/search?${params.toString()}`, { scroll: false });
-                    }}
-                  >
-                    Reset
-                  </Button>
-                  <SheetTrigger asChild>
-                    <Button className="w-full bg-brand-orange hover:bg-[#E65C00] text-white font-bold rounded-xl h-11">
-                      Show {Math.max(totalResultCount, 12)}+ items
-                    </Button>
-                  </SheetTrigger>
-                </div>
-              </SheetContent>
-            </Sheet>
-
             {/* Clear All */}
             {(Object.keys(attributeFilters).length > 0 ||
               selectedCategory ||
@@ -850,73 +728,37 @@ function SearchContent() {
                 </button>
               )}
 
-            {/* Sort Dropdown as Pill */}
-            <Select
-              value={sortBy}
-              onValueChange={(val: string) => updateFilters({ sort: val })}
-            >
-              <SelectTrigger className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 active:scale-95 w-auto h-auto focus:ring-1 focus:ring-gray-200 shrink-0 snap-start">
-                <SelectValue placeholder="Sort: Relevance" />
-              </SelectTrigger>
-              <SelectContent className="bg-white text-gray-900 border border-gray-100 shadow-xl rounded-xl">
-                <SelectItem
-                  value="relevance"
-                  className="font-medium focus:bg-gray-50"
-                >
-                  Sort by: Relevance
-                </SelectItem>
-                <SelectItem
-                  value="price_asc"
-                  className="font-medium focus:bg-gray-50"
-                >
-                  Price: Low to High
-                </SelectItem>
-                <SelectItem
-                  value="price_desc"
-                  className="font-medium focus:bg-gray-50"
-                >
-                  Price: High to Low
-                </SelectItem>
-                <SelectItem
-                  value="newest"
-                  className="font-medium focus:bg-gray-50"
-                >
-                  Newest Arrivals
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Sort Dropdown as Pill (Native Select for Mobile Reliability) */}
+            <div className="relative shrink-0 snap-start">
+              <select
+                value={sortBy}
+                onChange={(e) => updateFilters({ sort: e.target.value })}
+                className="appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+              >
+                <option value="relevance">Sort by: Relevance</option>
+                <option value="price_asc">Price: Low to High</option>
+                <option value="price_desc">Price: High to Low</option>
+                <option value="newest">Newest Arrivals</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
 
-            {/* Category Dropdown as Pill */}
-            <Select
-              value={selectedCategory || "all"}
-              onValueChange={(val: string) =>
-                updateFilters({ category: val === "all" ? "" : val })
-              }
-            >
-              <SelectTrigger className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 active:scale-95 w-auto h-auto focus:ring-1 focus:ring-gray-200 shrink-0 snap-start data-[state=open]:bg-gray-50">
-                <SelectValue placeholder="Category: All" />
-              </SelectTrigger>
-              <SelectContent className="bg-white text-gray-900 border border-gray-100 shadow-xl rounded-xl">
-                <SelectItem
-                  value="all"
-                  className="font-medium focus:bg-gray-50"
-                >
-                  All Categories
-                </SelectItem>
+            {/* Category Dropdown as Pill (Native Select) */}
+            <div className="relative shrink-0 snap-start">
+              <select
+                value={selectedCategory || "all"}
+                onChange={(e) => updateFilters({ category: e.target.value === "all" ? "" : e.target.value })}
+                className="appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 capitalize"
+              >
+                <option value="all">All Categories</option>
                 {CATEGORIES.map((cat) => (
-                  <SelectItem
-                    key={cat.value}
-                    value={cat.value}
-                    className="font-medium focus:bg-gray-50"
-                  >
-                    <div className="flex items-center gap-2">
-                      {getCategoryIcon(cat.value)}{" "}
-                      <span className="capitalize">{cat.label}</span>
-                    </div>
-                  </SelectItem>
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
 
             {/* Verified Only Pill */}
             <button
@@ -933,63 +775,41 @@ function SearchContent() {
               <ShieldCheck className="h-4 w-4" /> Verified
             </button>
 
-            {/* Dynamic category filters as Pills */}
+            {/* Dynamic category filters as Native Select Pills */}
             {categoryFilterGroups.map((group: FilterGroup) => {
               const activeValues = attributeFilters[group.key] || [];
               const isActive = activeValues.length > 0;
               return (
-                <Select
-                  key={group.key}
-                  value={activeValues[0] || ""}
-                  onValueChange={(val) => {
-                    if (val === "clear") {
-                      setAttributeFilters((prev) => ({
-                        ...prev,
-                        [group.key]: [],
-                      }));
-                    } else {
-                      setAttributeFilters((prev) => ({
-                        ...prev,
-                        [group.key]: [val],
-                      }));
-                    }
-                  }}
-                >
-                  <SelectTrigger
+                <div key={group.key} className="relative shrink-0 snap-start">
+                  <select
+                    value={activeValues[0] || ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "clear" || !val) {
+                        setAttributeFilters((prev) => ({ ...prev, [group.key]: [] }));
+                        updateFilters({ [`attr_${group.key}`]: null });
+                      } else {
+                        setAttributeFilters((prev) => ({ ...prev, [group.key]: [val] }));
+                        updateFilters({ [`attr_${group.key}`]: val });
+                      }
+                    }}
                     className={cn(
-                      "flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border w-auto h-auto focus:ring-1 focus:ring-gray-200 shrink-0 snap-start data-[state=open]:bg-gray-50 active:scale-95",
+                      "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
                       isActive
                         ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
                         : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
                     )}
                   >
-                    {group.label}{" "}
-                    {isActive && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded-full bg-white text-gray-900 text-[10px]">
-                        {activeValues.length}
-                      </span>
-                    )}
-                  </SelectTrigger>
-                  <SelectContent className="bg-white text-gray-900 border border-gray-100 shadow-xl rounded-xl max-h-[300px]">
-                    {isActive && (
-                      <SelectItem
-                        value="clear"
-                        className="font-bold text-red-500 focus:bg-red-50 focus:text-red-700"
-                      >
-                        Clear
-                      </SelectItem>
-                    )}
+                    <option value="" disabled hidden>{group.label} {isActive ? `(1)` : ''}</option>
+                    {isActive && <option value="clear">✕ Clear {group.label}</option>}
                     {group.options.map((opt) => (
-                      <SelectItem
-                        key={opt.value}
-                        value={opt.value}
-                        className="font-medium focus:bg-gray-50"
-                      >
+                      <option key={opt.value} value={opt.value}>
                         {opt.label}
-                      </SelectItem>
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
+                  <ChevronDown className={cn("absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none", isActive ? "text-gray-400" : "text-gray-400")} />
+                </div>
               );
             })}
           </div>
@@ -1054,8 +874,13 @@ function SearchContent() {
 
                 {paginatedProducts.length < filteredProducts.length &&
                   !showGlobalResults && (
-                    <div ref={observerRef} className="py-8 flex justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-emerald-500" />
+                    <div className="flex justify-center mt-8 mb-4">
+                      <button
+                        onClick={() => setPage(p => p + 1)}
+                        className="px-8 py-3 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm flex items-center gap-2"
+                      >
+                        <ChevronDown className="h-4 w-4" /> View More Results
+                      </button>
                     </div>
                   )}
               </div>
@@ -1110,17 +935,19 @@ function SearchContent() {
                 </div>
               )}
 
-            {/* CUSTOMERS ALSO BOUGHT (Previous Search Results) */}
-            {historyGroups.length > 0 && (
+            {/* CUSTOMERS ALSO BOUGHT */}
+            {customersAlsoBought.length > 0 && (
               <div className="mt-16 pt-10 border-t border-gray-200">
                 <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-6">
                   Customers Also Bought
                 </h3>
+
                 {historyGroups.map((group, gIdx) => (
-                  <div key={gIdx} className="mb-8">
+                  <div key={`history-group-${gIdx}`} className="mb-8">
+                    <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wide">Based on your earlier search for "{group.query}"</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {group.products
-                        .slice(0, showMoreHistory ? group.products.length : 8)
+                        .slice(0, 4)
                         .map((product: any) => (
                           <SearchGridCard
                             key={`history-${gIdx}-${product.id}`}
@@ -1128,18 +955,29 @@ function SearchContent() {
                           />
                         ))}
                     </div>
-                    {!showMoreHistory && group.products.length > 8 && (
-                      <div className="flex justify-center mt-8">
-                        <button
-                          onClick={() => setShowMoreHistory(true)}
-                          className="px-6 py-2.5 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm"
-                        >
-                          View More
-                        </button>
-                      </div>
-                    )}
                   </div>
                 ))}
+
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {customersAlsoBought
+                    .slice(0, customersAlsoBoughtCount)
+                    .map((product: any) => (
+                      <SearchGridCard
+                        key={`recommended-${product.id}`}
+                        product={product}
+                      />
+                    ))}
+                </div>
+                {customersAlsoBoughtCount < customersAlsoBought.length && (
+                  <div className="flex justify-center mt-8 mb-8">
+                    <button
+                      onClick={() => setCustomersAlsoBoughtCount(c => c + 12)}
+                      className="px-8 py-3 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm flex items-center gap-2"
+                    >
+                      <ChevronDown className="h-4 w-4" /> View More
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

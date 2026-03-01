@@ -93,7 +93,7 @@ export default function PayoutRequestsDirectory() {
                                         </div>
                                         <div className="flex flex-col">
                                             <span className="font-black text-gray-900 text-sm">₦{p.amount.toLocaleString()}</span>
-                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{p.id}</span>
+                                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{p.id} • {p.order_ids?.length || 0} Orders</span>
                                         </div>
                                     </div>
                                 </td>

@@ -32,8 +32,13 @@ export default function EditProduct() {
     const [product, setProduct] = useState<Product | null>(null);
     const [formData, setFormData] = useState({
         name: "",
+        category: "",
+        subcategory: "",
+        colors: "",
         price: "",
         description: "",
+        highlights: [] as string[],
+        specs: [] as { key: string; value: string }[],
         image_url: "",
         images: [""],
         stock: ""
@@ -41,6 +46,7 @@ export default function EditProduct() {
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
 
     useEffect(() => {
         if (!productId) return;
@@ -50,14 +56,58 @@ export default function EditProduct() {
             setProduct(found);
             setFormData({
                 name: found.name,
+                category: found.category || "",
+                subcategory: found.subcategory || "",
+                colors: found.colors ? found.colors.join(", ") : "",
                 price: found.price.toLocaleString(),
                 description: found.description,
+                highlights: found.highlights || [],
+                specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value })) : [],
                 image_url: found.image_url,
                 images: found.images?.length ? [...found.images] : [""],
                 stock: found.stock.toString()
             });
         }
     }, [productId]);
+
+    const handleAIGenerate = async () => {
+        if (!formData.name) return;
+        setIsGenerating(true);
+        try {
+            const res = await fetch("/api/gemini-seller", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productName: formData.name, category: formData.category })
+            });
+            if (res.ok) {
+                const content = await res.json();
+                setFormData(prev => ({
+                    ...prev,
+                    description: content.description || prev.description,
+                    highlights: content.highlights || prev.highlights,
+                    specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
+                    subcategory: content.subcategory || prev.subcategory,
+                    colors: content.colors ? content.colors.join(", ") : prev.colors
+                }));
+            }
+        } catch (error) {
+            console.error("AI Generation failed", error);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const handleSpecChange = (index: number, field: 'key' | 'value', value: string) => {
+        const newSpecs = [...formData.specs];
+        newSpecs[index] = { ...newSpecs[index], [field]: value };
+        setFormData(prev => ({ ...prev, specs: newSpecs }));
+    };
+
+    const addSpec = () => setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "", value: "" }] }));
+    const removeSpec = (index: number) => {
+        const newSpecs = formData.specs.filter((_, i) => i !== index);
+        setFormData(prev => ({ ...prev, specs: newSpecs }));
+    };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const rawValue = e.target.value.replace(/\D/g, "");
@@ -69,27 +119,38 @@ export default function EditProduct() {
         setFormData({ ...formData, price: formatted });
     };
 
+    const compressImage = (file: File, callback: (url: string) => void) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new window.Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let { width, height } = img;
+                if (width > height && width > 500) { height *= 500 / width; width = 500; }
+                else if (height > 500) { width *= 500 / height; height = 500; }
+                canvas.width = width;
+                canvas.height = height;
+                canvas.getContext("2d")?.drawImage(img, 0, 0, width, height);
+                callback(canvas.toDataURL("image/jpeg", 0.6));
+            };
+            img.src = e.target?.result as string;
+        };
+        reader.readAsDataURL(file);
+    };
+
     const handleMainImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setFormData({ ...formData, image_url: reader.result as string });
-            };
-            reader.readAsDataURL(file);
-        }
+        if (file) compressImage(file, (url) => setFormData(prev => ({ ...prev, image_url: url })));
     };
 
     const handleGalleryImageUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => {
+            compressImage(file, (url) => {
                 const newImages = [...formData.images];
-                newImages[index] = reader.result as string;
-                setFormData({ ...formData, images: newImages });
-            };
-            reader.readAsDataURL(file);
+                newImages[index] = url;
+                setFormData(prev => ({ ...prev, images: newImages }));
+            });
         }
     };
 
@@ -128,11 +189,16 @@ export default function EditProduct() {
 
         DemoStore.updateProduct(product.id, {
             name: formData.name,
+            category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,
             description: formData.description,
+            subcategory: formData.subcategory,
+            colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
+            specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
             image_url: formData.image_url,
             images: formData.images.filter(url => url.trim() !== ""),
             stock: parseInt(formData.stock) || 0,
+            highlights: formData.highlights
         });
 
         setTimeout(() => {
@@ -163,10 +229,21 @@ export default function EditProduct() {
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mb-10"
+                className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-4"
             >
-                <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Edit Product</h1>
-                <p className="text-base text-gray-500 mt-2">Update your listing details, images, and pricing.</p>
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Edit Product</h1>
+                    <p className="text-base text-gray-500 mt-2">Update your listing details, images, and pricing.</p>
+                </div>
+                <Button
+                    variant="outline"
+                    className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-full text-sm font-semibold px-5 h-10"
+                    onClick={handleAIGenerate}
+                    disabled={isGenerating || !formData.name}
+                >
+                    <Sparkles className={`h-4 w-4 ${isGenerating ? "animate-spin" : ""}`} />
+                    {isGenerating ? "Generating..." : "Auto-Fill with AI"}
+                </Button>
             </motion.div>
 
             {/* Success Banner */}
@@ -274,7 +351,8 @@ export default function EditProduct() {
                                         alt={`Gallery ${i + 1}`}
                                         className="h-full w-full object-contain p-1"
                                         onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
+                                            e.currentTarget.onerror = null; // prevents looping
+                                            e.currentTarget.src = 'https://placehold.co/400x400/f3f4f6/9ca3af?text=Image+Error';
                                         }}
                                     />
                                 ) : (
@@ -325,14 +403,53 @@ export default function EditProduct() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Product Details</h2>
 
                 <div className="space-y-6">
-                    {/* Product Name */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Product Name</label>
-                        <Input
-                            value={formData.name}
-                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                        />
+                    {/* Product Name & Category */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Product Name</label>
+                            <Input
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Category</label>
+                            <select
+                                className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                value={formData.category}
+                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                            >
+                                <option value="">Select Category</option>
+                                <option value="phones">Phones & Tablets</option>
+                                <option value="electronics">Electronics</option>
+                                <option value="vehicles">Vehicles</option>
+                                <option value="energy">Green Energy</option>
+                                <option value="fashion">Fashion</option>
+                                <option value="health">Health & Beauty</option>
+                                <option value="home">Home & Living</option>
+                                <option value="baby">Baby & Kids</option>
+                                <option value="fitness">Sports & Fitness</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Subcategory</label>
+                            <Input
+                                placeholder="e.g. Smartphones, Laptops"
+                                className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={formData.subcategory}
+                                onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">Colors (comma separated)</label>
+                            <Input
+                                placeholder="e.g. Space Black, Silver, Gold"
+                                className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={formData.colors}
+                                onChange={(e) => setFormData({ ...formData, colors: e.target.value })}
+                            />
+                        </div>
                     </div>
 
                     {/* Price & Stock — Side by side */}
@@ -383,6 +500,46 @@ export default function EditProduct() {
                             placeholder="Describe your product in detail..."
                         />
                     </div>
+                </div>
+            </motion.section>
+
+            {/* ─── Section 4: Specifications ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.18 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
+            >
+                <h2 className="text-lg font-semibold text-gray-900 mb-1">Specifications</h2>
+                <p className="text-sm text-gray-500 mb-6">Add technical specs for detail-oriented buyers.</p>
+                <div className="space-y-3">
+                    {formData.specs.map((spec, index) => (
+                        <div key={index} className="flex gap-3 group">
+                            <Input
+                                placeholder="Key (e.g. RAM)"
+                                className="flex-1 bg-gray-50 border-gray-200 rounded-xl h-11 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={spec.key}
+                                onChange={(e) => handleSpecChange(index, "key", e.target.value)}
+                            />
+                            <Input
+                                placeholder="Value (e.g. 16GB)"
+                                className="flex-[2] bg-gray-50 border-gray-200 rounded-xl h-11 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                value={spec.value}
+                                onChange={(e) => handleSpecChange(index, "value", e.target.value)}
+                            />
+                            <Button size="icon" variant="ghost" className="h-11 w-11 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl" onClick={() => removeSpec(index)}>
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    ))}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full border border-dashed border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-blue-50/50 h-11 rounded-xl text-xs font-semibold mt-2 transition-colors"
+                        onClick={addSpec}
+                    >
+                        <Plus className="h-3 w-3 mr-2" /> Add Specification
+                    </Button>
                 </div>
             </motion.section>
 

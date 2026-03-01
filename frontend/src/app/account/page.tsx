@@ -45,10 +45,10 @@ export default function AccountPage() {
             href: "/account/payments"
         },
         {
-            icon: Heart,
-            title: "Your Lists",
-            desc: "View, modify, and share your lists",
-            href: "/account/lists"
+            icon: Share2,
+            title: "Become a Seller",
+            desc: "Start selling on FairPrice today",
+            href: "/seller/onboarding"
         },
         {
             icon: MessageSquare,

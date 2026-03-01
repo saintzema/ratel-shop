@@ -412,7 +412,7 @@ export function Navbar() {
 
                     {/* Search Bar Container */}
                     <div className="flex flex-1 items-center max-w-2xl mx-2 md:mx-4 relative" ref={searchRef}>
-                        <div className="flex h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:ring-2 focus-within:ring-brand-green-500">
+                        <div className="flex h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
                                 <button
@@ -430,35 +430,61 @@ export function Navbar() {
                                             exit={{ opacity: 0, y: 5 }}
                                             className="absolute top-full left-0 mt-1 w-56 bg-white shadow-xl rounded-lg border border-gray-200 z-50 max-h-80 overflow-y-auto"
                                         >
-                                            <div className="p-1">
+                                            <div className="py-1.5">
                                                 <button
                                                     onClick={() => {
                                                         setSelectedCategory("All");
                                                         setIsCategoryOpen(false);
                                                     }}
                                                     className={cn(
-                                                        "w-full text-left px-3 py-2 text-sm rounded-md transition-colors",
-                                                        selectedCategory === "All" ? "bg-brand-green-50 text-brand-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
+                                                        "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-3",
+                                                        selectedCategory === "All" ? "bg-emerald-50 text-emerald-700 font-bold border-l-3 border-emerald-500" : "hover:bg-gray-50 text-gray-800 font-medium"
                                                     )}
                                                 >
+                                                    <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0", selectedCategory === "All" ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-500")}>
+                                                        <Package className="h-3.5 w-3.5" />
+                                                    </div>
                                                     All Categories
                                                 </button>
-                                                {CATEGORIES.map((cat) => (
-                                                    <button
-                                                        key={cat.value}
-                                                        onClick={() => {
-                                                            setSelectedCategory(cat.label);
-                                                            setIsCategoryOpen(false);
-                                                        }}
-                                                        className={cn(
-                                                            "w-full text-left px-3 py-2 text-sm rounded-md transition-colors flex items-center gap-2",
-                                                            selectedCategory === cat.label ? "bg-brand-green-50 text-brand-green-700 font-medium" : "hover:bg-gray-100 text-gray-700"
-                                                        )}
-                                                    >
-                                                        <span>{cat.icon}</span>
-                                                        {cat.label}
-                                                    </button>
-                                                ))}
+                                                {CATEGORIES.map((cat) => {
+                                                    const iconMap: Record<string, React.ReactNode> = {
+                                                        phones: <Phone className="h-3.5 w-3.5" />,
+                                                        computers: <Monitor className="h-3.5 w-3.5" />,
+                                                        electronics: <Zap className="h-3.5 w-3.5" />,
+                                                        fashion: <Shirt className="h-3.5 w-3.5" />,
+                                                        beauty: <Paintbrush className="h-3.5 w-3.5" />,
+                                                        home: <Home className="h-3.5 w-3.5" />,
+                                                        fitness: <Dumbbell className="h-3.5 w-3.5" />,
+                                                        office: <BookOpen className="h-3.5 w-3.5" />,
+                                                        furniture: <Sofa className="h-3.5 w-3.5" />,
+                                                        grocery: <ShoppingBag className="h-3.5 w-3.5" />,
+                                                        baby: <Baby className="h-3.5 w-3.5" />,
+                                                        sports: <Dumbbell className="h-3.5 w-3.5" />,
+                                                        cars: <Car className="h-3.5 w-3.5" />,
+                                                        energy: <Zap className="h-3.5 w-3.5" />,
+                                                        gaming: <Gamepad className="h-3.5 w-3.5" />,
+                                                    };
+                                                    const isSelected = selectedCategory === cat.label;
+                                                    return (
+                                                        <button
+                                                            key={cat.value}
+                                                            onClick={() => {
+                                                                setSelectedCategory(cat.label);
+                                                                setIsCategoryOpen(false);
+                                                            }}
+                                                            className={cn(
+                                                                "w-full text-left px-4 py-2.5 text-sm transition-colors flex items-center gap-3 group/cat",
+                                                                isSelected ? "bg-emerald-50 text-emerald-700 font-bold border-l-3 border-emerald-500" : "hover:bg-gray-50 text-gray-800 font-medium"
+                                                            )}
+                                                        >
+                                                            <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors", isSelected ? "bg-emerald-100 text-emerald-600" : "bg-gray-100 text-gray-500 group-hover/cat:bg-gray-200")}>
+                                                                {iconMap[cat.value] || <Package className="h-3.5 w-3.5" />}
+                                                            </div>
+                                                            {cat.label}
+                                                            {isSelected && <ChevronDown className="h-3 w-3 ml-auto -rotate-90 text-emerald-500" />}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                         </motion.div>
                                     )}

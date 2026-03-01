@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Instagram,
     CreditCard,
@@ -8,9 +8,11 @@ import {
     Globe,
     MessageCircle,
     CheckCircle2,
-    ArrowRight
+    ArrowRight,
+    PowerOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DemoStore } from "@/lib/demo-store";
 
 const INTEGRATIONS = [
     {
@@ -77,13 +79,41 @@ const INTEGRATIONS = [
 
 export default function IntegrationsPage() {
     const [connecting, setConnecting] = useState<string | null>(null);
+    const [integrations, setIntegrations] = useState(INTEGRATIONS);
+    const [isStarterPlan, setIsStarterPlan] = useState(true);
 
-    const handleConnect = async (intId: string, name: string) => {
+    useEffect(() => {
+        const sellerId = DemoStore.getCurrentSellerId();
+        const seller = DemoStore.getCurrentSeller();
+        if (seller) {
+            setIsStarterPlan(!seller.subscription_plan || seller.subscription_plan === "Starter");
+        }
+        if (!sellerId) return;
+
+        const stored = localStorage.getItem(`fp_integrations_${sellerId}`);
+        if (stored) {
+            setIntegrations(JSON.parse(stored));
+        } else {
+            // Seed
+            localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(INTEGRATIONS));
+        }
+    }, []);
+
+    const handleConnect = async (intId: string) => {
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (!sellerId) return;
+
         setConnecting(intId);
         // Simulate OAuth redirect or connection delay
         await new Promise(resolve => setTimeout(resolve, 1500));
+
+        const updated = integrations.map(app =>
+            app.id === intId ? { ...app, status: app.status === "Connected" ? "Disconnected" : "Connected" } : app
+        );
+        setIntegrations(updated);
+        localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(updated));
+
         setConnecting(null);
-        alert(`Integration Placeholder: Trigger OAuth or setup modal for ${name}.`);
     };
 
     return (
@@ -98,7 +128,7 @@ export default function IntegrationsPage() {
 
             {/* Integrations Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {INTEGRATIONS.map((app) => (
+                {integrations.map((app) => (
                     <div key={app.id} className="bg-white rounded-[24px] border border-gray-100 p-6 shadow-sm hover:shadow-lg transition-all flex flex-col relative overflow-hidden group">
                         {app.requiresPremium && (
                             <div className="absolute top-0 right-0 bg-gray-900 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg z-10">
@@ -108,7 +138,7 @@ export default function IntegrationsPage() {
 
                         <div className="flex items-start justify-between mb-4">
                             <div className={`p-4 rounded-2xl ${app.color === 'pink' ? 'bg-pink-50' : app.color === 'cyan' ? 'bg-cyan-50' : app.color === 'indigo' ? 'bg-indigo-50' : app.color === 'amber' ? 'bg-amber-50' : app.color === 'emerald' ? 'bg-emerald-50' : 'bg-gray-50'}`}>
-                                {app.icon}
+                                {INTEGRATIONS.find(i => i.id === app.id)?.icon}
                             </div>
                             {app.status === 'Connected' ? (
                                 <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
@@ -129,17 +159,36 @@ export default function IntegrationsPage() {
 
                         <div className="mt-auto">
                             {app.status === 'Connected' ? (
-                                <Button variant="outline" className="w-full h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
-                                    Manage Settings
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" className="flex-1 h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
+                                        Manage
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => handleConnect(app.id)}
+                                        disabled={connecting === app.id}
+                                        className="h-12 w-12 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300"
+                                    >
+                                        {connecting === app.id ? (
+                                            <div className="h-5 w-5 border-2 border-current border-t-transparent animate-spin rounded-full" />
+                                        ) : (
+                                            <PowerOff className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </div>
                             ) : (
                                 <Button
-                                    onClick={() => handleConnect(app.id, app.name)}
-                                    disabled={connecting === app.id}
-                                    className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold tracking-wide shadow-md shadow-indigo-600/20 group-hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                                    onClick={() => handleConnect(app.id)}
+                                    disabled={connecting === app.id || (app.requiresPremium && isStarterPlan)}
+                                    className={`w-full h-12 rounded-xl text-white font-bold tracking-wide shadow-md transition-all flex items-center justify-center gap-2 ${app.requiresPremium && isStarterPlan
+                                        ? "bg-gray-300 cursor-not-allowed"
+                                        : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20 group-hover:shadow-lg"
+                                        }`}
                                 >
                                     {connecting === app.id ? (
                                         <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />
+                                    ) : app.requiresPremium && isStarterPlan ? (
+                                        <>Upgrade Plan to Connect</>
                                     ) : (
                                         <>Connect App <ArrowRight className="h-4 w-4" /></>
                                     )}

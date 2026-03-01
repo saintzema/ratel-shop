@@ -40,6 +40,7 @@ export interface Seller {
     logo_url?: string;
     category: string;
     verified: boolean;
+    subscription_plan?: "Starter" | "Pro" | "Growth" | "Scale";
     rating?: number;
     trust_score: number;
     status?: "pending" | "active" | "frozen" | "banned";
@@ -82,6 +83,8 @@ export interface Product {
     external_url?: string;
     highlights?: string[];
     condition?: "brand_new" | "used" | "refurbished";
+    colors?: string[];
+    subcategory?: string;
 }
 
 export interface Order {
@@ -95,6 +98,7 @@ export interface Order {
     shipping_address: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
     tracking_id?: string;
+    payout_status?: "pending_payout" | "cashed_out";
     carrier?: string;
     tracking_steps?: {
         status: string;
@@ -123,7 +127,21 @@ export interface NegotiationRequest {
     counter_price?: number;
     counter_message?: string;
     counter_status?: "pending" | "accepted" | "rejected";
+    chat_messages?: { sender: "seller" | "buyer"; text: string; timestamp: string }[];
     created_at: string;
+}
+
+export interface Promotion {
+    id: string;
+    product_id: string;
+    seller_id: string;
+    plan: "7_day" | "14_day" | "30_day";
+    amount_paid: number;
+    started_at: string;
+    expires_at: string;
+    status: "active" | "ended" | "cancelled";
+    impressions: number;
+    clicks: number;
 }
 
 export interface Review {
@@ -137,6 +155,7 @@ export interface Review {
     verified_purchase: boolean;
     helpful_count?: number;
     images?: string[];
+    seller_reply?: string;
     created_at: string;
 }
 
