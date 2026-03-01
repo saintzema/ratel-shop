@@ -34,7 +34,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
 
     const handleDoubleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         const now = Date.now();
-        if (now - lastTapRef.current < 350) {
+        if (now - lastTapRef.current < 400) {
             // Double tap detected
             e.preventDefault();
             e.stopPropagation();
@@ -49,12 +49,12 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
             }
             // Show heart burst animation
             setShowHeartBurst(true);
-            setTimeout(() => setShowHeartBurst(false), 900);
+            setTimeout(() => setShowHeartBurst(false), 1000);
             lastTapRef.current = 0;
         } else {
             lastTapRef.current = now;
         }
-    }, [favorited, toggleFavorite, product.id]);
+    }, [favorited, toggleFavorite, product.id, user, router]);
 
     const handleHeartClick = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
@@ -68,7 +68,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
         toggleFavorite(product.id);
         if (!favorited) {
             setShowHeartBurst(true);
-            setTimeout(() => setShowHeartBurst(false), 900);
+            setTimeout(() => setShowHeartBurst(false), 1000);
         }
     }, [favorited, toggleFavorite, product.id, user, router]);
 

@@ -128,6 +128,7 @@ export default function ProductDetailPage() {
     // Pagination states
     const [visibleReviewsCount, setVisibleReviewsCount] = useState(3);
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
+    const [visibleCABCount, setVisibleCABCount] = useState(8);
 
     // Review Submission States
     const [isWritingReview, setIsWritingReview] = useState(false);
@@ -234,8 +235,14 @@ export default function ProductDetailPage() {
             created_at: "2026-01-01T00:00:00Z",
         } as any;
     }
-    const similarProducts = allProducts.filter((p) => p.category === product?.category && p.id !== product?.id).slice(0, 15);
-    const alsoBoughtProducts = allProducts.filter((p) => p.id !== product?.id).slice(2, 17); // Randomize for 'Also Bought'
+    // Define 'Customers Also Bought' exactly like search results (popular products across entire catalog, excluding self)
+    const alsoBoughtProducts = allProducts
+        .filter((p) => p.id !== product?.id)
+        .sort((a, b) => b.sold_count - a.sold_count);
+    const similarProducts = allProducts
+        .filter((p) => p.category === product?.category && p.id !== product?.id)
+        .sort((a, b) => b.sold_count - a.sold_count)
+        .slice(0, 15);
 
     // Fetch Reviews from DemoStore
     let productReviews = DemoStore.getReviews(product?.id);
@@ -401,16 +408,23 @@ export default function ProductDetailPage() {
         router.push("/checkout");
     };
 
-    const handleDoubleTap = React.useCallback(() => {
+    const handleDoubleTap = React.useCallback((e: React.MouseEvent) => {
+        // Prevent event bubbling if clicking on the image container
+        e.stopPropagation();
+
         const now = Date.now();
-        if (now - lastTapRef.current < 300) {
+        if (now - lastTapRef.current < 400) {
+            // It's a double tap
             if (product && !isFavorite(product.id)) {
-                toggleFavorite(product.id);
+                // We pass in the full product object to toggleFavorite based on the frontend layout convention
+                toggleFavorite(product);
             }
             setShowHeartBurst(true);
-            setTimeout(() => setShowHeartBurst(false), 900);
+            setTimeout(() => setShowHeartBurst(false), 1000);
+            lastTapRef.current = 0; // Reset
+        } else {
+            lastTapRef.current = now;
         }
-        lastTapRef.current = now;
     }, [product, toggleFavorite, isFavorite]);
 
     const handleSubmitReview = async (e: React.FormEvent) => {
@@ -1053,7 +1067,7 @@ export default function ProductDetailPage() {
                         <h2 className="text-lg font-black text-gray-900 mb-4 flex items-center gap-2 px-1">
                             <Share2 className="h-5 w-5 text-emerald-600" /> Share With Friends
                         </h2>
-                        <div className="grid grid-cols-4 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+                        <div className="grid grid-cols-4 md:grid-cols-2 gap-2 sm:gap-3">
                             <a
                                 href={`https://wa.me/?text=${encodeURIComponent(product.name + ' — ₦' + product.price.toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? window.location.href : ''))}`}
                                 target="_blank"
@@ -1349,28 +1363,24 @@ export default function ProductDetailPage() {
                         </div>
 
                         <RecommendedProducts
-                            products={alsoBoughtProducts}
+                            products={alsoBoughtProducts.slice(0, visibleCABCount)}
                             title="Customers Also Bought"
                             subtitle="Frequently purchased together"
                             icon={<ShoppingCart className="h-5 w-5 text-blue-500" />}
                         />
 
-                        {/* View More + You May Also Like */}
-                        <div className="flex flex-col items-center gap-8 mt-6">
-                            <Button
-                                variant="outline"
-                                className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
-                                onClick={() => {
-                                    if (!loadedMore) {
-                                        setLoadedMore(true);
-                                    } else {
-                                        setVisibleProductsCount(prev => prev + 8);
-                                    }
-                                }}
-                            >
-                                VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
-                            </Button>
-                        </div>
+                        {/* View More CAB */}
+                        {visibleCABCount < alsoBoughtProducts.length && (
+                            <div className="flex flex-col items-center gap-8 mt-6">
+                                <Button
+                                    variant="outline"
+                                    className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                                    onClick={() => setVisibleCABCount(prev => prev + 12)}
+                                >
+                                    VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                                </Button>
+                            </div>
+                        )}
 
                         {/* You May Also Like — more products from the same or related categories */}
                         {visibleProductsCount > 8 && (() => {

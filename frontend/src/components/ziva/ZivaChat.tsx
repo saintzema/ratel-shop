@@ -647,7 +647,7 @@ export function ZivaChat() {
     };
 
     return (
-        <div className="fixed bottom-6 left-4 z-[9999] pointer-events-none">
+        <div className="fixed bottom-[18vh] left-4 lg:bottom-12 lg:left-8 z-[50] pointer-events-none">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
