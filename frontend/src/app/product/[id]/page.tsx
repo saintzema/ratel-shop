@@ -139,6 +139,8 @@ export default function ProductDetailPage() {
     const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
 
+    const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
+
     useEffect(() => {
         setMounted(true);
     }, []);
@@ -362,6 +364,38 @@ export default function ProductDetailPage() {
             return () => clearTimeout(timer);
         }
     }, [product]);
+
+    // Hydrate Global Product Price if missing
+    useEffect(() => {
+        if (product && product.price === 0 && product.id?.startsWith('global') && !isFetchingGlobalData) {
+            setIsFetchingGlobalData(true);
+            const namePart = product.name;
+            fetch('/api/gemini-price', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productName: namePart, mode: 'search' })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    const bestMatch = data.suggestions?.[0];
+                    if (bestMatch && bestMatch.approxPrice) {
+                        const validImageUrl = bestMatch.image_url && !bestMatch.image_url.toLowerCase().includes('no photo') && !bestMatch.image_url.toLowerCase().includes('n/a') ? bestMatch.image_url : null;
+                        const updatedProduct = {
+                            ...product,
+                            price: bestMatch.approxPrice,
+                            original_price: Math.round(bestMatch.approxPrice * 1.15),
+                            recommended_price: bestMatch.approxPrice,
+                            specs: bestMatch.specs || product.specs,
+                            ...(validImageUrl ? { image_url: validImageUrl } : {}),
+                        };
+                        // Save to Store and trigger re-render
+                        DemoStore.addRawProduct(updatedProduct as any);
+                    }
+                })
+                .catch(() => { })
+                .finally(() => setIsFetchingGlobalData(false));
+        }
+    }, [product?.id, product?.price]);
 
     // Auto-open negotiation modal if ?negotiate=true is in the URL
     useEffect(() => {
@@ -997,9 +1031,18 @@ export default function ProductDetailPage() {
                             <div className="p-5 flex flex-col gap-5">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-xs text-gray-500 font-medium">Total Price</span>
-                                    <span className="text-3xl font-black text-emerald-500">{formatPrice(product.price * quantity)}</span>
-                                    {product.original_price && (
-                                        <span className="text-sm text-gray-800 line-through font-medium">{formatPrice(product.original_price * quantity)}</span>
+                                    {isFetchingGlobalData ? (
+                                        <div className="flex items-center gap-2 mt-1 mb-2">
+                                            <div className="h-6 w-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+                                            <span className="text-sm font-bold text-gray-500">Calculating...</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span className="text-3xl font-black text-emerald-500">{formatPrice(product.price * quantity)}</span>
+                                            {(product.original_price || 0) > 0 && (
+                                                <span className="text-sm text-gray-800 line-through font-medium">{formatPrice((product.original_price || 0) * quantity)}</span>
+                                            )}
+                                        </>
                                     )}
                                 </div>
 

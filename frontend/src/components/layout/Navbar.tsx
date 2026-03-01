@@ -272,9 +272,10 @@ export function Navbar() {
             if (existing) {
                 // Update existing product with any new data from API
                 if (r.specs && Object.keys(r.specs).length > 0) {
+                    const validImageUrl = r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : null;
                     DemoStore.updateProduct(productId, {
                         specs: r.specs,
-                        ...(r.image_url ? { image_url: r.image_url } : {}),
+                        ...(validImageUrl ? { image_url: validImageUrl } : {}),
                         ...(r.description ? { description: r.description } : {}),
                     });
                 }
@@ -288,7 +289,7 @@ export function Navbar() {
                 original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
                 category: r.category || 'electronics',
                 description: r.description || `${r.name} - sourced globally via FairPrice AI for the best deal.`,
-                image_url: r.image_url || '',
+                image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : '/assets/images/placeholder.png',
                 images: [],
                 seller_id: 'global-partners',
                 seller_name: 'Global Stores',

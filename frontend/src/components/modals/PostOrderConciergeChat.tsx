@@ -23,7 +23,7 @@ interface PostOrderChatProps {
 }
 
 const QUICK_ACTIONS = [
-    { id: "images", label: "Request Real Images", icon: <ImageIcon className="h-3.5 w-3.5" /> },
+    { id: "images", label: "Request Product Images", icon: <ImageIcon className="h-3.5 w-3.5" /> },
     { id: "shipping", label: "Shipping Timeline", icon: <Truck className="h-3.5 w-3.5" /> },
     { id: "warranty", label: "Warranty Info", icon: <HelpCircle className="h-3.5 w-3.5" /> },
     { id: "condition", label: "Confirm Condition", icon: <Box className="h-3.5 w-3.5" /> },

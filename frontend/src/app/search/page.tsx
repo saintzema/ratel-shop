@@ -266,7 +266,7 @@ function SearchContent() {
         const cachedResults = sessionStorage.getItem("fp_nav_search_results");
         const cachedClicked = sessionStorage.getItem("fp_nav_search_clicked");
         const cachedQuery = sessionStorage.getItem("fp_nav_search_query");
-        
+
         // Clean up sessionStorage ONLY if the query is different, to allow "Back" button to work
         if (cachedQuery && cachedQuery !== query) {
           sessionStorage.removeItem("fp_nav_search_results");
@@ -582,7 +582,7 @@ function SearchContent() {
           original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
           category: r.category || "electronics",
           description: descBase,
-          image_url: r.image_url || "/assets/images/placeholder.png",
+          image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : "/assets/images/placeholder.png",
           seller_id: "global-partners",
           seller_name: "Global Stores",
           price_flag: "fair" as const,
@@ -636,7 +636,7 @@ function SearchContent() {
         original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
         category: r.category || "electronics",
         description: descBase,
-        image_url: r.image_url || "/assets/images/placeholder.png",
+        image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : "/assets/images/placeholder.png",
         seller_id: "global-partners",
         seller_name: "Global Stores",
         price_flag: "fair" as const,
