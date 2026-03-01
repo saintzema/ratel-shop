@@ -1164,23 +1164,25 @@ export default function ProductDetailPage() {
 
                 {/* Customer Reviews */}
                 {productReviews.length >= 0 && (
-                    <div className="mb-12 w-full" id="reviews-section">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-black text-gray-900">Customer Reviews</h2>
+                    <div className="mb-12 w-full bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-border" id="reviews-section">
+                        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+                            <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2">Customer Reviews</h2>
                             {canUserReview && (
-                                <Button
-                                    variant="outline"
-                                    className="font-bold rounded-full border-gray-300 hover:bg-gray-50"
-                                    onClick={() => {
-                                        if (!user) {
-                                            router.push('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
-                                        } else {
-                                            setIsWritingReview(!isWritingReview);
-                                        }
-                                    }}
-                                >
-                                    {isWritingReview ? "Cancel Review" : "Write a Review"}
-                                </Button>
+                                <div>
+                                    <Button
+                                        variant="outline"
+                                        className="font-bold rounded-full border-gray-300 hover:bg-gray-50 flex items-center shrink-0"
+                                        onClick={() => {
+                                            if (!user) {
+                                                router.push('/auth/login?redirect=' + encodeURIComponent(window.location.pathname));
+                                            } else {
+                                                setIsWritingReview(!isWritingReview);
+                                            }
+                                        }}
+                                    >
+                                        {isWritingReview ? "Cancel Review" : "Write a Review"}
+                                    </Button>
+                                </div>
                             )}
                         </div>
 
@@ -1239,9 +1241,9 @@ export default function ProductDetailPage() {
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="flex flex-col lg:flex-row gap-8 w-full">
                             {/* Star Breakdown */}
-                            <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
+                            <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 lg:w-1/3 shrink-0 h-fit sticky top-24">
                                 <div className="text-center mb-4">
                                     <div className="text-5xl font-black text-gray-900">{product.avg_rating}</div>
                                     <div className="flex items-center justify-center gap-1 mt-2">
@@ -1265,7 +1267,7 @@ export default function ProductDetailPage() {
                             </div>
 
                             {/* Review List */}
-                            <div className="lg:col-span-2 space-y-4">
+                            <div className="flex-1 space-y-4">
                                 {productReviews.length === 0 ? (
                                     <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-100 italic text-gray-500">
                                         No reviews yet for this product. Be the first to review!
