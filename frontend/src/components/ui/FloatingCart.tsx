@@ -25,8 +25,8 @@ export function FloatingCart() {
         setPrevCount(itemCount);
     }, [itemCount, prevCount]);
 
-    // Hide the floating cart inside the actual cart page, checkout page, admin, or seller paths
-    if (pathname === "/cart" || pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
+    // Hide the floating cart inside checkout page, admin, or seller paths
+    if (pathname === "/checkout" || pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
         return null;
     }
 
@@ -37,7 +37,13 @@ export function FloatingCart() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0, opacity: 0 }}
                 whileTap={{ scale: 0.9 }}
-                onClick={() => router.push("/cart")}
+                onClick={() => {
+                    if (pathname === "/cart") {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                    } else {
+                        router.push("/cart");
+                    }
+                }}
                 // Show only on mobile (hidden on md and above) — positioned on the right
                 className="md:hidden fixed z-[999] right-4 top-[30%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5"
                 style={{ WebkitTapHighlightColor: "transparent" }}

@@ -97,8 +97,8 @@ function ProductImageWithFallback({ src, alt, category, className }: { src?: str
     const [imgError, setImgError] = React.useState(false);
     if (!src || imgError) {
         return (
-            <div className={`w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white ${className || ''}`}>
-                {getModalCategoryIcon(category || '')}
+            <div className={`w-full h-full rounded-xl bg-gray-50 flex items-center justify-center ${className || ''}`}>
+                <img src="/assets/images/placeholder.png" alt={alt} className="w-full h-full object-contain mix-blend-multiply" />
             </div>
         );
     }
@@ -487,7 +487,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                         { source: "Highest Market Online", price: marketAverage, type: "local", url: "", currency: "NGN" }
                     ],
                     priceDirection: "stable",
-                    justification: `Price locked based on your selection. The market estimate reflects current competitor pricing including standard delivery.`,
+                    justification: `The market estimate reflects current competitor pricing including standard delivery.`,
                     importContext: "Sourced efficiently with priority international shipping.",
                     flags: ["Best Value Guaranteed", "Escrow Protection"],
                     region: user?.location || "lagos",

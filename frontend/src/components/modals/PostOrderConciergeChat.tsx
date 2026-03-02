@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, AlertCircle } from "lucide-react";
+import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, AlertCircle, Paperclip, RotateCcw, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Product } from "@/lib/types";
+import { Product, Order } from "@/lib/types";
 
 interface Message {
     id: string;
@@ -20,25 +20,40 @@ interface PostOrderChatProps {
     onClose: () => void;
     product: Product | null;
     orderId?: string;
+    order?: Order | null;
+    mode?: "post_order" | "return";
 }
 
-const QUICK_ACTIONS = [
+const POST_ORDER_ACTIONS = [
     { id: "images", label: "Request Product Images", icon: <ImageIcon className="h-3.5 w-3.5" /> },
     { id: "shipping", label: "Shipping Timeline", icon: <Truck className="h-3.5 w-3.5" /> },
     { id: "warranty", label: "Warranty Info", icon: <HelpCircle className="h-3.5 w-3.5" /> },
     { id: "condition", label: "Confirm Condition", icon: <Box className="h-3.5 w-3.5" /> },
 ];
 
-export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: PostOrderChatProps) {
+const RETURN_ACTIONS = [
+    { id: "wrong_item", label: "Wrong Item Received", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "damaged", label: "Item Damaged", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "not_as_described", label: "Not as Described", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "upload_photo", label: "Upload Photo Evidence", icon: <Camera className="h-3.5 w-3.5" /> },
+];
+
+export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, order, mode = "post_order" }: PostOrderChatProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const trackingId = order?.tracking_id || orderId || "PENDING";
+    const orderStatus = order?.status || "processing";
+    const carrier = order?.carrier || "FairPrice Logistics";
 
     // Initialize chat when opened
     useEffect(() => {
         if (isOpen && product && orderId) {
-            const saved = sessionStorage.getItem(`ziva_chat_${orderId}`);
+            const storageKey = `ziva_chat_${mode}_${orderId}`;
+            const saved = sessionStorage.getItem(storageKey);
             if (saved && messages.length === 0) {
                 try {
                     const parsed = JSON.parse(saved);
@@ -51,24 +66,39 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
             }
 
             if (messages.length === 0) {
-                setMessages([
-                    {
-                        id: Date.now().toString(),
-                        sender: "ziva",
-                        text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the ${product.name}. How can I assist you with this order before final fulfillment?`,
-                        timestamp: new Date(),
-                    }
-                ]);
+                if (mode === "return") {
+                    setMessages([
+                        {
+                            id: Date.now().toString(),
+                            sender: "ziva",
+                            text: `I understand you'd like to initiate a return for the **${product.name}** (Order **${trackingId}**). I'm sorry for the inconvenience.\n\nTo process your return quickly, please:\n1. **Tell me the reason** for this return\n2. **Upload photos** of the item showing the issue\n\nThis helps our team resolve your case within 24 hours.`,
+                            timestamp: new Date(),
+                        }
+                    ]);
+                } else {
+                    const statusText = orderStatus === "shipped" || orderStatus === "delivered"
+                        ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
+                        : `Your order is currently being **processed**.`;
+                    setMessages([
+                        {
+                            id: Date.now().toString(),
+                            sender: "ziva",
+                            text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`,
+                            timestamp: new Date(),
+                        }
+                    ]);
+                }
             }
         }
-    }, [isOpen, product, orderId, messages.length]);
+    }, [isOpen, product, orderId, messages.length, mode]);
 
     // Save chat history to session storage
     useEffect(() => {
         if (orderId && messages.length > 0) {
-            sessionStorage.setItem(`ziva_chat_${orderId}`, JSON.stringify(messages));
+            const storageKey = `ziva_chat_${mode}_${orderId}`;
+            sessionStorage.setItem(storageKey, JSON.stringify(messages));
         }
-    }, [messages, orderId]);
+    }, [messages, orderId, mode]);
 
     // Auto-scroll
     useEffect(() => {
@@ -79,8 +109,50 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
 
     if (!isOpen) return null;
 
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const imageUrl = URL.createObjectURL(file);
+
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            sender: "user",
+            text: `📷 ${file.name}`,
+            timestamp: new Date(),
+            imageUrl,
+        };
+
+        setMessages(prev => [...prev, userMsg]);
+        setIsTyping(true);
+
+        // Ziva acknowledges the image
+        setTimeout(() => {
+            const zivaText = mode === "return"
+                ? "Thank you for uploading the photo evidence. I've attached it to your return case. Our dispute resolution team will review this along with the merchant. Is there anything else you'd like to add about the issue?"
+                : "I've received the image. I'll pass this along to the merchant and our support team for review.";
+
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                sender: "ziva",
+                text: zivaText,
+                timestamp: new Date()
+            }]);
+            setIsTyping(false);
+        }, 1500);
+
+        // Reset input
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
     const handleSend = (text: string = input) => {
         if (!text.trim()) return;
+
+        // If quick action triggers file upload
+        if (text === "Upload Photo Evidence") {
+            fileInputRef.current?.click();
+            return;
+        }
 
         const userMsg: Message = {
             id: Date.now().toString(),
@@ -93,22 +165,50 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
         setInput("");
         setIsTyping(true);
 
-        // Mock Ziva Response
+        // Smart Ziva Response
         setTimeout(() => {
-            let zivaText = "I've notified the merchant. Our human concierge team is also monitoring this request and will step in shortly if needed.";
-            let imageUrl: string | undefined = undefined;
+            let zivaText = "I've noted your concern and notified the merchant. Our support team is also monitoring this request and will step in shortly if needed.";
 
             const lowerText = text.toLowerCase();
 
-            // Special Handler for explicitly asking about the Order ID
-            if (lowerText.includes("order id") || lowerText.includes("my order") || lowerText.includes("tracking id") || lowerText.includes("tracking code")) {
-                zivaText = `Your Tracking / Order ID is **${orderId || "PENDING"}**. You can use this to track your order. Is there anything specific about this order you need help with?`;
-            } else if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
-                zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here. You'll also receive a notification when the images are ready.";
-            } else if (lowerText.includes("ship") || lowerText.includes("delivery")) {
-                zivaText = "Your item is currently being prepared. Based on your location, estimated delivery is within 2-4 business days once handed over to our logistics partners.";
-            } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
-                zivaText = "This product is covered by FairPrice's strict Escrow Protection. Your funds will not be released to the seller until you confirm the item matches the description.";
+            if (mode === "return") {
+                // Return mode responses
+                if (lowerText.includes("wrong item")) {
+                    zivaText = `I'm sorry you received the wrong item. I've flagged this on Order **${trackingId}**. Please upload a photo of what you received so we can compare it with the original listing. Our team will arrange a replacement or full refund within 24–48 hours.`;
+                } else if (lowerText.includes("damaged") || lowerText.includes("broken")) {
+                    zivaText = `I'm sorry to hear your item arrived damaged. Please upload clear photos showing the damage. Your funds are still in escrow and will NOT be released to the seller until this is resolved. We take damage claims very seriously.`;
+                } else if (lowerText.includes("not as described") || lowerText.includes("different")) {
+                    zivaText = `Thank you for reporting this. Please describe how the item differs from the listing and upload comparison photos. Your escrow funds are protected — the seller will not be paid until the dispute is resolved in your favor.`;
+                } else if (lowerText.includes("refund") || lowerText.includes("money back")) {
+                    zivaText = `Your refund request has been logged for Order **${trackingId}**. Since payment is held in escrow, your funds are fully protected. Once our team verifies the return, the refund will be processed within 1–3 business days.`;
+                } else if (lowerText.includes("how long") || lowerText.includes("when")) {
+                    zivaText = `Return processing typically takes 24–48 hours after we receive your photos and reason. Refunds are issued within 1–3 business days after approval. Your funds are secured in escrow throughout this process.`;
+                }
+            } else {
+                // Post-order mode responses
+                if (lowerText.includes("order id") || lowerText.includes("my order") || lowerText.includes("tracking id") || lowerText.includes("tracking code") || lowerText.includes("tracking")) {
+                    zivaText = `📦 **Order Details:**\n• Order ID: **${trackingId}**\n• Status: **${orderStatus}**\n• Carrier: **${carrier}**${order?.tracking_id ? `\n• Tracking #: **${order.tracking_id}**` : ""}\n\nYou can use this information to track your shipment. Is there anything else you need help with?`;
+                } else if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
+                    zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here. You'll also receive a notification when the images are ready.";
+                } else if (lowerText.includes("ship") || lowerText.includes("delivery") || lowerText.includes("where") || lowerText.includes("when") || lowerText.includes("got the delivery") || lowerText.includes("received")) {
+                    if (orderStatus === "delivered") {
+                        zivaText = `Your order **${trackingId}** has been marked as **delivered**. If you've received your item and it's in good condition, you can confirm delivery from your orders page to release the payment from escrow. If there's any issue, let me know immediately!`;
+                    } else if (orderStatus === "shipped") {
+                        zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 2–4 business days. I'll notify you when it arrives!`;
+                    } else {
+                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated processing: 1–2 business days.`;
+                    }
+                } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
+                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 7-day return window after delivery.";
+                } else if (lowerText.includes("cancel")) {
+                    if (orderStatus === "pending" || orderStatus === "processing") {
+                        zivaText = `Your order **${trackingId}** can still be cancelled since it hasn't shipped yet. Would you like me to proceed with the cancellation? Your full payment will be refunded immediately.`;
+                    } else {
+                        zivaText = `Your order **${trackingId}** has already been **${orderStatus}** and can no longer be cancelled. However, you can initiate a return if needed.`;
+                    }
+                } else if (lowerText.includes("condition") || lowerText.includes("confirm")) {
+                    zivaText = "I can request a condition check from the merchant. They'll be asked to verify the item's quality and packaging before shipping. This is part of our FairPrice Quality Assurance process.";
+                }
             }
 
             setMessages(prev => [...prev, {
@@ -120,6 +220,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
             setIsTyping(false);
         }, 1500);
     };
+
+    const quickActions = mode === "return" ? RETURN_ACTIONS : POST_ORDER_ACTIONS;
 
     return (
         <AnimatePresence>
@@ -141,17 +243,21 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                         className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[75vh] sm:h-[600px] font-sans"
                     >
                         {/* Header */}
-                        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-xl relative z-20">
+                        <div className={`px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 relative z-20 ${mode === "return" ? "bg-rose-50/80 backdrop-blur-xl" : "bg-white/80 backdrop-blur-xl"}`}>
                             <div className="flex items-center gap-3">
                                 <div className="relative">
-                                    <div className="w-10 h-10 rounded-full bg-brand-green-100 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                                        <span className="font-black text-brand-green-700 text-lg">Z</span>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-white shadow-sm overflow-hidden ${mode === "return" ? "bg-rose-100" : "bg-brand-green-100"}`}>
+                                        <span className={`font-black text-lg ${mode === "return" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
                                     </div>
                                     <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-gray-900 leading-none">Order Concierge</h3>
-                                    <p className="text-[11px] font-medium text-emerald-600 mt-1">Ziva AI & Support Team active</p>
+                                    <h3 className="font-bold text-gray-900 leading-none">
+                                        {mode === "return" ? "Return Assistant" : "Order Concierge"}
+                                    </h3>
+                                    <p className={`text-[11px] font-medium mt-1 ${mode === "return" ? "text-rose-600" : "text-emerald-600"}`}>
+                                        Ziva AI & Support Team active
+                                    </p>
                                 </div>
                             </div>
                             <button
@@ -164,11 +270,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
 
                         {/* Product Context Banner */}
                         {product && (
-                            <div className="bg-gray-50 px-4 py-3 flex items-center gap-3 border-b border-gray-100 shrink-0">
+                            <div className={`px-4 py-3 flex items-center gap-3 border-b border-gray-100 shrink-0 ${mode === "return" ? "bg-rose-50/50" : "bg-gray-50"}`}>
                                 <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-10 h-10 rounded-lg object-cover bg-white border border-gray-200" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                 <div className="flex-1 min-w-0">
                                     <p className="text-xs font-semibold text-gray-900 truncate">{product.name}</p>
-                                    <p className="text-[10px] text-gray-500 font-medium">Order {orderId || "#RS-PENDING"}</p>
+                                    <p className="text-[10px] text-gray-500 font-medium">
+                                        Order {trackingId} • {orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1)}
+                                        {mode === "return" && <span className="text-rose-600 font-bold ml-1">• Return Request</span>}
+                                    </p>
                                 </div>
                             </div>
                         )}
@@ -194,8 +303,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                                         {/* Avatar */}
                                         <div className="shrink-0 mt-auto">
                                             {msg.sender === "ziva" ? (
-                                                <div className="w-6 h-6 rounded-full bg-brand-green-100 flex items-center justify-center border border-brand-green-200">
-                                                    <span className="text-[10px] font-bold text-brand-green-700">Z</span>
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${mode === "return" ? "bg-rose-100 border-rose-200" : "bg-brand-green-100 border-brand-green-200"}`}>
+                                                    <span className={`text-[10px] font-bold ${mode === "return" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
                                                 </div>
                                             ) : msg.sender === "admin" ? (
                                                 <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
@@ -207,17 +316,22 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                                         {/* Message Bubble */}
                                         <div className="flex flex-col gap-1">
                                             <div
-                                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative ${msg.sender === "user"
+                                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative whitespace-pre-line ${msg.sender === "user"
                                                     ? "bg-black text-white rounded-br-sm"
                                                     : "bg-white text-gray-800 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-bl-sm"
                                                     }`}
                                             >
-                                                {msg.text}
+                                                {msg.text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
+                                                    if (part.startsWith("**") && part.endsWith("**")) {
+                                                        return <strong key={i}>{part.slice(2, -2)}</strong>;
+                                                    }
+                                                    return part;
+                                                })}
                                             </div>
 
                                             {msg.imageUrl && (
                                                 <div className="mt-1 rounded-xl overflow-hidden border border-gray-200 bg-white">
-                                                    <img src={msg.imageUrl} alt="Received from seller" className="w-full max-h-48 object-contain bg-gray-50 p-2" />
+                                                    <img src={msg.imageUrl} alt="Uploaded" className="w-full max-h-48 object-contain bg-gray-50 p-2" />
                                                 </div>
                                             )}
                                         </div>
@@ -230,8 +344,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                                     <div className="flex gap-2 max-w-[80%] flex-row">
                                         <div className="shrink-0 mt-auto">
-                                            <div className="w-6 h-6 rounded-full bg-brand-green-100 flex items-center justify-center border border-brand-green-200">
-                                                <span className="text-[10px] font-bold text-brand-green-700">Z</span>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${mode === "return" ? "bg-rose-100 border-rose-200" : "bg-brand-green-100 border-brand-green-200"}`}>
+                                                <span className={`text-[10px] font-bold ${mode === "return" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
                                             </div>
                                         </div>
                                         <div className="px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm rounded-bl-sm flex gap-1.5 items-center">
@@ -244,14 +358,17 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                             )}
                         </div>
 
-                        {/* Quick Actions (only show if no messages from user yet to keep UI clean, or always show for utility) */}
+                        {/* Quick Actions */}
                         <div className="px-4 py-3 bg-white border-t border-gray-100 shrink-0">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                                {QUICK_ACTIONS.map(action => (
+                                {quickActions.map(action => (
                                     <button
                                         key={action.id}
                                         onClick={() => handleSend(action.label)}
-                                        className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-full text-[11px] font-semibold border border-gray-200 transition-colors"
+                                        className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${mode === "return"
+                                                ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                                                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                                            }`}
                                     >
                                         {action.icon}
                                         {action.label}
@@ -260,29 +377,50 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId }: Po
                             </div>
                         </div>
 
+                        {/* Hidden file input */}
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleImageUpload}
+                        />
+
                         {/* Input Area */}
                         <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-                            <div className="relative flex items-center">
-                                <Input
-                                    className="pr-12 bg-gray-50 border-gray-200 h-11 rounded-full text-sm focus:bg-white transition-colors"
-                                    placeholder="Ask a question about this layout..."
-                                    value={input}
-                                    onChange={(e) => setInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleSend();
-                                        }
-                                    }}
-                                />
-                                <Button
-                                    size="icon"
-                                    className="absolute right-1 w-9 h-9 rounded-full bg-black hover:bg-gray-800 text-white shadow-sm"
-                                    onClick={() => handleSend()}
-                                    disabled={!input.trim()}
+                            <div className="relative flex items-center gap-2">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${mode === "return"
+                                            ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                        }`}
+                                    title="Upload image"
                                 >
-                                    <Send className="w-4 h-4" />
-                                </Button>
+                                    <Paperclip className="w-4 h-4" />
+                                </button>
+                                <div className="relative flex-1">
+                                    <Input
+                                        className="pr-12 bg-gray-50 border-gray-200 h-11 rounded-full text-sm focus:bg-white transition-colors"
+                                        placeholder="Type a message..."
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSend();
+                                            }
+                                        }}
+                                    />
+                                    <Button
+                                        size="icon"
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black hover:bg-gray-800 text-white shadow-sm"
+                                        onClick={() => handleSend()}
+                                        disabled={!input.trim()}
+                                    >
+                                        <Send className="w-4 h-4" />
+                                    </Button>
+                                </div>
                             </div>
                             <div className="text-center mt-3">
                                 <p className="text-[9px] text-gray-400 font-medium">End-to-end encrypted • Escrow Protected</p>

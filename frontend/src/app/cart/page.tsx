@@ -202,22 +202,21 @@ export default function CartPage() {
                 </div>
             </main>
 
-            {/* Similar Items in Category - Horizontal Scroll */}
+            {/* Similar Items in Category - Grid with Add to Cart */}
             {cart.length > 0 && (() => {
                 const cartCategories = [...new Set(cart.map(c => c.product.category).filter(Boolean))];
-                const similarProducts = DEMO_PRODUCTS
-                    .filter(p => cartCategories.includes(p.category) && !cart.some(c => c.product.id === p.id))
-                    .slice(0, 12);
-                const primaryCategory = cartCategories[0] || 'electronics';
+                const allSimilar = DEMO_PRODUCTS
+                    .filter(p => cartCategories.includes(p.category) && !cart.some(c => c.product.id === p.id));
+                const similarProducts = allSimilar.slice(0, visibleProductsCount);
                 if (similarProducts.length === 0) return null;
                 return (
-                    <>
-                        <div className="container mx-auto px-4 mb-8 lg:mb-12 hidden lg:block lg:pb-0">
-                            <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
-                                <h2 className="text-lg font-bold mb-4">Similar Items in Category</h2>
-                                <div className="flex overflow-x-auto gap-4 pb-4 snap-x" style={{ scrollbarWidth: "none" }}>
-                                    {similarProducts.map(product => (
-                                        <Link key={product.id} href={`/product/${product.id}`} className="shrink-0 w-36 sm:w-48 group snap-start">
+                    <div className="container mx-auto px-4 mb-8 lg:mb-12 pb-0">
+                        <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
+                            <h2 className="text-lg font-bold mb-4">Similar Items in Category</h2>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+                                {similarProducts.map(product => (
+                                    <div key={product.id} className="group relative">
+                                        <Link href={`/product/${product.id}`} className="block">
                                             <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
                                                 <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                             </div>
@@ -226,42 +225,36 @@ export default function CartPage() {
                                             </h3>
                                             <p className="font-bold text-sm sm:text-base text-gray-900 mt-1">{formatPrice(product.price)}</p>
                                         </Link>
-                                    ))}
-                                </div>
-                                <div className="text-center mt-2">
-                                    <Link href={`/search?q=${encodeURIComponent(primaryCategory)}`}>
-                                        <Button variant="outline" className="rounded-full px-8 font-bold text-sm">View More</Button>
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="lg:hidden">
-                            <div className="container mx-auto px-4 mb-4 pb-0">
-                                <div className="bg-white rounded p-4 shadow-sm border border-gray-200">
-                                    <h2 className="text-lg font-bold mb-4">Similar Items in Category</h2>
-                                    <div className="flex overflow-x-auto gap-4 pb-4 snap-x -mx-4 px-4" style={{ scrollbarWidth: "none" }}>
-                                        {similarProducts.map(product => (
-                                            <Link key={product.id} href={`/product/${product.id}`} className="shrink-0 w-36 group snap-start">
-                                                <div className="bg-gray-50 rounded aspect-square p-4 mb-2 flex items-center justify-center">
-                                                    <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
-                                                </div>
-                                                <h3 className="text-xs text-gray-700 line-clamp-2 min-h-[2.5rem]">
-                                                    {product.name}
-                                                </h3>
-                                                <p className="font-bold text-sm text-gray-900 mt-1">{formatPrice(product.price)}</p>
-                                            </Link>
-                                        ))}
+                                        <button
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                addToCart(product);
+                                                const btn = e.currentTarget;
+                                                btn.innerHTML = '✓';
+                                                btn.classList.add('bg-emerald-500', 'text-white', 'border-emerald-500');
+                                                setTimeout(() => { btn.innerHTML = '+'; btn.classList.remove('bg-emerald-500', 'text-white', 'border-emerald-500'); }, 1200);
+                                            }}
+                                            className="absolute top-2 right-2 w-7 h-7 hover:cursor-pointer rounded-full border-2 border-emerald-500 bg-white text-emerald-600 hover:bg-emerald-500 hover:text-white flex items-center justify-center font-bold text-lg transition-all shadow-sm z-10"
+                                            title="Add to Cart"
+                                        >
+                                            +
+                                        </button>
                                     </div>
-                                    <div className="text-center mt-2">
-                                        <Link href={`/search?q=${encodeURIComponent(primaryCategory)}`}>
-                                            <Button variant="outline" className="rounded-full px-8 font-bold text-sm w-full">View More</Button>
-                                        </Link>
-                                    </div>
-                                </div>
+                                ))}
                             </div>
+                            {allSimilar.length > visibleProductsCount && (
+                                <div className="flex justify-center mt-6">
+                                    <Button
+                                        variant="outline"
+                                        className="rounded-full px-8 py-3 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                                        onClick={() => setVisibleProductsCount(prev => prev + 8)}
+                                    >
+                                        View More <ChevronDown className="h-4 w-4 ml-2" />
+                                    </Button>
+                                </div>
+                            )}
                         </div>
-                    </>
+                    </div>
                 );
             })()}
 
@@ -279,54 +272,7 @@ export default function CartPage() {
                     </Link>
                 </div>
             )}
-            {/* View More + You May Also Like */}
-            {cart.length > 0 && (
-                <div className="container mx-auto px-4 mt-8 mb-16 max-w-7xl">
 
-
-                    {/* You May Also Like — more products from the same or related categories */}
-                    {visibleProductsCount > 8 && (() => {
-                        const youMayLike = DEMO_PRODUCTS
-                            .filter(p => !cart.map(c => c.product.id).includes(p.id))
-                            .sort(() => Math.random() - 0.5)
-                            .slice(0, visibleProductsCount - 8);
-
-                        if (youMayLike.length === 0) return null;
-
-                        return (
-                            <div className="mt-8 mb-6">
-                                <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 mb-6 flex items-center gap-2">
-                                    You May Also Like
-                                </h2>
-                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                                    {youMayLike.map(product => (
-                                        <div key={product.id}>
-                                            <ProductCard product={product} className="h-full w-full" />
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* View More Button */}
-                    <div className="flex flex-col items-center gap-8 mt-6">
-                        <Button
-                            variant="outline"
-                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
-                            onClick={() => {
-                                if (!loadedMore) {
-                                    setLoadedMore(true);
-                                } else {
-                                    setVisibleProductsCount(prev => prev + 8);
-                                }
-                            }}
-                        >
-                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
-                        </Button>
-                    </div>
-                </div>
-            )}
 
             <Footer />
 

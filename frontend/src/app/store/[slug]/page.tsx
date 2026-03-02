@@ -130,7 +130,7 @@ export default function StoreProfile() {
                     <h1 className="text-2xl font-bold text-gray-900">Store Not Found</h1>
                     <p className="text-gray-500 mt-2">The store you are looking for does not exist.</p>
                     <Link href="/">
-                        <Button className="mt-4" variant="outline">Back using Home</Button>
+                        <Button className="mt-4" variant="outline">Back to Home</Button>
                     </Link>
                 </div>
             </div>

@@ -50,6 +50,8 @@ function OrdersContent() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
     const [showConcierge, setShowConcierge] = useState(false);
+    const [conciergeOrder, setConciergeOrder] = useState<Order | null>(null);
+    const [conciergeMode, setConciergeMode] = useState<"post_order" | "return">("post_order");
 
     const { addToCart } = useCart();
     const router = useRouter();
@@ -77,6 +79,8 @@ function OrdersContent() {
 
         // Auto-show concierge chat for the most recent order if coming from checkout success
         if (searchParams.get("success") === "true" && sortedOrders.length > 0) {
+            setConciergeOrder(sortedOrders[0]);
+            setConciergeMode("post_order");
             setShowConcierge(true);
             // Optional: clean up the URL to prevent re-triggering on refresh
             window.history.replaceState({}, document.title, window.location.pathname);
@@ -97,9 +101,20 @@ function OrdersContent() {
     }, []);
 
     const handleConfirmDelivery = (orderId: string) => {
+        const order = orders.find(o => o.id === orderId);
         DemoStore.updateOrderStatus(orderId, "delivered");
         DemoStore.releaseEscrow(orderId);
+        DemoStore.addNotification({
+            userId: user?.email || "guest",
+            type: "order",
+            message: `Delivery Confirmed! 🎉 Your order has been delivered. Leave a review to help other shoppers!`,
+            link: `/product/${order?.product_id}?review=true`
+        });
         loadData();
+        // Redirect to PDP with review prompt
+        if (order?.product_id) {
+            router.push(`/product/${order.product_id}?review=true`);
+        }
     };
 
     const handleCancelOrder = (orderId: string) => {
@@ -115,18 +130,10 @@ function OrdersContent() {
         }
     };
 
-    const handleReturnOrder = (orderId: string) => {
-        if (confirm("Are you sure you want to initiate a return for this order?")) {
-            // Note: In a real app this would trigger a return flow.
-            DemoStore.updateOrderStatus(orderId, "returned");
-            DemoStore.addNotification({
-                userId: user?.email || "guest",
-                type: "order",
-                message: `Return Initiated — Your return request for order #${orderId.split('_')[1]?.substring(0, 8) || orderId.substring(0, 8)} has been received. We will contact you shortly with instructions.`,
-                link: "/account/orders"
-            });
-            loadData();
-        }
+    const handleReturnOrder = (order: Order) => {
+        setConciergeOrder(order);
+        setConciergeMode("return");
+        setShowConcierge(true);
     };
 
     const handleBuyAgain = (order: Order) => {
@@ -298,7 +305,7 @@ function OrdersContent() {
                                                         )}
                                                         {order.status === "delivered" && (
                                                             <button
-                                                                onClick={() => handleReturnOrder(order.id)}
+                                                                onClick={() => handleReturnOrder(order)}
                                                                 className="text-[11px] font-semibold text-gray-500 hover:text-gray-900 hover:cursor-pointer px-1 py-1 rounded hover:bg-gray-100 transition-colors"
                                                             >
                                                                 Return
@@ -351,7 +358,7 @@ function OrdersContent() {
                                                             </Button>
                                                         )}
                                                         {order.status === "delivered" && (
-                                                            <Button size="sm" variant="outline" onClick={() => handleReturnOrder(order.id)} className="flex-1 text-xs rounded-lg font-semibold border-gray-300 text-gray-700 hover:bg-gray-100 bg-transparent px-1">
+                                                            <Button size="sm" variant="outline" onClick={() => handleReturnOrder(order)} className="flex-1 text-xs rounded-lg font-semibold border-gray-300 text-gray-700 hover:bg-gray-100 bg-transparent px-1">
                                                                 Return
                                                             </Button>
                                                         )}
@@ -648,12 +655,14 @@ function OrdersContent() {
             </AnimatePresence>
 
             <AnimatePresence>
-                {showConcierge && orders.length > 0 && (
+                {showConcierge && conciergeOrder && (
                     <PostOrderConciergeChat
                         isOpen={showConcierge}
                         onClose={() => setShowConcierge(false)}
-                        product={orders[0]?.product || null}
-                        orderId={orders[0]?.id?.split('_')[1]?.substring(0, 8) || orders[0]?.id?.substring(0, 8) || "NEW"}
+                        product={conciergeOrder.product || null}
+                        orderId={conciergeOrder.id?.split('_')[1]?.substring(0, 8) || conciergeOrder.id?.substring(0, 8) || "NEW"}
+                        order={conciergeOrder}
+                        mode={conciergeMode}
                     />
                 )}
             </AnimatePresence>

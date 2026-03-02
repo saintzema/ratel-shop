@@ -95,7 +95,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
 
                     {/* Fair Price / Overpriced Badge Overlay */}
                     {product.price_flag === "fair" && (
-                        <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
+                        <div className="absolute top-3 left-3 z-20 flex items-center gap-1 px-2 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
                             <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                             <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Fair Price</span>
                         </div>

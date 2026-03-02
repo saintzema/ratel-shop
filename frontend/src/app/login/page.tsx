@@ -146,6 +146,15 @@ export default function UnifiedAuthPage() {
             });
             // Ensure this user is in the registered users list
             saveRegisteredUser(userEmail, userName, determinedRole);
+
+            // Welcome-back notification
+            DemoStore.addNotification({
+                userId: userEmail,
+                type: "system",
+                message: `Welcome back, ${userName}! 👋 Happy shopping.`,
+                link: "/"
+            });
+
             router.push(finalRedirect);
         }, 1000);
     };
@@ -248,8 +257,8 @@ export default function UnifiedAuthPage() {
 
             // Add Welcome Notification
             DemoStore.addNotification({
-                userId: "user_" + Math.random().toString(36).substr(2, 9), // It will catch globally anyway for demo
-                message: "Welcome to FairPrice! Your account is created. Explore top global and local deals.",
+                userId: regEmail,
+                message: `Welcome to FairPrice, ${firstName.trim()}! 🎉 Your account is created. Explore top global and local deals.`,
                 type: "system",
                 link: "/"
             });
