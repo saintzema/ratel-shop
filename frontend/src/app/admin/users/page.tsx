@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
     Search,
     Filter,
@@ -149,7 +150,7 @@ export default function UserDirectory() {
                                             {p.business_name.charAt(0)}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-gray-900 text-[15px]">{p.business_name}</h4>
+                                            <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-[15px] hover:text-indigo-600 hover:underline block">{p.business_name}</Link>
                                             <p className="text-[11px] text-gray-400 font-bold">ID: {p.id.toUpperCase()}</p>
                                             {p.role === "seller" && p.business_registered && (
                                                 <div className="flex items-center gap-2 mt-1">

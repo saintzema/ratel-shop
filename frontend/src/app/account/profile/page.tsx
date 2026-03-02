@@ -5,12 +5,14 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useRef, useEffect } from "react";
-import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save } from "lucide-react";
+import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useNotification } from "@/components/ui/NotificationProvider";
 
 export default function ProfilePage() {
     const { user, updateUser } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
+    const { showNotification } = useNotification();
 
     // Form State
     const [formData, setFormData] = useState({
@@ -43,6 +45,11 @@ export default function ProfilePage() {
             const dataUrl = reader.result as string;
             setProfilePic(dataUrl);
             localStorage.setItem('fp_profile_pic', dataUrl);
+            showNotification({
+                title: "Profile Picture Updated Successfully",
+                message: "Your avatar has been synced across all devices.",
+                type: "success"
+            });
         };
         reader.readAsDataURL(file);
     };
@@ -84,7 +91,15 @@ export default function ProfilePage() {
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-8 max-w-2xl">
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4 mb-8">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => window.history.back()}
+                        className="h-10 w-10 rounded-full hover:bg-gray-100 shrink-0"
+                    >
+                        <ChevronLeft className="h-5 w-5 text-gray-700" />
+                    </Button>
                     <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-emerald-500 bg-clip-text text-transparent">Login & Security</h1>
                 </div>
 

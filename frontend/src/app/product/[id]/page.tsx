@@ -344,15 +344,7 @@ export default function ProductDetailPage() {
 
             // Save to Browsing History
             try {
-                const historyStr = localStorage.getItem('fp_browsing_history');
-                let history = historyStr ? JSON.parse(historyStr) : [];
-                // Remove if already exists to put it at the top
-                history = history.filter((p: any) => p.id !== product.id);
-                // Add to start
-                history.unshift(product);
-                // Keep only last 50 items
-                if (history.length > 50) history = history.slice(0, 50);
-                localStorage.setItem('fp_browsing_history', JSON.stringify(history));
+                DemoStore.addToHistory(product);
             } catch (e) {
                 console.error("Failed to save browsing history", e);
             }

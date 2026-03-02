@@ -114,6 +114,15 @@ export interface Order {
         timestamp: string;
         completed: boolean;
     }[];
+    chat_messages?: {
+        id: string;
+        sender: string;
+        text: string;
+        timestamp: string;
+        imageUrl?: string;
+    }[];
+    zivaActive?: boolean;
+    unread_admin?: boolean;
     seller_confirmed_at?: string;
     buyer_confirmed_at?: string;
     escrow_released_at?: string;

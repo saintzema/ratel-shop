@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Label } from "@/components/ui/label";
 import { Product } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
+import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,13 +24,24 @@ import {
     Zap,
     MoreHorizontal,
     Eye,
-    TrendingUp
+    TrendingUp,
+    Star
 } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter
+} from "@/components/ui/dialog";
 
 export default function SellerProducts() {
     const [products, setProducts] = useState<Product[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
+    const [showPaystack, setShowPaystack] = useState(false);
     const [saveSuccess, setSaveSuccess] = useState(false);
     const router = useRouter();
 
@@ -58,6 +71,34 @@ export default function SellerProducts() {
     const filtered = products.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const handlePromoteProductInit = () => {
+        if (!promoteModalOpen.product) return;
+        setPromoteModalOpen({ ...promoteModalOpen, isOpen: false });
+        setShowPaystack(true);
+    };
+
+    const handlePromoteSuccess = (reference: string) => {
+        if (!promoteModalOpen.product) return;
+
+        DemoStore.promoteProduct(promoteModalOpen.product.id, true);
+
+        // Refresh local list
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (sellerId) {
+            setProducts(DemoStore.getProducts().filter(p => p.seller_id === sellerId));
+        }
+
+        // Update local state to reflect UI instantly
+        setProducts(prev => prev.map(p =>
+            p.id === promoteModalOpen.product!.id ? { ...p, is_sponsored: true } : p
+        ));
+
+        setShowPaystack(false);
+        setPromoteModalOpen({ isOpen: false, product: null });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+    };
 
     return (
         <div className="max-w-6xl mx-auto py-10 px-4 sm:px-6 text-gray-900">
@@ -186,18 +227,21 @@ export default function SellerProducts() {
                                         ) : (
                                             <div className="flex items-center justify-end gap-1">
                                                 {/* Promote */}
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 px-2.5 text-xs font-semibold text-amber-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg gap-1.5 transition-colors"
-                                                    onClick={() => {
-                                                        // TODO: Open promote modal
-                                                        alert(`Promote "${product.name}" — Sponsored Ads coming soon!`);
-                                                    }}
-                                                >
-                                                    <Megaphone className="h-3.5 w-3.5" />
-                                                    <span className="hidden sm:inline">Promote</span>
-                                                </Button>
+                                                {!product.is_sponsored ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 px-2.5 text-xs font-semibold text-amber-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg gap-1.5 transition-colors"
+                                                        onClick={() => setPromoteModalOpen({ isOpen: true, product })}
+                                                    >
+                                                        <Megaphone className="h-3.5 w-3.5" />
+                                                        <span className="hidden sm:inline">Promote</span>
+                                                    </Button>
+                                                ) : (
+                                                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 font-bold text-[10px] uppercase h-8 mr-1">
+                                                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> Sponsored
+                                                    </Badge>
+                                                )}
 
                                                 {/* Edit — links to full edit page */}
                                                 <Link href={`/seller/products/${product.id}/edit`}>
@@ -226,6 +270,49 @@ export default function SellerProducts() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Promote Product Modal */}
+            <Dialog open={promoteModalOpen.isOpen} onOpenChange={(open) => !open && setPromoteModalOpen({ isOpen: false, product: null })}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Boost Your Sales</DialogTitle>
+                        <DialogDescription>
+                            Promote "{promoteModalOpen.product?.name}" to the top of search results and category pages.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-4">
+                            <div className="bg-amber-100 p-2 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
+                                <TrendingUp className="h-5 w-5 text-amber-700" />
+                            </div>
+                            <div>
+                                <h4 className="font-bold text-gray-900 text-sm">Sponsored Product Placement</h4>
+                                <p className="text-xs text-gray-600 mt-1">Get up to 5x more views by featuring this product.</p>
+                                <p className="text-sm font-black text-amber-700 mt-2">₦2,500 <span className="text-xs font-normal text-amber-600">/ 7 days</span></p>
+                            </div>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setPromoteModalOpen({ isOpen: false, product: null })} className="font-bold text-gray-500">Cancel</Button>
+                        <Button
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                            onClick={handlePromoteProductInit}
+                        >
+                            Promote Now
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {showPaystack && promoteModalOpen.product && (
+                <PaystackCheckout
+                    amount={250000} // ₦2,500 in kobo
+                    email={DemoStore.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    onSuccess={handlePromoteSuccess}
+                    onClose={() => setShowPaystack(false)}
+                    autoStart={true}
+                />
+            )}
         </div>
     );
 }

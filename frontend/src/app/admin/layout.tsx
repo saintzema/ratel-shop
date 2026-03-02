@@ -37,6 +37,13 @@ export default function AdminLayout({
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter' && searchQuery.trim()) {
+            router.push(`/admin/search?q=${encodeURIComponent(searchQuery.trim())}`);
+        }
+    };
 
     const navItems = [
         { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
@@ -151,6 +158,9 @@ export default function AdminLayout({
                                 <input
                                     type="text"
                                     placeholder="Global Search..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onKeyDown={handleSearch}
                                     className="pl-10 pr-4 py-2 bg-gray-50 border-none rounded-2xl text-xs font-medium w-64 focus:ring-2 focus:ring-indigo-500 transition-all"
                                 />
                             </div>

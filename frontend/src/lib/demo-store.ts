@@ -388,6 +388,59 @@ class DemoStoreService {
         return orders.find(o => o.id === trackingId || o.tracking_id === trackingId);
     }
 
+    addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string) {
+        const orders = this.getOrders();
+        let notifiedUser = "";
+        let notifiedUrl = "";
+
+        const updated = orders.map(o => {
+            if (o.id === orderId) {
+                const msg = {
+                    id: Date.now().toString(),
+                    sender,
+                    text,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    imageUrl
+                };
+
+                // If a human sends a message (admin or seller to buyer, or buyer to admin/seller),
+                // Ziva should probably be deactivated or contextually aware. We just mark active.
+                if (sender !== 'ziva') {
+                    // Who to notify? 
+                    if (sender === 'admin' || sender === 'seller') {
+                        notifiedUser = o.customer_id;
+                        notifiedUrl = `/account/orders/${orderId}`;
+                    } else {
+                        notifiedUser = 'admin'; // For our notification system demo
+                        notifiedUrl = `/admin/orders`;
+                    }
+                }
+
+                return {
+                    ...o,
+                    chat_messages: [...(o.chat_messages || []), msg],
+                    zivaActive: sender === 'ziva' ? true : false,
+                    unread_admin: sender === 'user'
+                };
+            }
+            return o;
+        });
+
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        if (notifiedUser) {
+            this.addNotification({
+                userId: notifiedUser === 'admin' ? "all" : notifiedUser,
+                type: "order",
+                message: `New message regarding order #${orderId.substring(0, 8)}`,
+                link: notifiedUrl
+            });
+        }
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
 
     // --- Product CRUD ---
     addProduct(product: Omit<Product, "id" | "created_at" | "seller_id" | "seller_name" | "price_flag">) {
@@ -434,13 +487,8 @@ class DemoStoreService {
             localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         }
 
-        // Also add to global search history 
         try {
-            const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
-            const history = JSON.parse(historyJson);
-            history.unshift({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
-            if (history.length > 50) history.length = 50;
-            localStorage.setItem("fairprice_demo_global_search_history", JSON.stringify(history));
+            this.addToHistory(product);
         } catch (e) { }
 
         window.dispatchEvent(new Event("storage"));
@@ -456,6 +504,10 @@ class DemoStoreService {
         window.dispatchEvent(new Event("demo-store-update"));
     }
 
+    promoteProduct(id: string, isSponsored: boolean = true) {
+        this.updateProduct(id, { is_sponsored: isSponsored });
+    }
+
     setCachedGlobalResults(query: string, products: Product[]) {
         localStorage.setItem(`fairprice_global_search_${query.toLowerCase().trim()}`, JSON.stringify(products));
     }
@@ -466,18 +518,34 @@ class DemoStoreService {
         return data ? JSON.parse(data) : null;
     }
 
+    addToHistory(product: Product) {
+        if (typeof window === "undefined") return;
+        try {
+            const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
+            let history = JSON.parse(historyJson);
+
+            // Remove if already exists so it gets bumped to the top
+            history = history.filter((h: any) => h.productId !== product.id);
+
+            history.unshift({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
+            if (history.length > 50) history.length = 50;
+            localStorage.setItem("fairprice_demo_global_search_history", JSON.stringify(history));
+        } catch (e) { }
+    }
+
     getSearchHistoryProducts(): Product[] {
         if (typeof window === "undefined") return [];
         const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
         const history = JSON.parse(historyJson);
         const products = this.getProducts();
-        // Return recently viewed products from history that exist in the products array
+
+        // Return recently viewed products from history that exist in the products array.
+        // History is already unshifted (newest first).
         const historyProducts = history
             .map((h: any) => products.find((p) => p.id === h.productId))
-            .filter(Boolean)
-            .reverse(); // Most recent first
+            .filter(Boolean);
 
-        // Deduplicate by id
+        // Deduplicate by id (already done in addToHistory but good measure)
         return historyProducts.filter((v: Product, i: number, a: Product[]) => a.findIndex(t => (t.id === v.id)) === i);
     }
 

@@ -31,6 +31,8 @@ export default function KYCOnboarding() {
     const [currencies, setCurrencies] = useState<string[]>([]);
     const [staffCount, setStaffCount] = useState("");
     const [physicalStores, setPhysicalStores] = useState("");
+    const [bankName, setBankName] = useState("");
+    const [accountNumber, setAccountNumber] = useState("");
     const [accountName, setAccountName] = useState("");
     const { user, updateUser } = useAuth();
 
@@ -78,6 +80,9 @@ export default function KYCOnboarding() {
             trust_score: 50,
             status: "pending",
             kyc_status: "pending",
+            bank_name: bankName || undefined,
+            account_number: accountNumber || undefined,
+            account_name: accountName || undefined,
             logo_url: "https://ui-avatars.com/api/?name=" + encodeURIComponent(businessName || "Shop") + "&background=random",
             created_at: new Date().toISOString()
         };
@@ -423,7 +428,11 @@ export default function KYCOnboarding() {
 
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Bank Name</label>
-                                    <select className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600">
+                                    <select
+                                        value={bankName}
+                                        onChange={(e) => setBankName(e.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green-600"
+                                    >
                                         <option value="">Select Bank</option>
                                         <option value="Access Bank">Access Bank</option>
                                         <option value="Citibank Nigeria">Citibank Nigeria</option>
@@ -456,7 +465,13 @@ export default function KYCOnboarding() {
 
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Account Number</label>
-                                    <Input placeholder="0123456789" maxLength={10} className="border border-gray-300" />
+                                    <Input
+                                        placeholder="0123456789"
+                                        maxLength={10}
+                                        value={accountNumber}
+                                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
+                                        className="border border-gray-300"
+                                    />
                                 </div>
 
                                 <div className="space-y-2">

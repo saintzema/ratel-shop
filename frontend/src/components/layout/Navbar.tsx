@@ -842,8 +842,8 @@ export function Navbar() {
                                         ) : (
                                             <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
                                         )}
-                                        <Link href="#" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700">Recommendations</Link>
-                                        <Link href="#" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700">Browsing History</Link>
+                                        <Link href="/account/recommendations" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Recommendations</Link>
+                                        <Link href="/account/history" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Browsing History</Link>
                                     </div>
                                 </motion.div>
                             )}

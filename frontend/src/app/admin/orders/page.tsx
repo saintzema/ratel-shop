@@ -1,93 +1,75 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ShieldAlert, CheckCircle, Package, Send, AlertTriangle, MessageSquare, Bot, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useNotification } from "@/components/ui/NotificationProvider";
+import { DemoStore } from "@/lib/demo-store";
+import { Order } from "@/lib/types";
 
 export default function AdminOrdersTakeoverPage() {
     const [activeTab, setActiveTab] = useState<"all" | "active_chats" | "flagged">("active_chats");
-    const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [chatInput, setChatInput] = useState("");
+    const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const { showNotification } = useNotification();
 
-    // Mock Active Orders with Ziva Chats
-    const [activeOrders, setActiveOrders] = useState([
-        {
-            id: "ORD-99812",
-            customer: "Emily Johnson",
-            product: "Apple iPhone 15 Pro Max - 256GB Platinum",
-            amount: "₦1,850,000",
-            status: "processing",
-            zivaActive: true,
-            flagged: true,
-            messages: [
-                { id: "1", sender: "ziva", text: "Order received! I'm Ziva, your Concierge for the iPhone 15 Pro Max.", timestamp: "10:42 AM" },
-                { id: "2", sender: "user", text: "Are there actual photos of the titanium finish?", timestamp: "10:45 AM" },
-                { id: "3", sender: "ziva", text: "I am requesting real-time photos of the actual unit from the merchant's warehouse.", timestamp: "10:45 AM" },
-                { id: "4", sender: "user", text: "Okay, I also need to make sure the battery health is 100%. If not, cancel it.", timestamp: "10:47 AM" }
-            ]
-        },
-        {
-            id: "ORD-77421",
-            customer: "Michael Adebayo",
-            product: "Samsung QLED 4K 65\" Smart TV",
-            amount: "₦850,000",
-            status: "shipped",
-            zivaActive: true,
-            flagged: false,
-            messages: [
-                { id: "1", sender: "ziva", text: "Your TV is being prepared for dispatch.", timestamp: "09:00 AM" },
-                { id: "2", sender: "user", text: "When will it arrive in Abuja?", timestamp: "11:20 AM" },
-                { id: "3", sender: "ziva", text: "Based on your location, estimated delivery is within 2-4 business days.", timestamp: "11:21 AM" }
-            ]
-        }
-    ]);
+    useEffect(() => {
+        const load = () => {
+            const all = DemoStore.getOrders();
+            // Filter to orders that have chats, or just show all for demo purposes
+            setActiveOrders(all.filter(o => o.chat_messages && o.chat_messages.length > 0));
+
+            // Update selected order if it exists
+            if (selectedOrder) {
+                const updated = all.find(o => o.id === selectedOrder.id);
+                if (updated) setSelectedOrder(updated);
+            }
+        };
+        load();
+        window.addEventListener("demo-store-update", load);
+        window.addEventListener("storage", load);
+        return () => {
+            window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("storage", load);
+        };
+    }, [selectedOrder?.id]);
 
     const handleTakeover = () => {
         if (!selectedOrder) return;
 
-        // Mark Ziva as inactive
-        const updated = activeOrders.map(o => o.id === selectedOrder.id ? { ...o, zivaActive: false, flagged: false } : o);
-        setActiveOrders(updated);
-        setSelectedOrder({ ...selectedOrder, zivaActive: false, flagged: false });
-
-        // Inject system message
-        const takeoverMsg = {
-            id: Date.now().toString(),
-            sender: "system",
-            text: "Human agent (Superadmin) has joined the chat.",
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setSelectedOrder((prev: any) => ({ ...prev, messages: [...prev.messages, takeoverMsg] }));
+        // Mark Ziva as inactive implicitly by sending a message
+        DemoStore.addOrderMessage(selectedOrder.id, "system", "Human agent (Superadmin) has joined the chat.");
 
         showNotification({
             type: "success",
             title: "Chat Taken Over",
-            message: `You are now interacting directly with ${selectedOrder.customer}`
+            message: `You are now interacting directly with ${selectedOrder.customer_name || 'Customer'}`
         });
     };
 
+
+
     const handleSendMessage = () => {
         if (!chatInput.trim() || !selectedOrder) return;
-
-        // If Admin sends a message, they automatically takeover if they haven't already
-        if (selectedOrder.zivaActive) {
-            handleTakeover();
-        }
-
-        const newMsg = {
-            id: Date.now().toString(),
-            sender: "admin",
-            text: chatInput,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        setSelectedOrder((prev: any) => ({ ...prev, messages: [...prev.messages, newMsg] }));
+        DemoStore.addOrderMessage(selectedOrder.id, "admin", chatInput);
         setChatInput("");
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedOrder) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            DemoStore.addOrderMessage(selectedOrder.id, "admin", "Sent an image", base64String);
+        };
+        reader.readAsDataURL(file);
     };
 
     return (
@@ -120,24 +102,27 @@ export default function AdminOrdersTakeoverPage() {
                     </div>
                     <div className="flex-1 overflow-y-auto p-3 space-y-2">
                         {activeOrders
-                            .filter(o => activeTab === "flagged" ? o.flagged : true)
+                            // Need to assume 'flagged' comes from user sentiment, right now we mock it as false unless we have a specific property. Let's just mock it.
+                            .filter(o => activeTab === "flagged" ? false : true)
                             .map(order => (
                                 <div
                                     key={order.id}
                                     onClick={() => setSelectedOrder(order)}
-                                    className={`p-4 rounded-xl cursor-pointer border transition-all ${selectedOrder?.id === order.id ? "border-black shadow-md bg-gray-50" : "border-gray-100 hover:border-gray-300 hover:shadow-sm"}`}
+                                    className={`p-4 rounded-xl cursor-pointer border transition-all ${selectedOrder?.id === order.id ? "border-black shadow-md bg-gray-50" : "border-gray-100 hover:border-gray-300 hover:shadow-sm"} relative`}
                                 >
+                                    {order.unread_admin && (
+                                        <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white shadow-sm" />
+                                    )}
                                     <div className="flex justify-between items-start mb-2">
-                                        <span className="font-bold text-gray-900">{order.customer}</span>
-                                        <span className="text-[10px] text-gray-500 font-mono">{order.id}</span>
+                                        <span className="font-bold text-gray-900 line-clamp-1">{order.customer_name || 'Anonymous User'}</span>
+                                        <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-2">#{order.id.substring(0, 8)}</span>
                                     </div>
-                                    <p className="text-xs text-gray-600 line-clamp-1 mb-3">{order.product}</p>
+                                    <p className="text-xs text-gray-600 line-clamp-1 mb-3">{order.product?.name || order.product_id}</p>
 
                                     <div className="flex justify-between items-center">
                                         <Badge className={`${order.zivaActive ? "bg-brand-green-100 text-brand-green-700" : "bg-blue-100 text-blue-700"} border-none text-[10px]`}>
                                             {order.zivaActive ? <><Bot className="w-3 h-3 mr-1" /> Ziva Active</> : <><ShieldAlert className="w-3 h-3 mr-1" /> Admin Handling</>}
                                         </Badge>
-                                        {order.flagged && <AlertTriangle className="w-4 h-4 text-red-500" />}
                                     </div>
                                 </div>
                             ))}
@@ -151,8 +136,8 @@ export default function AdminOrdersTakeoverPage() {
                             {/* Chat Header */}
                             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                                 <div>
-                                    <h2 className="font-bold text-lg text-gray-900">{selectedOrder.customer}</h2>
-                                    <p className="text-xs text-gray-500 font-medium">Order: <span className="font-mono text-gray-900">{selectedOrder.id}</span> • {selectedOrder.product}</p>
+                                    <h2 className="font-bold text-lg text-gray-900">{selectedOrder.customer_name || 'Customer'}</h2>
+                                    <p className="text-xs text-gray-500 font-medium">Order: <span className="font-mono text-gray-900">#{selectedOrder.id.substring(0, 8)}</span> • {selectedOrder.product?.name || selectedOrder.product_id}</p>
                                 </div>
                                 {selectedOrder.zivaActive ? (
                                     <Button onClick={handleTakeover} className="bg-black hover:bg-gray-800 text-white font-bold h-9">
@@ -166,24 +151,25 @@ export default function AdminOrdersTakeoverPage() {
                             </div>
 
                             {/* Threat / Urgency Banner */}
-                            {selectedOrder.flagged && selectedOrder.zivaActive && (
+                            {selectedOrder.zivaActive && selectedOrder.unread_admin && (
                                 <div className="bg-red-50 px-4 py-2 border-b border-red-100 flex items-center gap-2">
                                     <AlertTriangle className="w-4 h-4 text-red-600" />
-                                    <span className="text-xs font-bold text-red-800">High Urgency: Customer mentioned cancellation. Human intervention recommended.</span>
+                                    <span className="text-xs font-bold text-red-800">High Urgency: Unread messages from customer. Human intervention recommended.</span>
                                 </div>
                             )}
 
                             {/* Messages Area */}
                             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/30">
-                                {selectedOrder.messages.map((msg: any) => (
+                                {selectedOrder.chat_messages?.map((msg: any) => (
                                     <div key={msg.id} className={`flex ${msg.sender === "user" ? "justify-start" : msg.sender === "system" ? "justify-center" : "justify-end"}`}>
                                         {msg.sender === "system" ? (
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-100 px-3 py-1 rounded-full">{msg.text}</span>
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-100 px-3 py-1 rounded-full text-center max-w-[80%]">{msg.text}</span>
                                         ) : (
                                             <div className={`max-w-[70%] flex flex-col ${msg.sender === "user" ? "items-start" : "items-end"}`}>
                                                 <div className="flex items-center gap-2 mb-1 px-1">
                                                     {msg.sender === "ziva" && <span className="text-[10px] font-bold text-brand-green-600">Ziva AI</span>}
                                                     {msg.sender === "admin" && <span className="text-[10px] font-bold text-blue-600">You (Admin)</span>}
+                                                    {msg.sender === "seller" && <span className="text-[10px] font-bold text-amber-600">Seller</span>}
                                                     {msg.sender === "user" && <span className="text-[10px] font-bold text-gray-500">Customer</span>}
                                                     <span className="text-[9px] text-gray-400">{msg.timestamp}</span>
                                                 </div>
@@ -193,6 +179,11 @@ export default function AdminOrdersTakeoverPage() {
                                                         ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-tr-sm"
                                                         : "bg-blue-600 text-white rounded-tr-sm shadow-sm"
                                                     }`}>
+                                                    {msg.imageUrl && (
+                                                        <div className="mb-2 rounded-xl overflow-hidden border border-black/10">
+                                                            <img src={msg.imageUrl} className="max-w-full h-auto max-h-[200px] object-cover" alt="Upload" />
+                                                        </div>
+                                                    )}
                                                     {msg.text}
                                                 </div>
                                             </div>
@@ -217,7 +208,14 @@ export default function AdminOrdersTakeoverPage() {
                                         onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                                     />
                                     <div className="absolute right-1.5 flex gap-1">
-                                        <Button size="icon" variant="ghost" className="w-9 h-9 text-gray-400 hover:text-gray-600 rounded-lg">
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleImageUpload}
+                                            accept="image/*"
+                                            className="hidden"
+                                        />
+                                        <Button size="icon" variant="ghost" className="w-9 h-9 text-gray-400 hover:text-gray-600 rounded-lg" onClick={() => fileInputRef.current?.click()}>
                                             <ImageIcon className="w-4 h-4" />
                                         </Button>
                                         <Button
