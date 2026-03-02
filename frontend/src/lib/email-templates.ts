@@ -145,7 +145,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
             break;
 
         case 'SELLER_WELCOME':
-            subject = "Welcome to FairPrice Sellers! 🚀";
+            subject = "Welcome to FairPrice Sellers! 💼";
             html = BaseTemplate("Your Seller Journey Begins", `
                 <p>Hi ${name},</p>
                 <p>Thank you for registering to become a verified FairPrice Seller!</p>

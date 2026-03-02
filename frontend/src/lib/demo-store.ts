@@ -27,6 +27,7 @@ class DemoStoreService {
     private constructor() {
         if (typeof window !== "undefined") {
             this.init();
+            this.syncWithDB();
         }
     }
 
@@ -86,6 +87,36 @@ class DemoStoreService {
                 }
             ];
             localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(initialReturns));
+        }
+    }
+
+    private async syncWithDB() {
+        if (typeof window === "undefined") return;
+
+        try {
+            // Fetch latest products from Postgres
+            const productsRes = await fetch("/api/products");
+            if (productsRes.ok) {
+                const dbProducts = await productsRes.json();
+                if (dbProducts.length > 0) {
+                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProducts));
+                }
+            }
+
+            // Fetch latest sellers from Postgres
+            const sellersRes = await fetch("/api/sellers");
+            if (sellersRes.ok) {
+                const dbSellers = await sellersRes.json();
+                if (dbSellers.length > 0) {
+                    localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(dbSellers));
+                }
+            }
+
+            // Trigger update event
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("demo-store-update"));
+        } catch (error) {
+            console.error("DemoStore sync error:", error);
         }
     }
 

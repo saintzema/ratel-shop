@@ -250,8 +250,8 @@ export default function ProductDetailPage() {
     let productReviews = DemoStore.getReviews(product?.id);
     if (productReviews.length === 0) {
         const pName = product?.name || "this item";
-        // Use a display-friendly category or just the product name for review body text
-        const pCatDisplay = (product?.category && product.category !== "other") ? product.category : pName;
+        // Use a display-friendly category for review body text
+        const pCatDisplay = (product?.category) ? product.category : pName;
 
         const seed = Array.from(product?.id || "default").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 

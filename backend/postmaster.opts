@@ -1,0 +1,1 @@
+/Users/Shared/DBngin/postgresql/17.0/bin/postgres "-D" "/Users/admin/Projects/RatelShop/backend" "-p" "5432"

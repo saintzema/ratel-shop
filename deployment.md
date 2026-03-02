@@ -63,4 +63,4 @@ docker run -p 8000:8000 ratel-backend
 ## Technical Notes:
 - **Frontend Optimization**: Uses Node 20-slim with a multi-stage build, non-root user (`nextjs`), and `npm ci` for deterministic dependencies.
 - **Backend Security**: Runs as a non-root user (`rateluser`) and uses `uvicorn` with `--proxy-headers` for correct IP forwarding behind load balancers.
-- **Data Persistence**: The SQLite `ratel.db` is included in the Docker build but should be mounted as a volume for persistence in production.
+- **Data Persistence**: The SQLite `fair_price_ng.db` is included in the Docker build but should be mounted as a volume for persistence in production.

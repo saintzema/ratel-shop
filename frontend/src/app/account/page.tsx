@@ -20,17 +20,30 @@ export default function AccountPage() {
             desc: "Track, return, or buy things again",
             href: "/account/orders"
         },
-        {
-            icon: Lock,
-            title: "Login & security",
-            desc: "Edit login, name, and mobile number",
-            href: "/account/profile"
+         {
+            icon: Share2,
+            title: "Become a Seller",
+            desc: "Start selling on FairPrice today",
+            href: "/seller/onboarding"
         },
         {
             icon: User,
             title: "Prime / FairPrice Premium",
             desc: "View benefits and payment settings",
             href: "/account/premium"
+        },
+        {
+            icon: MessageSquare,
+            title: "Your Messages",
+            desc: "View messages from sellers and FairPrice",
+            href: "/account/messages"
+        },
+        
+         {
+            icon: Lock,
+            title: "Login & security",
+            desc: "Update profile picture, and login detials",
+            href: "/account/profile"
         },
         {
             icon: MapPin,
@@ -43,18 +56,6 @@ export default function AccountPage() {
             title: "Your Payments",
             desc: "Manage payment methods and settings",
             href: "/account/payments"
-        },
-        {
-            icon: Share2,
-            title: "Become a Seller",
-            desc: "Start selling on FairPrice today",
-            href: "/seller/onboarding"
-        },
-        {
-            icon: MessageSquare,
-            title: "Your Messages",
-            desc: "View messages from sellers and FairPrice",
-            href: "/account/messages"
         },
         {
             icon: Share2,

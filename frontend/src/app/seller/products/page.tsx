@@ -39,6 +39,9 @@ import {
 export default function SellerProducts() {
     const [products, setProducts] = useState<Product[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
+    const [selectedCategory, setSelectedCategory] = useState<string>("all");
+    const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [showFilters, setShowFilters] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [showPaystack, setShowPaystack] = useState(false);
@@ -68,9 +71,14 @@ export default function SellerProducts() {
         }
     };
 
-    const filtered = products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filtered = products.filter(p => {
+        const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCategory = selectedCategory === "all" || p.category === selectedCategory;
+        const matchesStatus = statusFilter === "all" || (statusFilter === "live" && p.is_active) || (statusFilter === "sponsored" && p.is_sponsored);
+        return matchesSearch && matchesCategory && matchesStatus;
+    });
+
+    const categories = Array.from(new Set(products.map(p => p.category)));
 
     const handlePromoteProductInit = () => {
         if (!promoteModalOpen.product) return;
@@ -122,20 +130,77 @@ export default function SellerProducts() {
                 </div>
             )}
 
-            {/* Search Bar */}
-            <div className="bg-white/80 backdrop-blur-xl border border-gray-200/60 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 shadow-sm mb-8">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                        placeholder="Search products..."
-                        className="pl-11 h-11 rounded-xl border-gray-200 bg-gray-50/60 focus:bg-white transition-colors text-sm"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+            {/* Search & Filter Bar */}
+            <div className="flex flex-col gap-4 mb-8">
+                <div className="bg-white/80 backdrop-blur-xl border border-gray-200/60 rounded-2xl p-4 flex flex-col sm:flex-row gap-3 shadow-sm">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                            placeholder="Search products..."
+                            className="pl-11 h-11 rounded-xl border-gray-200 bg-gray-50/60 focus:bg-white transition-colors text-sm"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <Button
+                        variant={showFilters ? "secondary" : "outline"}
+                        className={cn(
+                            "h-11 border-gray-200 rounded-xl font-medium gap-2 text-sm transition-all",
+                            showFilters ? "bg-indigo-50 text-indigo-600 border-indigo-200" : "text-gray-500 hover:bg-gray-50"
+                        )}
+                        onClick={() => setShowFilters(!showFilters)}
+                    >
+                        <Filter className="h-4 w-4" />
+                        {showFilters ? "Hide Filters" : "Filter"}
+                    </Button>
                 </div>
-                <Button variant="outline" className="h-11 border-gray-200 text-gray-500 rounded-xl font-medium gap-2 text-sm hover:bg-gray-50">
-                    <Filter className="h-4 w-4" /> Filter
-                </Button>
+
+                {/* Expanded Filters */}
+                {showFilters && (
+                    <div className="bg-white/50 backdrop-blur-md border border-gray-100 rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 pl-1">Category</Label>
+                            <select
+                                className="w-full h-11 bg-white border border-gray-200 rounded-xl px-4 text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all"
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value)}
+                            >
+                                <option value="all">All Categories</option>
+                                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 pl-1">Status</Label>
+                            <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+                                {["all", "live", "sponsored"].map((s) => (
+                                    <button
+                                        key={s}
+                                        onClick={() => setStatusFilter(s)}
+                                        className={cn(
+                                            "flex-1 h-9 rounded-lg text-[10px] font-black uppercase transition-all",
+                                            statusFilter === s ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                                        )}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex items-end">
+                            <Button
+                                variant="ghost"
+                                className="h-11 w-full text-xs font-black uppercase tracking-widest text-rose-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl"
+                                onClick={() => {
+                                    setSelectedCategory("all");
+                                    setStatusFilter("all");
+                                    setSearchQuery("");
+                                }}
+                            >
+                                Reset All
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Products — Mobile Cards + Desktop Table */}
