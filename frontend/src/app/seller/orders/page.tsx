@@ -19,7 +19,9 @@ import {
     ChevronUp,
     ShieldCheck,
     Lock,
-    AlertTriangle
+    AlertTriangle,
+    ArrowUpRight,
+    Wallet
 } from "lucide-react";
 
 export default function SellerOrders() {
@@ -51,6 +53,32 @@ export default function SellerOrders() {
         const sellerId = DemoStore.getCurrentSellerId();
         if (sellerId) {
             setOrders(DemoStore.getOrders().filter(o => o.seller_id === sellerId));
+        }
+    };
+
+    const handleRequestPayout = (order: Order) => {
+        const seller = DemoStore.getCurrentSeller();
+        if (!seller || !seller.bank_name || !seller.account_number) {
+            alert("Please set up your Bank details in the Payouts dashboard before requesting a cashout.");
+            return;
+        }
+
+        const payoutInfo = DemoStore.getSellerPayout(order.amount);
+
+        DemoStore.requestPayout(
+            seller.id,
+            [order.id],
+            payoutInfo.payout,
+            "Bank Transfer",
+            seller.bank_name,
+            seller.account_number.slice(-4)
+        );
+
+        alert(`Payout of ${formatPrice(payoutInfo.payout)} requested for order ${order.id}.`);
+
+        // Reload to show pending layout
+        if (seller.id) {
+            setOrders(DemoStore.getOrders().filter(o => o.seller_id === seller.id));
         }
     };
 
@@ -200,8 +228,16 @@ export default function SellerOrders() {
                                         <div className="flex items-center gap-4 shrink-0">
                                             <div className="text-right hidden sm:block">
                                                 <p className="font-black text-gray-900">{formatPrice(order.amount)}</p>
-                                                <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${escrowConfig.color}`}>
-                                                    {escrowConfig.icon} {escrowConfig.label}
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${escrowConfig.color}`}>
+                                                        {escrowConfig.icon} {escrowConfig.label}
+                                                    </div>
+                                                    {order.payout_status === "pending_payout" && (
+                                                        <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">Payout Pending</span>
+                                                    )}
+                                                    {order.payout_status === "cashed_out" && (
+                                                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">Cashed Out</span>
+                                                    )}
                                                 </div>
                                             </div>
                                             {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
@@ -315,9 +351,31 @@ export default function SellerOrders() {
                                                     )}
 
                                                     {order.status === "delivered" && order.escrow_status !== "disputed" && (
-                                                        <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
-                                                            <CheckCircle className="h-3.5 w-3.5" /> Order complete
-                                                        </span>
+                                                        <div className="flex items-center gap-4 w-full">
+                                                            <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1 flex-1">
+                                                                <CheckCircle className="h-3.5 w-3.5" /> Order complete
+                                                            </span>
+
+                                                            {order.escrow_status === "released" && !order.payout_status && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleRequestPayout(order)}
+                                                                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold h-9"
+                                                                >
+                                                                    <Wallet className="h-3 w-3 mr-1.5" /> Request Cashout
+                                                                </Button>
+                                                            )}
+                                                            {order.payout_status === "pending_payout" && (
+                                                                <span className="text-xs font-semibold text-blue-600 flex items-center gap-1">
+                                                                    <Clock className="h-3.5 w-3.5" /> Cashout Processing
+                                                                </span>
+                                                            )}
+                                                            {order.payout_status === "cashed_out" && (
+                                                                <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
+                                                                    <Wallet className="h-3.5 w-3.5" /> Cashed Out
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
 
                                                     {order.status === "return_requested" && (
@@ -508,7 +566,30 @@ export default function SellerOrders() {
                                                         )}
 
                                                         {order.status === "delivered" && (
-                                                            <p className="text-[10px] text-emerald-600 font-bold text-center">Completed</p>
+                                                            <div className="flex flex-col gap-2 mt-2">
+                                                                {order.escrow_status !== "disputed" && (
+                                                                    <p className="text-[10px] text-emerald-600 font-bold text-center">Completed</p>
+                                                                )}
+                                                                {order.escrow_status === "released" && !order.payout_status && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        onClick={() => handleRequestPayout(order)}
+                                                                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
+                                                                    >
+                                                                        <ArrowUpRight className="h-3 w-3 mr-1" /> Request Cashout
+                                                                    </Button>
+                                                                )}
+                                                                {order.payout_status === "pending_payout" && (
+                                                                    <p className="text-[10px] text-blue-600 font-bold text-center flex items-center justify-center gap-1">
+                                                                        <Clock className="h-3 w-3" /> Processing Payout
+                                                                    </p>
+                                                                )}
+                                                                {order.payout_status === "cashed_out" && (
+                                                                    <p className="text-[10px] text-emerald-600 font-bold text-center flex items-center justify-center gap-1">
+                                                                        <Wallet className="h-3 w-3" /> Cashed Out
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                         )}
 
                                                         {order.status === "return_requested" && (

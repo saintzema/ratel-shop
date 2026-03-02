@@ -250,31 +250,36 @@ export default function ProductDetailPage() {
     let productReviews = DemoStore.getReviews(product?.id);
     if (productReviews.length === 0) {
         const pName = product?.name || "this item";
-        const pCat = product?.category || "product";
+        // Use a display-friendly category or just the product name for review body text
+        const pCatDisplay = (product?.category && product.category !== "other") ? product.category : pName;
 
         const seed = Array.from(product?.id || "default").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
         const names = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
 
+        // Build product-specific specs snippet for reviews
+        const specsSnippet = product?.specs ? Object.entries(product.specs).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
+        const specsMention = specsSnippet ? ` The ${specsSnippet} is exactly as described.` : '';
+
         const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
         const bodies5 = [
-            `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid ${pCat} deal in Lagos.`,
-            `I was skeptical at first about buying ${pName} online in NG, but it came sealed and brand new. The seller was very communicative on WhatsApp.`,
-            `Bought ${pName} as a gift and they haven't stopped talking about it. Best ${pCat} deal I could find online across Jumia and Konga.`,
-            `Ah, this ${pName} is too loud! Works perfectly and the battery/performance is top notch. FairPrice escrow gave me peace of mind.`,
-            `No stories, what I saw is exactly what I got. The ${pCat} feels very premium. Delivery guys were also very polite.`,
-            `Seriously impressed with this ${pName}. For the price, you can't get anything better in Alaba or Computer village. Tested and trusted.`,
-            `I've been using this ${pName} for a week now and it hasn't given me any headache. Solid ${pCat}.`,
-            `My people, if you are looking for a reliable ${pCat}, just buy this ${pName}. You won't regret it. The quality shock me.`,
-            `Omo I no go lie, this ${pName} rugged well well. It's exactly as described and works flawlessly.`
+            `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine.${specsMention} Would definitely recommend to anybody looking for a solid deal in Lagos.`,
+            `I was skeptical at first about buying ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.${specsMention}`,
+            `Bought ${pName} as a gift and they haven't stopped talking about it. Best deal I could find online across Jumia and Konga.`,
+            `Ah, this ${pName} is too loud! Works perfectly and the build quality is top notch.${specsMention} FairPrice escrow gave me peace of mind.`,
+            `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
+            `Seriously impressed with this ${pName}. For the price, you can't get anything better.${specsMention} Tested and trusted.`,
+            `I've been using this ${pName} for a week now and it hasn't given me any headache.${specsMention} Solid purchase.`,
+            `My people, if you need a reliable ${pName}, just buy it. You won't regret it. The quality shock me.`,
+            `Omo I no go lie, this ${pName} rugged well well. It's exactly as described and works flawlessly.${specsMention}`
         ];
 
-        const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid device, manageable flaws", "Does the job well", "I like it", "Good value"];
+        const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
         const bodies4 = [
-            `The ${pCat} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe buying ${pName}.`,
-            `It's a very solid ${pCat}. Does everything the specs say. Deducting one star because the packaging for ${pName} was slightly dented when I went to pick it up at the logistics hub.`,
-            `The ${pName} is good, nice features and all. Just wish the accessories were a bit more durable. Still a good buy for the price.`,
-            `Working fine so far. The ${pCat} is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
+            `The ${pName} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
+            `It's a very solid ${pName}. Does everything the specs say. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
+            `The ${pName} is good, nice features and all.${specsMention} Just wish the accessories were a bit more durable. Still a good buy for the price.`,
+            `Working fine so far. The ${pName} is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
             `Product is okay. The ${pName} performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
         ];
 
@@ -557,6 +562,12 @@ export default function ProductDetailPage() {
         pct: productReviews.length > 0 ? Math.round((productReviews.filter(r => r.rating === star).length / productReviews.length) * 100) : 0
     }));
 
+    // Compute actual rating stats from reviews (don't rely on product.avg_rating which may be 0 for global products)
+    const actualReviewCount = productReviews.length;
+    const actualAvgRating = actualReviewCount > 0
+        ? Math.round((productReviews.reduce((sum, r) => sum + r.rating, 0) / actualReviewCount) * 10) / 10
+        : product?.avg_rating || 0;
+
     const specEntries = Object.entries(product?.specs || {});
     const visibleSpecs = showAllSpecs ? specEntries : specEntries.slice(0, 6);
 
@@ -779,10 +790,10 @@ export default function ProductDetailPage() {
                             <div className="flex items-center gap-4 text-sm">
                                 <div className="flex items-center gap-1 text-amber-500 font-bold">
                                     <Star className="h-4 w-4 fill-current" />
-                                    <span>{product.avg_rating}</span>
+                                    <span>{actualAvgRating}</span>
                                 </div>
                                 <span className="text-gray-300">|</span>
-                                <span className="text-blue-600 hover:underline cursor-pointer">{Number(product.review_count).toLocaleString()} reviews</span>
+                                <span className="text-blue-600 hover:underline cursor-pointer">{actualReviewCount.toLocaleString()} reviews</span>
                                 <span className="text-gray-300">|</span>
                                 <span className="text-gray-500">{product.sold_count} sold</span>
                             </div>
@@ -1280,13 +1291,13 @@ export default function ProductDetailPage() {
                             {/* Star Breakdown */}
                             <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 lg:w-1/3 shrink-0 h-fit sticky top-24">
                                 <div className="text-center mb-4">
-                                    <div className="text-5xl font-black text-gray-900">{product.avg_rating}</div>
+                                    <div className="text-5xl font-black text-gray-900">{actualAvgRating}</div>
                                     <div className="flex items-center justify-center gap-1 mt-2">
                                         {[1, 2, 3, 4, 5].map(s => (
-                                            <Star key={s} className={`h-5 w-5 ${s <= Math.round(product.avg_rating) ? "text-amber-400 fill-current" : "text-gray-200"}`} />
+                                            <Star key={s} className={`h-5 w-5 ${s <= Math.round(actualAvgRating) ? "text-amber-400 fill-current" : "text-gray-200"}`} />
                                         ))}
                                     </div>
-                                    <p className="text-sm text-gray-500 mt-1">{product.review_count.toLocaleString()} ratings</p>
+                                    <p className="text-sm text-gray-500 mt-1">{actualReviewCount.toLocaleString()} ratings</p>
                                 </div>
                                 <div className="space-y-2">
                                     {starBreakdown.map(({ star, pct }) => (

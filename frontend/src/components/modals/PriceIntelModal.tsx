@@ -405,7 +405,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
         }
     }, [isOpen, initialQuery, handleSearch]);
 
-    const handleAnalyze = useCallback(async (productName: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>) => {
+    const handleAnalyze = useCallback(async (productName: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>, imageUrl?: string) => {
         setIsAnalyzing(true);
         setSuggestions([]);
 
@@ -445,14 +445,20 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                 const marketHighest = Math.round(marketAverage * 1.15);
                 const savingsAmount = marketAverage - fairBestPrice;
 
-                // Create a brief info-packed description if specs are available
-                const specSummary = specs ? Object.entries(specs).map(([k, v]) => `${k}: ${v}`).join(" • ") : "";
-                const generatedDesc = specSummary ? `${productName} featuring ${specSummary}` : `High-quality ${productName} sourced securely via global stores.`;
+                // Create a rich, informative description using specs
+                const specEntries = specs ? Object.entries(specs) : [];
+                let generatedDesc = '';
+                if (specEntries.length > 0) {
+                    const highlights = specEntries.slice(0, 4).map(([k, v]) => `${v} ${k.toLowerCase()}`).join(', ');
+                    generatedDesc = `${productName} with ${highlights}. Sourced via verified global partners with full escrow protection and tracked delivery.`;
+                } else {
+                    generatedDesc = `${productName} — sourced securely via verified global partners. Price includes procurement, international shipping, customs clearance, and tracked last-mile delivery to your door.`;
+                }
 
                 intel = {
                     name: productName,
                     description: product?.description || generatedDesc,
-                    image_url: product?.image_url || getFallbackImage(product?.category || "other"),
+                    image_url: product?.image_url || imageUrl || getFallbackImage(product?.category || "other"),
                     matchedProduct: matchedProduct,
                     specs: product?.specs || specs,
                     fairBestPrice,
@@ -499,7 +505,8 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
 
             // Auto-save Global Searches to the local catalog
             if (!matchedProduct) {
-                const newId = `global-${Date.now()}`;
+                const nameSlug = intel.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80);
+                const newId = `global-${nameSlug}`;
                 const newGlobalProduct: Product = {
                     id: newId,
                     seller_id: "global-partners",
@@ -597,7 +604,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                     value={searchQuery}
                                     onChange={setSearchQuery}
                                     onSearch={handleSearch}
-                                    onAnalyze={(q, p, s, price, specs) => handleAnalyze(q, p, s, price, specs)}
+                                    onAnalyze={(q, p, s, price, specs, imgUrl) => handleAnalyze(q, p, s, price, specs, imgUrl)}
                                     isLoading={isSearching || isAnalyzing}
                                     hasResult={!!result}
                                     onReset={() => { setResult(null); setSearchQuery(""); setSelectedSourceUrl(null); }}
@@ -730,7 +737,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                                     <p className="font-bold text-emerald-600">{formatPrice(s.approxPrice)}</p>
                                                                 </div>
                                                                 <button
-                                                                    onClick={() => handleAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice)}
+                                                                    onClick={() => handleAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice, s.specs, s.image_url)}
                                                                     className="h-9 px-3 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap"
                                                                 >
                                                                     <ShoppingCart className="h-3.5 w-3.5" />
@@ -891,7 +898,7 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
 
 // ─── Search Input with Hybrid Autocomplete ──────────────────
 
-function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResult, onReset }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>) => void; isLoading: boolean; hasResult: boolean; onReset: () => void }) {
+function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResult, onReset }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>, imageUrl?: string) => void; isLoading: boolean; hasResult: boolean; onReset: () => void }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -1045,7 +1052,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                     key={i}
                                     onClick={() => {
                                         onChange(s.name);
-                                        onAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice, s.specs);
+                                        onAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice, s.specs, s.image_url);
                                         setShowSuggestions(false);
                                     }}
                                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
@@ -1176,6 +1183,29 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                                 <span className="line-clamp-2">{result.name}</span>
                                 <ChevronRight className={`h-4 w-4 text-gray-400 group-hover:text-emerald-600 transition-transform ${showDetails ? 'rotate-90' : ''} shrink-0`} />
                             </button>
+                        )}
+
+                        {/* Inline description — always visible */}
+                        {result.description && (
+                            <p className="text-[11px] text-gray-500 leading-relaxed mt-1.5 line-clamp-2">
+                                {result.description}
+                            </p>
+                        )}
+
+                        {/* Inline key specs — always visible (top 4) */}
+                        {result.specs && Object.keys(result.specs).length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                {Object.entries(result.specs).slice(0, 4).map(([key, value]) => (
+                                    <span key={key} className="text-[9px] font-semibold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md border border-gray-200">
+                                        {key}: {String(value)}
+                                    </span>
+                                ))}
+                                {Object.keys(result.specs).length > 4 && (
+                                    <span className="text-[9px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 cursor-pointer" onClick={() => setShowDetails(true)}>
+                                        +{Object.keys(result.specs).length - 4} more
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
                 </div>

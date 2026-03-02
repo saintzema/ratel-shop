@@ -15,17 +15,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
 import { formatPrice } from "@/lib/utils";
+import { useRouter } from "next/navigation";
 
 export default function AnalyticsPage() {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [stats, setStats] = useState({ revenue: 0, orders: 0, conversion: 0, visits: 0 });
     const [sellerName, setSellerName] = useState("");
+    const [sellerPlan, setSellerPlan] = useState("Starter");
     const [isPrinting, setIsPrinting] = useState(false);
+    const router = useRouter();
 
     useEffect(() => {
         const sellerId = DemoStore.getCurrentSellerId();
         const seller = DemoStore.getCurrentSeller();
-        if (seller) setSellerName(seller.business_name);
+        if (seller) {
+            setSellerName(seller.business_name);
+            setSellerPlan(seller.subscription_plan || "Starter");
+        }
         if (!sellerId) return;
 
         const loadData = () => {
@@ -46,6 +52,21 @@ export default function AnalyticsPage() {
     }, []);
 
     const handleDownloadPDF = async (reportType: string) => {
+        // Enforce plan tiers
+        if (reportType === 'Monthly Summary') {
+            if (sellerPlan === 'Starter') {
+                alert("Monthly Summary reports require a PRO plan or higher. Upgrade your plan to access this feature.");
+                router.push('/seller/settings/billing');
+                return;
+            }
+        } else if (reportType === 'Annual Growth') {
+            if (sellerPlan === 'Starter' || sellerPlan === 'Pro') {
+                alert("Annual Growth reports require a GROWTH plan or higher. Upgrade your plan to access this feature.");
+                router.push('/seller/settings/billing');
+                return;
+            }
+        }
+
         setDownloading(reportType);
         setIsPrinting(true);
         // Allow state to update and render the print view
@@ -158,7 +179,10 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* Monthly Report */}
-                        <div className="group border border-gray-100 hover:border-indigo-200 rounded-2xl p-6 transition-all hover:shadow-lg hover:shadow-indigo-500/5 bg-gray-50/50 hover:bg-white flex flex-col">
+                        <div className="group border border-gray-100 hover:border-indigo-200 rounded-2xl p-6 transition-all hover:shadow-lg hover:shadow-indigo-500/5 bg-gray-50/50 hover:bg-white flex flex-col relative overflow-hidden">
+                            <div className="absolute top-0 right-0 bg-blue-100 text-blue-700 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg">
+                                Pro Plan
+                            </div>
                             <div className="flex items-center gap-4 mb-4">
                                 <div className="p-3 bg-white border border-gray-100 shadow-sm rounded-xl text-gray-400 group-hover:text-indigo-600 transition-colors">
                                     <BarChart3 className="h-6 w-6" />
@@ -187,7 +211,7 @@ export default function AnalyticsPage() {
                         {/* Annual Report */}
                         <div className="group border border-amber-200 hover:border-amber-400 rounded-2xl p-6 transition-all hover:shadow-lg hover:shadow-amber-500/20 bg-gradient-to-br from-amber-50/50 to-orange-50/50 flex flex-col relative overflow-hidden">
                             <div className="absolute top-0 right-0 bg-amber-400 text-amber-900 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-lg">
-                                Pro Plan
+                                Growth Plan
                             </div>
                             <div className="flex items-center gap-4 mb-4">
                                 <div className="p-3 bg-white border border-amber-200 shadow-sm rounded-xl text-amber-500">
@@ -263,7 +287,7 @@ export default function AnalyticsPage() {
             <div id="print-report" className="hidden print:block p-8 bg-white text-black font-sans">
                 <div className="border-b-2 border-gray-900 pb-6 mb-8 flex justify-between items-end">
                     <div>
-                        <h1 className="text-4xl font-black tracking-tighter">RatelShop</h1>
+                        <h1 className="text-4xl font-black tracking-tighter">FairPrice.ng</h1>
                         <p className="text-gray-500 font-medium">Business Performance Report</p>
                     </div>
                     <div className="text-right">
@@ -293,7 +317,7 @@ export default function AnalyticsPage() {
                 </div>
 
                 <div className="border-t border-gray-200 pt-8 mt-12 text-center text-sm text-gray-400 font-medium">
-                    <p>This report was automatically generated from RatelShop Analytics.</p>
+                    <p>This report was automatically generated from FairPrice.ng Analytics.</p>
                 </div>
             </div>
         </div>

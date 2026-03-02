@@ -269,22 +269,22 @@ export interface Notification {
 
 export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
 
-export const CATEGORIES: { value: ProductCategory; label: string; icon: string }[] = [
-    { value: "phones", label: "Phones", icon: "📱" },
-    { value: "computers", label: "Computers", icon: "💻" },
-    { value: "electronics", label: "Electronics", icon: "🔌" },
-    { value: "fashion", label: "Fashion", icon: "👗" },
-    { value: "beauty", label: "Beauty", icon: "💄" },
-    { value: "home", label: "Home", icon: "🏠" },
-    { value: "fitness", label: "Gym", icon: "💪" },
-    { value: "office", label: "Office", icon: "🪑" },
-    { value: "furniture", label: "Furniture", icon: "🛋️" },
-    { value: "grocery", label: "Grocery", icon: "🛒" },
-    { value: "baby", label: "Baby", icon: "👶" },
-    { value: "sports", label: "Sports", icon: "⚽" },
-    { value: "cars", label: "Cars", icon: "🚗" },
-    { value: "energy", label: "Energy", icon: "⚡" },
-    { value: "gaming", label: "Gaming", icon: "🎮" },
+export const CATEGORIES: { value: ProductCategory; label: string }[] = [
+    { value: "phones", label: "Phones" },
+    { value: "computers", label: "Computers" },
+    { value: "electronics", label: "Electronics" },
+    { value: "fashion", label: "Fashion" },
+    { value: "beauty", label: "Beauty" },
+    { value: "home", label: "Home" },
+    { value: "fitness", label: "Gym" },
+    { value: "office", label: "Office" },
+    { value: "furniture", label: "Furniture" },
+    { value: "grocery", label: "Grocery" },
+    { value: "baby", label: "Baby" },
+    { value: "sports", label: "Sports" },
+    { value: "cars", label: "Cars" },
+    { value: "energy", label: "Energy" },
+    { value: "gaming", label: "Gaming" },
 ];
 
 // ─── Dashboard Stats ────────────────────────────────────────

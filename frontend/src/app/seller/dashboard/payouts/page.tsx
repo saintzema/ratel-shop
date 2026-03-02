@@ -10,19 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
     Wallet, ArrowUpRight, Lock, ShieldCheck, CheckCircle,
-    Clock, Building2, Pencil, X, Save, Download, FileText, CheckSquare, Square
+    Clock, Building2, Pencil, X, Save, Download, ArrowRight
 } from "lucide-react";
+import Link from "next/link";
 
 export default function PayoutsPage() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [seller, setSeller] = useState<Seller | undefined>();
-    const [cashoutSuccess, setCashoutSuccess] = useState(false);
-    const [editingBank, setEditingBank] = useState(false);
-    const [bankName, setBankName] = useState("");
-    const [accountNumber, setAccountNumber] = useState("");
-    const [accountName, setAccountName] = useState("");
     const [savingBank, setSavingBank] = useState(false);
-    const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
     const [payouts, setPayouts] = useState<any[]>([]);
 
     useEffect(() => {
@@ -49,36 +44,7 @@ export default function PayoutsPage() {
     const pendingPayoutAmount = orders.filter(o => o.payout_status === "pending_payout").reduce((sum, o) => sum + (o.amount || 0), 0);
     const completedPayoutAmount = orders.filter(o => o.payout_status === "cashed_out").reduce((sum, o) => sum + (o.amount || 0), 0);
 
-    // Auto-select all by default if empty initially
-    useEffect(() => {
-        if (eligibleOrders.length > 0 && selectedOrderIds.length === 0) {
-            setSelectedOrderIds(eligibleOrders.map(o => o.id));
-        }
-    }, [eligibleOrders.length]);
-
-    const selectedAmount = eligibleOrders.filter(o => selectedOrderIds.includes(o.id)).reduce((sum, o) => sum + (o.amount || 0), 0);
-
-    const handleCashout = () => {
-        if (!seller || selectedOrderIds.length === 0 || !bankName || !accountNumber) {
-            alert("Please select orders to cashout and ensure your bank details are complete.");
-            return;
-        }
-
-        const payoutInfo = DemoStore.getSellerPayout(selectedAmount);
-
-        DemoStore.requestPayout(
-            seller.id,
-            selectedOrderIds,
-            payoutInfo.payout, // amount after commission
-            "Bank Transfer",
-            bankName,
-            accountNumber.slice(-4)
-        );
-
-        setCashoutSuccess(true);
-        setSelectedOrderIds([]);
-        setTimeout(() => setCashoutSuccess(false), 4000);
-    };
+    const amountAvailable = eligibleOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
 
     const handleSaveBank = async () => {
         if (!seller) return;
@@ -111,26 +77,16 @@ export default function PayoutsPage() {
                                 <span className="text-xs font-bold text-emerald-200 uppercase tracking-wider">Available for Cashout</span>
                             </div>
                         </div>
-                        <h3 className="text-3xl font-black mt-2">{formatPrice(selectedAmount)}</h3>
+                        <h3 className="text-3xl font-black mt-2">{formatPrice(amountAvailable)}</h3>
                         <p className="text-[10px] text-emerald-200 mt-1 flex items-center gap-1">
                             <ShieldCheck className="h-3 w-3" />
-                            {selectedAmount > 0
-                                ? `After 5% platform comm. (Est. ${formatPrice(DemoStore.getSellerPayout(selectedAmount).payout)})`
-                                : "Select orders below to cashout"}
+                            {amountAvailable > 0
+                                ? `After 5% platform comm. (Est. ${formatPrice(DemoStore.getSellerPayout(amountAvailable).payout)})`
+                                : "No delivered orders available for cashout"}
                         </p>
-                        {cashoutSuccess ? (
-                            <div className="flex items-center gap-2 mt-4 text-sm font-bold bg-white/20 px-4 py-2.5 rounded-xl">
-                                <CheckCircle className="h-4 w-4" /> Cashout request submitted!
-                            </div>
-                        ) : (
-                            <Button
-                                onClick={handleCashout}
-                                disabled={selectedOrderIds.length === 0}
-                                className="mt-4 w-full bg-white text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl h-10 shadow-md disabled:opacity-50"
-                            >
-                                <ArrowUpRight className="h-4 w-4 mr-2" /> Request Cashout
-                            </Button>
-                        )}
+                        <Link href="/seller/orders" className="mt-4 flex items-center justify-center bg-white text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl h-10 shadow-md">
+                            <ArrowRight className="h-4 w-4 mr-2" /> View Orders
+                        </Link>
                     </div>
                 </div>
 
@@ -161,57 +117,6 @@ export default function PayoutsPage() {
                 </div>
             </div>
 
-            {/* Individual Eligible Orders Selection */}
-            {eligibleOrders.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="font-bold text-sm text-gray-900">Select Orders for Cashout</h2>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs gap-1 font-bold text-indigo-600"
-                            onClick={() => {
-                                if (selectedOrderIds.length === eligibleOrders.length) {
-                                    setSelectedOrderIds([]);
-                                } else {
-                                    setSelectedOrderIds(eligibleOrders.map(o => o.id));
-                                }
-                            }}
-                        >
-                            {selectedOrderIds.length === eligibleOrders.length ? "Deselect All" : "Select All"}
-                        </Button>
-                    </div>
-                    <div className="divide-y divide-gray-100 max-h-[300px] overflow-y-auto">
-                        {eligibleOrders.map(order => (
-                            <div
-                                key={order.id}
-                                className="flex items-center gap-4 py-3 cursor-pointer hover:bg-gray-50 px-2 rounded-lg"
-                                onClick={() => {
-                                    if (selectedOrderIds.includes(order.id)) {
-                                        setSelectedOrderIds(selectedOrderIds.filter(id => id !== order.id));
-                                    } else {
-                                        setSelectedOrderIds([...selectedOrderIds, order.id]);
-                                    }
-                                }}
-                            >
-                                {selectedOrderIds.includes(order.id) ? (
-                                    <CheckSquare className="h-5 w-5 text-emerald-600" />
-                                ) : (
-                                    <Square className="h-5 w-5 text-gray-300" />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-bold text-gray-900 truncate">{order.product?.name}</p>
-                                    <p className="text-[10px] text-gray-400 font-mono">Order: {order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}</p>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-sm font-black text-gray-900">{formatPrice(order.amount)}</p>
-                                    <p className="text-[10px] text-gray-400">Delivered on {new Date(order.escrow_released_at || order.updated_at).toLocaleDateString()}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
 
             {/* Bank account — Editable */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">

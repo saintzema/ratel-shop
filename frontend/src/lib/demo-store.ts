@@ -911,6 +911,20 @@ class DemoStoreService {
         );
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
 
+        // Add a notification to the admin dashboard
+        this.addNotification({
+            userId: "admin",
+            type: "system",
+            message: `New Payout Request: ${seller.business_name} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')}`,
+            link: "/admin/payouts"
+        });
+
+        // Simulate sending an email to the admin
+        fetch('/api/email', {
+            method: 'POST',
+            body: JSON.stringify({ to: 'admin@fairprice.ng', type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
+        }).catch(err => console.error("Error triggering payout email:", err));
+
         window.dispatchEvent(new Event("storage"));
     }
 

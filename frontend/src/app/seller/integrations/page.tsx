@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
+import { useRouter } from "next/navigation";
 
 const INTEGRATIONS = [
     {
@@ -81,6 +82,7 @@ export default function IntegrationsPage() {
     const [connecting, setConnecting] = useState<string | null>(null);
     const [integrations, setIntegrations] = useState(INTEGRATIONS);
     const [isStarterPlan, setIsStarterPlan] = useState(true);
+    const router = useRouter();
 
     useEffect(() => {
         const sellerId = DemoStore.getCurrentSellerId();
@@ -99,7 +101,13 @@ export default function IntegrationsPage() {
         }
     }, []);
 
-    const handleConnect = async (intId: string) => {
+    const handleConnect = async (intId: string, requiresPremium: boolean) => {
+        if (requiresPremium && isStarterPlan) {
+            alert("This integration requires a premium subscription. Please upgrade your plan.");
+            router.push('/seller/settings/billing');
+            return;
+        }
+
         const sellerId = DemoStore.getCurrentSellerId();
         if (!sellerId) return;
 
@@ -165,7 +173,7 @@ export default function IntegrationsPage() {
                                     </Button>
                                     <Button
                                         variant="outline"
-                                        onClick={() => handleConnect(app.id)}
+                                        onClick={() => handleConnect(app.id, app.requiresPremium)}
                                         disabled={connecting === app.id}
                                         className="h-12 w-12 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300"
                                     >
@@ -178,10 +186,10 @@ export default function IntegrationsPage() {
                                 </div>
                             ) : (
                                 <Button
-                                    onClick={() => handleConnect(app.id)}
-                                    disabled={connecting === app.id || (app.requiresPremium && isStarterPlan)}
+                                    onClick={() => handleConnect(app.id, app.requiresPremium)}
+                                    disabled={connecting === app.id}
                                     className={`w-full h-12 rounded-xl text-white font-bold tracking-wide shadow-md transition-all flex items-center justify-center gap-2 ${app.requiresPremium && isStarterPlan
-                                        ? "bg-gray-300 cursor-not-allowed"
+                                        ? "bg-gray-400 hover:bg-gray-500"
                                         : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/20 group-hover:shadow-lg"
                                         }`}
                                 >

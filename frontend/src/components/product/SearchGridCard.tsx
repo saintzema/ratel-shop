@@ -56,8 +56,8 @@ export const SearchGridCard = ({
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
         {/* Sponsored Badge */}
         {product.is_sponsored && (
-          <div className="absolute top-3 left-3 z-30 bg-gray-900/80 backdrop-blur-md text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow-sm uppercase tracking-widest flex items-center gap-1">
-            <span>Sponsored</span>
+          <div className="absolute bottom-3 left-3 z-30 bg-gray-900/90 backdrop-blur-md text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm border border-white/20 uppercase tracking-widest flex items-center gap-1.5">
+            <span className="h-1 w-1 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
           </div>
         )}
 

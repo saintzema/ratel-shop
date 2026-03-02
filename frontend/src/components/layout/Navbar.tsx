@@ -606,9 +606,11 @@ export function Navbar() {
                                                             "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm transition-all relative",
                                                             isPopular ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] group-hover:shadow-[0_0_20px_rgba(16,185,129,0.7)]" : "bg-white/10 group-hover:bg-white/20 border border-white/5"
                                                         )}>
-                                                            <span className={cn("transition-transform group-hover:scale-110", isPopular ? "text-white" : "text-emerald-400")}>{cat.icon}</span>
+                                                            <span className={cn("transition-transform group-hover:scale-110", isPopular ? "text-white" : "text-emerald-400")}>
+                                                                {CATEGORY_ICON_MAP[cat.value] || <Package className="h-6 w-6" />}
+                                                            </span>
                                                         </div>
-                                                        <span className="text-[10px] sm:text-xs font-medium text-white text-center leading-tight">
+                                                        <span className="text-[10px] sm:text-xs font-medium text-black text-center leading-tight">
                                                             {cat.label}
                                                         </span>
                                                     </Link>

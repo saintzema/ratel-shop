@@ -37,7 +37,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/Users/zema/Projects/AI Projects/RatelShop/backend/venv"
+VIRTUAL_ENV="/Users/admin/Projects/RatelShop/backend/venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

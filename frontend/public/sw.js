@@ -4,7 +4,7 @@ const CACHE_NAME = 'ratel-shop-v1';
 const urlsToCache = [
     '/',
     '/manifest.json',
-    '/ratel-logo.png'
+    '/fairprice-logo.png'
 ];
 
 self.addEventListener('install', event => {

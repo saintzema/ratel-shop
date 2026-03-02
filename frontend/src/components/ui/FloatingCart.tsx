@@ -39,7 +39,7 @@ export function FloatingCart() {
                 whileTap={{ scale: 0.9 }}
                 onClick={() => router.push("/cart")}
                 // Show only on mobile (hidden on md and above) — positioned on the right
-                className="md:hidden fixed z-[999] right-4 top-[30%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex items-center justify-center text-white border-2 border-white/20 backdrop-blur-md"
+                className="md:hidden fixed z-[999] right-4 top-[30%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5"
                 style={{ WebkitTapHighlightColor: "transparent" }}
             >
                 <motion.div
@@ -48,8 +48,10 @@ export function FloatingCart() {
                         rotate: [0, -15, 15, -10, 0]
                     } : {}}
                     transition={{ duration: 0.6, ease: "easeInOut" }}
+                    className="flex flex-col items-center justify-center gap-0.5"
                 >
-                    <ShoppingCart className="h-6 w-6" />
+                    <ShoppingCart className="h-5 w-5" />
+                    <span className="text-[9px] font-bold leading-none tracking-wide">Cart</span>
                 </motion.div>
 
                 {/* Badge */}

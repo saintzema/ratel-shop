@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST';
 
 interface EmailPayload {
     name?: string;
@@ -10,6 +10,7 @@ interface EmailPayload {
     sellerName?: string;
     promoContent?: string;
     storeUrl?: string;
+    orderIds?: string[];
 }
 
 const BRAND_COLOR = "#059669"; // brand-green-600
@@ -166,6 +167,32 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
                 </div>
                 <center>
                     <a href="https://fairprice.ng/store/${payload.storeUrl || "your-store"}" class="btn">View your Public Store</a>
+                </center>
+            `);
+            break;
+
+        case 'SELLER_PAYOUT_REQUEST':
+            subject = `New Payout Request from ${payload.sellerName || "a Seller"}`;
+            html = BaseTemplate("Action Required: Payout Request", `
+                <p>Hi Admin,</p>
+                <p>A new payout has been requested by a seller for an order that has been delivered.</p>
+                <table class="info-table">
+                    <tr>
+                        <td class="info-label">Seller Account</td>
+                        <td class="info-value">${payload.sellerName || "Unknown Seller"}</td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">Order ID(s)</td>
+                        <td class="info-value" style="font-family: monospace;">${payload.orderIds?.join(', ') || "N/A"}</td>
+                    </tr>
+                    <tr>
+                        <td class="info-label">Requested Payout</td>
+                        <td class="info-value" style="color: ${BRAND_COLOR};">₦${payload.amount?.toLocaleString() || "0"}</td>
+                    </tr>
+                </table>
+                <p style="margin-top: 16px;">Please review the payout details and proceed with the bank transfer via the dashboard.</p>
+                <center>
+                    <a href="https://fairprice.ng/admin/payouts" class="btn">Review Payout Request</a>
                 </center>
             `);
             break;

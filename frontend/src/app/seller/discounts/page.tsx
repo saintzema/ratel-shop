@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Edit, Trash, BarChart } from "lucide-react";
 
 // Mock Discount Data
 const MOCK_DISCOUNTS = [
@@ -54,6 +56,15 @@ const MOCK_DISCOUNTS = [
 ];
 
 export default function DiscountsPage() {
+    const handleCopy = (code: string) => {
+        navigator.clipboard.writeText(code);
+        alert(`Copied discount code: ${code}`);
+    };
+
+    const handleAction = (action: string, id: string) => {
+        alert(`${action} triggered for discount ID: ${id}`);
+    };
+
     return (
         <div className="max-w-7xl mx-auto space-y-8 pb-20 p-4 sm:p-6 lg:p-8">
             {/* Header */}
@@ -120,7 +131,7 @@ export default function DiscountsPage() {
                                     <td className="px-6 py-5">
                                         <div className="flex items-center gap-2">
                                             <span className="font-black text-gray-900 tracking-wider text-sm bg-gray-100 px-3 py-1.5 rounded-lg border border-gray-200">{discount.code}</span>
-                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-indigo-600">
+                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-indigo-600" onClick={() => handleCopy(discount.code)}>
                                                 <LinkIcon className="h-3.5 w-3.5" />
                                             </Button>
                                         </div>
@@ -139,9 +150,24 @@ export default function DiscountsPage() {
                                         <p className="text-xs text-gray-400 mt-0.5">{discount.expires}</p>
                                     </td>
                                     <td className="px-6 py-5 text-right">
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
-                                            <MoreHorizontal className="h-5 w-5" />
-                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                                    <MoreHorizontal className="h-5 w-5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48 bg-white border border-gray-100 shadow-xl rounded-xl p-2">
+                                                <DropdownMenuItem onClick={() => handleAction("Edit", discount.id)} className="flex items-center gap-2 cursor-pointer rounded-lg hover:bg-gray-50 p-2 font-medium text-sm text-gray-700">
+                                                    <Edit className="h-4 w-4 text-gray-400" /> Edit Discount
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleAction("View Usage Details", discount.id)} className="flex items-center gap-2 cursor-pointer rounded-lg hover:bg-gray-50 p-2 font-medium text-sm text-gray-700">
+                                                    <BarChart className="h-4 w-4 text-gray-400" /> View Usage Metrics
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => handleAction("Delete", discount.id)} className="flex items-center gap-2 cursor-pointer rounded-lg hover:bg-red-50 p-2 font-medium text-sm text-red-600 focus:text-red-600 focus:bg-red-50">
+                                                    <Trash className="h-4 w-4" /> Delete Discount
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </td>
                                 </tr>
                             ))}
