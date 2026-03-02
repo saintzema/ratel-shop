@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { DemoStore } from "@/lib/demo-store";
 import { DEMO_PRODUCTS, DEMO_SELLERS } from "@/lib/data";
@@ -22,18 +23,22 @@ import {
     Heart,
     Camera,
     Upload,
-    AlertTriangle
+    AlertTriangle,
+    ShoppingCart
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useAuth } from "@/context/AuthContext";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useCart } from "@/context/CartContext";
 import { Input } from "@/components/ui/input";
 import { ContactSellerModal } from "@/components/modals/ContactSellerModal";
 
 export default function StoreProfile() {
     const params = useParams();
     const { user } = useAuth();
+    const { addToCart } = useCart();
+    const router = useRouter();
     const [seller, setSeller] = useState<Seller | null>(null);
     const [products, setProducts] = useState<Product[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -372,21 +377,36 @@ export default function StoreProfile() {
                                                 <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-green-600 transition-colors">
                                                     {product.name}
                                                 </h3>
-                                                <div className="mt-auto pt-4 flex items-end justify-between">
-                                                    <div>
-                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Price</p>
-                                                        <p className="text-xl font-black text-gray-900">
-                                                            {formatPrice(product.price)}
-                                                        </p>
+                                                <div className="mt-auto pt-4 space-y-3">
+                                                    <div className="flex items-end justify-between">
+                                                        <div>
+                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Price</p>
+                                                            <p className="text-xl font-black text-gray-900">
+                                                                {formatPrice(product.price)}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                addToCart(product);
+                                                            }}
+                                                            className="h-9 w-9 rounded-full bg-brand-green-50 flex items-center justify-center text-brand-green-600 hover:bg-brand-green-600 hover:text-white transition-all hover:scale-110"
+                                                            title="Add to Cart"
+                                                        >
+                                                            <ShoppingCart className="h-4 w-4" />
+                                                        </button>
                                                     </div>
                                                     <button
                                                         onClick={(e) => {
                                                             e.preventDefault();
-                                                            // For now it just guides to view, real ATC could be added here
+                                                            e.stopPropagation();
+                                                            addToCart(product);
+                                                            router.push('/cart');
                                                         }}
-                                                        className="h-9 w-9 rounded-full bg-brand-green-50 flex items-center justify-center text-brand-green-600 group-hover:bg-brand-green-600 group-hover:text-white transition-all hover:scale-110"
+                                                        className="w-full h-9 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-1.5"
                                                     >
-                                                        <Package className="h-4 w-4" />
+                                                        Buy Now
                                                     </button>
                                                 </div>
                                             </div>

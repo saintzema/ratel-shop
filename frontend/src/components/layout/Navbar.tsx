@@ -556,8 +556,8 @@ export function Navbar() {
                                                     <Sparkles className="h-4 w-4 text-emerald-600 animate-spin-slow" />
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-emerald-800">Deep Searching for exactly what you need...</span>
-                                                    <span className="text-[11px] font-medium text-emerald-600/80">Comparing Global Partners. Results appearing shortly.</span>
+                                                    <span className="text-sm font-bold text-emerald-800">Searching for exactly what you need...</span>
+                                                    <span className="text-[11px] font-medium text-emerald-600/80">Comparing best prices. Results appearing shortly.</span>
                                                 </div>
                                             </div>
                                         </div>

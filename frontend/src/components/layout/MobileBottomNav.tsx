@@ -17,10 +17,8 @@ export function MobileBottomNav() {
     const { user } = useAuth();
     const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
 
-    // Hide on specific pages where it might be intrusive
-    if (pathname?.startsWith("/admin") || pathname?.startsWith("/seller")) {
-        return null;
-    }
+    // Always show the mobile nav bar on all pages
+    // (dashboard layouts have their own top-bar menus, but users need bottom nav for Home/Cart/Messages)
 
     const profileName = user ? user.name.split(" ")[0] : "Profile";
 

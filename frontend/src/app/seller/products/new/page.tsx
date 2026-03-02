@@ -61,8 +61,38 @@ export default function NewProduct() {
             });
             if (res.ok) {
                 const content = await res.json();
+
+                // Infer category from AI response or product name
+                const validCategories = ["phones", "electronics", "vehicles", "energy", "fashion", "health", "home", "baby", "fitness"];
+                let inferredCategory = formData.category; // keep current if already set
+
+                if (content.category && validCategories.includes(content.category.toLowerCase())) {
+                    inferredCategory = content.category.toLowerCase();
+                } else if (!inferredCategory) {
+                    // Keyword-based inference from product name
+                    const nameLower = formData.name.toLowerCase();
+                    const categoryMap: Record<string, string[]> = {
+                        phones: ["phone", "iphone", "samsung galaxy", "tablet", "ipad", "pixel", "android", "smartphone"],
+                        electronics: ["tv", "laptop", "macbook", "airpods", "speaker", "camera", "projector", "earbuds", "headphones", "charger", "power bank", "watch"],
+                        vehicles: ["car", "vehicle", "tire", "bumper", "dash cam", "auto", "motor"],
+                        energy: ["solar", "inverter", "battery", "power station", "generator"],
+                        fashion: ["shoe", "dress", "shirt", "bag", "earring", "sunglasses", "watch", "sneaker", "jacket", "sandal", "slider"],
+                        health: ["cream", "serum", "makeup", "brush", "nail", "hair", "beauty", "skincare", "perfume", "lipstick"],
+                        home: ["kitchen", "cooker", "blender", "cabinet", "humidifier", "chopper", "cleaner", "storage", "shower"],
+                        baby: ["baby", "toddler", "diaper", "stroller", "crib"],
+                        fitness: ["gym", "dumbbell", "yoga", "resistance band", "jump rope", "push up", "fitness"],
+                    };
+                    for (const [cat, keywords] of Object.entries(categoryMap)) {
+                        if (keywords.some(kw => nameLower.includes(kw))) {
+                            inferredCategory = cat;
+                            break;
+                        }
+                    }
+                }
+
                 setFormData(prev => ({
                     ...prev,
+                    category: inferredCategory || prev.category,
                     description: content.description || prev.description,
                     highlights: content.highlights || prev.highlights,
                     specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
@@ -227,7 +257,7 @@ export default function NewProduct() {
                 </div>
                 <Button
                     variant="outline"
-                    className="gap-2 border-gray-200 text-gray-600 hover:bg-gray-50 rounded-full text-sm font-semibold px-5 h-10"
+                    className="gap-2 border-gray-200 bg-green-600 text-white hover:bg-green-700 rounded-full text-sm font-semibold px-5 h-10"
                     onClick={handleAIGenerate}
                     disabled={isGenerating || !formData.name}
                 >

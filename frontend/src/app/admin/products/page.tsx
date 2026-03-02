@@ -59,7 +59,14 @@ export default function CatalogControl() {
 
     useEffect(() => {
         const load = () => {
-            setProducts(DemoStore.getProducts());
+            // Sort by latest first (newest created_at at top)
+            const all = DemoStore.getProducts();
+            all.sort((a, b) => {
+                const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+                return db - da;
+            });
+            setProducts(all);
         };
         load();
         window.addEventListener("storage", load);
@@ -282,7 +289,7 @@ export default function CatalogControl() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 align-middle text-right">
-                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                 <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
                                                     <Link href={`/product/${p.id}`} target="_blank">
                                                         <Eye className="h-4 w-4" />

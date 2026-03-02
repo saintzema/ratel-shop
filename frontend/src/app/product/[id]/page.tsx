@@ -263,24 +263,24 @@ export default function ProductDetailPage() {
 
         const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
         const bodies5 = [
-            `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine.${specsMention} Would definitely recommend to anybody looking for a solid deal in Lagos.`,
-            `I was skeptical at first about buying ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.${specsMention}`,
-            `Bought ${pName} as a gift and they haven't stopped talking about it. Best deal I could find online across Jumia and Konga.`,
-            `Ah, this ${pName} is too loud! Works perfectly and the build quality is top notch.${specsMention} FairPrice escrow gave me peace of mind.`,
+            `I wasn't expecting this level of quality from the product. Fits perfectly into my daily routine.${specsMention} Would definitely recommend to anybody looking for a solid deal in Lagos.`,
+            `I was skeptical at first about buying this online, but it came sealed and brand new. The seller was very communicative on WhatsApp.${specsMention}`,
+            `Bought the product as a gift and they haven't stopped talking about it. Best deal I could find online across Jumia and Konga.`,
+            `Works perfectly and the build quality is top notch.${specsMention} FairPrice escrow gave me peace of mind.`,
             `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
-            `Seriously impressed with this ${pName}. For the price, you can't get anything better.${specsMention} Tested and trusted.`,
-            `I've been using this ${pName} for a week now and it hasn't given me any headache.${specsMention} Solid purchase.`,
-            `My people, if you need a reliable ${pName}, just buy it. You won't regret it. The quality shock me.`,
-            `Omo I no go lie, this ${pName} rugged well well. It's exactly as described and works flawlessly.${specsMention}`
+            `Seriously impressed with this delivery service. For the price, you can't get anything better.${specsMention} Tested and trusted.`,
+            `I've been using this for a week now and it hasn't given me any headache.${specsMention} Solid purchase.`,
+            `My people, if you need a reliable product, just buy it. You won't regret it. The quality shock me.`,
+            `Omo I no go lie, this one sharp. It's exactly as described and works flawlessly.${specsMention}`
         ];
 
         const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
         const bodies4 = [
-            `The ${pName} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
-            `It's a very solid ${pName}. Does everything the specs say. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
-            `The ${pName} is good, nice features and all.${specsMention} Just wish the accessories were a bit more durable. Still a good buy for the price.`,
-            `Working fine so far. The ${pName} is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
-            `Product is okay. The ${pName} performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
+            `The product itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
+            `It's a very solid one. Does everything the specs say. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
+            `This is good, nice features and all.${specsMention} Just wish the accessories were a bit more durable. Still a good buy for the price.`,
+            `Working fine so far. The product is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
+            `Product is okay. The product performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
         ];
 
         const getPseudoRandom = (index: number, max: number) => {

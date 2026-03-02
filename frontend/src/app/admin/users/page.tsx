@@ -41,18 +41,49 @@ export default function UserDirectory() {
     useEffect(() => {
         const load = () => {
             const sellers = DemoStore.getSellers().map(s => ({ ...s, role: "seller" }));
-            // Simulation: generate sample buyers from orders
+            // Pull registered buyers from orders + from fp_user localStorage
             const orders = DemoStore.getOrders();
-            const uniqueBuyerIds = Array.from(new Set(orders.map(o => o.customer_id)));
-            const buyers = uniqueBuyerIds.map(id => ({
-                id,
-                business_name: id === "u1" ? "Tunde B." : "Anonymous Buyer",
-                role: "buyer",
-                status: "active",
-                created_at: "2024-01-10T10:00:00Z",
-                category: "Retail",
-                trust_score: 95
-            }));
+            const buyerMap = new Map<string, any>();
+
+            // Add buyers derived from orders
+            orders.forEach(o => {
+                if (!buyerMap.has(o.customer_id)) {
+                    buyerMap.set(o.customer_id, {
+                        id: o.customer_id,
+                        business_name: o.customer_id === "u1" ? "Tunde B." : (o.customer_name || "Buyer"),
+                        owner_email: "",
+                        role: "buyer",
+                        status: "active",
+                        created_at: o.created_at || "2024-01-10T10:00:00Z",
+                        category: "Retail",
+                        trust_score: 95
+                    });
+                }
+            });
+
+            // Also include the currently registered user from fp_user
+            try {
+                const fpUserRaw = localStorage.getItem("fp_user");
+                if (fpUserRaw) {
+                    const fpUser = JSON.parse(fpUserRaw);
+                    if (fpUser && fpUser.id && !buyerMap.has(fpUser.id)) {
+                        buyerMap.set(fpUser.id, {
+                            id: fpUser.id,
+                            business_name: fpUser.name || fpUser.email?.split("@")[0] || "Buyer",
+                            owner_email: fpUser.email || "",
+                            role: "buyer",
+                            status: "active",
+                            created_at: fpUser.created_at || new Date().toISOString(),
+                            category: "Retail",
+                            trust_score: fpUser.isPremium ? 98 : 90
+                        });
+                    }
+                }
+            } catch { }
+
+            // Exclude IDs that are already sellers
+            const sellerIds = new Set(sellers.map(s => s.id));
+            const buyers = Array.from(buyerMap.values()).filter(b => !sellerIds.has(b.id));
 
             setParticipants([...sellers, ...buyers]);
         };
@@ -62,7 +93,10 @@ export default function UserDirectory() {
     }, []);
 
     const filtered = participants.filter(p => {
-        const matchesSearch = p.business_name.toLowerCase().includes(searchTerm.toLowerCase());
+        const term = searchTerm.toLowerCase();
+        const matchesSearch = p.business_name?.toLowerCase().includes(term) ||
+            p.id?.toLowerCase().includes(term) ||
+            (p.owner_email && p.owner_email.toLowerCase().includes(term));
         const matchesView = view === "all" || (view === "sellers" && p.role === "seller") || (view === "buyers" && p.role === "buyer");
         return matchesSearch && matchesView;
     });
@@ -218,7 +252,7 @@ export default function UserDirectory() {
                                     {new Date(p.created_at).toLocaleDateString()}
                                 </td>
                                 <td className="px-8 py-6 text-right">
-                                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center justify-end gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
                                             <Mail className="h-4 w-4" />
                                         </Button>

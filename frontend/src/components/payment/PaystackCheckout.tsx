@@ -128,7 +128,18 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                 },
             });
 
-            handler.openIframe();
+            // Give the browser a frame to fully attach the iframe before Paystack posts to it
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    try {
+                        handler.openIframe();
+                    } catch (iframeErr) {
+                        console.error("Paystack iframe Error:", iframeErr);
+                        setErrorMsg("Failed to launch payment window. Please try again.");
+                        setStep("error");
+                    }
+                }, 50);
+            });
         } catch (err) {
             console.error("Paystack Init Error:", err);
             setErrorMsg("Failed to launch payment window. Please try again.");

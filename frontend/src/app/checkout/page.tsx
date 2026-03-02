@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
 import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Suspense, useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/context/CartContext";
 import { Product, Coupon } from "@/lib/types";
@@ -204,6 +204,7 @@ function CheckoutContent() {
         email: ""
     });
     const [addressError, setAddressError] = useState("");
+    const shippingAddressRef = useRef<HTMLElement>(null);
     const [createAccount, setCreateAccount] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [showPaystack, setShowPaystack] = useState(false);
@@ -522,50 +523,46 @@ function CheckoutContent() {
         persistAddresses(updated);
     };
 
+    const scrollToShippingAddress = () => {
+        setCheckoutStep(1);
+        setIsEditingAddress(true);
+        setTimeout(() => {
+            shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+    };
+
     const handlePlaceOrder = () => {
         const email = user?.email || address.email;
         if (!address.firstName.trim() || !email.trim()) {
             setAddressError(user ? "Please enter your first name." : "Please enter your name and email address.");
-            setIsEditingAddress(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            alert(user ? "Please enter your first name." : "Please enter your name and email address.");
+            scrollToShippingAddress();
             return;
         }
         if (!address.phone.trim()) {
             setAddressError("Please enter your phone number.");
-            setIsEditingAddress(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            alert("Please enter your phone number.");
+            scrollToShippingAddress();
             return;
         }
         if (deliveryMethod === "doorstep") {
             if (!address.street.trim()) {
                 setAddressError("Please enter your street address.");
-                setIsEditingAddress(true);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                alert("Please enter your street address.");
+                scrollToShippingAddress();
                 return;
             }
             if (!pickupDetails.state) {
                 setAddressError("Please select your state.");
-                setIsEditingAddress(true);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                alert("Please select your state.");
+                scrollToShippingAddress();
                 return;
             }
             if (!address.city.trim()) {
                 setAddressError("Please select your city / area.");
-                setIsEditingAddress(true);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                alert("Please select your city / area.");
+                scrollToShippingAddress();
                 return;
             }
         }
         if (deliveryMethod === "pickup" && (!pickupDetails.state || !pickupDetails.city || !pickupDetails.station)) {
             setAddressError("Please select a valid pickup station.");
-            setIsEditingAddress(true);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            alert("Please select a valid pickup station.");
+            scrollToShippingAddress();
             return;
         }
         setAddressError("");
@@ -678,7 +675,7 @@ function CheckoutContent() {
                 <div className="flex-1 space-y-6">
 
                     {/* Step 1: Shipping Address */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
                         <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => checkoutStep > 1 && setCheckoutStep(1)}>
                             <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
@@ -686,6 +683,9 @@ function CheckoutContent() {
                                 </span>
                                 Shipping Address
                             </h2>
+                            {addressError && (
+                                <p className="text-sm text-red-500 font-semibold">Please enter your delivery address</p>
+                            )}
                             {checkoutStep > 1 && (
                                 <button
                                     onClick={(e) => { e.stopPropagation(); setCheckoutStep(1); }}
