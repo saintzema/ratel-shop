@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { broadcast } from "../realtime/route";
 
-export async function GET() {
+export async function GET(req: Request) {
     try {
+        const { searchParams } = new URL(req.url);
+        const includeInactive = searchParams.get("all") === "true";
+
+        const whereClause = includeInactive ? {} : { status: "active" };
+
         const sellers = await db.seller.findMany({
-            where: { status: "active" },
+            where: whereClause,
         });
 
         const mappedSellers = sellers.map(s => ({
@@ -31,5 +37,66 @@ export async function GET() {
     } catch (error) {
         console.error("Database fetch error:", error);
         return NextResponse.json({ error: "Failed to fetch sellers" }, { status: 500 });
+    }
+}
+
+export async function POST(req: Request) {
+    try {
+        const body = await req.json();
+        const userId = body.user_id || body.userId;
+
+        if (!userId) {
+            return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        }
+
+        // Ensure user exists first (basic check or creation)
+        const user = await db.user.upsert({
+            where: { id: userId },
+            update: {
+                role: "seller"
+            },
+            create: {
+                id: userId,
+                email: body.owner_email || `${body.id}_owner@fairprice.ng`,
+                name: body.business_name || body.ownerName || "Seller",
+                role: "seller",
+            }
+        });
+
+        // Map snake_case to camelCase
+        const sellerData = {
+            id: body.id,
+            userId: user.id,
+            businessName: body.business_name,
+            description: body.description || "",
+            logoUrl: body.logo_url,
+            coverImageUrl: body.cover_image_url,
+            category: body.category || "other",
+            verified: body.verified || false,
+            rating: body.rating || 0,
+            trustScore: body.trust_score || 50,
+            status: body.status || "active",
+            kycStatus: body.kyc_status || "not_submitted",
+            bankName: body.bank_name,
+            accountNumber: body.account_number,
+            accountName: body.account_name,
+            storeUrl: body.store_url,
+            ownerName: body.owner_name || user.name,
+            ownerEmail: body.owner_email || user.email,
+        };
+
+        const seller = await db.seller.upsert({
+            where: { id: sellerData.id },
+            update: sellerData,
+            create: sellerData,
+        });
+
+        // Broadcast update for real-time sync
+        broadcast({ type: "seller_updated", id: seller.id });
+
+        return NextResponse.json(seller);
+    } catch (error: any) {
+        console.error("Seller creation error:", error);
+        return NextResponse.json({ error: error.message || "Failed to create seller" }, { status: 500 });
     }
 }

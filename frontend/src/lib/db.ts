@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+const globalForPrisma = globalThis as unknown as { prisma_v2: PrismaClient | undefined };
 
 function createPrismaClient() {
     const pool = new Pool({ connectionString: process.env.DATABASE_URL });
@@ -10,6 +10,6 @@ function createPrismaClient() {
     return new PrismaClient({ adapter, log: ["query", "error", "warn"] });
 }
 
-export const db = globalForPrisma.prisma ?? createPrismaClient();
+export const db = globalForPrisma.prisma_v2 ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma_v2 = db;

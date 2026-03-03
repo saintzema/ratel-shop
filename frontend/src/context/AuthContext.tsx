@@ -75,6 +75,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const register = (userData: User) => {
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
+
+        // Persist to Postgres
+        fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(userData),
+        }).catch(err => console.error("Failed to persist user:", err));
+
         window.dispatchEvent(new Event("fp-auth-update"));
     };
 
@@ -83,6 +91,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const updated = { ...user, ...userData };
         localStorage.setItem("fp_user", JSON.stringify(updated));
         setUser(updated);
+
+        // Persist to Postgres
+        fetch("/api/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updated),
+        }).catch(err => console.error("Failed to update user in DB:", err));
+
         window.dispatchEvent(new Event("fp-auth-update"));
     };
 

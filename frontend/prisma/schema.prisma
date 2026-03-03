@@ -217,6 +217,7 @@ model Seller {
   complaints    Complaint[]         @relation("SellerComplaints")
   disputes      Dispute[]           @relation("SellerDisputes")
   kycSubmissions KYCSubmission[]
+  discounts     Discount[]
 
   joinedAt   DateTime @default(now())
   createdAt  DateTime @default(now())
@@ -476,4 +477,19 @@ model SystemSetting {
   categoryMargins    Json?    // e.g. {"electronics": "10", "fashion": "15"}
 
   updatedAt          DateTime @updatedAt
+}
+
+model Discount {
+  id           String    @id @default(cuid())
+  sellerId     String
+  seller       Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  code         String    @unique
+  type         String    // "percentage", "fixed", "free_shipping"
+  value        Float
+  usageLimit   Int?
+  usageCount   Int       @default(0)
+  expiry       DateTime?
+  status       String    @default("active") // "active", "scheduled", "expired"
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }

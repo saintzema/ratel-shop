@@ -32,10 +32,11 @@ import {
     History,
     TrendingUp,
     Flame,
-    Shield,
     Lock,
+    Shield,
     ArrowRight,
-    Crown
+    Crown,
+    MessageCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { useMessages } from "@/context/MessageContext";
 
 // Category icon map for product image fallback
 const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
@@ -97,8 +99,28 @@ export function Navbar() {
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
+    const { totalUnread, openMessageBox } = useMessages();
     const prevCartCountRef = useRef(cartCount);
     const [bounceKey, setBounceKey] = useState(0);
+
+    const [unreadNotifs, setUnreadNotifs] = useState(0);
+    const { user, logout } = useAuth();
+
+    useEffect(() => {
+        const loadNotifs = async () => {
+            if (!user?.email) { setUnreadNotifs(0); return; }
+            try {
+                const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}&count_only=true`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setUnreadNotifs(data.unread_count ?? 0);
+                }
+            } catch { /* silently fail */ }
+        };
+        loadNotifs();
+        const poll = setInterval(loadNotifs, 5000);
+        return () => clearInterval(poll);
+    }, [user]);
 
     // Trigger bounce when cart count increases
     useEffect(() => {
@@ -107,7 +129,6 @@ export function Navbar() {
         }
         prevCartCountRef.current = cartCount;
     }, [cartCount]);
-    const { user, logout } = useAuth();
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const categoryRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
@@ -857,6 +878,16 @@ export function Navbar() {
                         <span className="font-bold text-white">Orders</span>
                         <span className="font-bold text-white">& Returns</span>
                     </Link>
+
+                    {/* Messages */}
+                    <button onClick={() => openMessageBox()} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
+                        <div className="relative">
+                            <MessageCircle className="h-6 w-6 text-white" />
+                            {(totalUnread > 0 || unreadNotifs > 0) && (
+                                <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full border border-brand-green-600 animate-pulse"></span>
+                            )}
+                        </div>
+                    </button>
 
                     {/* Notifications */}
                     <div className="hidden md:block">

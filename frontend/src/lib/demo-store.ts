@@ -28,6 +28,7 @@ class DemoStoreService {
         if (typeof window !== "undefined") {
             this.init();
             this.syncWithDB();
+            this.startRealtimeSync();
         }
     }
 
@@ -90,15 +91,42 @@ class DemoStoreService {
         }
     }
 
+    private startRealtimeSync() {
+        if (typeof window === "undefined") return;
+
+        const eventSource = new EventSource("/api/realtime");
+
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log("Real-time update received:", data);
+
+                // On any change, trigger a sync to refresh localStorage
+                this.syncWithDB();
+
+                // If it's a specific user update, we could also trigger an auth update event 
+                // but AuthContext should ideally handle its own sync or listen to storage events.
+            } catch (e) {
+                console.error("Failed to parse real-time event:", e);
+            }
+        };
+
+        eventSource.onerror = (error) => {
+            console.error("Real-time sync error:", error);
+            // EventSource will automatically retry connecting
+        };
+    }
+
     private async syncWithDB() {
         if (typeof window === "undefined") return;
 
         try {
-            // Fetch latest products from Postgres
-            const productsRes = await fetch("/api/products");
+            // Fetch ALL products (including inactive ones) for Admin visibility
+            const productsRes = await fetch("/api/products?all=true");
             if (productsRes.ok) {
                 const dbProducts = await productsRes.json();
                 if (dbProducts.length > 0) {
+                    console.log(`Synced ${dbProducts.length} products from DB`);
                     localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProducts));
                 }
             }
@@ -112,11 +140,11 @@ class DemoStoreService {
                 }
             }
 
-            // Trigger update event
+            // Trigger update events
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
         } catch (error) {
-            console.error("DemoStore sync error:", error);
+            console.error("Database sync failed:", error);
         }
     }
 
@@ -138,6 +166,40 @@ class DemoStoreService {
         const current = this.getNegotiations();
         const updated = [request, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+
+        // Persist to Postgres
+        fetch("/api/negotiations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(request),
+        }).catch(err => console.error("Failed to persist negotiation:", err));
+
+        // Notify Seller
+        const product = this.getProducts().find(p => p.id === request.product_id);
+        if (product && product.seller_id) {
+            this.addNotification({
+                userId: product.seller_id,
+                type: "negotiation",
+                message: `New negotiation offer for ${product.name} from ${request.customer_name}: ₦${request.proposed_price.toLocaleString()}`,
+                link: "/seller/dashboard/messages"
+            });
+            const sellerUser = this.getUser(product.seller_id);
+            const sellerEmail = sellerUser?.email || `seller_${product.seller_id}@fairprice.ng`;
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: sellerEmail,
+                    subject: `New Negotiation Offer: ${product.name}`,
+                    template: "ORDER_PLACED", // fallback template for MVP
+                    data: {
+                        customerName: request.customer_name,
+                        amount: `₦${request.proposed_price.toLocaleString()}`
+                    }
+                })
+            }).catch(console.error);
+        }
+
         // Also trigger storage event for other tabs
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
@@ -145,8 +207,47 @@ class DemoStoreService {
 
     updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased") {
         const current = this.getNegotiations();
+        const negotiation = current.find(n => n.id === id);
         const updated = current.map(n => n.id === id ? { ...n, status } : n);
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+
+        if (negotiation && (status === "accepted" || status === "rejected")) {
+            const product = this.getProducts().find(p => p.id === negotiation.product_id);
+            if (product) {
+                // Notify Buyer
+                this.addNotification({
+                    userId: negotiation.customer_id,
+                    type: "negotiation",
+                    message: `Your negotiation for ${product.name} was ${status}.`,
+                    link: "/account/negotiations"
+                });
+
+                // Notify Seller
+                this.addNotification({
+                    userId: product.seller_id,
+                    type: "negotiation",
+                    message: `Negotiation for ${product.name} was ${status}.`,
+                    link: "/seller/dashboard/messages"
+                });
+
+                const buyerUser = this.getUser(negotiation.customer_id);
+                const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: buyerEmail,
+                        subject: `Negotiation ${status === 'accepted' ? 'Accepted' : 'Rejected'}: ${product.name}`,
+                        template: "ORDER_PLACED", // fallback 
+                        data: {
+                            customerName: negotiation.customer_name,
+                            amount: status
+                        }
+                    })
+                }).catch(console.error);
+            }
+        }
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
     }
@@ -238,12 +339,31 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
 
+        const product = this.getProducts().find(p => p.id === negotiation.product_id);
+
         // Notify Buyer (User)
         this.addNotification({
+            userId: negotiation.customer_id,
             type: "negotiation",
-            message: `Seller sent a counter offer for your negotiation. Check your dashboard.`,
+            message: `Seller sent a counter offer of ₦${price.toLocaleString()} for ${product?.name || 'an item'}. Check your dashboard.`,
             link: "/account/negotiations"
         });
+
+        const buyerUser = this.getUser(negotiation.customer_id);
+        const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: buyerEmail,
+                subject: `Counter Offer Received: ${product?.name || 'An Item'}`,
+                template: "ORDER_PLACED",
+                data: {
+                    customerName: negotiation.customer_name,
+                    amount: `₦${price.toLocaleString()}`
+                }
+            })
+        }).catch(console.error);
     }
 
     // --- Login ---
@@ -305,9 +425,13 @@ class DemoStoreService {
         const products = this.getProducts();
         const sellers = this.getSellers();
         const approvedSellerIds = new Set(
-            sellers.filter(s => s.verified === true || s.kyc_status === "approved").map(s => s.id)
+            sellers.filter(s =>
+                s.status === "active" ||
+                s.verified === true ||
+                s.kyc_status === "approved"
+            ).map(s => s.id)
         );
-        return products.filter(p => approvedSellerIds.has(p.seller_id));
+        return products.filter(p => p.is_active !== false && approvedSellerIds.has(p.seller_id));
     }
 
     getSellers(): Seller[] {
@@ -319,7 +443,16 @@ class DemoStoreService {
         const sellers = this.getSellers();
         sellers.push(seller);
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
+
+        // Persist to Postgres
+        fetch("/api/sellers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(seller),
+        }).catch(err => console.error("Failed to persist seller:", err));
+
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 
     getOrders(): Order[] {
@@ -388,6 +521,13 @@ class DemoStoreService {
         const orders = this.getOrders();
         const updated = [newOrder, ...orders];
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Persist to Postgres
+        fetch("/api/orders", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newOrder),
+        }).catch(err => console.error("Failed to persist order:", err));
 
         // Notify Buyer
         this.addNotification({
@@ -518,6 +658,13 @@ class DemoStoreService {
             localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         }
 
+        // Persist to Postgres
+        fetch("/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(product),
+        }).catch(err => console.error("Failed to persist product:", err));
+
         try {
             this.addToHistory(product);
         } catch (e) { }
@@ -591,8 +738,29 @@ class DemoStoreService {
     // --- Order Management ---
     updateOrderStatus(id: string, status: Order["status"]) {
         const orders = this.getOrders();
+        const order = orders.find(o => o.id === id);
         const updated = orders.map(o => o.id === id ? { ...o, status } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Trigger Email on Delivery
+        if (status === 'delivered' && order && order.status !== 'delivered') {
+            const customerEmail = `user_${order.customer_id}@fairprice.ng`;
+
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: customerEmail,
+                    type: "ORDER_DELIVERED",
+                    payload: {
+                        name: order.customer_name || "Valued Customer",
+                        orderId: order.id,
+                        trackingUrl: `https://fairprice.ng/account/orders`
+                    }
+                })
+            }).catch(console.error); // Silently catch email errors
+        }
+
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -688,13 +856,27 @@ class DemoStoreService {
 
         const newNotif: AppNotification = {
             ...notification,
-            id: `notif_${Math.random().toString(36).substr(2, 9)}`,
+            id: `notif_${Math.random().toString(36).substr(2, 9)} `,
             timestamp: new Date().toISOString(),
             read: false
         };
         const updated = [newNotif, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+
+        // Also persist to database
+        if (typeof window !== "undefined") {
+            fetch("/api/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_email: notification.userId || "all",
+                    type: notification.type || "system",
+                    message: notification.message,
+                    link: notification.link || null,
+                }),
+            }).catch(() => { /* silently fail — localStorage is fallback */ });
+        }
     }
 
     sendAdminMessageToUser(userId: string, subject: string, message: string) {
@@ -711,21 +893,27 @@ class DemoStoreService {
         this.addNotification({
             userId: actualUserId,
             type: "system",
-            message: `[Admin Message: ${subject}] - ${message}`,
+            message: `[Admin Message: ${subject}]- ${message} `,
             link: "/account/messages"
         });
     }
 
     markAsRead(id: string) {
-        const current = this.getNotifications();
-        const updated = current.map(n => n.id === id ? { ...n, read: true } : n);
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
+        if (!stored) return;
+        const all: AppNotification[] = JSON.parse(stored);
+        const updated = all.map(n => n.id === id ? { ...n, read: true } : n);
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
     }
 
     markAllAsRead() {
-        const current = this.getNotifications();
-        const updated = current.map(n => ({ ...n, read: true }));
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
+        if (!stored) return;
+        const all: AppNotification[] = JSON.parse(stored);
+        const updated = all.map(n => ({ ...n, read: true }));
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
     }
@@ -779,7 +967,7 @@ class DemoStoreService {
         const planInfo = this.PROMO_PLANS[plan];
         const now = new Date();
         const promo = {
-            id: `promo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            id: `promo_${Date.now()}_${Math.random().toString(36).substr(2, 6)} `,
             product_id: productId,
             seller_id: sellerId,
             plan,
@@ -921,7 +1109,7 @@ class DemoStoreService {
         if (!seller) return;
 
         const newPayout = {
-            id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 6)} `,
             seller_id: sellerId,
             seller_name: seller.business_name,
             amount,
@@ -946,7 +1134,7 @@ class DemoStoreService {
         this.addNotification({
             userId: "admin",
             type: "system",
-            message: `New Payout Request: ${seller.business_name} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')}`,
+            message: `New Payout Request: ${seller.business_name} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')} `,
             link: "/admin/payouts"
         });
 
@@ -1017,7 +1205,7 @@ class DemoStoreService {
         const messages = this.getSupportMessages();
         const newMsg: SupportMessage = {
             ...msg,
-            id: `SUP-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `SUP - ${Date.now()} -${Math.random().toString(36).substr(2, 4)} `,
             status: "new",
             created_at: new Date().toISOString(),
         };
@@ -1079,8 +1267,8 @@ class DemoStoreService {
             this.addNotification({
                 userId: order.customer_id,
                 type: "system",
-                message: `Funds for ${order.product?.name || 'your order'} have been released. Please leave a review!`,
-                link: `/product/${order.product_id}?review=true`,
+                message: `Funds for ${order.product?.name || 'your order'} have been released.Please leave a review!`,
+                link: `/ product / ${order.product_id}?review = true`,
             });
             // Update stats & trigger storage event
             this.updateOrderEscrow(orderId, "released");
@@ -1108,14 +1296,14 @@ class DemoStoreService {
         const seller = sellers.find(s => s.id === order.seller_id);
 
         const dispute: Dispute = {
-            id: `disp_${Date.now()}`,
+            id: `disp_${Date.now()} `,
             order_id: orderId,
             buyer_id: buyerId,
             buyer_name: buyerName,
             buyer_email: buyerEmail,
             seller_id: order.seller_id,
             seller_name: seller?.business_name || order.seller_name || "Unknown Seller",
-            product_name: order.product?.name || `Product ${order.product_id}`,
+            product_name: order.product?.name || `Product ${order.product_id} `,
             amount: order.amount,
             reason,
             description,
@@ -1136,8 +1324,8 @@ class DemoStoreService {
         this.addSupportMessage({
             user_name: buyerName,
             user_email: buyerEmail,
-            subject: `Dispute Filed: ${reason.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}`,
-            message: `Buyer ${buyerName} raised a dispute on order #${orderId}. Reason: ${reason.replace(/_/g, " ")}. Description: ${description}`,
+            subject: `Dispute Filed: ${reason.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} `,
+            message: `Buyer ${buyerName} raised a dispute on order #${orderId}.Reason: ${reason.replace(/_/g, " ")}.Description: ${description} `,
             source: "order_issue",
             order_id: orderId,
         });
@@ -1235,8 +1423,8 @@ class DemoStoreService {
             this.addNotification({
                 userId: customerId,
                 type: "promo",
-                message: `${seller ? seller.business_name : 'A store you follow'} sent you a message: ${messageText}`,
-                link: `/account/messages` // A real app might deep link to a specific chat context
+                message: `${seller ? seller.business_name : 'A store you follow'} sent you a message: ${messageText} `,
+                link: `/ account / messages` // A real app might deep link to a specific chat context
             });
 
             // Note: In a complete production system, we might also seed a direct MessageThread array
@@ -1267,8 +1455,8 @@ class DemoStoreService {
         const all = this.getCoupons();
         const newCoupon: Coupon = {
             ...coupon,
-            id: `cpn_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            code: `FP-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+            id: `cpn_${Date.now()}_${Math.random().toString(36).substr(2, 4)} `,
+            code: `FP - ${Math.random().toString(36).substr(2, 6).toUpperCase()} `,
             isUsed: false,
             createdAt: new Date().toISOString(),
         };
@@ -1279,7 +1467,7 @@ class DemoStoreService {
         this.addNotification({
             userId: coupon.userId,
             type: "system",
-            message: `You received a ₦${coupon.amount.toLocaleString()} coupon! Code: ${newCoupon.code}. ${coupon.reason}`,
+            message: `You received a ₦${coupon.amount.toLocaleString()} coupon! Code: ${newCoupon.code}. ${coupon.reason} `,
             link: "/account/coupons",
         });
 
@@ -1326,7 +1514,7 @@ class DemoStoreService {
     addReferral(referrerCode: string, referredUserId: string) {
         const all = this.getReferrals();
         all.unshift({
-            id: `ref_${Date.now()}`,
+            id: `ref_${Date.now()} `,
             referrerCode,
             referredUserId,
             orderAmount: 0,
@@ -1380,7 +1568,7 @@ class DemoStoreService {
         const all = this.getReviews();
         const newReview = {
             ...review,
-            id: `rev_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            id: `rev_${Date.now()}_${Math.random().toString(36).substr(2, 4)} `,
             created_at: new Date().toISOString(),
         };
         all.unshift(newReview);

@@ -59,8 +59,8 @@ export default function CatalogControl() {
 
     useEffect(() => {
         const load = () => {
-            // Sort by latest first (newest created_at at top)
             const all = DemoStore.getProducts();
+            console.log("Admin Catalog detected update. Items:", all.length);
             all.sort((a, b) => {
                 const da = a.created_at ? new Date(a.created_at).getTime() : 0;
                 const db = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -70,7 +70,11 @@ export default function CatalogControl() {
         };
         load();
         window.addEventListener("storage", load);
-        return () => window.removeEventListener("storage", load);
+        window.addEventListener("demo-store-update", load);
+        return () => {
+            window.removeEventListener("storage", load);
+            window.removeEventListener("demo-store-update", load);
+        };
     }, []);
 
     const filtered = products.filter(p => {

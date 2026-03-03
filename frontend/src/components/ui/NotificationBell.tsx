@@ -1,43 +1,55 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Bell, Check, Loader2, X } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Bell, Check, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DemoStore } from "@/lib/demo-store";
-import { Notification as AppNotification } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+
+interface DBNotification {
+    id: number;
+    user_email: string;
+    type: string;
+    message: string;
+    link: string | null;
+    read: boolean;
+    timestamp: string;
+}
 
 export function NotificationBell({ variant = "light" }: { variant?: "light" | "dark" }) {
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
-    const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [notifications, setNotifications] = useState<DBNotification[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const bellRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
-    // ...
-
-    const loadNotifications = () => {
-        // Use email as ID since that's what we use for orders/negotiations in this demo
-        const userId = user?.email;
-        const data = DemoStore.getNotifications(userId);
-        // Sort by date desc
-        const sorted = [...data].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setNotifications(sorted);
-    };
+    const loadNotifications = useCallback(async () => {
+        if (!user?.email) {
+            setNotifications([]);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    setNotifications(data);
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load notifications:", err);
+        }
+    }, [user?.email]);
 
     useEffect(() => {
         loadNotifications();
-
-        // Listen for storage changes (cross-tab or internal)
-        const handleStorage = () => loadNotifications();
-        window.addEventListener("storage", handleStorage);
-        return () => window.removeEventListener("storage", handleStorage);
-    }, [user]); // Reload when user changes
+        // Poll every 5s to keep in sync with database
+        const poll = setInterval(loadNotifications, 5000);
+        return () => clearInterval(poll);
+    }, [loadNotifications]);
 
     // Close when clicking outside
     useEffect(() => {
@@ -57,17 +69,29 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
 
     const unreadCount = notifications.filter(n => !n.read).length;
 
-    const handleMarkAllRead = () => {
+    const handleMarkAllRead = async () => {
+        if (!user?.email) return;
         setIsLoading(true);
-        setTimeout(() => {
-            DemoStore.markAllAsRead();
+        try {
+            await fetch(`/api/notifications?mark_all=true&user_email=${encodeURIComponent(user.email)}`, {
+                method: "PATCH",
+            });
+            await loadNotifications();
+        } catch (err) {
+            console.error("Failed to mark all as read:", err);
+        } finally {
             setIsLoading(false);
-        }, 500);
+        }
     };
 
-    const handleNotificationClick = (n: AppNotification) => {
+    const handleNotificationClick = async (n: DBNotification) => {
         if (!n.read) {
-            DemoStore.markAsRead(n.id);
+            try {
+                await fetch(`/api/notifications?id=${n.id}`, { method: "PATCH" });
+                await loadNotifications();
+            } catch (err) {
+                console.error("Failed to mark notification as read:", err);
+            }
         }
         setIsOpen(false);
         if (n.link) {

@@ -8,6 +8,8 @@ import { useMessages } from "@/context/MessageContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
+import { useState, useEffect } from "react";
+import { DemoStore } from "@/lib/demo-store";
 
 export function MobileBottomNav() {
     const pathname = usePathname();
@@ -17,6 +19,19 @@ export function MobileBottomNav() {
     const { user } = useAuth();
     const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
 
+    const [unreadNotifs, setUnreadNotifs] = useState(0);
+
+    useEffect(() => {
+        const loadCounts = () => {
+            const userId = user?.email;
+            const notifs = DemoStore.getNotifications(userId);
+            setUnreadNotifs(notifs.filter(n => !n.read).length);
+        };
+        loadCounts();
+        window.addEventListener("storage", loadCounts);
+        return () => window.removeEventListener("storage", loadCounts);
+    }, [user]);
+
     // Always show the mobile nav bar on all pages
     // (dashboard layouts have their own top-bar menus, but users need bottom nav for Home/Cart/Messages)
 
@@ -25,7 +40,7 @@ export function MobileBottomNav() {
     const navItems = [
         { name: "Home", href: "/", icon: Home },
         { name: "Categories", href: "/categories", icon: Search },
-        { name: "Messages", href: "#messages", icon: MessageCircle, count: totalUnread, isMessages: true },
+        { name: "Messages", href: "#messages", icon: MessageCircle, count: totalUnread + unreadNotifs, isMessages: true },
         { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
         { name: profileName, href: "/account", icon: User, isProfile: true },
     ];

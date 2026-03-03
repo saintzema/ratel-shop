@@ -12,7 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { DemoStore } from "@/lib/demo-store";
 import { cn } from "@/lib/utils";
 
-type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new";
+type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new" | "otp_existing";
 
 export default function UnifiedAuthPage() {
     const router = useRouter();
@@ -185,7 +185,11 @@ export default function UnifiedAuthPage() {
         const newCode = Math.floor(100000 + Math.random() * 900000).toString();
         setSentCode(newCode);
 
-        // Dispatch actual verification email
+        handleSendVerificationEmail(newCode, firstName.trim());
+        setStep("verification_new");
+    };
+
+    const handleSendVerificationEmail = (code: string, nameToUse: string) => {
         const targetEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
         fetch("/api/email", {
             method: "POST",
@@ -193,17 +197,30 @@ export default function UnifiedAuthPage() {
             body: JSON.stringify({
                 to: targetEmail,
                 type: "VERIFY_EMAIL",
-                payload: { name: firstName.trim(), code: newCode }
+                payload: { name: nameToUse, code }
             })
         }).catch(console.error);
 
         DemoStore.addNotification({
-            message: `Verification Email Sent: A security code has been sent to ${targetEmail}`,
+            message: `Verification Email Sent: A code has been sent to ${targetEmail}`,
             type: "system",
             link: "#"
         });
+    };
 
-        setStep("verification_new");
+    const handleResendCode = () => {
+        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setSentCode(newCode);
+        const nameToUse = step === 'otp_existing' ? (existingUser?.name || "User") : firstName.trim();
+        handleSendVerificationEmail(newCode, nameToUse);
+        alert("A new code has been sent to your email.");
+    };
+
+    const handleSendOtpLoginCode = () => {
+        const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+        setSentCode(newCode);
+        handleSendVerificationEmail(newCode, existingUser?.name || "User");
+        setStep("otp_existing");
     };
 
     const handleFinalizeRegistration = (skipped: boolean = false) => {
@@ -265,6 +282,24 @@ export default function UnifiedAuthPage() {
 
             router.push(finalRedirect);
         }, 1200);
+    };
+
+    const handleFinalizeOtpLogin = () => {
+        setError("");
+        const enteredCode = Array.from({ length: 6 }).map((_, i) => (document.getElementById(`otp-ex-${i}`) as HTMLInputElement)?.value || "").join("");
+
+        if (enteredCode !== sentCode && sentCode) {
+            setError("Invalid verification code. Please check your email.");
+            return;
+        }
+
+        setIsLoading(true);
+        setTimeout(() => {
+            if (existingUser) {
+                login(existingUser);
+                router.push(redirectPath);
+            }
+        }, 1000);
     };
 
     const handleSocialLogin = (provider: "google" | "facebook" | "x") => {
@@ -485,6 +520,16 @@ export default function UnifiedAuthPage() {
                                                 className="text-[13px] font-bold text-brand-green-600 hover:underline"
                                             >
                                                 Forgot Password?
+                                            </button>
+                                        </div>
+
+                                        <div className="flex justify-center -mt-2 mb-2">
+                                            <button
+                                                type="button"
+                                                onClick={handleSendOtpLoginCode}
+                                                className="text-[13px] font-bold text-brand-orange hover:underline cursor-pointer"
+                                            >
+                                                Sign in with email code instead
                                             </button>
                                         </div>
 
@@ -742,9 +787,12 @@ export default function UnifiedAuthPage() {
                                         ))}
                                     </div>
 
-                                    <div className="mb-8">
-                                        <button className="text-sm text-brand-green-600 font-bold hover:underline">
-                                            Didn't send me a code?
+                                    <div className="mb-8 text-center">
+                                        <button
+                                            onClick={handleResendCode}
+                                            className="text-sm text-brand-green-600 font-bold hover:underline cursor-pointer mt-4"
+                                        >
+                                            Didn't send me a code? Resend
                                         </button>
                                     </div>
 
@@ -756,6 +804,72 @@ export default function UnifiedAuthPage() {
                                     <p className="text-[12px] text-[#86868b] mt-4">
                                         By continuing, I accept the <Link href="/legal/conditions" className="font-bold hover:underline">Legal Terms</Link>
                                     </p>
+                                </motion.div>
+                            )}
+
+                            {/* STEP 4: EXISTING USER OTP LOGIN */}
+                            {step === "otp_existing" && (
+                                <motion.div
+                                    key="step-otp-existing"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <h2 className="text-[22px] font-semibold text-[#1d1d1f] mb-2 text-center">Verify it's you</h2>
+                                    <p className="text-[15px] text-[#86868b] text-center mb-8">
+                                        Enter the 6-digit code we sent to<br />
+                                        <strong className="text-[#1d1d1f]">{identifier}</strong>
+                                    </p>
+
+                                    {error && (
+                                        <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex gap-2 mb-4">
+                                            <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                            <p className="text-[13px] text-red-700">{error}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-center gap-2 sm:gap-4 mb-2">
+                                        {[0, 1, 2, 3, 4, 5].map((idx) => (
+                                            <input
+                                                key={idx}
+                                                id={`otp-ex-${idx}`}
+                                                type="text"
+                                                className="w-12 h-14 text-center text-[20px] font-bold bg-white border border-[#d2d2d7] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all outline-none"
+                                                maxLength={1}
+                                                autoFocus={idx === 0}
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Backspace" && !(e.target as HTMLInputElement).value && idx > 0) {
+                                                        document.getElementById(`otp-ex-${idx - 1}`)?.focus();
+                                                    }
+                                                }}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/\D/g, "");
+                                                    e.target.value = val;
+                                                    if (val && idx < 5) {
+                                                        document.getElementById(`otp-ex-${idx + 1}`)?.focus();
+                                                    }
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    <div className="mb-8 text-center">
+                                        <button
+                                            onClick={handleResendCode}
+                                            className="text-sm text-brand-green-600 font-bold hover:underline cursor-pointer mt-4"
+                                        >
+                                            Didn't send me a code? Resend
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Button onClick={handleFinalizeOtpLogin} disabled={isLoading} className="w-full h-14 bg-brand-green-600 hover:bg-brand-green-700 text-white font-medium text-[17px] rounded-xl transition-all shadow-sm">
+                                            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Login"}
+                                        </Button>
+                                    </div>
                                 </motion.div>
                             )}
 

@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST';
 
 interface EmailPayload {
     name?: string;
@@ -45,7 +45,7 @@ function BaseTemplate(title: string, contentHTML: string) {
             <div class="card">
                 <div class="header">
                     <div style="font-size: 28px; font-weight: 900; letter-spacing: -1px; color: ${BRAND_COLOR}; margin-bottom: 8px;">
-                        FairPrice
+                        Fair<span style="color: white">Price</span><span style="color: ${BRAND_COLOR}">.ng</span>
                     </div>
                     <h1 class="title">${title}</h1>
                 </div>
@@ -53,7 +53,7 @@ function BaseTemplate(title: string, contentHTML: string) {
             </div>
             <div class="footer">
                 <p>&copy; ${new Date().getFullYear()} FairPrice. All rights reserved.</p>
-                <p>123 Commerce Avenue, Lagos, Nigeria</p>
+                <p>Africa's first AI-Regulated marketplace</p>
             </div>
         </div>
     </body>
@@ -120,81 +120,96 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
             `);
             break;
 
+        case 'ORDER_DELIVERED':
+            subject = `Order Delivered: ${payload.orderId}`;
+            html = BaseTemplate("Your Order has Arrived! 📦", `
+                <p>Hi ${name},</p>
+                <p>Great news! Your order <strong>${payload.orderId}</strong> has been marked as <strong>delivered</strong>.</p>
+                <p>Please log in to your FairPrice account to confirm receipt of your item so we can release the funds securely to the seller.</p>
+                <p style="margin-top: 24px; color: #dc2626; font-size: 14px; font-weight: bold;">
+                  ⚠️ If you do not confirm within 7 days, the funds will be automatically released to the seller.
+                </p>
+                <center>
+                    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" class="btn">Confirm Receipt</a>
+                </center>
+            `);
+            break;
+
         case 'CHANGE_PASSWORD':
             subject = "FairPrice Password Reset";
             html = BaseTemplate("Password Change Request", `
-                <p>Hi ${name},</p>
-                <p>We received a request to change the password for your FairPrice account.</p>
-                <p>If you made this request, click the button below to securely update your credentials:</p>
-                <center>
-                    <a href="https://fairprice.ng/login" class="btn">Reset Password</a>
-                </center>
-                <p style="font-size: 14px; color: #6b7280; margin-top: 24px;">If you didn't request a password change, please ignore this email or contact support immediately.</p>
+                < p > Hi ${name}, </p>
+                    < p > We received a request to change the password for your FairPrice account.</p>
+                        < p > If you made this request, click the button below to securely update your credentials: </p>
+                            < center >
+                            <a href="https://fairprice.ng/login" class="btn" > Reset Password </a>
+                                </center>
+                                < p style = "font-size: 14px; color: #6b7280; margin-top: 24px;" > If you didn't request a password change, please ignore this email or contact support immediately.</p>
             `);
             break;
 
         case 'PROMOTIONAL':
-            subject = `Special Offer from ${payload.sellerName || "a FairPrice Partner"}`;
+            subject = `Special Offer from ${payload.sellerName || "a FairPrice Partner"} `;
             html = BaseTemplate("Exclusive Store Offer", `
-                <p>Hi ${name},</p>
+                < p > Hi ${name}, </p>
                 ${payload.promoContent || "<p>We have some exciting new drops you won't want to miss!</p>"}
-                <center>
-                    <a href="https://fairprice.ng" class="btn">Shop Now</a>
-                </center>
-            `);
+            <center>
+                <a href="https://fairprice.ng" class="btn" > Shop Now </a>
+                    </center>
+                        `);
             break;
 
         case 'SELLER_WELCOME':
             subject = "Welcome to FairPrice Sellers! 💼";
             html = BaseTemplate("Your Seller Journey Begins", `
-                <p>Hi ${name},</p>
-                <p>Thank you for registering to become a verified FairPrice Seller!</p>
-                <p>Our administration team is currently reviewing your KYC verification documents and business profile. This process helps us keep FairPrice the safest marketplace in Africa.</p>
-                <center>
-                    <a href="https://fairprice.ng/seller/dashboard?kyc=pending" class="btn">Go to Dashboard</a>
-                </center>
-            `);
+                    < p > Hi ${name}, </p>
+                        < p > Thank you for registering to become a verified FairPrice Seller! </p>
+                            < p > Our administration team is currently reviewing your KYC verification documents and business profile.This process helps us keep FairPrice the safest marketplace in Africa.</p>
+                                < center >
+                                <a href="https://fairprice.ng/seller/dashboard?kyc=pending" class="btn" > Go to Dashboard </a>
+                                    </center>
+                                        `);
             break;
 
         case 'SELLER_APPROVED':
             subject = "Your FairPrice Store is Live! 🎉";
             html = BaseTemplate("Congratulations!", `
-                <p>Hi ${name},</p>
-                <p>We are thrilled to let you know that your KYC documents have been reviewed and approved!</p>
-                <p>Your FairPrice Seller profile is now fully active, and your products will be visible to millions of shoppers across the global platform.</p>
-                <div class="code-box" style="font-size: 16px; letter-spacing: normal; cursor: text;">
-                    fairprice.ng/store/${payload.storeUrl || "your-store"}
-                </div>
-                <center>
-                    <a href="https://fairprice.ng/store/${payload.storeUrl || "your-store"}" class="btn">View your Public Store</a>
-                </center>
-            `);
+                                    < p > Hi ${name}, </p>
+                                        < p > We are thrilled to let you know that your KYC documents have been reviewed and approved!</p>
+                                            < p > Your FairPrice Seller profile is now fully active, and your products will be visible to millions of shoppers across the global platform.</p>
+                                                < div class="code-box" style = "font-size: 16px; letter-spacing: normal; cursor: text;" >
+                                                    fairprice.ng / store / ${payload.storeUrl || "your-store"}
+            </div>
+                < center >
+                <a href="https://fairprice.ng/store/${payload.storeUrl || "your - store"}" class="btn" > View your Public Store </a>
+                    </center>
+                        `);
             break;
 
         case 'SELLER_PAYOUT_REQUEST':
-            subject = `New Payout Request from ${payload.sellerName || "a Seller"}`;
+            subject = `New Payout Request from ${payload.sellerName || "a Seller"} `;
             html = BaseTemplate("Action Required: Payout Request", `
-                <p>Hi Admin,</p>
-                <p>A new payout has been requested by a seller for an order that has been delivered.</p>
-                <table class="info-table">
-                    <tr>
-                        <td class="info-label">Seller Account</td>
-                        <td class="info-value">${payload.sellerName || "Unknown Seller"}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">Order ID(s)</td>
-                        <td class="info-value" style="font-family: monospace;">${payload.orderIds?.join(', ') || "N/A"}</td>
-                    </tr>
-                    <tr>
-                        <td class="info-label">Requested Payout</td>
-                        <td class="info-value" style="color: ${BRAND_COLOR};">₦${payload.amount?.toLocaleString() || "0"}</td>
-                    </tr>
-                </table>
-                <p style="margin-top: 16px;">Please review the payout details and proceed with the bank transfer via the dashboard.</p>
-                <center>
-                    <a href="https://fairprice.ng/admin/payouts" class="btn">Review Payout Request</a>
-                </center>
-            `);
+                < p > Hi Admin, </p>
+                    < p > A new payout has been requested by a seller for an order that has been delivered.</p>
+                        < table class="info-table" >
+                            <tr>
+                            <td class="info-label" > Seller Account </td>
+                                < td class="info-value" > ${payload.sellerName || "Unknown Seller"} </td>
+                                    </tr>
+                                    < tr >
+                                    <td class="info-label" > Order ID(s) </td>
+                                        < td class="info-value" style = "font-family: monospace;" > ${payload.orderIds?.join(', ') || "N/A"} </td>
+                                            </tr>
+                                            < tr >
+                                            <td class="info-label" > Requested Payout </td>
+                                                < td class="info-value" style = "color: ${BRAND_COLOR};" >₦${payload.amount?.toLocaleString() || "0"} </td>
+                                                    </tr>
+                                                    </table>
+                                                    < p style = "margin-top: 16px;" > Please review the payout details and proceed with the bank transfer via the dashboard.</p>
+                                                        < center >
+                                                        <a href="https://fairprice.ng/admin/payouts" class="btn" > Review Payout Request </a>
+                                                            </center>
+                                                                `);
             break;
     }
 

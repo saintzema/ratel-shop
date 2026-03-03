@@ -38,63 +38,64 @@ export default function UserDirectory() {
     const [editingCommissionSeller, setEditingCommissionSeller] = useState<any | null>(null);
     const [commissionInput, setCommissionInput] = useState("");
 
+    const [loading, setLoading] = useState(true);
+
     useEffect(() => {
-        const load = () => {
-            const sellers = DemoStore.getSellers().map(s => ({ ...s, role: "seller" }));
-            // Pull registered buyers from orders + from fp_user localStorage
-            const orders = DemoStore.getOrders();
-            const buyerMap = new Map<string, any>();
-
-            // Add buyers derived from orders
-            orders.forEach(o => {
-                if (!buyerMap.has(o.customer_id)) {
-                    buyerMap.set(o.customer_id, {
-                        id: o.customer_id,
-                        business_name: o.customer_id === "u1" ? "Tunde B." : (o.customer_name || "Buyer"),
-                        owner_email: "",
-                        role: "buyer",
-                        status: "active",
-                        created_at: o.created_at || "2024-01-10T10:00:00Z",
-                        category: "Retail",
-                        trust_score: 95
-                    });
-                }
-            });
-
-            // Also include the currently registered user from fp_user
+        const load = async () => {
+            setLoading(true);
             try {
-                const fpUserRaw = localStorage.getItem("fp_user");
-                if (fpUserRaw) {
-                    const fpUser = JSON.parse(fpUserRaw);
-                    if (fpUser && fpUser.id && !buyerMap.has(fpUser.id)) {
-                        buyerMap.set(fpUser.id, {
-                            id: fpUser.id,
-                            business_name: fpUser.name || fpUser.email?.split("@")[0] || "Buyer",
-                            owner_email: fpUser.email || "",
+                // Fetch both users (buyers) and sellers from API
+                const [usersRes, sellersRes] = await Promise.all([
+                    fetch("/api/users"),
+                    fetch("/api/sellers?all=true")
+                ]);
+
+                const users = await usersRes.json();
+                const sellersData = await sellersRes.json();
+
+                // Map and merge with defensive checks
+                const sellers = Array.isArray(sellersData)
+                    ? sellersData.map((s: any) => ({
+                        ...s,
+                        role: "seller",
+                        // Use business_name for primary display
+                        display_name: s.business_name || s.owner_name || "Seller",
+                    }))
+                    : [];
+
+                const sellerUserIds = new Set(sellers.map((s: any) => s.user_id));
+
+                const buyers = Array.isArray(users)
+                    ? users
+                        .filter((u: any) => !sellerUserIds.has(u.id))
+                        .map((u: any) => ({
+                            id: u.id,
+                            display_name: u.name || u.email?.split("@")[0] || "Buyer",
+                            owner_email: u.email,
                             role: "buyer",
                             status: "active",
-                            created_at: fpUser.created_at || new Date().toISOString(),
+                            created_at: u.created_at || "2026-01-10T10:00:00Z",
                             category: "Retail",
-                            trust_score: fpUser.isPremium ? 98 : 90
-                        });
-                    }
-                }
-            } catch { }
+                            trust_score: 90
+                        }))
+                    : [];
 
-            // Exclude IDs that are already sellers
-            const sellerIds = new Set(sellers.map(s => s.id));
-            const buyers = Array.from(buyerMap.values()).filter(b => !sellerIds.has(b.id));
-
-            setParticipants([...sellers, ...buyers]);
+                setParticipants([...sellers, ...buyers]);
+            } catch (error) {
+                console.error("Failed to load users/sellers:", error);
+            } finally {
+                setLoading(false);
+            }
         };
         load();
-        window.addEventListener("storage", load);
-        return () => window.removeEventListener("storage", load);
+        window.addEventListener("demo-store-update", load);
+        return () => window.removeEventListener("demo-store-update", load);
     }, []);
 
     const filtered = participants.filter(p => {
         const term = searchTerm.toLowerCase();
-        const matchesSearch = p.business_name?.toLowerCase().includes(term) ||
+        const name = p.display_name || p.business_name || "";
+        const matchesSearch = name.toLowerCase().includes(term) ||
             p.id?.toLowerCase().includes(term) ||
             (p.owner_email && p.owner_email.toLowerCase().includes(term));
         const matchesView = view === "all" || (view === "sellers" && p.role === "seller") || (view === "buyers" && p.role === "buyer");
@@ -181,11 +182,13 @@ export default function UserDirectory() {
                                             "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm border border-white/10",
                                             p.role === "seller" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
                                         )}>
-                                            {p.business_name.charAt(0)}
+                                            {(p.display_name || "P").charAt(0)}
                                         </div>
                                         <div>
-                                            <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-[15px] hover:text-indigo-600 hover:underline block">{p.business_name}</Link>
-                                            <p className="text-[11px] text-gray-400 font-bold">ID: {p.id.toUpperCase()}</p>
+                                            <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-[15px] hover:text-indigo-600 hover:underline block">
+                                                {p.display_name}
+                                            </Link>
+                                            <p className="text-[11px] text-gray-400 font-bold">ID: {p.id?.toUpperCase() || 'UNKNOWN'}</p>
                                             {p.role === "seller" && p.business_registered && (
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
@@ -316,7 +319,7 @@ export default function UserDirectory() {
                                 placeholder="e.g. 1.5"
                             />
                             <p className="text-xs font-medium text-gray-500 mt-1">
-                                Enter the percentage the platform will take from {editingCommissionSeller?.business_name}'s released escrows. This overrides default Subscription Plan rates.
+                                Enter the percentage the platform will take from {editingCommissionSeller?.display_name}'s released escrows. This overrides default Subscription Plan rates.
                             </p>
                         </div>
                     </div>

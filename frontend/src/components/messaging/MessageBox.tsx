@@ -85,7 +85,9 @@ export function MessageBox() {
             const conv = conversations.find(c => c.id === activeConversationId || c.orderId === activeConversationId);
             if (conv) {
                 setSelectedConvId(conv.id);
-                markAsRead(conv.id);
+                if (conv.unreadCount > 0) {
+                    markAsRead(conv.id);
+                }
                 setActiveTab("chats");
             }
         }

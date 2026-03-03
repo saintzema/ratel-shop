@@ -82,9 +82,11 @@ export const SearchGridCard = ({
         </button>
         <img
           src={
-            product.image_url ||
-            product.images?.[0] ||
-            "/assets/images/placeholder.png"
+            product.image_url && !product.image_url.toLowerCase().includes('no photo') && !product.image_url.toLowerCase().includes('no image') && !product.image_url.toLowerCase().includes('n/a')
+              ? product.image_url
+              : product.images?.[0] && !product.images[0].toLowerCase().includes('no photo') && !product.images[0].toLowerCase().includes('n/a')
+                ? product.images[0]
+                : "/assets/images/placeholder.png"
           }
           alt={product.name}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

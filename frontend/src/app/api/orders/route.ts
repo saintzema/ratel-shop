@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { broadcast } from "../realtime/route";
 
 export const runtime = "nodejs";
 
@@ -57,6 +58,9 @@ export async function POST(request: Request) {
                 product: true
             }
         });
+
+        // Broadcast update for real-time sync
+        broadcast({ type: "order_updated", id: newOrder.id });
 
         return NextResponse.json({ success: true, order: newOrder });
     } catch (error: any) {

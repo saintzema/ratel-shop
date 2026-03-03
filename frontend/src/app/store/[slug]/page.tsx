@@ -128,14 +128,25 @@ export default function StoreProfile() {
         );
     }
 
-    if (!seller) {
+    if (!seller || (seller.status !== "active" && !isOwner)) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#E3E6E6]">
-                <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900">Store Not Found</h1>
-                    <p className="text-gray-500 mt-2">The store you are looking for does not exist.</p>
+            <div className="min-h-screen flex items-center justify-center bg-gray-50/30 backdrop-blur-3xl">
+                <div className="text-center p-12 bg-white/40 rounded-[40px] border border-white/60 shadow-2xl max-w-md mx-4">
+                    <div className="h-20 w-20 bg-gray-900 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
+                        <ShieldCheck className="h-10 w-10 text-white opacity-20" />
+                    </div>
+                    <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-4">
+                        {!seller ? "Nexus Not Found" : "Store Restricted"}
+                    </h1>
+                    <p className="text-sm font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
+                        {!seller
+                            ? "This coordinates do not match any known matrix entity."
+                            : "This storefront is currently undergoing administrative verification."}
+                    </p>
                     <Link href="/">
-                        <Button className="mt-4" variant="outline">Back to Home</Button>
+                        <Button className="mt-10 h-14 px-10 rounded-2xl bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest text-[10px] transition-all hover:scale-105" variant="default">
+                            Return to Nexus
+                        </Button>
                     </Link>
                 </div>
             </div>

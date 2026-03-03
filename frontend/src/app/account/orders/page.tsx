@@ -111,10 +111,8 @@ function OrdersContent() {
             link: `/product/${order?.product_id}?review=true`
         });
         loadData();
-        // Redirect to PDP with review prompt
-        if (order?.product_id) {
-            router.push(`/product/${order.product_id}?review=true`);
-        }
+        // We do NOT redirect to PDP to allow user to confirm other orders.
+        // Instead, the notification allows them to go to the PDP when ready.
     };
 
     const handleCancelOrder = (orderId: string) => {

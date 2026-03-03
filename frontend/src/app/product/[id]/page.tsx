@@ -284,7 +284,9 @@ export default function ProductDetailPage() {
         ];
 
         const getPseudoRandom = (index: number, max: number) => {
-            return (seed * (index + 1) * 31) % max;
+            // Use Math.sin to scatter the seed into a highly varied pseudo-random distribution
+            const scatter = Math.abs(Math.sin(seed + index)) * 10000;
+            return Math.floor(scatter) % max;
         };
 
         productReviews = [];
@@ -323,7 +325,12 @@ export default function ProductDetailPage() {
     }, [user, product?.id, product?.seller_id]);
 
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const allImages = [product?.image_url, ...(product?.images || [])].filter(Boolean);
+    const allImages = [product?.image_url, ...(product?.images || [])].filter((img): img is string => {
+        if (!img || typeof img !== 'string') return false;
+        const lower = img.toLowerCase().trim();
+        if (!lower || lower === 'n/a' || lower.includes('no photo') || lower.includes('no image')) return false;
+        return true;
+    });
     const deliveryDates = useMemo(() => getDeliveryDateRange(3, 7), []);
     const isGlobalProduct = product?.id?.startsWith('global-') || product?.seller_id === 'global-partners';
     const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
@@ -624,7 +631,7 @@ export default function ProductDetailPage() {
                                             className={`w-16 md:w-full aspect-square flex-shrink-0 rounded-xl p-1.5 border cursor-pointer transition-all bg-white ${currentImageIndex === i ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm' : 'border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'}`}
                                             onClick={() => setCurrentImageIndex(i)}
                                         >
-                                            <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" />
+                                            <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
                                         </div>
                                     ))}
                                 </div>
@@ -1093,6 +1100,8 @@ export default function ProductDetailPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-3 pt-2">
+                                    
+
                                     <Button
                                         className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02]"
                                         onClick={() => {
@@ -1131,6 +1140,13 @@ export default function ProductDetailPage() {
                                                 <><Check className="h-5 w-5" /> View Cart</>
                                             ) : "Add to cart"}
                                         </div>
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        className="w-full rounded-full border-amber-500 text-amber-600 hover:bg-amber-50 font-black py-6 text-base transition-all hover:scale-[1.02] shadow-sm"
+                                        onClick={() => setIsNegotiationOpen(true)}
+                                    >
+                                        <Handshake className="h-5 w-5 mr-2" /> Negotiate Price
                                     </Button>
 
                                 </div>
@@ -1323,10 +1339,10 @@ export default function ProductDetailPage() {
                                         <div key={review.id} className="p-5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 uppercase">
-                                                    {review.user_name[0]}
+                                                    {(review.user_id === user?.id ? user.name : review.user_name)?.[0] || '?'}
                                                 </div>
                                                 <div>
-                                                    <span className="font-bold text-sm text-gray-900">{review.user_name}</span>
+                                                    <span className="font-bold text-sm text-gray-900">{review.user_id === user?.id ? user.name : review.user_name}</span>
                                                     {review.verified_purchase && (
                                                         <Badge className="ml-2 bg-ratel-green-50 text-ratel-green-700 border-ratel-green-100 text-[10px]">Verified Purchase</Badge>
                                                     )}

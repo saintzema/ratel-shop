@@ -192,9 +192,11 @@ export function MessageProvider({ children }: { children: ReactNode }) {
     }, [conversations, sendMessage]);
 
     const markAsRead = useCallback((conversationId: string) => {
-        setConversations(prev =>
-            prev.map(c => c.id === conversationId ? { ...c, unreadCount: 0 } : c)
-        );
+        setConversations(prev => {
+            const conv = prev.find(c => c.id === conversationId);
+            if (conv && conv.unreadCount === 0) return prev; // Do not update state if already read
+            return prev.map(c => c.id === conversationId ? { ...c, unreadCount: 0 } : c);
+        });
     }, []);
 
     const openMessageBox = useCallback((conversationId?: string) => {

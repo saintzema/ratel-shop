@@ -16,38 +16,47 @@ export async function POST(req: Request) {
         }
 
         const prompt = `
-        You are an expert e-commerce copywriter for FairPrice Nigeria.
+        You are an expert e-commerce copywriter for FairPrice Nigeria — Africa's most trusted marketplace.
         Product Name: "${productName}"
         Category: "${category || 'General'}"
         
-        Task: Create a high-converting, professional product listing.
+        Task: Create a premium, Amazon/Temu-quality product listing with rich, detailed content.
         
         Output MUST be valid JSON matching this exact structure:
         {
-            "description": "A compelling, 2-3 paragraph product description highlighting value, quality, and use cases.",
+            "description": "A compelling, 3-4 paragraph product description. First paragraph: hook with the key value proposition. Second paragraph: detailed features, materials, and build quality. Third paragraph: use cases and who it's perfect for. Fourth paragraph: what's in the box and why it's a great value. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
             "highlights": [
-                "Key selling point 1",
+                "Key selling point 1 — be specific with numbers/specs where possible",
                 "Key selling point 2",
                 "Key selling point 3",
                 "Key selling point 4",
-                "Key selling point 5"
+                "Key selling point 5",
+                "Key selling point 6"
             ],
             "specs": {
-                "Brand/Material": "...",
-                "Key Feature": "...",
-                "Dimensions/Size": "...",
-                "Warranty": "..."
+                "Brand": "...",
+                "Model": "...",
+                "Material": "...",
+                "Dimensions": "...",
+                "Weight": "...",
+                "Color Options": "...",
+                "Power/Battery": "...",
+                "Warranty": "...",
+                "Package Contents": "...",
+                "Care Instructions": "..."
             },
-            "subcategory": "A specific subcategory string (e.g. 'Smartphones', 'Laptops', 'Men\\'s Shoes')",
+            "subcategory": "A specific subcategory string (e.g. 'Smartphones', 'Men's Running Shoes', 'Wireless Earbuds')",
             "colors": ["Color 1", "Color 2", "Color 3"]
         }
         
         CRITICAL RULES:
         - Output ONLY raw, valid JSON. NO markdown formatting. NO conversational text.
         - The JSON must begin with { and end with }.
-        - Keep the highlights punchy.
-        - Generate 4 to 6 relevant key-value pairs for the specs based on what the product likely is.
+        - Description must be 3-4 rich paragraphs, totaling at least 150 words. Write like you're selling on Amazon.
+        - Generate 6 punchy, benefit-driven highlights.
+        - Generate 8 to 12 relevant key-value pairs for the specs based on the actual product type. Include dimensions, weight, materials, package contents, and care instructions where applicable.
         - Suggest 2-4 standard colors if applicable to the product type, otherwise empty array.
+        - Do NOT include any image URLs in the JSON.
         `;
 
         const response = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {

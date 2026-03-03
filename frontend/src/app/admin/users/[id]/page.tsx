@@ -32,246 +32,253 @@ export default function AdminUserDetailPage() {
     const router = useRouter();
     const id = params?.id as string;
 
-    const [mounted, setMounted] = useState(false);
-    const [userEntity, setUserEntity] = useState<any>(null);
-    const [orders, setOrders] = useState<Order[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const loadData = async () => {
+        if (!id) return;
+        setLoading(true);
+        try {
+            // Try fetching as seller first
+            const sellerRes = await fetch(`/api/sellers/${id}`);
+            if (sellerRes.ok) {
+                const data = await sellerRes.json();
+                setUserEntity(data);
+                setOrders(data.orders || []);
+            } else {
+                // Try as buyer/user
+                const userRes = await fetch(`/api/users?id=${id}`);
+                if (userRes.ok) {
+                    const data = await userRes.json();
+                    setUserEntity({ ...data, role: "buyer" });
+                    // Fetch orders for buyer
+                    const ordersRes = await fetch(`/api/orders?customer_id=${id}`);
+                    if (ordersRes.ok) {
+                        const ordersData = await ordersRes.json();
+                        setOrders(ordersData);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("Error loading user detail:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleApprove = async () => {
+        if (!id || isUpdating) return;
+        setIsUpdating(true);
+        try {
+            const res = await fetch(`/api/sellers/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "active", verified: true }),
+            });
+            if (res.ok) {
+                await loadData();
+            }
+        } catch (error) {
+            console.error("Failed to approve seller:", error);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     useEffect(() => {
         setMounted(true);
-        if (id) {
-            // Check if seller
-            const allSellers = DemoStore.getSellers();
-            const sellerMatch = allSellers.find(s => s.id === id);
-
-            // Or look in orders to build a mock buyer entity
-            const allOrders = DemoStore.getOrders();
-            let buyerMatch = null;
-            if (!sellerMatch) {
-                const buyerOrders = allOrders.filter(o => o.customer_id === id);
-                if (buyerOrders.length > 0) {
-                    buyerMatch = {
-                        id,
-                        business_name: buyerOrders[0].customer_name || `Buyer ${id}`,
-                        email: "buyer@example.com", // Mock
-                        phone: "08012345678", // Mock
-                        role: "buyer",
-                        status: "active",
-                        created_at: "2024-01-10T10:00:00Z",
-                    };
-                }
-            }
-
-            setUserEntity(sellerMatch ? { ...sellerMatch, role: "seller" } : buyerMatch);
-
-            // Load orders associated with the user
-            if (sellerMatch) {
-                setOrders(allOrders.filter(o => o.seller_id === id));
-            } else if (buyerMatch) {
-                setOrders(allOrders.filter(o => o.customer_id === id));
-            }
-        }
+        loadData();
     }, [id]);
 
-    if (!mounted) return null;
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+            <div className="h-10 w-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">Loading Records...</p>
+        </div>
+    );
 
     if (!userEntity) {
         return (
-            <div className="p-8 text-center">
-                <div className="h-16 w-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <Shield className="h-8 w-8 text-gray-400" />
+            <div className="p-8 text-center max-w-lg mx-auto bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-2xl">
+                <div className="h-20 w-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Shield className="h-10 w-10 text-gray-300" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-2">User Not Found</h2>
-                <p className="text-gray-500 mb-6">Could not locate a user or seller with ID: {id}</p>
-                <Button onClick={() => router.back()} variant="outline">
-                    <ArrowLeft className="h-4 w-4 mr-2" /> Back to Directory
+                <h2 className="text-2xl font-black text-gray-900 mb-2">User Not Found</h2>
+                <p className="text-gray-500 mb-8 font-medium">We couldn't locate any records matching this identifier.</p>
+                <Button onClick={() => router.back()} variant="outline" className="rounded-2xl h-12 px-8 border-gray-200 font-bold uppercase tracking-wider text-xs">
+                    <ArrowLeft className="h-4 w-4 mr-2" /> Return to Directory
                 </Button>
             </div>
         );
     }
 
     const isSeller = userEntity.role === "seller";
+    const isPending = userEntity.status === "pending" || userEntity.status === "not_verified";
 
-    // Calculate metrics
-    const totalOrderVolume = orders.reduce((sum, o) => sum + o.amount, 0);
-    const completedOrders = orders.filter(o => o.status === "delivered").length;
-    const pendingOrders = orders.filter(o => o.status === "processing" || o.status === "shipped").length;
+    // ... calculate metrics
+    const totalOrderVolume = (orders || []).reduce((sum, o) => sum + (o.amount || 0), 0);
+    const completedOrders = (orders || []).filter(o => o.status === "delivered").length;
+    const pendingOrdersCount = (orders || []).filter(o => o.status === "processing" || o.status === "shipped" || o.status === "pending").length;
 
     return (
-        <div className="max-w-6xl mx-auto space-y-6">
-            {/* Nav */}
-            <div className="flex items-center justify-between">
-                <Button variant="ghost" className="text-gray-600 hover:bg-gray-100 -ml-4" onClick={() => router.back()}>
-                    <ArrowLeft className="h-4 w-4 mr-2" />
-                    Back to Users
-                </Button>
-
-                <div className="flex gap-2">
-                    <Button variant="outline" className="text-indigo-600 border-indigo-200 hover:bg-indigo-50">
-                        <Mail className="h-4 w-4 mr-2" /> Message User
+        <div className="max-w-6xl mx-auto space-y-8 pb-20 px-4 md:px-0">
+            {/* Nav & Actions */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/40 backdrop-blur-xl p-4 md:p-6 rounded-[28px] border border-white/60 shadow-lg">
+                <div className="flex items-center gap-4">
+                    <Button variant="ghost" className="h-10 w-10 p-0 rounded-full bg-white/80 hover:bg-white shadow-sm border border-gray-100" onClick={() => router.back()}>
+                        <ArrowLeft className="h-5 w-5 text-gray-600" />
                     </Button>
-                    {isSeller && (
-                        <Button variant="outline" className="text-emerald-600 border-emerald-200 hover:bg-emerald-50" asChild>
-                            <Link href={`/store/${userEntity.store_url || userEntity.id}`} target="_blank">
-                                <Store className="h-4 w-4 mr-2" /> View Storefront
-                            </Link>
+                    <div>
+                        <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Control Panel</h2>
+                        <p className="text-lg font-bold text-gray-800 leading-none">User Management</p>
+                    </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    {isSeller && isPending && (
+                        <Button
+                            onClick={handleApprove}
+                            disabled={isUpdating}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[11px] h-11 px-6 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-105"
+                        >
+                            {isUpdating ? <div className="h-4 w-4 border-2 border-white/30 border-t-white animate-spin rounded-full" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+                            Approve Seller
                         </Button>
                     )}
-                    <Button variant="outline" className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+                    <Button variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                        <Mail className="h-4 w-4 mr-2" /> Message
+                    </Button>
+                    <Button variant="outline" className="h-11 px-5 rounded-2xl border-gray-100 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                         <Ban className="h-4 w-4 mr-2" /> Suspend
                     </Button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Col: Profile Card */}
-                <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className={`h-24 ${isSeller ? 'bg-gradient-to-r from-emerald-500 to-teal-600' : 'bg-gradient-to-r from-blue-500 to-indigo-600'}`}></div>
-                        <div className="px-6 pb-6 relative">
-                            <div className="absolute -top-12 left-6 h-24 w-24 bg-white rounded-full p-1 border border-gray-100 shadow-sm">
-                                <div className="h-full w-full bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                                    {userEntity.logo_url && userEntity.logo_url !== '/assets/images/placeholder.png' ? (
-                                        <img src={userEntity.logo_url} alt="Profile" className="h-full w-full object-cover" />
+                <div className="lg:col-span-1 space-y-8">
+                    <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl overflow-hidden group">
+                        <div className={`h-32 relative ${isSeller ? 'bg-gradient-to-br from-emerald-400 to-teal-600' : 'bg-gradient-to-br from-indigo-500 to-blue-700'}`}>
+                            {isSeller && userEntity.cover_image_url && (
+                                <img src={userEntity.cover_image_url} alt="Cover" className="w-full h-full object-cover mix-blend-overlay opacity-50" />
+                            )}
+                            <div className="absolute inset-0 bg-black/5" />
+                        </div>
+                        <div className="px-8 pb-8 relative">
+                            <div className="absolute -top-14 left-8 h-28 w-28 bg-white/90 backdrop-blur-md rounded-[24px] p-2 border border-white/60 shadow-2xl transition-transform group-hover:scale-105">
+                                <div className="h-full w-full bg-gray-50 rounded-[18px] flex items-center justify-center overflow-hidden border border-gray-100">
+                                    {userEntity.logo_url || userEntity.avatarUrl ? (
+                                        <img src={userEntity.logo_url || userEntity.avatarUrl} alt="Profile" className="h-full w-full object-cover" />
                                     ) : (
-                                        <span className="text-3xl font-black text-gray-400">{userEntity.business_name.charAt(0)}</span>
+                                        <span className="text-4xl font-black text-gray-300">{(userEntity.business_name || userEntity.name || "U").charAt(0)}</span>
                                     )}
                                 </div>
                             </div>
 
-                            <div className="mt-14 mb-4">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h1 className="text-xl font-bold text-gray-900">{userEntity.business_name}</h1>
+                            <div className="mt-16 mb-6">
+                                <div className="flex flex-wrap items-center gap-3 mb-2">
+                                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">{userEntity.business_name || userEntity.name}</h1>
                                     {(userEntity.verified || userEntity.kyc_status === 'approved') && (
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                        <div className="h-6 w-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                                            <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                                        </div>
                                     )}
                                 </div>
-                                <div className="flex items-center gap-2 mb-3 text-sm">
-                                    <Badge variant="secondary" className={isSeller ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-100 text-gray-700'}>
-                                        {userEntity.role.toUpperCase()}
-                                    </Badge>
-                                    <Badge variant="outline" className={userEntity.status === 'active' ? 'border-emerald-200 text-emerald-700 bg-emerald-50' : 'border-red-200 text-red-700'}>
-                                        {userEntity.status}
-                                    </Badge>
+                                <div className="flex flex-wrap items-center gap-2 mb-4">
+                                    <div className={cn(
+                                        "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest",
+                                        isSeller ? "bg-indigo-50 text-indigo-700" : "bg-blue-50 text-blue-700"
+                                    )}>
+                                        {userEntity.role}
+                                    </div>
+                                    <div className={cn(
+                                        "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest",
+                                        userEntity.status === 'active' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                                    )}>
+                                        Status: {userEntity.status || "Pending"}
+                                    </div>
                                 </div>
-                                <p className="text-xs text-gray-500 font-medium">ID: {userEntity.id}</p>
+                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-tighter opacity-70">Internal ID: {userEntity.id}</p>
                             </div>
 
-                            <div className="space-y-3 pt-4 border-t border-gray-100 text-sm">
-                                <div className="flex items-center text-gray-600">
-                                    <Mail className="h-4 w-4 mr-3 text-gray-400" />
-                                    {userEntity.email || "No email on file"}
+                            <div className="space-y-4 pt-6 border-t border-gray-100/50">
+                                <div className="flex items-center text-[13px] font-semibold text-gray-700">
+                                    <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100">
+                                        <Mail className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <span className="truncate">{userEntity.email || userEntity.ownerEmail || "No email on record"}</span>
                                 </div>
-                                <div className="flex items-center text-gray-600">
-                                    <Phone className="h-4 w-4 mr-3 text-gray-400" />
-                                    {userEntity.phone || "No phone on file"}
+                                <div className="flex items-center text-[13px] font-semibold text-gray-700">
+                                    <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100">
+                                        <Phone className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    {userEntity.phone || "N/A"}
                                 </div>
-                                <div className="flex items-start text-gray-600">
-                                    <MapPin className="h-4 w-4 mr-3 text-gray-400 shrink-0 mt-0.5" />
-                                    <span className="line-clamp-2">
-                                        {isSeller
-                                            ? `${userEntity.street_address || ''} ${userEntity.city || ''} ${userEntity.state || ''}`.trim() || userEntity.address || "No address on file"
-                                            : "No address on file"}
+                                <div className="flex items-start text-[13px] font-semibold text-gray-700">
+                                    <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100 shrink-0">
+                                        <MapPin className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    <span className="leading-tight pt-1">
+                                        {userEntity.location || userEntity.address || "Location not provided"}
                                     </span>
                                 </div>
-                                <div className="flex items-center text-gray-600">
-                                    <Calendar className="h-4 w-4 mr-3 text-gray-400" />
-                                    Joined {new Date(userEntity.created_at).toLocaleDateString()}
+                                <div className="flex items-center text-[13px] font-semibold text-gray-700">
+                                    <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100">
+                                        <Calendar className="h-4 w-4 text-gray-400" />
+                                    </div>
+                                    Joined {userEntity.created_at ? new Date(userEntity.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Recently"}
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {isSeller && (
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                            <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <ShieldCheck className="h-5 w-5 text-indigo-600" />
-                                KYC & Business Details
+                        <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="h-2 w-2 rounded-full bg-indigo-500" />
+                                Compliance & Plan
                             </h3>
 
-                            <div className="space-y-4 text-sm">
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Plan</span>
-                                    <Badge variant="outline" className="border-indigo-200 text-indigo-700 bg-indigo-50 font-bold">
-                                        {(userEntity.subscription_plan || 'free').toUpperCase()}
-                                    </Badge>
+                            <div className="space-y-6">
+                                <div className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Subscription</span>
+                                    <span className="text-sm font-black text-indigo-700">{(userEntity.subscription_plan || 'Starter').toUpperCase()}</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Fee Override</span>
-                                    <span className="font-bold text-gray-900">
-                                        {userEntity.commission_rate !== undefined
-                                            ? `${(userEntity.commission_rate * 100).toFixed(1)}%`
-                                            : "Follows Plan Tier"}
-                                    </span>
+                                <div className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Marketplace Fee</span>
+                                    <span className="text-sm font-black text-gray-900">{userEntity.commission_rate ? `${(userEntity.commission_rate * 100).toFixed(1)}%` : "15% Standard"}</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">KYC Status</span>
-                                    <Badge className={userEntity.kyc_status === 'approved' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600'}>
-                                        {userEntity.kyc_status || 'Pending'}
-                                    </Badge>
-                                </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">Registered</span>
-                                    <span className="font-bold text-gray-900">
-                                        {userEntity.business_registered ? 'Yes' : 'No'}
-                                    </span>
-                                </div>
-                                {userEntity.cac_rc_number && (
-                                    <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                        <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider">RC Number</span>
-                                        <span className="font-mono text-gray-900 bg-gray-100 px-2 rounded">
-                                            {userEntity.cac_rc_number}
-                                        </span>
+                                <div className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                    <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">KYC Verification</span>
+                                    <div className={cn(
+                                        "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest",
+                                        userEntity.kyc_status === 'approved' ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-700"
+                                    )}>
+                                        {userEntity.kyc_status || 'Not Submitted'}
                                     </div>
-                                )}
-                                {userEntity.cac_document_url && (
-                                    <div className="pt-2">
-                                        <a
-                                            href={userEntity.cac_document_url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg border border-gray-200 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
-                                        >
-                                            <ExternalLink className="h-4 w-4 text-gray-400" />
-                                            View CAC Certificate
-                                        </a>
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     )}
                 </div>
 
                 {/* Right Col: Stats & Orders */}
-                <div className="lg:col-span-2 space-y-6">
-                    {/* Stats */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="h-8 w-8 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                                    <DollarSign className="h-4 w-4 text-emerald-600" />
+                <div className="lg:col-span-2 space-y-8">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        {[
+                            { label: "Revenue", value: `₦${totalOrderVolume.toLocaleString()}`, icon: DollarSign, color: "bg-emerald-50 text-emerald-600" },
+                            { label: "Successful", value: completedOrders, icon: Package, color: "bg-blue-50 text-blue-600" },
+                            { label: "In Progress", value: pendingOrdersCount, icon: Clock, color: "bg-amber-50 text-amber-600" }
+                        ].map((stat, i) => (
+                            <div key={i} className="bg-white/70 backdrop-blur-2xl p-6 rounded-[32px] border border-white/60 shadow-xl flex flex-col items-center text-center sm:items-start sm:text-left group hover:scale-[1.02] transition-transform">
+                                <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center mb-4 border border-white group-hover:rotate-6 transition-transform", stat.color)}>
+                                    <stat.icon className="h-6 w-6" />
                                 </div>
-                                <span className="text-sm font-medium text-gray-500 uppercase tracking-widest leading-none">Total Volume</span>
+                                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{stat.label}</p>
+                                <p className="text-3xl font-black text-gray-900 tracking-tight">{stat.value}</p>
                             </div>
-                            <span className="text-2xl font-black text-gray-900">₦{totalOrderVolume.toLocaleString()}</span>
-                        </div>
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="h-8 w-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                    <Package className="h-4 w-4 text-blue-600" />
-                                </div>
-                                <span className="text-sm font-medium text-gray-500 uppercase tracking-widest leading-none">Completed</span>
-                            </div>
-                            <span className="text-2xl font-black text-gray-900">{completedOrders}</span>
-                        </div>
-                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-center">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="h-8 w-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
-                                    <Clock className="h-4 w-4 text-amber-600" />
-                                </div>
-                                <span className="text-sm font-medium text-gray-500 uppercase tracking-widest leading-none">Pending / Active</span>
-                            </div>
-                            <span className="text-2xl font-black text-gray-900">{pendingOrders}</span>
-                        </div>
+                        ))}
                     </div>
 
                     {/* Order History Table */}

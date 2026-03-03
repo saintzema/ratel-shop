@@ -1,0 +1,9 @@
+# Root ignored files
+backend/database/
+backend/venv/
+.DS_Store
+node_modules/
+dist/
+build/
+.next/
+*.log

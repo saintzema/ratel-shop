@@ -469,6 +469,11 @@ function CheckoutContent() {
         }
     }, [negotiationId, cart, router]);
 
+    // Auto-clear shipping address error when user fills in fields
+    useEffect(() => {
+        if (addressError) setAddressError("");
+    }, [address.firstName, address.lastName, address.email, address.phone, address.street, address.city, pickupDetails.state, pickupDetails.city, pickupDetails.station, deliveryMethod]);
+
     const subtotal = checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
     // Global items logic: Apply 1.5x multiplier to bases if any product is globally sourced
