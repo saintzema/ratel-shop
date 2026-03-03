@@ -1,0 +1,26 @@
+  <?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  <plist version="1.0">
+  <dict>
+    <key>KeepAlive</key>
+    <true/>
+    <key>Label</key>
+    <string>com.tinyapp.DBngin.postgresql-B691EDCD-0275-4F52-BBE3-BE35819E9365</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/Shared/DBngin/postgresql/17.0/bin/postgres</string>
+      <string>-D</string>
+      <string>/Users/admin/Projects/RatelShop/database</string>
+      <string>-p</string>
+      <string>5432</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>WorkingDirectory</key>
+    <string>/Users/Shared/DBngin/postgresql/17.0</string>
+    <key>StandardOutPath</key>
+    <string>/Users/admin/Projects/RatelShop/database/postgres_out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/admin/Projects/RatelShop/database/postgres_err.log</string>
+  </dict>
+  </plist>

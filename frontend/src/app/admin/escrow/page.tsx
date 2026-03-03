@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
+import Link from "next/link";
 import {
     ShieldCheck,
     Clock,
@@ -39,11 +40,15 @@ export default function EscrowManagement() {
         message: string;
     }>({ isOpen: false, type: null, orderId: null, message: "" });
 
+    // Expanded Order Detail
+    const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
     // QA Chat Modal State
     const [chatModal, setChatModal] = useState<{
         isOpen: boolean;
         orderId: string | null;
     }>({ isOpen: false, orderId: null });
+    const [adminMessage, setAdminMessage] = useState("");
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -272,131 +277,178 @@ export default function EscrowManagement() {
                                     const days = getDaysSinceOrder(order.created_at);
                                     const dispute = order.escrow_status === "disputed" ? DemoStore.getDisputeByOrderId(order.id) : null;
                                     return (
-                                        <tr key={order.id} className="hover:bg-gray-50/30 transition-colors group">
-                                            <td className="px-6 py-5 align-middle">
-                                                <div>
-                                                    <p className="text-xs font-black text-indigo-600 uppercase tracking-wider">#{order.id}</p>
-                                                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">
-                                                        {order.customer_name || `Customer ${order.customer_id}`}
+                                        <Fragment key={order.id}>
+                                            <tr className="hover:bg-gray-50/30 transition-colors group cursor-pointer" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div>
+                                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-wider hover:underline">#{order.id}</p>
+                                                        <p className="text-[10px] text-gray-400 font-bold mt-0.5">
+                                                            {order.customer_name || `Customer ${order.customer_id}`}
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-300 font-medium">
+                                                            {new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                        </p>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 align-middle">
+                                                    <p className="text-xs font-bold text-gray-900 truncate max-w-[200px]">
+                                                        {order.product?.name || `Product ${order.product_id}`}
                                                     </p>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5 align-middle">
-                                                <p className="text-xs font-bold text-gray-900 truncate max-w-[200px]">
-                                                    {order.product?.name || `Product ${order.product_id}`}
-                                                </p>
-                                            </td>
-                                            <td className="px-6 py-5 align-middle">
-                                                <p className="text-xs font-bold text-gray-700">
-                                                    {order.seller_name || getSellerName(order.seller_id)}
-                                                </p>
-                                            </td>
-                                            <td className="px-6 py-5 align-middle">
-                                                <p className="text-sm font-black text-gray-900">₦{order.amount.toLocaleString()}</p>
-                                            </td>
-                                            <td className="px-6 py-5 align-middle">
-                                                <div className="flex flex-col items-start gap-1.5">
-                                                    {getStatusBadge(order)}
-                                                    {isAutoEligible && (
-                                                        <p className="text-[9px] text-emerald-600 font-bold flex items-center gap-1"><Zap className="h-3 w-3" /> Ready for auto-release</p>
-                                                    )}
-                                                    {dispute && (
-                                                        <div className="mt-1 bg-rose-50 border border-rose-100 p-2 rounded-lg max-w-xs">
-                                                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                                                                <AlertTriangle className="h-3 w-3" /> {dispute.reason.replace(/_/g, " ")}
-                                                            </p>
-                                                            <p className="text-[10px] text-rose-600 line-clamp-2 leading-tight">"{dispute.description}"</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5 align-middle">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Clock className="h-3 w-3 text-gray-400" />
-                                                    <span className={cn(
-                                                        "text-xs font-bold",
-                                                        days > 5 ? "text-rose-600" : days > 3 ? "text-amber-600" : "text-gray-500"
-                                                    )}>
-                                                        {days}d
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-5 align-middle text-right">
-                                                <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {order.escrow_status === "held" && (
-                                                        <Button
-                                                            onClick={() => handleSellerConfirm(order.id)}
-                                                            size="sm"
-                                                            className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-widest"
-                                                        >
-                                                            <Package className="h-3 w-3 mr-1" />
-                                                            Confirm Delivery
-                                                        </Button>
-                                                    )}
-                                                    {(order.escrow_status === "seller_confirmed" || order.escrow_status === "buyer_confirmed" || isAutoEligible) && (
-                                                        <Button
-                                                            onClick={() => handleRelease(order.id)}
-                                                            size="sm"
-                                                            className={cn(
-                                                                "h-8 px-3 rounded-lg text-white font-bold text-[10px] uppercase tracking-widest",
-                                                                isAutoEligible ? "bg-emerald-600 hover:bg-emerald-700 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
-                                                            )}
-                                                        >
-                                                            <Unlock className="h-3 w-3 mr-1" />
-                                                            Release to Seller
-                                                        </Button>
-                                                    )}
-                                                    {order.escrow_status === "seller_confirmed" && !isAutoEligible && (
-                                                        <Button
-                                                            onClick={() => handleBuyerConfirm(order.id)}
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-8 px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest"
-                                                        >
-                                                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                                                            Buyer Received
-                                                        </Button>
-                                                    )}
-                                                    {order.escrow_status === "released" && (
-                                                        <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
-                                                            <CheckCircle2 className="h-3 w-3" /> Funds Released
+                                                </td>
+                                                <td className="px-6 py-5 align-middle">
+                                                    <p className="text-xs font-bold text-gray-700">
+                                                        {order.seller_name || getSellerName(order.seller_id)}
+                                                    </p>
+                                                </td>
+                                                <td className="px-6 py-5 align-middle">
+                                                    <p className="text-sm font-black text-gray-900">₦{order.amount.toLocaleString()}</p>
+                                                </td>
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex flex-col items-start gap-1.5">
+                                                        {getStatusBadge(order)}
+                                                        {isAutoEligible && (
+                                                            <p className="text-[9px] text-emerald-600 font-bold flex items-center gap-1"><Zap className="h-3 w-3" /> Ready for auto-release</p>
+                                                        )}
+                                                        {dispute && (
+                                                            <div className="mt-1 bg-rose-50 border border-rose-100 p-2 rounded-lg max-w-xs">
+                                                                <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                                                                    <AlertTriangle className="h-3 w-3" /> {dispute.reason.replace(/_/g, " ")}
+                                                                </p>
+                                                                <p className="text-[10px] text-rose-600 line-clamp-2 leading-tight">"{dispute.description}"</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 align-middle">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Clock className="h-3 w-3 text-gray-400" />
+                                                        <span className={cn(
+                                                            "text-xs font-bold",
+                                                            days > 5 ? "text-rose-600" : days > 3 ? "text-amber-600" : "text-gray-500"
+                                                        )}>
+                                                            {days}d
                                                         </span>
-                                                    )}
-                                                    {order.escrow_status === "disputed" && (
-                                                        <div className="flex items-center gap-2">
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-5 align-middle text-right">
+                                                    <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        {order.escrow_status === "held" && (
                                                             <Button
-                                                                onClick={() => setChatModal({ isOpen: true, orderId: order.id })}
+                                                                onClick={() => handleSellerConfirm(order.id)}
                                                                 size="sm"
-                                                                variant="outline"
-                                                                className="h-8 px-3 rounded-lg border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-widest"
+                                                                className="h-8 px-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] uppercase tracking-widest"
                                                             >
-                                                                <MessageSquare className="h-3 w-3 mr-1" /> View Chat
+                                                                <Package className="h-3 w-3 mr-1" />
+                                                                Confirm Delivery
                                                             </Button>
+                                                        )}
+                                                        {(order.escrow_status === "seller_confirmed" || order.escrow_status === "buyer_confirmed" || isAutoEligible) && (
                                                             <Button
-                                                                onClick={() => handleRefund(order.id)}
+                                                                onClick={() => handleRelease(order.id)}
                                                                 size="sm"
-                                                                className="h-8 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] uppercase tracking-widest"
+                                                                className={cn(
+                                                                    "h-8 px-3 rounded-lg text-white font-bold text-[10px] uppercase tracking-widest",
+                                                                    isAutoEligible ? "bg-emerald-600 hover:bg-emerald-700 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
+                                                                )}
                                                             >
-                                                                <DollarSign className="h-3 w-3 mr-1" /> Issue Refund
+                                                                <Unlock className="h-3 w-3 mr-1" />
+                                                                Release to Seller
                                                             </Button>
+                                                        )}
+                                                        {order.escrow_status === "seller_confirmed" && !isAutoEligible && (
                                                             <Button
-                                                                onClick={() => handleReleaseDisputed(order.id)}
+                                                                onClick={() => handleBuyerConfirm(order.id)}
                                                                 size="sm"
                                                                 variant="outline"
                                                                 className="h-8 px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest"
                                                             >
-                                                                <Unlock className="h-3 w-3 mr-1" /> Release to Seller
+                                                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                                                Buyer Received
                                                             </Button>
-                                                        </div>
-                                                    )}
-                                                    {order.escrow_status === "refunded" && (
-                                                        <span className="text-[10px] text-gray-500 font-bold flex items-center gap-1">
-                                                            <DollarSign className="h-3 w-3" /> Refunded
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
+                                                        )}
+                                                        {order.escrow_status === "released" && (
+                                                            <span className="text-[10px] text-emerald-600 font-bold flex items-center gap-1">
+                                                                <CheckCircle2 className="h-3 w-3" /> Funds Released
+                                                            </span>
+                                                        )}
+                                                        {order.escrow_status === "disputed" && (
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    onClick={() => setChatModal({ isOpen: true, orderId: order.id })}
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-8 px-3 rounded-lg border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 font-bold text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    <MessageSquare className="h-3 w-3 mr-1" /> View Chat
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={() => handleRefund(order.id)}
+                                                                    size="sm"
+                                                                    className="h-8 px-3 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    <DollarSign className="h-3 w-3 mr-1" /> Issue Refund
+                                                                </Button>
+                                                                <Button
+                                                                    onClick={() => handleReleaseDisputed(order.id)}
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-8 px-3 rounded-lg font-bold text-[10px] uppercase tracking-widest"
+                                                                >
+                                                                    <Unlock className="h-3 w-3 mr-1" /> Release to Seller
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                        {order.escrow_status === "refunded" && (
+                                                            <span className="text-[10px] text-gray-500 font-bold flex items-center gap-1">
+                                                                <DollarSign className="h-3 w-3" /> Refunded
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {/* Expandable Order Detail */}
+                                            {
+                                                expandedOrderId === order.id && (
+                                                    <tr>
+                                                        <td colSpan={7} className="bg-indigo-50/30 px-6 py-5 border-b-2 border-indigo-100">
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                                <div className="space-y-3">
+                                                                    <h4 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Order Details</h4>
+                                                                    <div className="space-y-2 text-sm">
+                                                                        <p><span className="font-bold text-gray-500">Date:</span> <span className="font-medium">{new Date(order.created_at).toLocaleString()}</span></p>
+                                                                        <p><span className="font-bold text-gray-500">Status:</span> <span className="font-medium">{order.status}</span></p>
+                                                                        <p><span className="font-bold text-gray-500">Amount:</span> <span className="font-black text-gray-900">₦{order.amount.toLocaleString()}</span></p>
+                                                                        {order.delivery_address && <p><span className="font-bold text-gray-500">Delivery:</span> <span className="font-medium">{order.delivery_address}</span></p>}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-3">
+                                                                    <h4 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Buyer & Seller</h4>
+                                                                    <div className="space-y-2 text-sm">
+                                                                        <p><span className="font-bold text-gray-500">Buyer:</span> <Link href={`/admin/users/${order.customer_id || order.customer_name}`} className="font-medium text-indigo-600 hover:underline">{order.customer_name || order.customer_id}</Link></p>
+                                                                        <p><span className="font-bold text-gray-500">Seller:</span> <Link href={`/admin/users/${order.seller_id}`} className="font-medium text-indigo-600 hover:underline">{order.seller_name || getSellerName(order.seller_id)}</Link></p>
+                                                                        <p><span className="font-bold text-gray-500">Product:</span> <span className="font-medium">{order.product?.name || `Product ${order.product_id}`}</span></p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="space-y-3">
+                                                                    <h4 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Delivery Confirmation</h4>
+                                                                    <div className="space-y-2 text-sm">
+                                                                        <p><span className="font-bold text-gray-500">Seller Confirmed:</span> <span className={order.escrow_status !== 'held' ? 'text-emerald-600 font-bold' : 'text-gray-400'}>{order.escrow_status !== 'held' ? '✅ Yes' : '❌ Not yet'}</span></p>
+                                                                        <p><span className="font-bold text-gray-500">Buyer Received:</span> <span className={order.escrow_status === 'buyer_confirmed' || order.escrow_status === 'released' ? 'text-emerald-600 font-bold' : 'text-gray-400'}>{order.escrow_status === 'buyer_confirmed' || order.escrow_status === 'released' ? '✅ Yes' : '❌ Not yet'}</span></p>
+                                                                        <p><span className="font-bold text-gray-500">Escrow:</span> <span className="font-bold">{order.escrow_status?.replace(/_/g, ' ')}</span></p>
+                                                                    </div>
+                                                                    <div className="flex gap-2 mt-3">
+                                                                        <Button size="sm" variant="outline" className="text-xs font-bold rounded-lg h-8 px-3 border-indigo-200 text-indigo-600" onClick={(e) => { e.stopPropagation(); setChatModal({ isOpen: true, orderId: order.id }); }}>View Chat</Button>
+                                                                        <Link href={`/admin/users/${order.customer_id || order.customer_name}`}>
+                                                                            <Button size="sm" variant="outline" className="text-xs font-bold rounded-lg h-8 px-3">Message Buyer</Button>
+                                                                        </Link>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            }
+                                        </Fragment>
                                     );
                                 })}
                             </tbody>
@@ -510,17 +562,18 @@ export default function EscrowManagement() {
                             </div>
 
                             <div className="flex-1 p-5 overflow-y-auto space-y-4 max-h-[60vh] min-h-[400px]">
-                                {(chatModal.orderId ? DemoStore.getAdminMessagesForOrder(chatModal.orderId) : []).length > 0 ? (
+                                {(chatModal.orderId ? DemoStore.getOrderMessages(chatModal.orderId) : []).length > 0 ? (
                                     (() => {
                                         const order = DemoStore.getOrders().find(o => o.id === chatModal.orderId);
                                         const sellerId = order?.seller_id;
-                                        return DemoStore.getAdminMessagesForOrder(chatModal.orderId!).map((msg, i) => {
-                                            const isCustomer = msg.user_email !== undefined && msg.user_email !== "admin@globalstores.shop";
+                                        return DemoStore.getOrderMessages(chatModal.orderId!).map((msg, i) => {
+                                            const isCustomer = msg.sender === "user";
+                                            const isZiva = msg.sender === "ziva";
                                             return (
                                                 <div key={i} className={cn("flex flex-col max-w-[85%]", isCustomer ? "items-start" : "items-end self-end ml-auto")}>
-                                                    <span className="text-[10px] font-bold text-gray-500 mb-1 ml-1">{isCustomer ? "Buyer" : "Seller"}</span>
-                                                    <div className={cn("px-4 py-2.5 rounded-2xl shadow-sm text-sm", isCustomer ? "bg-white border text-gray-800 rounded-tl-sm" : "bg-indigo-600 text-white rounded-tr-sm")}>
-                                                        {msg.message}
+                                                    <span className="text-[10px] font-bold text-gray-500 mb-1 ml-1">{isCustomer ? "Buyer" : isZiva ? "Ziva AI" : "Admin"}</span>
+                                                    <div className={cn("px-4 py-2.5 rounded-2xl shadow-sm text-sm", isCustomer ? "bg-white border text-gray-800 rounded-tl-sm" : isZiva ? "bg-emerald-600 text-white rounded-tr-sm" : "bg-indigo-600 text-white rounded-tr-sm")}>
+                                                        {msg.text}
                                                     </div>
                                                 </div>
                                             );
@@ -553,12 +606,28 @@ export default function EscrowManagement() {
                             </div>
 
                             <div className="bg-gray-200/50 p-4 border-t border-gray-200">
-                                <div className="bg-white border border-gray-300 rounded-xl px-4 py-3 flex items-center justify-between opacity-60 cursor-not-allowed">
-                                    <span className="text-sm text-gray-400 font-medium">Chat is read-only in QA mode...</span>
-                                    <div className="h-6 w-6 rounded-full bg-gray-100 flex items-center justify-center">
-                                        <Lock className="h-3 w-3 text-gray-400" />
-                                    </div>
-                                </div>
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (adminMessage.trim() && chatModal.orderId) {
+                                        DemoStore.addOrderMessage(chatModal.orderId, adminMessage.trim(), "admin");
+                                        setAdminMessage("");
+                                    }
+                                }} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={adminMessage}
+                                        onChange={(e) => setAdminMessage(e.target.value)}
+                                        placeholder="Type a message as Admin/QA..."
+                                        className="flex-1 bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={!adminMessage.trim()}
+                                        className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl px-4 flex items-center justify-center transition-colors"
+                                    >
+                                        <MessageSquare className="h-5 w-5" />
+                                    </button>
+                                </form>
                             </div>
                         </motion.div>
                     </>

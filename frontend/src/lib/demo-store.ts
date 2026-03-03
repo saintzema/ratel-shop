@@ -431,6 +431,8 @@ class DemoStoreService {
                 s.kyc_status === "approved"
             ).map(s => s.id)
         );
+        // Global products are always approved
+        approvedSellerIds.add("global-partners");
         return products.filter(p => p.is_active !== false && approvedSellerIds.has(p.seller_id));
     }
 
@@ -557,6 +559,11 @@ class DemoStoreService {
     getOrderByTrackingId(trackingId: string): Order | undefined {
         const orders = this.getOrders();
         return orders.find(o => o.id === trackingId || o.tracking_id === trackingId);
+    }
+
+    getOrderMessages(orderId: string) {
+        const order = this.getOrderByTrackingId(orderId);
+        return order?.chat_messages || [];
     }
 
     addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string) {
@@ -866,17 +873,64 @@ class DemoStoreService {
 
         // Also persist to database
         if (typeof window !== "undefined") {
+            let targetEmail = notification.userId || "all";
+            if (targetEmail !== "all" && targetEmail !== "admin") {
+                const seller = this.getSellers().find(s => s.id === targetEmail || s.user_id === targetEmail);
+                if (seller?.owner_email) targetEmail = seller.owner_email;
+                else if ((seller as any)?.email) targetEmail = (seller as any).email;
+                else {
+                    const user = this.getAllUsers().find(u => u.id === targetEmail);
+                    if (user?.email) targetEmail = user.email;
+                }
+            }
+
             fetch("/api/notifications", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    user_email: notification.userId || "all",
+                    user_email: targetEmail,
                     type: notification.type || "system",
                     message: notification.message,
                     link: notification.link || null,
                 }),
             }).catch(() => { /* silently fail — localStorage is fallback */ });
         }
+    }
+
+    getAllUsers(): any[] {
+        if (typeof window === "undefined") return [];
+        // Users aren't stored in a collection — extract unique buyers from orders
+        const orders: any[] = this.getOrders();
+        const userMap = new Map<string, any>();
+        for (const o of orders) {
+            const cid = o.customer_id || o.customer_email;
+            if (!cid || userMap.has(cid)) continue;
+            userMap.set(cid, {
+                id: cid,
+                email: o.customer_email || cid,
+                name: o.customer_name || cid.split("@")[0],
+                role: "buyer",
+                created_at: o.created_at,
+            });
+        }
+        // Also include the currently logged in user if any
+        const currentUser = localStorage.getItem(this.STORAGE_KEYS.USERS);
+        if (currentUser) {
+            try {
+                const u = JSON.parse(currentUser);
+                if (u && u.email && !userMap.has(u.email) && !userMap.has(u.id)) {
+                    userMap.set(u.email, {
+                        id: u.id || u.email,
+                        email: u.email,
+                        name: u.name || u.email.split("@")[0],
+                        role: u.role || "buyer",
+                        avatarUrl: u.avatarUrl || null,
+                        created_at: u.created_at || new Date().toISOString(),
+                    });
+                }
+            } catch { }
+        }
+        return Array.from(userMap.values());
     }
 
     sendAdminMessageToUser(userId: string, subject: string, message: string) {
@@ -1145,6 +1199,14 @@ class DemoStoreService {
         }).catch(err => console.error("Error triggering payout email:", err));
 
         window.dispatchEvent(new Event("storage"));
+    }
+
+    addKYCSubmission(submission: any) {
+        if (typeof window === "undefined") return;
+        const existing = this.getKYCSubmissions();
+        existing.push(submission);
+        localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(existing));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 
     getKYCSubmissions(): KYCSubmission[] {

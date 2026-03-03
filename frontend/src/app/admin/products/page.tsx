@@ -21,6 +21,8 @@ import {
     RefreshCw,
     Loader2,
     Edit2,
+    Edit,
+    X,
     Plus
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
@@ -38,6 +40,8 @@ export default function CatalogControl() {
 
     // Edit Modal State
     const [editingProduct, setEditingProduct] = useState<any | null>(null);
+    const [inlineEditId, setInlineEditId] = useState<string | null>(null);
+    const [inlineEditName, setInlineEditName] = useState("");
     const [editName, setEditName] = useState("");
     const [editCategory, setEditCategory] = useState("");
     const [editSubcategory, setEditSubcategory] = useState("");
@@ -45,6 +49,7 @@ export default function CatalogControl() {
     const [editDescription, setEditDescription] = useState("");
     const [editSpecs, setEditSpecs] = useState<{ key: string; value: string }[]>([]);
     const [editPrice, setEditPrice] = useState("");
+    const [editOriginalPrice, setEditOriginalPrice] = useState("");
     const [editImage, setEditImage] = useState("");
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState("");
@@ -79,7 +84,7 @@ export default function CatalogControl() {
 
     const filtered = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
-        const isGlobal = p.seller_name.toLowerCase().includes("global store");
+        const isGlobal = p._source === "global" || p.seller_id === "global-partners" || p.seller_name.toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
             (filter === "flagged" && p.price_flag !== "fair") ||
             (filter === "fair" && p.price_flag === "fair") ||
@@ -103,6 +108,7 @@ export default function CatalogControl() {
                 description: editDescription || editingProduct.description,
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                 price: parseFloat(editPrice) || editingProduct.price,
+                original_price: editOriginalPrice ? parseFloat(editOriginalPrice) : editingProduct.original_price,
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
                 images: editImages ? editImages.split(",").map(s => s.trim()).filter(Boolean) : editingProduct.images || []
@@ -254,8 +260,39 @@ export default function CatalogControl() {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="min-w-0 max-w-[200px] lg:max-w-xs">
-                                                    <p className="font-bold text-gray-900 text-sm truncate">{p.name}</p>
+                                                <div className="min-w-0 max-w-[200px] lg:max-w-xs group/edit relative flex flex-col">
+                                                    {inlineEditId === p.id ? (
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            <input
+                                                                type="text"
+                                                                value={inlineEditName}
+                                                                onChange={(e) => setInlineEditName(e.target.value)}
+                                                                className="w-full text-sm font-bold text-gray-900 border border-indigo-300 rounded px-1 min-w-[150px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                autoFocus
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        DemoStore.updateProduct(p.id, { name: inlineEditName });
+                                                                        setInlineEditId(null);
+                                                                    } else if (e.key === 'Escape') setInlineEditId(null);
+                                                                }}
+                                                            />
+                                                            <button onClick={() => { DemoStore.updateProduct(p.id, { name: inlineEditName }); setInlineEditId(null); }} className="text-emerald-600 hover:text-emerald-700">
+                                                                <CheckCircle2 className="h-4 w-4" />
+                                                            </button>
+                                                            <button onClick={() => setInlineEditId(null)} className="text-gray-400 hover:text-gray-600">
+                                                                <X className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <Link href={`/product/${p.id}`} className="hover:underline flex-1 truncate">
+                                                                <p className="font-bold text-gray-900 text-sm truncate" title={p.name}>{p.name}</p>
+                                                            </Link>
+                                                            <button onClick={() => { setInlineEditId(p.id); setInlineEditName(p.name); }} className="opacity-0 group-hover/edit:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity p-1 bg-white rounded shadow-sm border border-gray-100 shrink-0">
+                                                                <Edit className="h-3 w-3" />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{p.category}</p>
                                                 </div>
                                             </div>
@@ -313,6 +350,7 @@ export default function CatalogControl() {
                                                         setEditDescription(p.description || "");
                                                         setEditSpecs(p.specs ? Object.entries(p.specs).map(([key, value]) => ({ key, value: String(value) })) : []);
                                                         setEditPrice(p.price.toString());
+                                                        setEditOriginalPrice(p.original_price?.toString() || "");
                                                         setEditImage(p.image_url);
                                                         setEditExternalUrl(p.external_url || "");
                                                         setEditImages(p.images?.join(", ") || "");
@@ -567,27 +605,41 @@ export default function CatalogControl() {
                                 </div>
 
                                 <div className="space-y-2 pt-4 border-t border-gray-100">
-                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Target Price (₦)</label>
-                                    <Input
-                                        type="number"
-                                        value={editPrice}
-                                        onChange={(e) => setEditPrice(e.target.value)}
-                                        className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-black"
-                                        placeholder="Enter new price"
-                                    />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Our FairPrice (₦)</label>
+                                            <Input
+                                                type="number"
+                                                value={editPrice}
+                                                onChange={(e) => setEditPrice(e.target.value)}
+                                                className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-black"
+                                                placeholder="FairPrice"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Others' Price (₦) <span className="text-gray-300 normal-case">— strikethrough</span></label>
+                                            <Input
+                                                type="number"
+                                                value={editOriginalPrice}
+                                                onChange={(e) => setEditOriginalPrice(e.target.value)}
+                                                className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-medium text-gray-400 line-through"
+                                                placeholder="Competitor price"
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Source Product Link</label>
-                                    {editExternalUrl ? (
-                                        <a href={editExternalUrl} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 truncate bg-gray-50 p-3 rounded-xl border border-gray-100 hover:underline">
-                                            {editExternalUrl}
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Source Product Link <span className="text-gray-300 normal-case">— cheapest competing store</span></label>
+                                    <Input
+                                        value={editExternalUrl}
+                                        onChange={(e) => setEditExternalUrl(e.target.value)}
+                                        className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-medium"
+                                        placeholder="https://... (Alibaba, Jumia, Temu, etc.)"
+                                    />
+                                    {editExternalUrl && (
+                                        <a href={editExternalUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
+                                            Open source link ↗
                                         </a>
-                                    ) : editingProduct?.id ? (
-                                        <a href={`/product/${editingProduct.id}`} target="_blank" rel="noreferrer" className="block text-sm text-blue-600 truncate bg-gray-50 p-3 rounded-xl border border-gray-100 hover:underline">
-                                            /product/{editingProduct.id}
-                                        </a>
-                                    ) : (
-                                        <p className="text-sm text-gray-400 italic bg-gray-50 p-3 rounded-xl border border-gray-100">No external source available.</p>
                                     )}
                                 </div>
                                 <div className="space-y-2">

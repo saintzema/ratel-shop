@@ -41,6 +41,14 @@ export default function AdminInbox() {
     useEffect(() => {
         const load = () => setMessages(DemoStore.getSupportMessages());
         load();
+
+        const params = new URLSearchParams(window.location.search);
+        const userId = params.get("user_id");
+        if (userId) {
+            setComposeTo(userId);
+            setShowCompose(true);
+        }
+
         window.addEventListener("storage", load);
         return () => window.removeEventListener("storage", load);
     }, []);

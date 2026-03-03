@@ -34,12 +34,15 @@ export default function AdminDashboard() {
     const [recentOrders, setRecentOrders] = useState<any[]>([]);
 
     const loadData = () => {
+        const dSort = (arr: any[], dateField = "created_at") =>
+            arr.sort((a, b) => new Date(b[dateField] || 0).getTime() - new Date(a[dateField] || 0).getTime());
+
         setStats(DemoStore.getAdminStats());
-        setComplaints(DemoStore.getComplaints().slice(0, 3));
-        setKycs(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending").slice(0, 3));
+        setComplaints(dSort(DemoStore.getComplaints()).slice(0, 3));
+        setKycs(dSort(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending"), "submitted_at").slice(0, 3));
         setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
-        setRecentReviews(DemoStore.getReviews().slice(0, 5));
-        setRecentOrders(DemoStore.getOrders().slice(0, 5));
+        setRecentReviews(dSort(DemoStore.getReviews()).slice(0, 5));
+        setRecentOrders(dSort(DemoStore.getOrders()).slice(0, 5));
     };
 
     useEffect(() => {

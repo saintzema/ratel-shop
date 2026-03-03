@@ -13,6 +13,7 @@ import { ShieldCheck, MessageSquare, Tag, AlertTriangle } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
+import { useMessages } from "@/context/MessageContext";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -31,6 +32,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const [error, setError] = useState<string | null>(null);
     const [isSystemCalculated, setIsSystemCalculated] = useState(false);
     const { user } = useAuth();
+    const { startConversation, openMessageBox } = useMessages();
 
     // Calculate minimum allowed price (market low)
     const minAllowedPrice = priceComparison?.market_low || Math.round(product.price * 0.5); // Fallback to 50% if no data
@@ -118,6 +120,16 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         };
 
         DemoStore.addNegotiation(newNegotiation);
+
+        // Create a conversation thread for this negotiation
+        const negMessage = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
+
+        startConversation(
+            `neg_${product.id}_${Date.now()}`,
+            product.name,
+            product.image_url,
+            negMessage
+        );
 
         setIsSubmitting(false);
         setSubmitted(true);
@@ -263,12 +275,24 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                         <p className="text-zinc-500 text-sm px-4">
                             We've sent your offer of <strong>{formatPrice(Number(proposedPrice))}</strong> to the seller. We'll notify you once they accept or reject it.
                         </p>
-                        <Button
-                            onClick={handleReset}
-                            className="w-full bg-black text-white rounded-full font-bold h-11 mt-4"
-                        >
-                            Got it
-                        </Button>
+                        <div className="flex gap-3 mt-4">
+                            <Button
+                                onClick={() => {
+                                    handleReset();
+                                    openMessageBox();
+                                }}
+                                variant="outline"
+                                className="flex-1 rounded-full font-bold h-11 border-brand-green-300 text-brand-green-700 hover:bg-brand-green-50"
+                            >
+                                View in Messages
+                            </Button>
+                            <Button
+                                onClick={handleReset}
+                                className="flex-1 bg-black text-white rounded-full font-bold h-11"
+                            >
+                                Got it
+                            </Button>
+                        </div>
                     </div>
                 )}
             </DialogContent>

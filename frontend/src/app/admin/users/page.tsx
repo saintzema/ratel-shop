@@ -31,7 +31,7 @@ import { DemoStore } from "@/lib/demo-store";
 
 export default function UserDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
-    const [view, setView] = useState<"all" | "sellers" | "buyers">("all");
+    const [view, setView] = useState<"all" | "sellers" | "buyers" | "pending">("all");
     const [participants, setParticipants] = useState<any[]>([]);
 
     // Commission Edit State
@@ -44,43 +44,84 @@ export default function UserDirectory() {
         const load = async () => {
             setLoading(true);
             try {
-                // Fetch both users (buyers) and sellers from API
-                const [usersRes, sellersRes] = await Promise.all([
-                    fetch("/api/users"),
-                    fetch("/api/sellers?all=true")
-                ]);
+                // Try API first, fall back to DemoStore
+                let sellers: any[] = [];
+                let buyers: any[] = [];
 
-                const users = await usersRes.json();
-                const sellersData = await sellersRes.json();
+                try {
+                    const [usersRes, sellersRes] = await Promise.all([
+                        fetch("/api/users"),
+                        fetch("/api/sellers?all=true")
+                    ]);
+                    const usersData = await usersRes.json();
+                    const sellersData = await sellersRes.json();
+                    sellers = Array.isArray(sellersData) ? sellersData : [];
+                    buyers = Array.isArray(usersData) ? usersData : [];
+                } catch {
+                    // API down — use DemoStore
+                }
 
-                // Map and merge with defensive checks
-                const sellers = Array.isArray(sellersData)
-                    ? sellersData.map((s: any) => ({
+                // Always merge with DemoStore so newly registered sellers appear
+                const dsSellers = DemoStore.getSellers();
+                const dsOrders = DemoStore.getOrders();
+                const dsUsers = DemoStore.getAllUsers ? DemoStore.getAllUsers() : [];
+
+                // Merge sellers: DemoStore is authoritative for recent registrations  
+                const sellerIdSet = new Set(sellers.map((s: any) => s.id));
+                for (const ds of dsSellers) {
+                    if (!sellerIdSet.has(ds.id)) {
+                        sellers.push(ds);
+                    }
+                }
+
+                const mappedSellers = sellers.map((s: any) => {
+                    const sellerOrders = dsOrders.filter((o: any) => o.seller_id === s.id);
+                    const revenue = sellerOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
+                    return {
                         ...s,
                         role: "seller",
-                        // Use business_name for primary display
                         display_name: s.business_name || s.owner_name || "Seller",
-                    }))
-                    : [];
+                        avatar_url: s.logo_url || null,
+                        order_count: sellerOrders.length,
+                        revenue,
+                    };
+                });
 
-                const sellerUserIds = new Set(sellers.map((s: any) => s.user_id));
+                const sellerUserIds = new Set(mappedSellers.map((s: any) => s.user_id));
+                const sellerIds = new Set(mappedSellers.map((s: any) => s.id));
 
-                const buyers = Array.isArray(users)
-                    ? users
-                        .filter((u: any) => !sellerUserIds.has(u.id))
-                        .map((u: any) => ({
-                            id: u.id,
-                            display_name: u.name || u.email?.split("@")[0] || "Buyer",
-                            owner_email: u.email,
-                            role: "buyer",
-                            status: "active",
-                            created_at: u.created_at || "2026-01-10T10:00:00Z",
-                            category: "Retail",
-                            trust_score: 90
-                        }))
-                    : [];
+                // Merge buyers from API + DemoStore
+                const buyerIdSet = new Set<string>();
+                const allBuyers: any[] = [];
 
-                setParticipants([...sellers, ...buyers]);
+                for (const u of [...buyers, ...dsUsers]) {
+                    const uid = u.id || u.email;
+                    if (buyerIdSet.has(uid) || sellerUserIds.has(uid) || sellerIds.has(uid)) continue;
+                    buyerIdSet.add(uid);
+                    const userOrders = dsOrders.filter((o: any) => o.customer_id === uid || o.customer_id === u.email);
+                    const spent = userOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
+                    allBuyers.push({
+                        id: uid,
+                        display_name: u.name || u.full_name || u.email?.split("@")[0] || "Buyer",
+                        owner_email: u.email,
+                        avatar_url: u.avatarUrl || u.avatar_url || null,
+                        role: "buyer",
+                        status: u.is_active === false ? "suspended" : "active",
+                        created_at: u.created_at || new Date().toISOString(),
+                        trust_score: 90,
+                        order_count: userOrders.length,
+                        revenue: spent,
+                    });
+                }
+
+                // Sort all by created_at descending (newest first)
+                const combined = [...mappedSellers, ...allBuyers].sort((a, b) => {
+                    const da = a.created_at ? new Date(a.created_at).getTime() : 0;
+                    const db = b.created_at ? new Date(b.created_at).getTime() : 0;
+                    return db - da;
+                });
+
+                setParticipants(combined);
             } catch (error) {
                 console.error("Failed to load users/sellers:", error);
             } finally {
@@ -89,16 +130,23 @@ export default function UserDirectory() {
         };
         load();
         window.addEventListener("demo-store-update", load);
-        return () => window.removeEventListener("demo-store-update", load);
+        window.addEventListener("storage", load);
+        return () => {
+            window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("storage", load);
+        };
     }, []);
 
     const filtered = participants.filter(p => {
         const term = searchTerm.toLowerCase();
         const name = p.display_name || p.business_name || "";
-        const matchesSearch = name.toLowerCase().includes(term) ||
+        const matchesSearch = !term || name.toLowerCase().includes(term) ||
             p.id?.toLowerCase().includes(term) ||
             (p.owner_email && p.owner_email.toLowerCase().includes(term));
-        const matchesView = view === "all" || (view === "sellers" && p.role === "seller") || (view === "buyers" && p.role === "buyer");
+        const matchesView = view === "all" ||
+            (view === "sellers" && p.role === "seller") ||
+            (view === "buyers" && p.role === "buyer") ||
+            (view === "pending" && (p.status === "pending" || p.kyc_status === "pending"));
         return matchesSearch && matchesView;
     });
 
@@ -124,166 +172,134 @@ export default function UserDirectory() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h2 className="text-3xl font-black text-gray-900 tracking-tight">Participant Directory</h2>
-                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Manage platform-wide user accounts</p>
+                    <h2 className="text-3xl font-black text-gray-900 tracking-tight">User Directory</h2>
+                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">{participants.length} total accounts</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="bg-white p-1.5 rounded-2xl border border-gray-100 flex gap-1">
-                        {(["all", "sellers", "buyers"] as const).map((v) => (
+                        {(["all", "sellers", "buyers", "pending"] as const).map((v) => (
                             <button
                                 key={v}
                                 onClick={() => setView(v)}
                                 className={cn(
-                                    "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                                    "px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
                                     view === v
-                                        ? "bg-indigo-600 text-white shadow-lg"
+                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-indigo-600 text-white shadow-lg"
                                         : "text-gray-400 hover:text-gray-600"
                                 )}
                             >
-                                {v}
+                                {v === "pending" ? `⏳ Pending (${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length})` : v}
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
 
-            <div className="flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <Input
-                        placeholder="Search by name, ID, or business..."
-                        className="pl-12 h-14 bg-white border-gray-100 rounded-[20px] text-sm font-medium shadow-sm"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                <Button className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20">
-                    <Filter className="mr-2 h-4 w-4" /> Advanced Filter
-                </Button>
+            <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                    placeholder="Search by name, email, business, or ID..."
+                    className="pl-12 h-12 bg-white border-gray-100 rounded-2xl text-sm font-medium shadow-sm"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-gray-50/50">
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Participant</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Role & Status</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Market Health</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Join Date</th>
-                            <th className="px-8 py-5 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {filtered.map((p) => (
-                            <tr key={p.id} className="group hover:bg-gray-50/50 transition-colors">
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className={cn(
-                                            "h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg shadow-sm border border-white/10",
-                                            p.role === "seller" ? "bg-emerald-50 text-emerald-600" : "bg-blue-50 text-blue-600"
-                                        )}>
-                                            {(p.display_name || "P").charAt(0)}
-                                        </div>
-                                        <div>
-                                            <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-[15px] hover:text-indigo-600 hover:underline block">
-                                                {p.display_name}
-                                            </Link>
-                                            <p className="text-[11px] text-gray-400 font-bold">ID: {p.id?.toUpperCase() || 'UNKNOWN'}</p>
-                                            {p.role === "seller" && p.business_registered && (
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="text-[10px] font-bold bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
-                                                        RC: {p.cac_rc_number}
-                                                    </span>
-                                                    {p.cac_document_url && (
-                                                        <a href={p.cac_document_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                                                            <ExternalLink className="h-3 w-3" /> View CAC
-                                                        </a>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex flex-col gap-1.5">
-                                        <div className="flex items-center gap-2">
-                                            <span className={cn(
-                                                "text-[9px] font-black uppercase px-2 py-0.5 rounded-full",
-                                                p.role === "seller" ? "bg-indigo-100 text-indigo-700" : "bg-zinc-100 text-zinc-700"
-                                            )}>
-                                                {p.role}
-                                            </span>
-                                            {p.verified && (
-                                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <div className={cn(
-                                                "w-2 h-2 rounded-full",
-                                                p.status === "active" ? "bg-emerald-500" : "bg-rose-500"
-                                            )} />
-                                            <span className="text-[11px] text-gray-500 font-bold capitalize">{p.status}</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-1 mb-1">
-                                                <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
-                                                <span className="text-xs font-black text-gray-900">{p.trust_score || 90}</span>
-                                            </div>
-                                            <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                <div
-                                                    className={cn(
-                                                        "h-full rounded-full transition-all",
-                                                        (p.trust_score || 90) > 80 ? "bg-emerald-500" : (p.trust_score || 90) > 50 ? "bg-amber-500" : "bg-rose-500"
-                                                    )}
-                                                    style={{ width: `${p.trust_score || 90}%` }}
-                                                />
-                                            </div>
-                                        </div>
-                                        {p.role === "seller" && (
-                                            <div className="pl-4 border-l border-gray-100 min-w-16">
-                                                <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Plan: {p.subscription_plan || "Starter"}</p>
-                                                <p className="text-xs font-black text-emerald-600">Fee: {DemoStore.getSellerCommissionRate(p) * 100}%</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                                <td className="px-8 py-6 text-sm font-bold text-gray-500">
-                                    {new Date(p.created_at).toLocaleDateString()}
-                                </td>
-                                <td className="px-8 py-6 text-right">
-                                    <div className="flex items-center justify-end gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
-                                            <Mail className="h-4 w-4" />
-                                        </Button>
-                                        {p.role === "seller" && (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-10 rounded-xl bg-white border-gray-200 text-gray-700 hover:bg-gray-50 font-bold text-xs px-3 shadow-sm"
-                                                onClick={() => {
-                                                    setEditingCommissionSeller(p);
-                                                    setCommissionInput((DemoStore.getSellerCommissionRate(p) * 100).toString());
-                                                }}
-                                            >
-                                                Edit Fee
-                                            </Button>
-                                        )}
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-rose-50 hover:text-rose-600 transition-colors">
-                                            <Ban className="h-4 w-4" />
-                                        </Button>
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
-                                            <MoreVertical className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </td>
+                <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+                    <table className="w-full min-w-[700px] text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50/50">
+                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">User</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role & Status</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Activity</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Joined</th>
+                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                            {filtered.map((p) => (
+                                <tr key={p.id} className="group hover:bg-gray-50/50 transition-colors">
+                                    <td className="px-6 py-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className={cn(
+                                                "h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border overflow-hidden shrink-0",
+                                                p.role === "seller" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-blue-50 text-blue-600 border-blue-100"
+                                            )}>
+                                                {p.avatar_url || p.logo_url ? (
+                                                    <img src={p.avatar_url || p.logo_url} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    (p.display_name || "P").charAt(0).toUpperCase()
+                                                )}
+                                            </div>
+                                            <div className="min-w-0">
+                                                <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-sm hover:text-indigo-600 hover:underline block truncate max-w-[200px]">
+                                                    {p.display_name}
+                                                </Link>
+                                                <p className="text-[11px] text-gray-400 truncate">{p.owner_email || p.email || p.id}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className={cn(
+                                                    "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
+                                                    p.role === "seller" ? "bg-indigo-100 text-indigo-700" : "bg-zinc-100 text-zinc-700"
+                                                )}>
+                                                    {p.role}
+                                                </span>
+                                                {p.verified && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
+                                                <span className={cn(
+                                                    "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
+                                                    p.status === "active" ? "bg-emerald-50 text-emerald-600" :
+                                                        p.status === "pending" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
+                                                )}>
+                                                    {p.status || "active"}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        <div className="text-sm">
+                                            <span className="font-bold text-gray-900">{p.order_count || 0}</span>
+                                            <span className="text-gray-400 text-xs ml-1">orders</span>
+                                            {p.revenue > 0 && (
+                                                <p className="text-xs text-emerald-600 font-bold">₦{p.revenue.toLocaleString()}</p>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                        {p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                        <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                            <Link href={`/admin/users/${p.id}`}>
+                                                <Button size="sm" variant="ghost" className="h-8 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50">
+                                                    View
+                                                </Button>
+                                            </Link>
+                                            {p.role === "seller" && (p.status === "pending" || p.kyc_status === "pending") && (
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"
+                                                    onClick={() => {
+                                                        DemoStore.updateSeller(p.id, { status: "active", verified: true, kyc_status: "approved" });
+                                                    }}
+                                                >
+                                                    Approve
+                                                </Button>
+                                            )}
+                                            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-rose-50 hover:text-rose-600">
+                                                <Ban className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
                 {filtered.length === 0 && (
                     <div className="py-20 text-center">

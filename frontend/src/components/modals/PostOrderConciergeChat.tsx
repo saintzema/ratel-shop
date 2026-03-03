@@ -6,6 +6,7 @@ import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, Aler
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Product, Order } from "@/lib/types";
+import { DemoStore } from "@/lib/demo-store";
 
 interface Message {
     id: string;
@@ -51,20 +52,21 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
     // Initialize chat when opened
     useEffect(() => {
-        if (isOpen && product && orderId) {
-            const storageKey = `ziva_chat_${mode}_${orderId}`;
-            const saved = sessionStorage.getItem(storageKey);
-            if (saved && messages.length === 0) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    const restored = parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) }));
-                    if (restored.length > 0) {
-                        setMessages(restored);
-                        return;
-                    }
-                } catch (e) { }
-            }
+        if (!isOpen || !product || !orderId) return;
 
+        const orderMsgs = DemoStore.getOrderMessages(orderId);
+        if (orderMsgs && orderMsgs.length > 0) {
+            if (messages.length === 0) {
+                setMessages(orderMsgs.map(m => ({
+                    id: m.id,
+                    sender: m.sender as any,
+                    text: m.text,
+                    timestamp: new Date(), // using current date for UI compatibility
+                    imageUrl: m.imageUrl
+                })));
+            }
+        } else {
+            // Initialize if empty
             if (messages.length === 0) {
                 if (mode === "return") {
                     setMessages([
@@ -92,13 +94,28 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         }
     }, [isOpen, product, orderId, messages.length, mode]);
 
-    // Save chat history to session storage
+    // Listen for DemoStore updates (e.g. admin replies)
     useEffect(() => {
-        if (orderId && messages.length > 0) {
-            const storageKey = `ziva_chat_${mode}_${orderId}`;
-            sessionStorage.setItem(storageKey, JSON.stringify(messages));
-        }
-    }, [messages, orderId, mode]);
+        if (!isOpen || !orderId) return;
+        const handleUpdate = () => {
+            const orderMsgs = DemoStore.getOrderMessages(orderId);
+            if (orderMsgs && orderMsgs.length > 0) {
+                setMessages(orderMsgs.map(m => ({
+                    id: m.id,
+                    sender: m.sender as any,
+                    text: m.text,
+                    timestamp: new Date(),
+                    imageUrl: m.imageUrl
+                })));
+            }
+        };
+        window.addEventListener("storage", handleUpdate);
+        window.addEventListener("demo-store-update", handleUpdate);
+        return () => {
+            window.removeEventListener("storage", handleUpdate);
+            window.removeEventListener("demo-store-update", handleUpdate);
+        };
+    }, [isOpen, orderId]);
 
     // Auto-scroll
     useEffect(() => {
@@ -123,6 +140,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             imageUrl,
         };
 
+        DemoStore.addOrderMessage(orderId!, "user", userMsg.text, imageUrl);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
 
@@ -132,12 +150,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 ? "Thank you for uploading the photo evidence. I've attached it to your return case. Our dispute resolution team will review this along with the merchant. Is there anything else you'd like to add about the issue?"
                 : "I've received the image. I'll pass this along to the merchant and our support team for review.";
 
-            setMessages(prev => [...prev, {
+            const zivaMsg = {
                 id: (Date.now() + 1).toString(),
-                sender: "ziva",
+                sender: "ziva" as const,
                 text: zivaText,
                 timestamp: new Date()
-            }]);
+            };
+            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1500);
 
@@ -161,6 +181,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             timestamp: new Date()
         };
 
+        DemoStore.addOrderMessage(orderId!, "user", text);
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
@@ -211,12 +232,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 }
             }
 
-            setMessages(prev => [...prev, {
+            const zivaMsg = {
                 id: (Date.now() + 1).toString(),
-                sender: "ziva",
+                sender: "ziva" as const,
                 text: zivaText,
                 timestamp: new Date()
-            }]);
+            };
+            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1500);
     };
@@ -366,8 +389,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                         key={action.id}
                                         onClick={() => handleSend(action.label)}
                                         className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${mode === "return"
-                                                ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
-                                                : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
+                                            ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
+                                            : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
                                             }`}
                                     >
                                         {action.icon}
@@ -392,8 +415,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${mode === "return"
-                                            ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
-                                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                        ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                                         }`}
                                     title="Upload image"
                                 >

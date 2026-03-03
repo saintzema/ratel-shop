@@ -170,15 +170,124 @@ export default function ProductDetailPage() {
         if (matchByName) {
             product = matchByName;
         } else {
-            // Last resort: create a minimal placeholder from the URL slug
+            // Last resort: create a rich placeholder from the URL slug
             const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            const nameLower = name.toLowerCase();
+
+            // Smart description generator based on product name keywords
+            const generateDescription = (n: string): string => {
+                const nl = n.toLowerCase();
+                if (/iphone|samsung|galaxy|pixel|redmi|xiaomi|oppo|vivo|phone|smartphone/.test(nl)) {
+                    return `Experience premium performance with the ${n}. Featuring a stunning edge-to-edge display, pro-grade camera system for capturing every detail in vivid clarity, and an all-day battery that keeps up with your lifestyle. Built with aerospace-grade materials for durability, this device offers smooth multitasking, fast 5G connectivity, and advanced security features including Face ID and fingerprint recognition. Whether you're gaming, streaming, or working on the go, this smartphone delivers flagship performance at an exceptional value.`;
+                }
+                if (/macbook|laptop|thinkpad|chromebook|notebook|dell|hp elitebook|surface/.test(nl)) {
+                    return `Unleash your productivity with the ${n}. This powerhouse laptop features a brilliant high-resolution display, lightning-fast processor, and generous storage for all your files and applications. The premium aluminum body is both lightweight and durable, perfect for professionals who need performance on the go. With an advanced thermal management system, backlit keyboard, and long-lasting battery life, this laptop is designed for demanding workloads from creative editing to software development.`;
+                }
+                if (/airpods|earbuds|headphone|earphone|buds|headset|sony wh|beats/.test(nl)) {
+                    return `Immerse yourself in crystal-clear sound with the ${n}. Featuring advanced Active Noise Cancellation technology that blocks out the world, premium drivers for rich bass and detailed highs, and a comfortable ergonomic design for all-day wear. Seamless Bluetooth 5.3 connectivity ensures stable, low-latency audio for music, calls, and gaming. With industry-leading battery life and a compact charging case, these deliver audiophile-quality sound wherever you go.`;
+                }
+                if (/watch|smartwatch|apple watch|galaxy watch|fitbit/.test(nl)) {
+                    return `Stay connected and track your health with the ${n}. This advanced smartwatch features a always-on AMOLED display, comprehensive health monitoring including heart rate, blood oxygen, and sleep tracking, plus built-in GPS for accurate workout mapping. Water-resistant design, customizable watch faces, and smart notifications keep you informed without reaching for your phone. With multi-day battery life and fast charging, it's the perfect companion for an active lifestyle.`;
+                }
+                if (/tv|television|monitor|display|screen/.test(nl)) {
+                    return `Transform your entertainment with the ${n}. Enjoy breathtaking 4K resolution with HDR support that brings movies, sports, and games to life with vivid colors and deep contrast. Smart TV capabilities give you instant access to streaming apps, while powerful built-in speakers deliver immersive audio. The sleek, minimal-bezel design complements any living space. Multiple HDMI ports and Wi-Fi connectivity make setup effortless.`;
+                }
+                if (/shoe|sneaker|nike|adidas|jordan|yeezy|boot|sandal/.test(nl)) {
+                    return `Step up your style with the ${n}. Crafted with premium materials and expert construction for lasting comfort and durability. The cushioned midsole provides responsive support for all-day wear, while the breathable upper keeps your feet cool. Whether you're hitting the gym, exploring the city, or elevating a casual outfit, these deliver the perfect blend of performance and streetwear aesthetics.`;
+                }
+                if (/bag|backpack|luggage|suitcase|handbag|purse/.test(nl)) {
+                    return `Carry in style with the ${n}. Designed with premium materials and thoughtful organization, featuring multiple compartments for laptops, tablets, and everyday essentials. Padded straps ensure comfortable carrying, while water-resistant fabric protects your gear in any weather. The modern, versatile design transitions seamlessly from work to weekend adventures.`;
+                }
+                if (/camera|canon|nikon|sony alpha|gopro|drone/.test(nl)) {
+                    return `Capture stunning moments with the ${n}. Featuring a high-resolution sensor for sharp, detailed images in any lighting condition, fast autofocus for action shots, and professional-grade video capabilities. Intuitive controls and a bright LCD screen make framing perfect shots effortless. Built for both enthusiasts and professionals who demand exceptional image quality and reliability.`;
+                }
+                // Generic but descriptive fallback
+                return `Discover the ${n} — a premium product carefully selected for quality, durability, and exceptional value. Designed to meet the highest standards with attention to detail and superior craftsmanship. Every unit undergoes rigorous quality checks to ensure you receive a product that exceeds expectations. Backed by our buyer protection guarantee and secure escrow payment system for a worry-free shopping experience.`;
+            };
+
+            // Smart specs generator based on product name
+            const generateSpecs = (n: string): Record<string, string> => {
+                const nl = n.toLowerCase();
+                if (/iphone/.test(nl)) {
+                    const model = nl.includes('pro max') ? 'Pro Max' : nl.includes('pro') ? 'Pro' : 'Standard';
+                    return {
+                        "Display": model === 'Pro Max' ? '6.7" Super Retina XDR OLED' : '6.1" Super Retina XDR OLED',
+                        "Processor": "A17 Pro / A18 Bionic Chip",
+                        "RAM": model === 'Standard' ? "6GB" : "8GB",
+                        "Storage": "256GB",
+                        "Camera": model !== 'Standard' ? "48MP Main + 12MP Ultra Wide + 12MP Telephoto" : "48MP Main + 12MP Ultra Wide",
+                        "Battery": model === 'Pro Max' ? "4,685 mAh" : "3,349 mAh",
+                        "OS": "iOS 18",
+                        "Connectivity": "5G, Wi-Fi 6E, Bluetooth 5.3, NFC",
+                        "Water Resistance": "IP68 (6m, 30min)",
+                        "Biometrics": "Face ID",
+                        "Charging": "USB-C, MagSafe Wireless",
+                        "Weight": model === 'Pro Max' ? "227g" : "187g",
+                    };
+                }
+                if (/samsung|galaxy s2[0-9]/.test(nl)) {
+                    return {
+                        "Display": '6.8" Dynamic AMOLED 2X, 120Hz',
+                        "Processor": "Snapdragon 8 Gen 3",
+                        "RAM": "12GB",
+                        "Storage": "256GB",
+                        "Camera": "200MP Main + 12MP Ultra Wide + 50MP Telephoto + 10MP Periscope",
+                        "Battery": "5,000 mAh",
+                        "OS": "Android 14, One UI 6.1",
+                        "Connectivity": "5G, Wi-Fi 7, Bluetooth 5.3",
+                        "Water Resistance": "IP68",
+                        "Biometrics": "Ultrasonic Fingerprint, Face Recognition",
+                        "Charging": "45W Wired, 15W Wireless",
+                        "Weight": "232g",
+                    };
+                }
+                if (/airpods|earbuds|buds/.test(nl)) {
+                    return {
+                        "Driver": "Custom high-excursion driver",
+                        "ANC": "Active Noise Cancellation with Transparency Mode",
+                        "Battery (Buds)": "Up to 6 hours (ANC on)",
+                        "Battery (Case)": "Up to 30 hours total",
+                        "Connectivity": "Bluetooth 5.3",
+                        "Water Resistance": "IPX4 Sweat & Water Resistant",
+                        "Charging": "USB-C, MagSafe Wireless, Qi Compatible",
+                        "Audio Features": "Spatial Audio, Adaptive EQ, Conversation Awareness",
+                        "Microphones": "3 microphones per bud with beamforming",
+                        "Weight": "5.3g per earbud",
+                    };
+                }
+                if (/macbook|laptop/.test(nl)) {
+                    return {
+                        "Display": '14.2" Liquid Retina XDR, 3024×1964',
+                        "Processor": "Apple M3 Pro / Intel Core i7",
+                        "RAM": "16GB Unified Memory",
+                        "Storage": "512GB SSD",
+                        "GPU": "Integrated 18-core GPU",
+                        "Battery": "Up to 18 hours",
+                        "Keyboard": "Backlit Magic Keyboard",
+                        "Ports": "HDMI, MagSafe, 2x Thunderbolt, SD Card, 3.5mm",
+                        "Webcam": "1080p FaceTime HD Camera",
+                        "Weight": "1.55 kg",
+                        "OS": "macOS Sonoma",
+                    };
+                }
+                // Default specs
+                return {
+                    "Brand": n.split(' ')[0],
+                    "Condition": "Brand New — Factory Sealed",
+                    "Warranty": "1 Year Manufacturer Warranty",
+                    "Shipping": "Express Delivery (2-5 Business Days)",
+                    "Returns": "30-Day Return Policy",
+                    "Payment": "Secure Escrow Protection",
+                };
+            };
+
             product = {
                 id: decodedId,
                 name,
                 price: 0,
                 original_price: 0,
                 category: "electronics",
-                description: `${name} - sourced globally via FairPrice AI exclusively for you. Protect your purchase with our Escrow service.`,
+                description: generateDescription(name),
                 image_url: "",
                 images: [],
                 seller_id: 'global-partners',
@@ -190,13 +299,13 @@ export default function ProductDetailPage() {
                 is_active: true,
                 created_at: new Date().toISOString(),
                 recommended_price: 0,
-                specs: {
-                    "Sourcing": "Global Network",
-                    "Shipping": "Air Freight (Tracked)",
-                    "Warranty": "1 Year International",
-                    "Condition": "Brand New"
-                },
+                specs: generateSpecs(name),
             } as any;
+
+            // Auto-persist to DemoStore so it appears in admin catalog
+            if (typeof window !== 'undefined') {
+                DemoStore.addRawProduct(product as any);
+            }
         }
     }
 
@@ -225,7 +334,7 @@ export default function ProductDetailPage() {
         seller = {
             id: product.seller_id,
             user_id: product.seller_id,
-            business_name: product.seller_name || "FairPrice Marketplace",
+            business_name: product.seller_name || "Global Partner Stores",
             description: `Verified marketplace seller on FairPrice. All purchases are protected by our Escrow system.`,
             logo_url: "/assets/images/placeholder.png",
             category: product.category || "electronics",
@@ -257,34 +366,29 @@ export default function ProductDetailPage() {
 
         const names = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
 
-        // Build product-specific specs snippet for reviews
-        const specsSnippet = product?.specs ? Object.entries(product.specs).slice(0, 2).map(([k, v]) => `${k}: ${v}`).join(', ') : '';
-        const specsMention = specsSnippet ? ` The ${specsSnippet} is exactly as described.` : '';
-
         const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
         const bodies5 = [
-            `I wasn't expecting this level of quality from the product. Fits perfectly into my daily routine.${specsMention} Would definitely recommend to anybody looking for a solid deal in Lagos.`,
-            `I was skeptical at first about buying this online, but it came sealed and brand new. The seller was very communicative on WhatsApp.${specsMention}`,
-            `Bought the product as a gift and they haven't stopped talking about it. Best deal I could find online across Jumia and Konga.`,
-            `Works perfectly and the build quality is top notch.${specsMention} FairPrice escrow gave me peace of mind.`,
+            `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid deal in Lagos.`,
+            `I was skeptical at first about buying the ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.`,
+            `Bought the ${pName} as a gift and they haven't stopped talking about it. Best deal I could find online across Jumia and Konga.`,
+            `Works perfectly and the build quality is top notch. FairPrice escrow gave me peace of mind.`,
             `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
-            `Seriously impressed with this delivery service. For the price, you can't get anything better.${specsMention} Tested and trusted.`,
-            `I've been using this for a week now and it hasn't given me any headache.${specsMention} Solid purchase.`,
-            `My people, if you need a reliable product, just buy it. You won't regret it. The quality shock me.`,
-            `Omo I no go lie, this one sharp. It's exactly as described and works flawlessly.${specsMention}`
+            `Seriously impressed with the delivery service. For the price, you can't get anything better. Tested and trusted.`,
+            `I've been using the ${pName} for a week now and it hasn't given me any headache. Solid purchase.`,
+            `My people, if you need a reliable ${pCatDisplay} product, just buy it. You won't regret it. The quality shock me.`,
+            `Omo I no go lie, this ${pName} is sharp. It's exactly as described and works flawlessly.`
         ];
 
         const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
         const bodies4 = [
-            `The product itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
-            `It's a very solid one. Does everything the specs say. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
-            `This is good, nice features and all.${specsMention} Just wish the accessories were a bit more durable. Still a good buy for the price.`,
+            `The ${pName} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
+            `It's a very solid ${pCatDisplay} item. Does everything the description says. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
+            `This ${pName} is good, nice features and all. Just wish the accessories were a bit more durable. Still a good buy for the price.`,
             `Working fine so far. The product is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
-            `Product is okay. The product performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
+            `The ${pName} performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
         ];
 
         const getPseudoRandom = (index: number, max: number) => {
-            // Use Math.sin to scatter the seed into a highly varied pseudo-random distribution
             const scatter = Math.abs(Math.sin(seed + index)) * 10000;
             return Math.floor(scatter) % max;
         };
@@ -318,7 +422,7 @@ export default function ProductDetailPage() {
 
         const orders = DemoStore.getOrders();
         return orders.some(o =>
-            o.customer_id === user.id &&
+            (o.customer_id === user.id || o.customer_email === user.email) &&
             o.status === "delivered" &&
             o.product_id === product?.id
         );
@@ -420,6 +524,7 @@ export default function ProductDetailPage() {
         }
     }, [product?.id, product?.price_flag, user]);
     const [showAllSpecs, setShowAllSpecs] = useState(false);
+    const [showFullDescription, setShowFullDescription] = useState(false);
     const [zivaOpen, setZivaOpen] = useState(false);
     const [zivaMessages, setZivaMessages] = useState<{ role: "user" | "assistant"; text: string }[]>([]);
     const [zivaInput, setZivaInput] = useState("");
@@ -806,9 +911,19 @@ export default function ProductDetailPage() {
                             </div>
                         </div>
 
-                        <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
-                            {product.description}
-                        </p>
+                        <div className="relative">
+                            <p className={`text-gray-600 leading-relaxed whitespace-pre-wrap ${!showFullDescription ? 'line-clamp-2' : ''}`}>
+                                {product.description}
+                            </p>
+                            {product.description && product.description.length > 120 && (
+                                <button
+                                    onClick={() => setShowFullDescription(!showFullDescription)}
+                                    className="text-sm font-bold text-indigo-600 hover:text-indigo-700 mt-1 transition-colors"
+                                >
+                                    {showFullDescription ? 'Show Less' : 'Read Full Description'}
+                                </button>
+                            )}
+                        </div>
                         {product.specs && Object.keys(product.specs).length > 0 && (
                             <div className="mt-6">
                                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
@@ -1063,7 +1178,7 @@ export default function ProductDetailPage() {
                                             <Sparkles className="h-3 w-3" /> FairPrice Intelligence
                                         </p>
                                         <div className="flex items-center justify-between text-xs">
-                                            <span className="text-gray-600">Average Price on other stores:</span>
+                                            <span className="text-gray-600">Average Price:</span>
                                             <span className="font-bold text-gray-900">{formatPrice(priceComparison.market_avg)}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs">
@@ -1072,7 +1187,7 @@ export default function ProductDetailPage() {
                                                 ? 'bg-emerald-100 text-emerald-700'
                                                 : product.price <= priceComparison.market_high
                                                     ? 'bg-amber-100 text-amber-700'
-                                                    : 'bg-red-100 text-red-700'
+                                                    : 'bg-amber-100 text-amber-700'
                                                 }`}>
                                                 {product.price <= priceComparison.market_avg ? 'GOOD DEAL' : product.price <= priceComparison.market_high ? 'FAIR' : 'ABOVE MARKET'}
                                             </span>
@@ -1100,7 +1215,7 @@ export default function ProductDetailPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-3 pt-2">
-                                    
+
 
                                     <Button
                                         className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02]"
@@ -1339,10 +1454,10 @@ export default function ProductDetailPage() {
                                         <div key={review.id} className="p-5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 uppercase">
-                                                    {(review.user_id === user?.id ? user.name : review.user_name)?.[0] || '?'}
+                                                    {(review.user_id === user?.id ? user?.name : review.user_name)?.[0] || '?'}
                                                 </div>
                                                 <div>
-                                                    <span className="font-bold text-sm text-gray-900">{review.user_id === user?.id ? user.name : review.user_name}</span>
+                                                    <span className="font-bold text-sm text-gray-900">{review.user_id === user?.id ? user?.name : review.user_name}</span>
                                                     {review.verified_purchase && (
                                                         <Badge className="ml-2 bg-ratel-green-50 text-ratel-green-700 border-ratel-green-100 text-[10px]">Verified Purchase</Badge>
                                                     )}

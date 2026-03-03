@@ -46,8 +46,8 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
 
     useEffect(() => {
         loadNotifications();
-        // Poll every 5s to keep in sync with database
-        const poll = setInterval(loadNotifications, 5000);
+        // Poll every 30s to keep in sync with database
+        const poll = setInterval(loadNotifications, 30000);
         return () => clearInterval(poll);
     }, [loadNotifications]);
 

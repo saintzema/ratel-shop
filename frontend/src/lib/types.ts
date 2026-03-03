@@ -130,6 +130,7 @@ export interface Order {
     updated_at: string;
     product?: Product;
     customer_name?: string;
+    customer_email?: string;
     seller_name?: string;
 }
 

@@ -37,9 +37,18 @@ export default function AdminSettings() {
     const [escrowRelease, setEscrowRelease] = useState(true);
     const [strictSeller, setStrictSeller] = useState(true);
 
-    const [isSaving, setIsSaving] = useState(false);
+    const [isSavingCommission, setIsSavingCommission] = useState(false);
+    const [isSavingShipping, setIsSavingShipping] = useState(false);
+    const [isSavingSecurity, setIsSavingSecurity] = useState(false);
     const [isFlushing, setIsFlushing] = useState(false);
     const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+    // Custom State Shipping
+    const defaultStateShipping: Record<string, string> = {
+        "Lagos": "1500", "Abuja": "3000", "Kano": "3500",
+        "Rivers": "3500", "Oyo": "2000", "Enugu": "4000"
+    };
+    const [stateShipping, setStateShipping] = useState(defaultStateShipping);
 
     // Category profit margins
     const defaultMargins: Record<string, string> = {
@@ -71,8 +80,10 @@ export default function AdminSettings() {
                     setStrictSeller(data.strictSeller ?? true);
 
                     if (data.categoryMargins) {
-                        // Prisma json field
                         setMargins(data.categoryMargins as Record<string, string>);
+                    }
+                    if (data.stateShipping) {
+                        setStateShipping(data.stateShipping as Record<string, string>);
                     }
                 }
             } catch (err) {
@@ -84,42 +95,45 @@ export default function AdminSettings() {
         load();
     }, []);
 
-    const handleSave = async () => {
-        setIsSaving(true);
+    const saveSection = async (payload: any, setSaving: (val: boolean) => void) => {
+        setSaving(true);
         try {
-            const payload = {
-                platformMargin: parseFloat(platformMargin) || 15.0,
-                serviceCharge: parseFloat(serviceCharge) || 25.0,
-                standardCommission: parseFloat(standardCommission) || 2.5,
-                escrowFee: parseFloat(escrowFee) || 1000,
-                doorstepFee: parseFloat(doorstepFee) || 4000,
-                pickupFee: parseFloat(pickupFee) || 2500,
-                aiMonitoring,
-                kycVerification,
-                escrowRelease,
-                strictSeller,
-                categoryMargins: margins
-            };
-
             const res = await fetch("/api/admin/settings", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
-
             if (res.ok) {
-                setStatusMsg("✅ Configuration saved successfully!");
+                setStatusMsg("✅ Section saved successfully!");
             } else {
-                setStatusMsg("❌ Failed to save configuration.");
+                setStatusMsg("❌ Failed to save section.");
             }
         } catch (err) {
             console.error("Failed to save settings to DB", err);
-            setStatusMsg("❌ Error saving configuration.");
+            setStatusMsg("❌ Error saving section.");
         } finally {
-            setIsSaving(false);
+            setSaving(false);
             setTimeout(() => setStatusMsg(null), 3000);
         }
     };
+
+    const handleSaveCommission = () => saveSection({
+        platformMargin: parseFloat(platformMargin) || 15.0,
+        serviceCharge: parseFloat(serviceCharge) || 25.0,
+        standardCommission: parseFloat(standardCommission) || 2.5,
+        escrowFee: parseFloat(escrowFee) || 1000,
+        categoryMargins: margins
+    }, setIsSavingCommission);
+
+    const handleSaveShipping = () => saveSection({
+        doorstepFee: parseFloat(doorstepFee) || 4000,
+        pickupFee: parseFloat(pickupFee) || 2500,
+        stateShipping
+    }, setIsSavingShipping);
+
+    const handleSaveSecurity = () => saveSection({
+        aiMonitoring, kycVerification, escrowRelease, strictSeller
+    }, setIsSavingSecurity);
 
     const handleReset = () => {
         setAiMonitoring(true);
@@ -224,6 +238,12 @@ export default function AdminSettings() {
                             <AlertCircle className="h-5 w-5 text-emerald-500 mt-0.5" />
                             <p className="text-xs text-emerald-600 font-medium">Margins are applied on top of the seller's listed price. This is FairPrice's operating margin per sale.</p>
                         </div>
+
+                        <div className="mt-8 flex justify-end pt-6 border-t border-gray-100">
+                            <Button disabled={isSavingCommission} onClick={handleSaveCommission} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs h-12 px-8 flex items-center gap-2">
+                                {isSavingCommission ? "Saving..." : <><Save className="h-4 w-4" /> Save Commission</>}
+                            </Button>
+                        </div>
                     </div>
 
                     {/* AI Price Comparison Tool */}
@@ -324,6 +344,30 @@ export default function AdminSettings() {
                                 <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
                                 <p className="text-xs text-orange-700 font-medium">Global products or remote regions may apply smart multipliers to these base rates at checkout.</p>
                             </div>
+
+                            {/* Custom State Shipping Override */}
+                            <div className="pt-6 border-t border-gray-50">
+                                <h4 className="text-sm font-bold text-gray-900 mb-4">Custom State Pricing (Doorstep Override)</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {Object.entries(stateShipping).map(([state, fee]) => (
+                                        <div key={state} className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">{state}</label>
+                                            <Input
+                                                value={fee}
+                                                onChange={e => setStateShipping({ ...stateShipping, [state]: e.target.value })}
+                                                type="number"
+                                                className="h-10 bg-gray-50 border-none rounded-xl font-bold"
+                                            />
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 flex justify-end pt-6 border-t border-gray-100">
+                            <Button disabled={isSavingShipping} onClick={handleSaveShipping} className="bg-orange-600 hover:bg-orange-700 text-white rounded-2xl font-black text-xs h-12 px-8 flex items-center gap-2">
+                                {isSavingShipping ? "Saving..." : <><Save className="h-4 w-4" /> Save Shipping</>}
+                            </Button>
                         </div>
                     </div>
 
@@ -367,6 +411,12 @@ export default function AdminSettings() {
                                 </div>
                                 <Switch checked={strictSeller} onCheckedChange={setStrictSeller} />
                             </div>
+                        </div>
+
+                        <div className="mt-8 flex justify-end pt-6 border-t border-gray-100">
+                            <Button disabled={isSavingSecurity} onClick={handleSaveSecurity} className="bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-xs h-12 px-8 flex items-center gap-2">
+                                {isSavingSecurity ? "Saving..." : <><Save className="h-4 w-4" /> Save Security</>}
+                            </Button>
                         </div>
                     </div>
 
@@ -437,12 +487,6 @@ export default function AdminSettings() {
                 </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 mt-10">
-                <Button variant="ghost" className="h-14 px-8 font-black text-xs uppercase tracking-widest text-gray-400">Discard Changes</Button>
-                <Button disabled={isSaving} onClick={handleSave} className="h-14 px-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-indigo-500/20 flex items-center gap-2">
-                    {isSaving ? "Saving..." : <><Save className="h-4 w-4" /> Save Configuration</>}
-                </Button>
-            </div>
             {statusMsg && (
                 <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl text-sm font-bold z-50 animate-in slide-in-from-bottom-4">
                     {statusMsg}

@@ -25,27 +25,90 @@ function BaseTemplate(title: string, contentHTML: string) {
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
         <title>${title}</title>
         <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; font-size: 16px; line-height: 1.5; margin: 0; padding: 0; background-color: #f9fafb; color: #1f2937; }
-            .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
-            .card { background-color: #ffffff; border-radius: 16px; padding: 40px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border: 1px solid #e5e7eb; }
-            .header { text-align: center; margin-bottom: 32px; }
-            .logo { height: 40px; border-radius: 8px; margin-bottom: 16px; }
-            .title { font-size: 24px; font-weight: 800; color: #111827; margin: 0; letter-spacing: -0.025em; }
-            .btn { display: inline-block; padding: 14px 28px; background-color: ${BRAND_COLOR}; color: #ffffff; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 16px; text-align: center; margin-top: 24px; transition: background-color 0.2s; }
-            .footer { text-align: center; margin-top: 32px; color: #6b7280; font-size: 14px; }
-            .code-box { background-color: #f3f4f6; border-radius: 12px; padding: 24px; text-align: center; font-size: 32px; font-weight: 900; letter-spacing: 0.2em; color: ${BRAND_COLOR}; margin: 24px 0; border: 2px dashed #d1d5db; }
-            .info-table { width: 100%; border-collapse: collapse; margin: 24px 0; }
-            .info-table td { padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
-            .info-label { font-weight: 600; color: #4b5563; }
-            .info-value { text-align: right; font-weight: 700; color: #111827; }
-        </style>
+    /* 1. Import Manrope from Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&display=swap');
+
+    /* 2. Global Styles */
+    body { 
+        font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+        -webkit-font-smoothing: antialiased; 
+        font-size: 16px; 
+        line-height: 1.5; 
+        margin: 0; 
+        padding: 0; 
+        background-color: #f9fafb; 
+        color: #1f2937; 
+    }
+
+    .container { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+    
+    .card { 
+        background-color: #ffffff; 
+        border-radius: 16px; 
+        padding: 40px; 
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); 
+        border: 1px solid #e5e7eb; 
+    }
+
+    .header { text-align: center; margin-bottom: 32px; }
+    .logo { height: 40px; border-radius: 8px; margin-bottom: 16px; }
+    
+    .title { 
+        font-family: 'Manrope', sans-serif;
+        font-size: 24px; 
+        font-weight: 800; 
+        color: #111827; 
+        margin: 0; 
+        letter-spacing: -0.025em; 
+    }
+
+    .btn { 
+        display: inline-block; 
+        padding: 14px 28px; 
+        background-color: ${BRAND_COLOR}; 
+        color: #ffffff; 
+        text-decoration: none; 
+        border-radius: 12px; 
+        font-weight: 700; 
+        font-size: 16px; 
+        text-align: center; 
+        margin-top: 24px; 
+    }
+
+    .footer { text-align: center; margin-top: 32px; color: #6b7280; font-size: 14px; }
+
+    .code-box { 
+        background-color: #f3f4f6; 
+        border-radius: 12px; 
+        padding: 24px; 
+        text-align: center; 
+        font-size: 32px; 
+        font-weight: 900; 
+        letter-spacing: 0.2em; 
+        color: ${BRAND_COLOR}; 
+        margin: 24px 0; 
+        border: 2px dashed #d1d5db; 
+    }
+
+    .info-table { width: 100%; border-collapse: collapse; margin: 24px 0; }
+    .info-table td { padding: 12px 0; border-bottom: 1px solid #f3f4f6; }
+    .info-label { font-weight: 600; color: #4b5563; }
+    .info-value { text-align: right; font-weight: 700; color: #111827; }
+
+    /* 3. Outlook Hack: Forces a clean fallback for Windows Outlook users */
+    /*[if mso]>
+    <style type="text/css">
+        body, table, td, p, a, h1 { font-family: Arial, sans-serif !important; }
+    </style>
+    <![endif]-->
+</style>
     </head>
     <body>
         <div class="container">
             <div class="card">
                 <div class="header">
                     <div style="font-size: 28px; font-weight: 900; letter-spacing: -1px; color: ${BRAND_COLOR}; margin-bottom: 8px;">
-                        Fair<span style="color: white">Price</span><span style="color: ${BRAND_COLOR}">.ng</span>
+                        FairPrice.ng
                     </div>
                     <h1 class="title">${title}</h1>
                 </div>
@@ -53,7 +116,7 @@ function BaseTemplate(title: string, contentHTML: string) {
             </div>
             <div class="footer">
                 <p>&copy; ${new Date().getFullYear()} FairPrice. All rights reserved.</p>
-                <p>Africa's first AI-Regulated marketplace</p>
+                <p>Africa's first AI-Regulated marketplace for best prices.</p>
             </div>
         </div>
     </body>
@@ -70,14 +133,55 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
         case 'WELCOME':
             subject = "Welcome to FairPrice! 🎉";
             html = BaseTemplate("Welcome to FairPrice!", `
-                <p>Hi ${name},</p>
-                <p>We're absolutely thrilled to have you join FairPrice! You've just unlocked access to Nigeria's smartest, most secure marketplace.</p>
-                <p>Whether you're here to discover incredible deals, negotiate directly with sellers using Ziva AI, or launch your own digital storefront, we've got you covered.</p>
-                <center>
-                    <a href="https://fairprice.ng" class="btn">Explore the Marketplace</a>
-                </center>
-            `);
-            break;
+    <p>Hi ${name},</p>
+    <p>We're absolutely thrilled to have you join FairPrice! You've just unlocked access to Nigeria's smartest, most reliable marketplace.</p>
+    
+    <p style="margin-top: 24px; font-weight: 700; color: #111827;">Whether you're here to:</p>
+    
+    <div style="margin: 20px 0;">
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td style="font-size: 20px; width: 32px; vertical-align: top;">🔍</td>
+                    <td style="padding-left: 12px; font-size: 15px; color: #374151; line-height: 1.4;">
+                        <strong style="color: #111827; display: block;">Price Discovery</strong>
+                        Find out the real fair price of products with our AI.
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 12px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td style="font-size: 20px; width: 32px; vertical-align: top;">🤖</td>
+                    <td style="padding-left: 12px; font-size: 15px; color: #374151; line-height: 1.4;">
+                        <strong style="color: #111827; display: block;">Smart Negotiation</strong>
+                        Negotiate directly with sellers using <strong>Ziva AI</strong>.
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                    <td style="font-size: 20px; width: 32px; vertical-align: top;">🚀</td>
+                    <td style="padding-left: 12px; font-size: 15px; color: #374151; line-height: 1.4;">
+                        <strong style="color: #111827; display: block;">Digital Storefront</strong>
+                        Launch your own store and reach buyers across Nigeria.
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+
+    <p style="margin-bottom: 32px; color: #4b5563;">Whatever your goal, we've got you covered.</p>
+
+    <center>
+        <a href="https://fairprice.ng" class="btn">Explore the Marketplace</a>
+    </center>
+`);
 
         case 'VERIFY_EMAIL':
             subject = "Verify your FairPrice account code";

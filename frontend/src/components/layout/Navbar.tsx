@@ -118,7 +118,7 @@ export function Navbar() {
             } catch { /* silently fail */ }
         };
         loadNotifs();
-        const poll = setInterval(loadNotifs, 5000);
+        const poll = setInterval(loadNotifs, 30000);
         return () => clearInterval(poll);
     }, [user]);
 
@@ -309,7 +309,7 @@ export function Navbar() {
                 price: r.approxPrice || 0,
                 original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
                 category: r.category || 'electronics',
-                description: r.description || `${r.name} - sourced globally via FairPrice AI for the best deal.`,
+                description: r.description || `${r.name} — premium quality, verified by FairPrice. Secure checkout with buyer protection.`,
                 image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : '/assets/images/placeholder.png',
                 images: [],
                 seller_id: 'global-partners',
@@ -775,8 +775,13 @@ export function Navbar() {
                     {/* Account & Lists Dropdown */}
                     <div
                         className="hidden md:flex relative flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer group justify-start"
-                        onMouseEnter={() => setIsAccountMenuOpen(true)}
-                        onMouseLeave={() => setIsAccountMenuOpen(false)}
+                        onMouseEnter={() => {
+                            if ((window as any).__accountMenuTimer) clearTimeout((window as any).__accountMenuTimer);
+                            setIsAccountMenuOpen(true);
+                        }}
+                        onMouseLeave={() => {
+                            (window as any).__accountMenuTimer = setTimeout(() => setIsAccountMenuOpen(false), 400);
+                        }}
                         onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
                     >
                         {/* Desktop View */}

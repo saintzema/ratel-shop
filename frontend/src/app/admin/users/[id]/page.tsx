@@ -20,11 +20,15 @@ import {
     Clock,
     CreditCard,
     DollarSign,
-    Package
+    Package,
+    Edit,
+    Save,
+    X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DemoStore } from "@/lib/demo-store";
+import { cn } from "@/lib/utils";
 import { Seller, User, Order } from "@/lib/types";
 
 export default function AdminUserDetailPage() {
@@ -34,59 +38,102 @@ export default function AdminUserDetailPage() {
 
     const [loading, setLoading] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState<any>({});
+    const [userEntity, setUserEntity] = useState<any>(null);
+    const [orders, setOrders] = useState<any[]>([]);
+
+    useEffect(() => {
+        if (userEntity) setEditForm(userEntity);
+    }, [userEntity]);
+
+    const handleSave = async () => {
+        if (!id || isUpdating) return;
+        setIsUpdating(true);
+        if (editForm.role === "seller") {
+            DemoStore.updateSeller(id, editForm);
+        }
+        setUserEntity({ ...userEntity, ...editForm });
+        setIsEditing(false);
+        setIsUpdating(false);
+    };
 
     const loadData = async () => {
         if (!id) return;
         setLoading(true);
+        let found = false;
+
+        // Try DemoStore first (always has latest registrations)
+        const dsSeller = DemoStore.getSellers().find((s: any) => s.id === id);
+        if (dsSeller) {
+            const dsOrders = DemoStore.getOrders().filter((o: any) => o.seller_id === id);
+            setUserEntity({ ...dsSeller, role: "seller" });
+            setOrders(dsOrders);
+            found = true;
+        } else {
+            // Check if it's a buyer from orders
+            const dsOrders = DemoStore.getOrders();
+            const buyerOrders = dsOrders.filter((o: any) => o.customer_id === id || o.customer_email === id);
+            if (buyerOrders.length > 0) {
+                const first = buyerOrders[0];
+                setUserEntity({
+                    id,
+                    name: first.customer_name || id.split("@")[0],
+                    email: first.customer_email || id,
+                    role: "buyer",
+                    status: "active",
+                    created_at: first.created_at,
+                });
+                setOrders(buyerOrders);
+                found = true;
+            }
+        }
+
+        // Also try API to get richer data
         try {
-            // Try fetching as seller first
             const sellerRes = await fetch(`/api/sellers/${id}`);
             if (sellerRes.ok) {
                 const data = await sellerRes.json();
-                setUserEntity(data);
-                setOrders(data.orders || []);
-            } else {
-                // Try as buyer/user
+                if (data && data.id) {
+                    setUserEntity((prev: any) => ({ ...prev, ...data, role: "seller" }));
+                    if (data.orders?.length) setOrders(data.orders);
+                    found = true;
+                }
+            } else if (!found) {
                 const userRes = await fetch(`/api/users?id=${id}`);
                 if (userRes.ok) {
                     const data = await userRes.json();
-                    setUserEntity({ ...data, role: "buyer" });
-                    // Fetch orders for buyer
-                    const ordersRes = await fetch(`/api/orders?customer_id=${id}`);
-                    if (ordersRes.ok) {
-                        const ordersData = await ordersRes.json();
-                        setOrders(ordersData);
+                    if (data && data.id) {
+                        setUserEntity((prev: any) => ({ ...(prev || {}), ...data, role: "buyer" }));
+                        found = true;
                     }
                 }
             }
-        } catch (error) {
-            console.error("Error loading user detail:", error);
-        } finally {
-            setLoading(false);
+        } catch {
+            // API unavailable — DemoStore data is already loaded
         }
+
+        setLoading(false);
     };
 
     const handleApprove = async () => {
         if (!id || isUpdating) return;
         setIsUpdating(true);
+        // Update in DemoStore immediately
+        DemoStore.updateSeller(id, { status: "active", verified: true, kyc_status: "approved" });
+        // Also try API
         try {
-            const res = await fetch(`/api/sellers/${id}`, {
+            await fetch(`/api/sellers/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "active", verified: true }),
             });
-            if (res.ok) {
-                await loadData();
-            }
-        } catch (error) {
-            console.error("Failed to approve seller:", error);
-        } finally {
-            setIsUpdating(false);
-        }
+        } catch { }
+        await loadData();
+        setIsUpdating(false);
     };
 
     useEffect(() => {
-        setMounted(true);
         loadData();
     }, [id]);
 
@@ -135,20 +182,57 @@ export default function AdminUserDetailPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                    {isSeller && isPending && (
-                        <Button
-                            onClick={handleApprove}
-                            disabled={isUpdating}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[11px] h-11 px-6 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-105"
-                        >
-                            {isUpdating ? <div className="h-4 w-4 border-2 border-white/30 border-t-white animate-spin rounded-full" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
-                            Approve Seller
+                    {/* View Store if seller */}
+                    {isSeller && (
+                        <Button onClick={() => router.push(`/store/${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                            <Store className="h-4 w-4 mr-2" /> View Store
                         </Button>
                     )}
-                    <Button variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+
+                    {/* Edit Details */}
+                    {isEditing ? (
+                        <>
+                            <Button onClick={handleSave} disabled={isUpdating} className="h-11 px-5 rounded-2xl bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-emerald-700 shadow-sm">
+                                {isUpdating ? <div className="h-4 w-4 border-2 border-white/30 border-t-white animate-spin rounded-full mr-2" /> : <Save className="h-4 w-4 mr-2" />} Save
+                            </Button>
+                            <Button onClick={() => { setIsEditing(false); setEditForm(userEntity); }} variant="outline" className="h-11 px-5 rounded-2xl border-gray-200 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                                <X className="h-4 w-4 mr-2" /> Cancel
+                            </Button>
+                        </>
+                    ) : (
+                        <Button onClick={() => setIsEditing(true)} variant="outline" className="h-11 px-5 rounded-2xl border-gray-200 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                            <Edit className="h-4 w-4 mr-2" /> Edit Details
+                        </Button>
+                    )}
+
+                    {isSeller && isPending && (
+                        <>
+                            <Button
+                                onClick={handleApprove}
+                                disabled={isUpdating}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[11px] h-11 px-6 rounded-2xl shadow-lg shadow-emerald-500/20 transition-all hover:scale-105"
+                            >
+                                {isUpdating ? <div className="h-4 w-4 border-2 border-white/30 border-t-white animate-spin rounded-full" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
+                                Approve Seller
+                            </Button>
+                            <Button
+                                onClick={() => router.push(`/admin/inbox?user_id=${id}`)}
+                                variant="outline"
+                                className="h-11 px-5 rounded-2xl border-amber-200 bg-amber-50 text-amber-700 font-bold text-xs uppercase tracking-wider hover:bg-amber-100 shadow-sm"
+                            >
+                                <Mail className="h-4 w-4 mr-2" /> Request Info
+                            </Button>
+                        </>
+                    )}
+                    <Button onClick={() => router.push(`/admin/inbox?user_id=${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                         <Mail className="h-4 w-4 mr-2" /> Message
                     </Button>
-                    <Button variant="outline" className="h-11 px-5 rounded-2xl border-gray-100 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                    <Button onClick={() => {
+                        if (confirm("Are you sure you want to suspend this account?")) {
+                            DemoStore.updateSeller(id, { status: "suspended" });
+                            loadData();
+                        }
+                    }} variant="outline" className="h-11 px-5 rounded-2xl border-gray-100 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                         <Ban className="h-4 w-4 mr-2" /> Suspend
                     </Button>
                 </div>
@@ -175,9 +259,18 @@ export default function AdminUserDetailPage() {
                                 </div>
                             </div>
 
-                            <div className="mt-16 mb-6">
+                            <div className="pt-[100px] md:pt-[116px] mb-6">
                                 <div className="flex flex-wrap items-center gap-3 mb-2">
-                                    <h1 className="text-2xl font-black text-gray-900 tracking-tight">{userEntity.business_name || userEntity.name}</h1>
+                                    {isEditing ? (
+                                        <input
+                                            type="text"
+                                            value={editForm.business_name || editForm.name || ""}
+                                            onChange={e => setEditForm({ ...editForm, business_name: e.target.value, name: e.target.value })}
+                                            className="text-2xl font-black text-gray-900 tracking-tight bg-white border border-gray-200 rounded-lg px-3 py-1 w-full max-w-sm"
+                                        />
+                                    ) : (
+                                        <h1 className="text-2xl font-black text-gray-900 tracking-tight">{userEntity.business_name || userEntity.name}</h1>
+                                    )}
                                     {(userEntity.verified || userEntity.kyc_status === 'approved') && (
                                         <div className="h-6 w-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/20">
                                             <CheckCircle2 className="h-3.5 w-3.5 text-white" />
@@ -206,20 +299,47 @@ export default function AdminUserDetailPage() {
                                     <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100">
                                         <Mail className="h-4 w-4 text-gray-400" />
                                     </div>
-                                    <span className="truncate">{userEntity.email || userEntity.ownerEmail || "No email on record"}</span>
+                                    {isEditing ? (
+                                        <input
+                                            type="email"
+                                            value={editForm.email || editForm.owner_email || ""}
+                                            onChange={e => setEditForm({ ...editForm, email: e.target.value, owner_email: e.target.value })}
+                                            className="bg-white border border-gray-200 rounded-lg px-3 py-1 flex-1 max-w-sm"
+                                        />
+                                    ) : (
+                                        <span className="truncate">{userEntity.email || userEntity.ownerEmail || userEntity.owner_email || "No email on record"}</span>
+                                    )}
                                 </div>
                                 <div className="flex items-center text-[13px] font-semibold text-gray-700">
                                     <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100">
                                         <Phone className="h-4 w-4 text-gray-400" />
                                     </div>
-                                    {userEntity.phone || "N/A"}
+                                    {isEditing ? (
+                                        <input
+                                            type="text"
+                                            value={editForm.phone || ""}
+                                            onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                                            className="bg-white border border-gray-200 rounded-lg px-3 py-1 flex-1 max-w-sm"
+                                        />
+                                    ) : (
+                                        userEntity.phone || "N/A"
+                                    )}
                                 </div>
                                 <div className="flex items-start text-[13px] font-semibold text-gray-700">
                                     <div className="h-8 w-8 rounded-xl bg-gray-50 flex items-center justify-center mr-3 border border-gray-100 shrink-0">
                                         <MapPin className="h-4 w-4 text-gray-400" />
                                     </div>
-                                    <span className="leading-tight pt-1">
-                                        {userEntity.location || userEntity.address || "Location not provided"}
+                                    <span className="leading-tight pt-1 w-full max-w-sm">
+                                        {isEditing ? (
+                                            <input
+                                                type="text"
+                                                value={editForm.location || editForm.address || ""}
+                                                onChange={e => setEditForm({ ...editForm, location: e.target.value, address: e.target.value })}
+                                                className="bg-white border border-gray-200 rounded-lg px-3 py-1 w-full"
+                                            />
+                                        ) : (
+                                            userEntity.location || userEntity.address || "Location not provided"
+                                        )}
                                     </span>
                                 </div>
                                 <div className="flex items-center text-[13px] font-semibold text-gray-700">
@@ -350,6 +470,73 @@ export default function AdminUserDetailPage() {
                             </table>
                         </div>
                     </div>
+
+                    {/* Payout History (Sellers Only) */}
+                    {isSeller && (() => {
+                        const payouts = DemoStore.getPayouts().filter((p: any) => p.seller_id === id);
+                        return (
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">
+                                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                                    <h3 className="text-lg font-bold text-gray-900">Payout History</h3>
+                                    <Badge variant="secondary">{payouts.length} Requests</Badge>
+                                </div>
+                                {payouts.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse min-w-[500px]">
+                                            <thead>
+                                                <tr className="bg-gray-50/50">
+                                                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Payout ID</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Amount</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Method</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {payouts.map((p: any) => (
+                                                    <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="px-6 py-4 font-mono text-sm text-gray-900">{p.id}</td>
+                                                        <td className="px-6 py-4 font-bold text-gray-900">₦{(p.amount || 0).toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-sm text-gray-600">{p.method || 'Bank Transfer'} {p.bank ? `(${p.bank})` : ''}</td>
+                                                        <td className="px-6 py-4">
+                                                            <Badge className={cn(
+                                                                p.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                                                    p.status === 'processing' ? 'bg-amber-100 text-amber-700' :
+                                                                        'bg-gray-100 text-gray-600'
+                                                            )} variant="secondary">{p.status}</Badge>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            {p.status === 'processing' ? (
+                                                                <div className="flex items-center justify-end gap-2">
+                                                                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg h-8 px-3" onClick={() => {
+                                                                        DemoStore.updatePayoutStatus(p.id, 'completed');
+                                                                        DemoStore.addNotification({ userId: id, type: 'system', message: `Your payout of ₦${(p.amount || 0).toLocaleString()} has been approved and processed! 🎉`, link: '/seller/dashboard/payouts' });
+                                                                        loadData();
+                                                                    }}>Approve</Button>
+                                                                    <Button size="sm" variant="outline" className="text-xs font-bold rounded-lg h-8 px-3 border-red-200 text-red-600 hover:bg-red-50" onClick={() => {
+                                                                        DemoStore.updatePayoutStatus(p.id, 'rejected');
+                                                                        DemoStore.addNotification({ userId: id, type: 'system', message: `Your payout request of ₦${(p.amount || 0).toLocaleString()} was not approved. Please contact support.`, link: '/seller/dashboard/payouts' });
+                                                                        loadData();
+                                                                    }}>Reject</Button>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-xs text-gray-400 font-medium">—</span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="py-12 text-center text-gray-500">
+                                        <DollarSign className="h-12 w-12 mx-auto text-gray-200 mb-3" />
+                                        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No Payout Requests</p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             </div>
         </div>

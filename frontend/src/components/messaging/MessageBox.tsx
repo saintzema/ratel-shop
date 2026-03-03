@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, MessageCircle, ChevronLeft, Search,
@@ -10,7 +10,6 @@ import {
 import { useMessages, Conversation, ChatMessage } from "@/context/MessageContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DemoStore } from "@/lib/demo-store";
 import { useAuth } from "@/context/AuthContext";
 
 // ─── Notification types ─────────────────────────────────
@@ -41,43 +40,75 @@ export function MessageBox() {
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Load notifications
+    // Load notifications from database API
+    const loadNotifications = useCallback(async () => {
+        const email = user?.email;
+        if (!email) { setNotifications([]); return; }
+        try {
+            const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(email)}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    setNotifications(data.map((n: any) => ({
+                        id: String(n.id),
+                        type: n.type || "system",
+                        message: n.message,
+                        read: n.read,
+                        timestamp: n.timestamp,
+                        link: n.link || undefined,
+                    })));
+                }
+            }
+        } catch (err) {
+            console.error("Failed to load notifications from DB:", err);
+        }
+    }, [user?.email]);
+
     useEffect(() => {
         if (isMessageBoxOpen) {
-            const notifs = DemoStore.getNotifications(user?.id || user?.email || undefined);
-            // Add some demo notifications if empty
-            if (notifs.length === 0) {
-                setNotifications([
-                    {
-                        id: "sys_1",
-                        type: "system",
-                        message: "Welcome to FairPrice! 🎉 Complete your profile to unlock exclusive deals.",
-                        read: false,
-                        timestamp: new Date(Date.now() - 86400000 * 4).toISOString(),
-                        link: "/account/profile"
-                    },
-                    {
-                        id: "promo_1",
-                        type: "promo",
-                        message: "🔥 Flash Sale: Up to 60% off Electronics this weekend only!",
-                        read: true,
-                        timestamp: new Date(Date.now() - 86400000 * 2).toISOString(),
-                        link: "/search?q=electronics"
-                    },
-                    {
-                        id: "order_1",
-                        type: "order",
-                        message: "Your order is being processed. Track it in your orders page.",
-                        read: true,
-                        timestamp: new Date(Date.now() - 86400000).toISOString(),
-                        link: "/account/orders"
-                    },
-                ]);
-            } else {
-                setNotifications(notifs);
+            loadNotifications();
+        }
+    }, [isMessageBoxOpen, loadNotifications]);
+
+    // Poll notifications while open
+    useEffect(() => {
+        if (!isMessageBoxOpen) return;
+        const poll = setInterval(loadNotifications, 30000);
+        return () => clearInterval(poll);
+    }, [isMessageBoxOpen, loadNotifications]);
+
+    // Mark all notifications as read when switching to notifications tab
+    const handleTabSwitch = async (tab: "chats" | "notifications") => {
+        setActiveTab(tab);
+        if (tab === "notifications" && user?.email) {
+            // Mark all as read in the database
+            try {
+                await fetch(`/api/notifications?mark_all=true&user_email=${encodeURIComponent(user.email)}`, {
+                    method: "PATCH",
+                });
+                // Refresh to update local state
+                await loadNotifications();
+            } catch (err) {
+                console.error("Failed to mark notifications as read:", err);
             }
         }
-    }, [isMessageBoxOpen, user]);
+    };
+
+    // Mark a single notification as read when clicked
+    const handleNotifClick = async (notif: AppNotification) => {
+        if (!notif.read) {
+            try {
+                await fetch(`/api/notifications?id=${notif.id}`, { method: "PATCH" });
+                await loadNotifications();
+            } catch (err) {
+                console.error("Failed to mark notification as read:", err);
+            }
+        }
+        if (notif.link && typeof window !== "undefined") {
+            window.location.href = notif.link;
+            closeMessageBox();
+        }
+    };
 
     // Sync active conversation from context
     useEffect(() => {
@@ -254,61 +285,73 @@ export function MessageBox() {
                                     </button>
                                 </div>
 
-                                {/* Chat Messages — WhatsApp wallpaper style */}
+                                {/* Chat Messages — FairPrice branded style */}
                                 <div
                                     ref={scrollRef}
                                     className="flex-1 overflow-y-auto px-3 py-3 space-y-1"
                                     style={{
-                                        backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3z' fill='%2310b981' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E\")",
-                                        backgroundColor: "#f0f2f5"
+                                        background: "linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ecfdf5 100%)",
                                     }}
                                 >
                                     {groupMessagesByDate(selectedConversation.messages).map((group) => (
                                         <div key={group.date}>
                                             {/* Date separator */}
                                             <div className="flex justify-center my-3">
-                                                <span className="bg-white/90 text-gray-500 text-[10px] font-bold px-3 py-1 rounded-lg shadow-sm border border-gray-100">
+                                                <span className="bg-brand-green-50 text-brand-green-700 text-[10px] font-bold px-4 py-1 rounded-full shadow-sm border border-brand-green-100">
                                                     {group.date}
                                                 </span>
                                             </div>
                                             {group.messages.map((msg) => (
                                                 <div
                                                     key={msg.id}
-                                                    className={`flex mb-1 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                                                    className={`flex mb-2 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
                                                 >
-                                                    <div className={`max-w-[80%] relative`}>
+                                                    {/* Sender avatar for non-user messages */}
+                                                    {msg.sender !== "user" && (
+                                                        <div className="w-7 h-7 rounded-full bg-brand-green-100 border border-brand-green-200 flex items-center justify-center shrink-0 mr-1.5 mt-auto mb-1">
+                                                            {msg.sender === "ziva" && <Bot className="h-3.5 w-3.5 text-brand-green-600" />}
+                                                            {msg.sender === "admin" && <Headphones className="h-3.5 w-3.5 text-brand-green-600" />}
+                                                            {msg.sender === "seller" && <Store className="h-3.5 w-3.5 text-brand-green-600" />}
+                                                            {!["ziva", "admin", "seller"].includes(msg.sender) && <Bell className="h-3.5 w-3.5 text-gray-400" />}
+                                                        </div>
+                                                    )}
+                                                    <div className={`max-w-[78%] relative`}>
                                                         {msg.sender !== "user" && (
-                                                            <p className="text-[9px] font-bold text-emerald-700 mb-0.5 px-1 flex items-center gap-1">
-                                                                {msg.sender === "ziva" && <Bot className="h-3 w-3" />}
-                                                                {msg.sender === "admin" && <Headphones className="h-3 w-3" />}
-                                                                {msg.sender === "seller" && <Store className="h-3 w-3" />}
-                                                                {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "Support" : "Seller"}
+                                                            <p className="text-[9px] font-bold text-brand-green-600 mb-0.5 px-1">
+                                                                {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : "Seller"}
                                                             </p>
                                                         )}
                                                         <div
-                                                            className={`px-3 py-2 text-[13px] leading-[1.4] shadow-sm ${msg.sender === "user"
-                                                                ? "bg-[#dcf8c6] text-gray-900 rounded-lg rounded-tr-none"
-                                                                : "bg-white text-gray-900 rounded-lg rounded-tl-none"
+                                                            className={`px-3.5 py-2.5 text-[13px] leading-[1.5] ${msg.sender === "user"
+                                                                ? "bg-brand-green-600 text-white rounded-2xl rounded-br-sm shadow-md"
+                                                                : "bg-white text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
                                                                 }`}
                                                         >
                                                             <div className="whitespace-pre-wrap">{msg.text}</div>
-                                                            <div className={`flex items-center gap-1 justify-end mt-1 ${msg.sender === "user" ? "" : ""}`}>
-                                                                <span className="text-[9px] text-gray-500">{formatTime(msg.timestamp)}</span>
+                                                            <div className="flex items-center gap-1 justify-end mt-1">
+                                                                <span className={`text-[9px] ${msg.sender === "user" ? "text-white/60" : "text-gray-400"}`}>
+                                                                    {formatTime(msg.timestamp)}
+                                                                </span>
                                                                 {msg.sender === "user" && (
-                                                                    <CheckCheck className="h-3.5 w-3.5 text-blue-500" />
+                                                                    <CheckCheck className={`h-3.5 w-3.5 ${(msg as any).readByRecipient
+                                                                        ? "text-blue-300"
+                                                                        : "text-white/50"
+                                                                        }`} />
                                                                 )}
                                                             </div>
                                                         </div>
 
                                                         {msg.imageUrl && (
-                                                            <div className="rounded-lg overflow-hidden mt-1 shadow-sm">
+                                                            <div className="rounded-xl overflow-hidden mt-1.5 shadow-sm border border-gray-100">
                                                                 <img src={msg.imageUrl} alt="Attachment" className="w-full max-h-48 object-contain bg-white" />
                                                             </div>
                                                         )}
                                                         {msg.negotiation && (
-                                                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-1 text-xs shadow-sm">
-                                                                <p className="font-bold text-amber-800 mb-0.5 flex items-center gap-1"><Coins className="h-3 w-3" /> Counter Offer</p>
-                                                                <p className="text-amber-700">{msg.negotiation.productName}: <strong>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
+                                                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 mt-1.5 text-xs shadow-sm">
+                                                                <p className="font-bold text-amber-800 mb-1 flex items-center gap-1.5">
+                                                                    <Coins className="h-3.5 w-3.5" /> Counter Offer
+                                                                </p>
+                                                                <p className="text-amber-700">{msg.negotiation.productName}: <strong className="text-amber-900">₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
                                                             </div>
                                                         )}
                                                     </div>
@@ -371,7 +414,7 @@ export function MessageBox() {
                                     {/* Tabs */}
                                     <div className="flex">
                                         <button
-                                            onClick={() => setActiveTab("chats")}
+                                            onClick={() => handleTabSwitch("chats")}
                                             className={`flex-1 py-3 text-sm font-bold text-center relative transition-colors ${activeTab === "chats" ? "text-white" : "text-white/60 hover:text-white/80"}`}
                                         >
                                             Chats
@@ -385,7 +428,7 @@ export function MessageBox() {
                                             )}
                                         </button>
                                         <button
-                                            onClick={() => setActiveTab("notifications")}
+                                            onClick={() => handleTabSwitch("notifications")}
                                             className={`flex-1 py-3 text-sm font-bold text-center relative transition-colors ${activeTab === "notifications" ? "text-white" : "text-white/60 hover:text-white/80"}`}
                                         >
                                             Notifications
@@ -493,12 +536,7 @@ export function MessageBox() {
                                                             <div
                                                                 key={notif.id}
                                                                 className={`flex items-start gap-3 px-4 py-3.5 transition-colors cursor-pointer ${!notif.read ? "bg-emerald-50/30" : "hover:bg-gray-50"}`}
-                                                                onClick={() => {
-                                                                    if (notif.link && typeof window !== "undefined") {
-                                                                        window.location.href = notif.link;
-                                                                        closeMessageBox();
-                                                                    }
-                                                                }}
+                                                                onClick={() => handleNotifClick(notif)}
                                                             >
                                                                 {/* Icon */}
                                                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${!notif.read ? "bg-emerald-100" : "bg-gray-100"}`}>

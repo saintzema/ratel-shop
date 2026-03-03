@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
     ShieldCheck,
     AlertTriangle,
@@ -38,8 +39,8 @@ export default function GovernanceCenter() {
         window.addEventListener("storage", load);
         return () => window.removeEventListener("storage", load);
     }, []);
-    const pendingKyc = kycs.filter(k => k.status === "pending");
-    const activeDisputes = complaints.filter(c => c.status !== "resolved");
+    const pendingKyc = kycs.filter(k => k.status === "pending").sort((a, b) => new Date(b.submitted_at || 0).getTime() - new Date(a.submitted_at || 0).getTime());
+    const activeDisputes = complaints.filter(c => c.status !== "resolved").sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
     const [msgModal, setMsgModal] = useState<{ open: boolean; caseId: string; userName: string }>({ open: false, caseId: "", userName: "" });
     const [logsModal, setLogsModal] = useState<{ open: boolean; complaint: any }>({ open: false, complaint: null });
@@ -132,8 +133,8 @@ export default function GovernanceCenter() {
                                                         {kyc.seller_name.charAt(0)}
                                                     </div>
                                                     <div>
-                                                        <h4 className="font-bold text-gray-900 text-sm">{kyc.seller_name}</h4>
-                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Seller ID: {kyc.seller_id}</p>
+                                                        <Link href={`/admin/users/${kyc.seller_id}`} className="font-bold text-gray-900 text-sm hover:text-indigo-600 hover:underline">{kyc.seller_name}</Link>
+                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5"><Link href={`/admin/users/${kyc.seller_id}`} className="hover:text-indigo-500">Seller ID: {kyc.seller_id}</Link></p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -242,13 +243,13 @@ export default function GovernanceCenter() {
                                                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1">
                                                                     <MessageSquare className="h-3 w-3" /> Reporter
                                                                 </p>
-                                                                <p className="text-xs font-bold text-gray-900 mt-0.5">{c.user_name}</p>
+                                                                <Link href={`/admin/users/${c.user_id || c.user_name}`} className="text-xs font-bold text-gray-900 mt-0.5 hover:text-indigo-600 hover:underline block">{c.user_name}</Link>
                                                             </div>
                                                             <div>
                                                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1">
                                                                     <User className="h-3 w-3" /> Seller Target
                                                                 </p>
-                                                                <p className="text-xs font-bold text-gray-900 mt-0.5">{c.seller_name}</p>
+                                                                <Link href={`/admin/users/${c.seller_id || c.seller_name}`} className="text-xs font-bold text-gray-900 mt-0.5 hover:text-indigo-600 hover:underline block">{c.seller_name}</Link>
                                                             </div>
                                                         </div>
                                                     </td>
