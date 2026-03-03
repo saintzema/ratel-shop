@@ -280,37 +280,35 @@ export function Navbar() {
         };
     }, [searchQuery]);
 
-    // Helper: Cache all current nav results to sessionStorage, add global to DemoStore, and navigate
+    // Helper: Only save the CLICKED product to DemoStore and navigate to search page
     const navigateWithResults = (clickedProductId: string) => {
-        // Convert global results into Product objects and add to DemoStore
+        // Build product objects from global results (without saving all of them)
         const globalAsProducts = globalResults.map((r: any, i: number) => {
-            // Generate a slug-based ID for human-readable URLs
             const slug = r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             const productId = `global-${slug}`;
 
-            // Check if this product already exists in DemoStore (deduplication)
+            // Sanitize image URL: strip broken Vertex AI grounding URLs
+            let imageUrl = r.image_url || '';
+            if (imageUrl.includes('vertexaisearch.cloud.google.com') || imageUrl.includes('grounding-api-redirect')) {
+                imageUrl = '/assets/images/placeholder.png';
+            }
+            if (!imageUrl || imageUrl.toLowerCase().includes('no photo') || imageUrl.toLowerCase().includes('n/a')) {
+                imageUrl = '/assets/images/placeholder.png';
+            }
+
             const existing = DemoStore.getProducts().find(p => p.id === productId);
             if (existing) {
-                // Update existing product with any new data from API
-                if (r.specs && Object.keys(r.specs).length > 0) {
-                    const validImageUrl = r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : null;
-                    DemoStore.updateProduct(productId, {
-                        specs: r.specs,
-                        ...(validImageUrl ? { image_url: validImageUrl } : {}),
-                        ...(r.description ? { description: r.description } : {}),
-                    });
-                }
                 return existing;
             }
 
-            const product = {
+            return {
                 id: productId,
                 name: r.name,
                 price: r.approxPrice || 0,
                 original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
                 category: r.category || 'electronics',
                 description: r.description || `${r.name} — premium quality, verified by FairPrice. Secure checkout with buyer protection.`,
-                image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : '/assets/images/placeholder.png',
+                image_url: imageUrl,
                 images: [],
                 seller_id: 'global-partners',
                 seller_name: 'Global Stores',
@@ -325,8 +323,6 @@ export function Navbar() {
                 condition: r.condition || 'new',
                 source_url: r.sourceUrl || '',
             };
-            DemoStore.addRawProduct(product as any);
-            return product;
         });
 
         // Resolve __global_ prefix to actual product ID
@@ -335,16 +331,21 @@ export function Navbar() {
             const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
             if (globalAsProducts[idx]) {
                 resolvedClickedId = globalAsProducts[idx].id;
+                // ONLY save the clicked product to DemoStore (not all results)
+                const clickedProduct = globalAsProducts[idx];
+                const alreadyExists = DemoStore.getProducts().find(p => p.id === clickedProduct.id);
+                if (!alreadyExists) {
+                    DemoStore.addRawProduct(clickedProduct as any);
+                }
             }
         }
 
-        // Build combined results: local suggestions + global products
+        // Build combined results for session cache (for search page display)
         const combinedResults = [
             ...suggestions.map(p => ({ ...p, _source: 'local' })),
             ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
         ];
 
-        // Cache to sessionStorage so the search page can read them
         try {
             sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
             sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);

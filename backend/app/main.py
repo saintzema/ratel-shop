@@ -30,4 +30,4 @@ def health_check():
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to RatelShop API - Powered by ZivaAI"}
+    return {"message": "Welcome to FairPrice API - Powered by ZivaAI"}

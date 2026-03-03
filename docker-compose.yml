@@ -6,7 +6,7 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=sqlite:///./ratel.db
-      - PROJECT_NAME=RatelShop-Dev
+      - PROJECT_NAME=FairPrice-Dev
     volumes:
       - ./backend:/app
 

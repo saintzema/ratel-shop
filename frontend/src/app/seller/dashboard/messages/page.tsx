@@ -124,7 +124,7 @@ export default function UniversalMessagesPage() {
             convos.push({
                 id: "sup-1",
                 type: "support",
-                customer_name: "RatelShop Support",
+                customer_name: "FairPrice Support",
                 product_name: "Account Support",
                 preview: "Hello! We noticed a high volume of transactions...",
                 updated_at: new Date(Date.now() - 3600000), // 1 hour ago
