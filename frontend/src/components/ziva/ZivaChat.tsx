@@ -188,7 +188,7 @@ export function ZivaChat() {
             role: "assistant",
             content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
             quickActions: [
-                { label: "Find phones under ₦200k", query: "Find me a phone under ₦200,000", icon: "📱" },
+                { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
                 { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
                 { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
                 { label: "Track my order", query: "Track my order", icon: "📦" },
@@ -249,8 +249,26 @@ export function ZivaChat() {
                         id: p.id,
                         name: p.name,
                         price: p.price,
+                        original_price: p.original_price,
                         category: p.category,
-                        description: p.description
+                        description: p.description?.substring(0, 80),
+                        avg_rating: p.avg_rating,
+                        review_count: p.review_count,
+                        seller_name: p.seller_name,
+                        price_flag: p.price_flag,
+                        specs: p.specs
+                    })),
+                    searchCache: DemoStore.getAllCachedProducts().slice(0, 20).map(p => ({
+                        id: p.id,
+                        name: p.name,
+                        price: p.price,
+                        category: p.category,
+                        specs: p.specs
+                    })),
+                    browsingHistory: (DemoStore.getSearchHistoryProducts?.() || []).slice(0, 5).map((p: any) => ({
+                        name: p.name,
+                        price: p.price,
+                        category: p.category
                     }))
                 })
             });
@@ -275,7 +293,36 @@ export function ZivaChat() {
                 }
             }
 
-            const data = await res.json();
+            let data = await res.json();
+
+            // Fix: sometimes Gemini wraps response in markdown code fences or returns nested JSON
+            if (typeof data.message === 'string') {
+                let cleaned = data.message.trim();
+                // Strip ALL markdown code fences (```json ... ```, ```...```, etc.)
+                cleaned = cleaned.replace(/```[a-z]*\s*\n?/gi, '').replace(/```/g, '').trim();
+                // If the cleaned string looks like JSON, parse it and use the inner message
+                if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+                    try {
+                        const parsed = JSON.parse(cleaned);
+                        if (parsed.message) {
+                            data = parsed;
+                        }
+                    } catch { /* keep original data */ }
+                }
+                // Even after parsing, ensure the final message doesn't contain JSON
+                if (typeof data.message === 'string') {
+                    let finalMsg = data.message.trim();
+                    finalMsg = finalMsg.replace(/```[a-z]*\s*\n?/gi, '').replace(/```/g, '').trim();
+                    if (finalMsg.startsWith('{') && finalMsg.endsWith('}')) {
+                        try {
+                            const innerParsed = JSON.parse(finalMsg);
+                            if (innerParsed.message) data.message = innerParsed.message;
+                        } catch { /* keep as-is */ }
+                    } else {
+                        data.message = finalMsg;
+                    }
+                }
+            }
 
             // Handle Escalation
             if (data.shouldEscalate) {
@@ -309,24 +356,41 @@ export function ZivaChat() {
                 };
             }
 
-            // Handle Product Suggestions (if API returns names, map to local demo products)
+            // Handle Product Suggestions (search catalog + cache)
             let suggestedProducts: any[] = [];
-            if (data.intent === "product_search" || (data.suggestedProducts && data.suggestedProducts.length > 0)) {
-                const allProducts = DemoStore.getProducts();
-                // Filter by name matches from AI suggestions
+            if (data.intent === "product_search" || data.intent === "comparison" || data.intent === "price_check" || (data.suggestedProducts && data.suggestedProducts.length > 0)) {
+                const catalogProducts = DemoStore.getProducts();
+                const cacheProducts = DemoStore.getAllCachedProducts();
+                const allProducts = [...catalogProducts, ...cacheProducts.filter((cp: any) => !catalogProducts.some(p => p.id === cp.id))];
+
                 if (data.suggestedProducts && data.suggestedProducts.length > 0) {
-                    suggestedProducts = allProducts.filter(p =>
-                        data.suggestedProducts.some((sp: string) => p.name.toLowerCase().includes(sp.toLowerCase()))
-                    );
+                    suggestedProducts = data.suggestedProducts.flatMap((sp: string) => {
+                        const spLower = sp.toLowerCase();
+                        const tokens = spLower.split(/\s+/).filter((t: string) => t.length > 2);
+                        // Exact substring match first
+                        let matches = allProducts.filter(p => p.name.toLowerCase().includes(spLower));
+                        // Fallback: token-based match (every significant word appears in name)
+                        if (matches.length === 0 && tokens.length >= 2) {
+                            matches = allProducts.filter(p => tokens.every((t: string) => p.name.toLowerCase().includes(t)));
+                        }
+                        return matches;
+                    });
+                    // Deduplicate
+                    const seen = new Set<string>();
+                    suggestedProducts = suggestedProducts.filter(p => {
+                        if (seen.has(p.id)) return false;
+                        seen.add(p.id);
+                        return true;
+                    });
                 }
 
-                // Fallback: simple keyword match if AI didn't give specific products but intent is search
+                // Fallback: keyword match
                 if (suggestedProducts.length === 0) {
                     const terms = userInput.split(" ").filter(w => w.length > 3);
                     suggestedProducts = allProducts.filter(p =>
                         terms.some(t => p.name.toLowerCase().includes(t.toLowerCase())) ||
                         terms.some(t => p.category.toLowerCase().includes(t.toLowerCase()))
-                    ).slice(0, 3);
+                    ).slice(0, 4);
                 }
             }
 
@@ -334,7 +398,7 @@ export function ZivaChat() {
                 content: data.message,
                 intent: data.intent,
                 products: suggestedProducts.slice(0, 4),
-                quickActions: [] // Could be enhanced later
+                quickActions: []
             };
 
         } catch (error) {
@@ -386,7 +450,7 @@ export function ZivaChat() {
             typingText = "Analyzing market prices...";
         } else if (msgText.toLowerCase().includes("track") || msgText.toLowerCase().includes("order")) {
             typingText = "Checking logistics database...";
-        } else if (msgText.toLowerCase().includes("negotiate") || msgText.toLowerCase().includes("offer")) {
+        } else if (msgText.toLowerCase().includes("negotiate") || msgText.toLowerCase().includes("offer") || msgText.toLowerCase().includes("bargain")) {
             typingText = "Preparing negotiation...";
         } else if (msgText.toLowerCase().includes("find") || msgText.toLowerCase().includes("search")) {
             typingText = "Searching catalogue...";
@@ -412,15 +476,102 @@ export function ZivaChat() {
                 return;
             }
 
+            // ─── LOCAL: Human Support / Escalation ─────────────────────
+            const isHumanRequest = /\b(talk\s*to\s*(a\s*)?(human|person|agent|manager|support|representative)|escalate|real\s*person|human\s*support|live\s*chat|speak\s*to|customer\s*(support|care|service)|speak\s*with|connect\s*me|i\s*need\s*help|complain|complaint)/i.test(resolvedText);
+            if (isHumanRequest) {
+                // Save escalation to admin inbox
+                DemoStore.addSupportMessage({
+                    user_name: user?.name || "Guest",
+                    user_email: user?.email || "guest@globalstores.shop",
+                    subject: "Customer Requested Human Support",
+                    message: `Customer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`,
+                    source: "ziva_escalation",
+                });
+
+                setTimeout(() => {
+                    setMessages(prev => [
+                        ...prev.filter(m => m.id !== typingId),
+                        {
+                            id: `escalate_${Date.now()}`,
+                            role: "assistant",
+                            content: `🛡️ **Connecting you to a human agent...**\n\nI understand you'd like to speak with our support team. I've forwarded your request and a human agent will join this chat shortly.\n\nWhile you wait, feel free to describe your issue in more detail so the agent can assist you faster.`,
+                            quickActions: [
+                                { label: "📦 Track My Order", query: "Track my order", icon: "" },
+                                { label: "🔄 Return an Item", query: "I want to return an item", icon: "" },
+                            ]
+                        }
+                    ]);
+                    setIsProcessing(false);
+                }, 1000);
+
+                // Simulate a human agent joining after 3.5 seconds
+                setTimeout(() => {
+                    setAdminActive(true);
+                    setMessages(prev => [...prev, {
+                        id: `admin_join_${Date.now()}`,
+                        role: "admin" as const,
+                        senderName: "System",
+                        content: "⚡ **Sarah (Support Team) has joined the chat.**"
+                    }]);
+                }, 3500);
+                return;
+            }
+
+            // ─── LOCAL: Product Image Request → Seller Inbox ─────────
+            const isImageRequest = /\b(product\s*image|show\s*me.*photo|show\s*me.*image|show\s*me.*picture|send\s*me.*image|can\s*i\s*(see|get)\s*(the\s*)?(image|photo|picture)|real\s*photo|actual\s*photo|real\s*image)\b/i.test(resolvedText);
+            if (isImageRequest && currentProduct) {
+                // Send request to seller's inbox
+                DemoStore.addSupportMessage({
+                    user_name: user?.name || "Customer",
+                    user_email: user?.email || "customer@fairprice.ng",
+                    subject: `📷 Image Request: ${currentProduct.name}`,
+                    message: `A customer has requested real product images for "${currentProduct.name}" (₦${currentProduct.price.toLocaleString()}).\n\nCustomer: ${user?.name || 'Guest'} (${user?.email || 'not logged in'})\nMessage: "${resolvedText}"\n\nPlease upload clear product photos to respond to this request.`,
+                    source: "order_issue",
+                    target_user_id: user?.id,
+                    target_user_email: user?.email,
+                });
+
+                // Also notify the seller
+                if (currentProduct.seller_id) {
+                    DemoStore.addNotification({
+                        userId: currentProduct.seller_id,
+                        type: "system",
+                        message: `📷 A customer requested real photos of "${currentProduct.name}". Check your messages to respond.`,
+                        link: "/seller/dashboard/messages",
+                    });
+                }
+
+                setTimeout(() => {
+                    setMessages(prev => [
+                        ...prev.filter(m => m.id !== typingId),
+                        {
+                            id: `img_req_${Date.now()}`,
+                            role: "assistant",
+                            content: `📷 **Image Request Sent!**\n\nI've forwarded your request for real product photos of **${currentProduct.name}** to the seller (**${currentProduct.seller_name || 'the merchant'}**).\n\nThey'll be notified to upload actual photos of the item. You'll receive a notification when the images are available.\n\nIn the meantime, you can view the existing listing photos on the product page.`,
+                            quickActions: [
+                                { label: "📦 View Product", query: `__NAV__/product/${currentProduct.id}`, icon: "" },
+                                { label: "💬 Ask Something Else", query: "", icon: "" },
+                            ]
+                        }
+                    ]);
+                    setIsProcessing(false);
+                }, 1200);
+                return;
+            }
+
             // ─── LOCAL: Order Tracking ─────────────────────
             const trackMatch = resolvedText.match(/\b(track|tracking|order\s*status|where.s?\s*my\s*order|order\s*#?)\s*:?\s*([A-Za-z0-9_-]{6,})?/i);
-            const isTrackQuery = /\b(track|tracking|order status|where.s?\s*my\s*order)\b/i.test(resolvedText);
+            const isTrackQuery = /\b(track|tracking|order status|where.s?\s*my\s*order|about my order|my order)\b/i.test(resolvedText);
             if (isTrackQuery || trackMatch) {
-                const orders = DemoStore.getOrders();
+                const allOrders = DemoStore.getOrders();
+                // Filter by current user — never show other users' orders
+                const userOrders = user
+                    ? allOrders.filter(o => o.customer_id === user.email || o.customer_id === user.id)
+                    : [];
                 const trackId = trackMatch?.[2];
                 let foundOrders = trackId
-                    ? orders.filter(o => o.id.includes(trackId) || o.tracking_id?.includes(trackId))
-                    : orders.slice(0, 3); // Show latest 3 if no ID given
+                    ? userOrders.filter(o => o.id.includes(trackId) || o.tracking_id?.includes(trackId))
+                    : userOrders.slice(0, 3); // Show latest 3 if no ID given
 
                 setTimeout(() => {
                     setMessages(prev => [
@@ -445,24 +596,103 @@ export function ZivaChat() {
                 return;
             }
 
-            // ─── LOCAL: Price Negotiation ─────────────────────
-            const isNegotiate = /\b(negotiate|make.*offer|bargain|lower.*price|offer.*price|can.*you.*reduce|price.*too.*high|counter.*offer)\b/i.test(resolvedText);
+            // ─── LOCAL: Bare number/price after negotiation context ─────────
+            // If the last assistant message was a negotiation prompt with products,
+            // and the user just types a number (e.g. "49300", "#49,000", "₦50000"),
+            // treat it as an offer for the first product shown
+            const bareNumberMatch = resolvedText.match(/^[₦#N]?\s*([\d,]+)\s*$/i);
+            if (bareNumberMatch) {
+                const amount = parseInt(bareNumberMatch[1].replace(/,/g, ''));
+                if (amount > 0) {
+                    // Find the last negotiate message with products
+                    const lastNegotiateMsg = [...messages].reverse().find(m =>
+                        m.role === "assistant" && m.products && m.products.length > 0 &&
+                        (m.content?.includes("Negotiate") || m.content?.includes("offer"))
+                    );
+                    if (lastNegotiateMsg && lastNegotiateMsg.products && lastNegotiateMsg.products.length > 0) {
+                        const matchProduct = lastNegotiateMsg.products[0];
+                        // Save as proper negotiation entry (shows on /account/negotiations)
+                        DemoStore.addNegotiation({
+                            id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                            product_id: matchProduct.id,
+                            customer_id: user?.id || user?.email || "guest",
+                            customer_name: user?.name || "Guest Customer",
+                            proposed_price: amount,
+                            message: `Offer submitted via Ziva AI`,
+                            status: "pending",
+                            created_at: new Date().toISOString(),
+                        });
+                        // Also save to admin support inbox
+                        DemoStore.addSupportMessage({
+                            user_name: user?.name || "Guest Customer",
+                            user_email: user?.email || "guest@fairprice.ng",
+                            subject: `💰 Price Negotiation: ${matchProduct.name}`,
+                            message: `Customer offered ₦${amount.toLocaleString()} for "${matchProduct.name}" (listed at ₦${matchProduct.price.toLocaleString()}).\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nAction required: Accept, counter-offer, or decline.`,
+                            source: "ziva_negotiation",
+                        });
+
+                        setTimeout(() => {
+                            setMessages(prev => [
+                                ...prev.filter(m => m.id !== typingId),
+                                {
+                                    id: `offer_${Date.now()}`,
+                                    role: "assistant",
+                                    content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${amount.toLocaleString()}** (${Math.round((1 - amount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
+                                    quickActions: [
+                                        { label: "📦 View Product", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
+                                        { label: "🛒 Buy at Listed Price", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
+                                        { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
+                                    ]
+                                }
+                            ]);
+                            setIsProcessing(false);
+                        }, 1500);
+                        return;
+                    }
+                }
+            }
+
+            // ─── LOCAL: Price Negotiation (prompt) ─────────────────────
+            // Skip if the message contains a concrete price (that should go to offer handler below)
+            const hasConcretePrice = /[₦#N]?\s*\d[\d,]+/.test(resolvedText) && /\b(offer|pay|give|bargain)\b/i.test(resolvedText);
+            const isNegotiate = !hasConcretePrice && /\b(negotiate|make.*offer|bargain|lower.*price|offer.*price|can.*you.*reduce|price.*too.*high|counter.*offer)\b/i.test(resolvedText);
             if (isNegotiate) {
                 const allProducts = DemoStore.getProducts();
                 // Try to extract product name from the message
-                const words = resolvedText.replace(/\b(negotiate|make|offer|bargain|lower|price|reduce|for|the|a|an|on|can|you|i|want|to|of)\b/gi, '').trim();
-                let matchedProducts = words.length > 2
-                    ? allProducts.filter(p => {
-                        const pName = p.name.toLowerCase();
-                        const searchTerms = words.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-                        return searchTerms.some(term => pName.includes(term));
-                    }).slice(0, 4)
-                    : (currentProduct ? [currentProduct] : cart.map(c => c.product).slice(0, 4));
+                const words = resolvedText.replace(/\b(negotiate|make|offer|bargain|lower|price|reduce|for|the|a|an|on|can|you|i|want|to|of|current|is|at)\b/gi, '').replace(/₦[\d,]+/g, '').trim();
+                const searchTerms = words.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
 
-                // If cart is empty and no current product, show some popular items to haggle on
+                let matchedProducts: Product[] = [];
+
+                // If user mentioned a specific product name, find it precisely
+                if (searchTerms.length > 0) {
+                    // Score products by how many search terms match
+                    const scored = allProducts.map(p => {
+                        const pName = p.name.toLowerCase();
+                        const matchCount = searchTerms.filter((t: string) => pName.includes(t)).length;
+                        return { product: p, matchCount, ratio: matchCount / searchTerms.length };
+                    }).filter(s => s.matchCount > 0)
+                        .sort((a, b) => b.ratio - a.ratio || b.matchCount - a.matchCount);
+
+                    // If we have a strong match (>50% of terms match), use those
+                    if (scored.length > 0 && scored[0].ratio >= 0.5) {
+                        matchedProducts = scored.slice(0, 4).map(s => s.product);
+                    }
+                }
+
+                // Fallback: use current product or cart
+                if (matchedProducts.length === 0) {
+                    matchedProducts = currentProduct ? [currentProduct] : cart.map(c => c.product).slice(0, 4);
+                }
+
+                // Last resort: show some popular items
                 if (matchedProducts.length === 0) {
                     matchedProducts = allProducts.filter(p => p.price > 50000).slice(0, 4);
                 }
+
+                // If user specified a product, ask for their price
+                const hasSpecificProduct = searchTerms.length > 0 && matchedProducts.length > 0;
+                const exampleProduct = matchedProducts[0];
 
                 setTimeout(() => {
                     setMessages(prev => [
@@ -470,13 +700,17 @@ export function ZivaChat() {
                         {
                             id: `negotiate_${Date.now()}`,
                             role: "assistant",
-                            content: matchedProducts.length > 0
-                                ? `💰 **Let's Negotiate!**\n\nI found these products you might want to negotiate on. Type your desired price and I'll send the offer to the seller.\n\nFor example: *"I want to offer ₦150,000 for the iPhone"*`
-                                : "🤔 I couldn't find a specific product to negotiate. Could you tell me which product you'd like to make an offer on?",
+                            content: hasSpecificProduct
+                                ? `💰 **Let's Negotiate!**\n\nGreat choice! How much would you like to offer for the **${exampleProduct.name}**?\n\nThe listed price is **${formatPrice(exampleProduct.price)}**. Please state your offer — I recommend staying within the fair market range for the best chance of acceptance.\n\nFor example: *"I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name.split(' ').slice(0, 4).join(' ')}"*`
+                                : matchedProducts.length > 0
+                                    ? `💰 **Let's Negotiate!**\n\nI found these products you might want to negotiate on. Tell me which one and your desired price, and I'll send the offer to the seller.\n\nFor example: *"I want to offer ₦150,000 for the iPhone"*`
+                                    : "🤔 I couldn't find a specific product to negotiate. Could you tell me which product you'd like to make an offer on?",
                             products: matchedProducts,
-                            quickActions: currentProduct
-                                ? [{ label: `💰 Negotiate ${currentProduct.name.slice(0, 30)}`, query: `I want to negotiate the price of ${currentProduct.name}. Current price is ${formatPrice(currentProduct.price)}`, icon: "" }]
-                                : [{ label: "🔍 Search Products", query: "__NAV__/search", icon: "" }]
+                            quickActions: hasSpecificProduct
+                                ? [{ label: `💰 Offer ${formatPrice(Math.round(exampleProduct.price * 0.96))}`, query: `I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name}`, icon: "" }]
+                                : currentProduct
+                                    ? [{ label: `💰 Negotiate ${currentProduct.name.slice(0, 30)}`, query: `I want to negotiate the price of ${currentProduct.name}. Current price is ${formatPrice(currentProduct.price)}`, icon: "" }]
+                                    : [{ label: "🔍 Search Products", query: "__NAV__/search", icon: "" }]
                         }
                     ]);
                     setIsProcessing(false);
@@ -485,17 +719,54 @@ export function ZivaChat() {
             }
 
             // ─── LOCAL: Submit negotiation offer (e.g. "I offer ₦150,000 for iPhone") ─────
-            const offerMatch = resolvedText.match(/\b(?:offer|pay|give)\s+(?:₦|NGN|naira\s*)?([\d,]+)\s+(?:for|on)\s+(.+)/i);
+            // Accepts: "offer ₦80,000 for", "offer #50000 for", "offer 80000 for", "I WANT TO OFFER #50000 FOR THE X"
+            // Also add "bargain" to the offer regex
+            const offerMatch = resolvedText.match(/\b(?:offer|pay|give|bargain)\s+(?:[₦#N]|NGN|naira\s*)?\s*([\d,]+)\s+(?:for|on)\s+(.+)/i)
+                || resolvedText.match(/(?:[₦#N]|NGN|naira\s*)\s*([\d,]+)\s+(?:for|on)\s+(.+)/i)
+                || resolvedText.match(/\b(?:want\s+to\s+)?(?:offer|pay|give|bargain)\s+(?:for|on)\s+(.+?)\s+(?:[₦#N]|NGN|naira\s*)?\s*([\d,]+)/i);
             if (offerMatch) {
-                const offerAmount = parseInt(offerMatch[1].replace(/,/g, ''));
-                const productQuery = offerMatch[2].trim();
+                // Handle both "amount for product" and "for product amount" formats
+                let offerAmount: number;
+                let productQuery: string;
+
+                // Check if the match came from the third regex (product before amount)
+                if (!resolvedText.match(/\b(?:offer|pay|give|bargain)\s+(?:[₦#N]|NGN|naira\s*)?\s*([\d,]+)\s+(?:for|on)/i)
+                    && !resolvedText.match(/(?:[₦#N]|NGN|naira\s*)\s*([\d,]+)\s+(?:for|on)/i)) {
+                    productQuery = offerMatch[1].trim();
+                    offerAmount = parseInt(offerMatch[2].replace(/,/g, ''));
+                } else {
+                    offerAmount = parseInt(offerMatch[1].replace(/,/g, ''));
+                    productQuery = offerMatch[2].trim();
+                }
+
+                // Remove trailing articles/determiners from product query
+                productQuery = productQuery.replace(/^the\s+/i, '').trim();
+
                 const allProducts = DemoStore.getProducts();
-                const matchProduct = allProducts.find(p =>
-                    p.name.toLowerCase().includes(productQuery.toLowerCase().slice(0, 15))
-                ) || currentProduct;
+                // Multi-token fuzzy match: score products by how many terms match
+                const queryTokens = productQuery.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
+                const matchProduct = allProducts
+                    .map(p => ({
+                        product: p,
+                        score: queryTokens.filter((t: string) => p.name.toLowerCase().includes(t)).length
+                    }))
+                    .filter(m => m.score > 0)
+                    .sort((a, b) => b.score - a.score)[0]?.product
+                    || currentProduct;
 
                 if (matchProduct && offerAmount > 0) {
-                    // Save negotiation to admin inbox
+                    // Save as proper negotiation entry (shows on /account/negotiations)
+                    DemoStore.addNegotiation({
+                        id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                        product_id: matchProduct.id,
+                        customer_id: user?.id || user?.email || "guest",
+                        customer_name: user?.name || "Guest Customer",
+                        proposed_price: offerAmount,
+                        message: `Offer submitted via Ziva AI`,
+                        status: "pending",
+                        created_at: new Date().toISOString(),
+                    });
+                    // Also save to admin support inbox
                     DemoStore.addSupportMessage({
                         user_name: user?.name || "Guest Customer",
                         user_email: user?.email || "guest@fairprice.ng",
@@ -560,11 +831,23 @@ export function ZivaChat() {
 
         const reader = new FileReader();
         reader.onloadend = () => {
-            const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: "Sent an image", image: reader.result as string };
+            const imageDataUrl = reader.result as string;
+            const userMsg: ChatMessage = { id: Date.now().toString(), role: "user", content: "Sent an image", image: imageDataUrl };
             setMessages(prev => [...prev, userMsg]);
             setIsProcessing(true);
             const typingId = `typing_${Date.now()}`;
             setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
+
+            // Send image to admin inbox so support can see it
+            DemoStore.addSupportMessage({
+                user_name: user?.name || "Guest",
+                user_email: user?.email || "guest@fairprice.ng",
+                subject: `📷 Image uploaded in Ziva Chat${currentProduct ? ` — Re: ${currentProduct.name}` : ''}`,
+                message: `Customer uploaded an image in Ziva chat.${currentProduct ? `\n\nProduct context: ${currentProduct.name} (₦${currentProduct.price.toLocaleString()})\nSeller: ${currentProduct.seller_name}` : ''}\n\n[Image attached in chat session]`,
+                source: "ziva_escalation",
+                target_user_id: user?.id,
+                target_user_email: user?.email,
+            });
 
             setTimeout(() => {
                 setMessages(prev => [
@@ -573,7 +856,11 @@ export function ZivaChat() {
                         id: `img_resp_${Date.now()}`,
                         role: adminActive ? "admin" : "assistant",
                         senderName: adminActive ? "Support Team (Sarah)" : undefined,
-                        content: adminActive ? "I've received your image. Let me review that for you right away." : "I see you uploaded an image! I can help you find products similar to this visual or analyze it for defects."
+                        content: adminActive
+                            ? "I've received your image. Let me review that for you right away."
+                            : currentProduct
+                                ? `I've received your image! I've forwarded it to our support team${currentProduct.seller_name ? ` and **${currentProduct.seller_name}**` : ''} for review. They'll respond shortly. Is there anything else I can help with?`
+                                : "I see you uploaded an image! I've forwarded it to our support team for review. I can also help you find products similar to this visual."
                     }
                 ]);
                 setIsProcessing(false);
@@ -744,7 +1031,7 @@ export function ZivaChat() {
                                                 )}
                                                 <div
                                                     className={cn(
-                                                        "rounded-2xl px-4 py-3 text-[13px] leading-relaxed",
+                                                        "rounded-2xl px-4 py-3 text-[13px] leading-relaxed select-text cursor-text",
                                                         msg.role === "user"
                                                             ? "bg-emerald-600 text-white rounded-br-none shadow-lg shadow-emerald-600/20"
                                                             : msg.role === "admin"
@@ -752,7 +1039,7 @@ export function ZivaChat() {
                                                                 : "bg-white/5 text-gray-200 rounded-bl-none border border-white/5"
                                                     )}
                                                 >
-                                                    {msg.image && (
+                                                    {msg.image && msg.image.length > 0 && (
                                                         <img src={msg.image} alt="Uploaded" className="mb-2 rounded-xl max-w-full h-auto max-h-48 object-cover border border-white/10" />
                                                     )}
                                                     {hasTable(msg.content) ? (
@@ -946,6 +1233,6 @@ export function ZivaChat() {
                     )}
                 </motion.button>
             </motion.div>
-        </div>
+        </div >
     );
 }

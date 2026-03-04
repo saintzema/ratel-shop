@@ -4,11 +4,12 @@ import { broadcast } from "../../realtime/route";
 
 export async function GET(
     req: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await params;
         const seller = await db.seller.findUnique({
-            where: { id: params.id },
+            where: { id },
             include: {
                 user: true,
                 orders: {
@@ -45,14 +46,15 @@ export async function GET(
 
 export async function PATCH(
     req: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
+        const { id } = await params;
         const body = await req.json();
         const { status, verified } = body;
 
         const seller = await db.seller.update({
-            where: { id: params.id },
+            where: { id },
             data: {
                 status: status,
                 verified: verified !== undefined ? verified : undefined,
@@ -67,7 +69,7 @@ export async function PATCH(
         // If active, ensure products are active
         if (status === "active") {
             await db.product.updateMany({
-                where: { sellerId: params.id },
+                where: { sellerId: id },
                 data: { isActive: true }
             });
         }

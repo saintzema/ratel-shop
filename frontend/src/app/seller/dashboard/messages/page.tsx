@@ -120,19 +120,43 @@ export default function UniversalMessagesPage() {
                 }
             });
 
-            // Mock Support
-            convos.push({
-                id: "sup-1",
-                type: "support",
-                customer_name: "FairPrice Support",
-                product_name: "Account Support",
-                preview: "Hello! We noticed a high volume of transactions...",
-                updated_at: new Date(Date.now() - 3600000), // 1 hour ago
-                unread: false,
-                chat_messages: [
-                    { sender: "buyer", text: "Hello! We noticed a high volume of transactions on your store today. Please ensure all tracking IDs are updated.", timestamp: new Date(Date.now() - 3600000) }
-                ]
+            // Load real support messages from DemoStore (admin replies, Ziva escalations, etc.)
+            const supportMsgs = DemoStore.getSupportMessages();
+            const sellerEmail = DemoStore.getSellers().find(s => s.id === sellerId)?.store_url || sellerId;
+            supportMsgs.forEach((msg: any) => {
+                // Show messages targeted at this seller, or from this seller, or general admin messages
+                const isForSeller = msg.target_user_id === sellerId || msg.target_user_email === sellerEmail || msg.source === 'ziva_escalation';
+                if (isForSeller || msg.source === 'dispute_admin') {
+                    convos.push({
+                        id: `sup-${msg.id}`,
+                        type: "support",
+                        customer_name: msg.user_name || "FairPrice Support",
+                        product_name: msg.subject || "Support",
+                        preview: msg.message?.substring(0, 80) || "New message",
+                        updated_at: new Date(msg.created_at),
+                        unread: msg.status === "open",
+                        chat_messages: [
+                            { sender: "buyer" as const, text: msg.message || "", timestamp: new Date(msg.created_at) }
+                        ]
+                    });
+                }
             });
+
+            // Fallback: if no real support messages, show a welcome mock
+            if (!convos.some(c => c.type === "support")) {
+                convos.push({
+                    id: "sup-welcome",
+                    type: "support",
+                    customer_name: "FairPrice Support",
+                    product_name: "Welcome",
+                    preview: "Welcome to FairPrice! Your seller account is ready.",
+                    updated_at: new Date(Date.now() - 3600000),
+                    unread: false,
+                    chat_messages: [
+                        { sender: "buyer", text: "Welcome to FairPrice! Your seller account is set up. If you need help listing products or managing your store, reach out anytime.", timestamp: new Date(Date.now() - 3600000) }
+                    ]
+                });
+            }
 
             // If a URL parameter specifies a customer id to message directly
             const params = new URLSearchParams(window.location.search);
@@ -390,7 +414,7 @@ export default function UniversalMessagesPage() {
                         {activeProduct && (
                             <div className="p-3 bg-gray-50/80 border-b border-gray-100 flex gap-4 items-center shrink-0">
                                 <div className="h-12 w-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center p-1 shrink-0 shadow-sm">
-                                    <img src={activeProduct.image_url} alt="" className="max-w-full max-h-full mix-blend-multiply" />
+                                    <img src={activeProduct.image_url || undefined} alt="" className="max-w-full max-h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-[13px] font-bold text-gray-900 truncate">{activeProduct.name}</h4>

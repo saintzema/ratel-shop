@@ -229,7 +229,7 @@ export default function AdminUserDetailPage() {
                     </Button>
                     <Button onClick={() => {
                         if (confirm("Are you sure you want to suspend this account?")) {
-                            DemoStore.updateSeller(id, { status: "suspended" });
+                            DemoStore.updateSeller(id, { status: "frozen" });
                             loadData();
                         }
                     }} variant="outline" className="h-11 px-5 rounded-2xl border-gray-100 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">

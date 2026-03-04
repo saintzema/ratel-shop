@@ -170,11 +170,7 @@ export default function ProductDetailPage() {
         if (matchByName) {
             product = matchByName;
         } else {
-            // Last resort: create a rich placeholder from the URL slug
-            const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-            const nameLower = name.toLowerCase();
-
-            // Smart description generator based on product name keywords
+            // Helper functions for description and specs generation
             const generateDescription = (n: string): string => {
                 const nl = n.toLowerCase();
                 if (/iphone|samsung|galaxy|pixel|redmi|xiaomi|oppo|vivo|phone|smartphone/.test(nl)) {
@@ -201,85 +197,63 @@ export default function ProductDetailPage() {
                 if (/camera|canon|nikon|sony alpha|gopro|drone/.test(nl)) {
                     return `Capture stunning moments with the ${n}. Featuring a high-resolution sensor for sharp, detailed images in any lighting condition, fast autofocus for action shots, and professional-grade video capabilities. Intuitive controls and a bright LCD screen make framing perfect shots effortless. Built for both enthusiasts and professionals who demand exceptional image quality and reliability.`;
                 }
-                // Generic but descriptive fallback
                 return `Discover the ${n} — a premium product carefully selected for quality, durability, and exceptional value. Designed to meet the highest standards with attention to detail and superior craftsmanship. Every unit undergoes rigorous quality checks to ensure you receive a product that exceeds expectations. Backed by our buyer protection guarantee and secure escrow payment system for a worry-free shopping experience.`;
             };
 
-            // Smart specs generator based on product name
             const generateSpecs = (n: string): Record<string, string> => {
                 const nl = n.toLowerCase();
                 if (/iphone/.test(nl)) {
                     const model = nl.includes('pro max') ? 'Pro Max' : nl.includes('pro') ? 'Pro' : 'Standard';
-                    return {
-                        "Display": model === 'Pro Max' ? '6.7" Super Retina XDR OLED' : '6.1" Super Retina XDR OLED',
-                        "Processor": "A17 Pro / A18 Bionic Chip",
-                        "RAM": model === 'Standard' ? "6GB" : "8GB",
-                        "Storage": "256GB",
-                        "Camera": model !== 'Standard' ? "48MP Main + 12MP Ultra Wide + 12MP Telephoto" : "48MP Main + 12MP Ultra Wide",
-                        "Battery": model === 'Pro Max' ? "4,685 mAh" : "3,349 mAh",
-                        "OS": "iOS 18",
-                        "Connectivity": "5G, Wi-Fi 6E, Bluetooth 5.3, NFC",
-                        "Water Resistance": "IP68 (6m, 30min)",
-                        "Biometrics": "Face ID",
-                        "Charging": "USB-C, MagSafe Wireless",
-                        "Weight": model === 'Pro Max' ? "227g" : "187g",
-                    };
+                    return { "Display": model === 'Pro Max' ? '6.7" Super Retina XDR OLED' : '6.1" Super Retina XDR OLED', "Processor": "A17 Pro / A18 Bionic Chip", "RAM": model === 'Standard' ? "6GB" : "8GB", "Storage": "256GB", "Camera": model !== 'Standard' ? "48MP Main + 12MP Ultra Wide + 12MP Telephoto" : "48MP Main + 12MP Ultra Wide", "Battery": model === 'Pro Max' ? "4,685 mAh" : "3,349 mAh", "OS": "iOS 18", "Connectivity": "5G, Wi-Fi 6E, Bluetooth 5.3, NFC", "Biometrics": "Face ID", "Weight": model === 'Pro Max' ? "227g" : "187g" };
                 }
                 if (/samsung|galaxy s2[0-9]/.test(nl)) {
-                    return {
-                        "Display": '6.8" Dynamic AMOLED 2X, 120Hz',
-                        "Processor": "Snapdragon 8 Gen 3",
-                        "RAM": "12GB",
-                        "Storage": "256GB",
-                        "Camera": "200MP Main + 12MP Ultra Wide + 50MP Telephoto + 10MP Periscope",
-                        "Battery": "5,000 mAh",
-                        "OS": "Android 14, One UI 6.1",
-                        "Connectivity": "5G, Wi-Fi 7, Bluetooth 5.3",
-                        "Water Resistance": "IP68",
-                        "Biometrics": "Ultrasonic Fingerprint, Face Recognition",
-                        "Charging": "45W Wired, 15W Wireless",
-                        "Weight": "232g",
-                    };
+                    return { "Display": '6.8" Dynamic AMOLED 2X, 120Hz', "Processor": "Snapdragon 8 Gen 3", "RAM": "12GB", "Storage": "256GB", "Camera": "200MP Main + 12MP Ultra Wide + 50MP Telephoto", "Battery": "5,000 mAh", "OS": "Android 14, One UI 6.1", "Connectivity": "5G, Wi-Fi 7, Bluetooth 5.3", "Biometrics": "Ultrasonic Fingerprint", "Weight": "232g" };
                 }
                 if (/airpods|earbuds|buds/.test(nl)) {
-                    return {
-                        "Driver": "Custom high-excursion driver",
-                        "ANC": "Active Noise Cancellation with Transparency Mode",
-                        "Battery (Buds)": "Up to 6 hours (ANC on)",
-                        "Battery (Case)": "Up to 30 hours total",
-                        "Connectivity": "Bluetooth 5.3",
-                        "Water Resistance": "IPX4 Sweat & Water Resistant",
-                        "Charging": "USB-C, MagSafe Wireless, Qi Compatible",
-                        "Audio Features": "Spatial Audio, Adaptive EQ, Conversation Awareness",
-                        "Microphones": "3 microphones per bud with beamforming",
-                        "Weight": "5.3g per earbud",
-                    };
+                    return { "Driver": "Custom high-excursion driver", "ANC": "Active Noise Cancellation", "Battery (Buds)": "Up to 6 hours", "Battery (Case)": "Up to 30 hours total", "Connectivity": "Bluetooth 5.3", "Water Resistance": "IPX4", "Charging": "USB-C, MagSafe Wireless", "Audio Features": "Spatial Audio, Adaptive EQ", "Weight": "5.3g per earbud" };
                 }
                 if (/macbook|laptop/.test(nl)) {
-                    return {
-                        "Display": '14.2" Liquid Retina XDR, 3024×1964',
-                        "Processor": "Apple M3 Pro / Intel Core i7",
-                        "RAM": "16GB Unified Memory",
-                        "Storage": "512GB SSD",
-                        "GPU": "Integrated 18-core GPU",
-                        "Battery": "Up to 18 hours",
-                        "Keyboard": "Backlit Magic Keyboard",
-                        "Ports": "HDMI, MagSafe, 2x Thunderbolt, SD Card, 3.5mm",
-                        "Webcam": "1080p FaceTime HD Camera",
-                        "Weight": "1.55 kg",
-                        "OS": "macOS Sonoma",
-                    };
+                    return { "Display": '14.2" Liquid Retina XDR', "Processor": "Apple M3 Pro / Intel Core i7", "RAM": "16GB", "Storage": "512GB SSD", "Battery": "Up to 18 hours", "Ports": "HDMI, MagSafe, Thunderbolt, SD Card", "Weight": "1.55 kg", "OS": "macOS Sonoma" };
                 }
-                // Default specs
-                return {
-                    "Brand": n.split(' ')[0],
-                    "Condition": "Brand New — Factory Sealed",
-                    "Warranty": "1 Year Manufacturer Warranty",
-                    "Shipping": "Express Delivery (2-5 Business Days)",
-                    "Returns": "30-Day Return Policy",
-                    "Payment": "Secure Escrow Protection",
-                };
+                return { "Brand": n.split(' ')[0], "Condition": "Brand New — Factory Sealed", "Warranty": "1 Year Manufacturer Warranty", "Shipping": "Express Delivery (2-5 Business Days)", "Returns": "30-Day Return Policy", "Payment": "Secure Escrow Protection" };
             };
+
+            // Check search cache for this product (has real price from global search)
+            const cachedProducts = DemoStore.getAllCachedProducts();
+            const cachedMatch = cachedProducts.find((p: any) => p.id === decodedId) ||
+                cachedProducts.find((p: any) => {
+                    const pName = p.name?.toLowerCase() || '';
+                    return nameTokens.length >= 2 && nameTokens.every((t: string) => pName.includes(t));
+                });
+
+            if (cachedMatch) {
+                // Use cached data for render (persist deferred to useEffect)
+                product = cachedMatch as any;
+            } else {
+                // Check sessionStorage for search results (backup source of truth)
+                let sessionMatch: any = null;
+                if (typeof window !== 'undefined') {
+                    try {
+                        const sessionResults = JSON.parse(sessionStorage.getItem('fp_nav_search_results') || '[]');
+                        sessionMatch = sessionResults.find((p: any) => p.id === decodedId) ||
+                            sessionResults.find((p: any) => {
+                                const pName = p.name?.toLowerCase() || '';
+                                return nameTokens.length >= 2 && nameTokens.every((t: string) => pName.includes(t));
+                            });
+                    } catch { }
+                }
+
+                if (sessionMatch && sessionMatch.price > 0) {
+                    product = {
+                        ...sessionMatch,
+                        id: decodedId,
+                        description: sessionMatch.description || generateDescription(sessionMatch.name || namePart.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')),
+                        specs: sessionMatch.specs && Object.keys(sessionMatch.specs).length > 0 ? sessionMatch.specs : generateSpecs(sessionMatch.name || namePart),
+                        is_active: true,
+                    } as any;
+                } else {
+            // Last resort: create a rich placeholder from the URL slug
+            const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
             product = {
                 id: decodedId,
@@ -302,9 +276,8 @@ export default function ProductDetailPage() {
                 specs: generateSpecs(name),
             } as any;
 
-            // Auto-persist to DemoStore so it appears in admin catalog
-            if (typeof window !== 'undefined') {
-                DemoStore.addRawProduct(product as any);
+            // Persist deferred to useEffect below
+                }
             }
         }
     }
@@ -364,19 +337,19 @@ export default function ProductDetailPage() {
 
         const seed = Array.from(product?.id || "default").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-        const names = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
+        const allNames = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
 
         const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
         const bodies5 = [
             `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid deal in Lagos.`,
             `I was skeptical at first about buying the ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.`,
-            `Bought the ${pName} as a gift and they haven't stopped talking about it. Best deal I could find online across Jumia and Konga.`,
-            `Works perfectly and the build quality is top notch. FairPrice escrow gave me peace of mind.`,
+            `Bought the ${pName} as a gift and they haven't stopped talking about it. Best deal I could find anywhere online.`,
+            `Works perfectly and the build quality is top notch. FairPrice escrow gave me peace of mind throughout the process.`,
             `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
             `Seriously impressed with the delivery service. For the price, you can't get anything better. Tested and trusted.`,
-            `I've been using the ${pName} for a week now and it hasn't given me any headache. Solid purchase.`,
+            `I've been using the ${pName} for a week now and it hasn't given me any headache. Solid purchase all round.`,
             `My people, if you need a reliable ${pCatDisplay} product, just buy it. You won't regret it. The quality shock me.`,
-            `Omo I no go lie, this ${pName} is sharp. It's exactly as described and works flawlessly.`
+            `Omo I no go lie, this ${pName} is sharp. It's exactly as described and works flawlessly. Big ups to FairPrice.`
         ];
 
         const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
@@ -393,13 +366,39 @@ export default function ProductDetailPage() {
             return Math.floor(scatter) % max;
         };
 
+        // Shuffle names deterministically based on seed to guarantee uniqueness
+        const shuffledNames = [...allNames].sort((a, b) => {
+            const ha = Math.abs(Math.sin(seed + a.charCodeAt(0)));
+            const hb = Math.abs(Math.sin(seed + b.charCodeAt(0)));
+            return ha - hb;
+        });
+
         productReviews = [];
+        const usedBodyIndices5 = new Set<number>();
+        const usedBodyIndices4 = new Set<number>();
+        const usedTitleIndices5 = new Set<number>();
+        const usedTitleIndices4 = new Set<number>();
+
         for (let i = 0; i < 5; i++) {
             const isFiveStar = getPseudoRandom(i, 10) > 3; // 70% chance of 5 stars
             const rating = isFiveStar ? 5 : 4;
-            const name = names[getPseudoRandom(i + 10, names.length)];
+            // Unique name: pick from shuffled array by index (guaranteed unique for 5 reviews)
+            const name = shuffledNames[i % shuffledNames.length];
+
             const titleList = isFiveStar ? titles5 : titles4;
             const bodyList = isFiveStar ? bodies5 : bodies4;
+            const usedTitles = isFiveStar ? usedTitleIndices5 : usedTitleIndices4;
+            const usedBodies = isFiveStar ? usedBodyIndices5 : usedBodyIndices4;
+
+            // Pick unique title
+            let titleIdx = getPseudoRandom(i + 20, titleList.length);
+            while (usedTitles.has(titleIdx) && usedTitles.size < titleList.length) { titleIdx = (titleIdx + 1) % titleList.length; }
+            usedTitles.add(titleIdx);
+
+            // Pick unique body
+            let bodyIdx = getPseudoRandom(i + 30, bodyList.length);
+            while (usedBodies.has(bodyIdx) && usedBodies.size < bodyList.length) { bodyIdx = (bodyIdx + 1) % bodyList.length; }
+            usedBodies.add(bodyIdx);
 
             productReviews.push({
                 id: `gen_r${seed}_${i}`,
@@ -407,8 +406,8 @@ export default function ProductDetailPage() {
                 user_id: `u${getPseudoRandom(i, 1000)}`,
                 user_name: name,
                 rating,
-                title: titleList[getPseudoRandom(i + 20, titleList.length)],
-                body: bodyList[getPseudoRandom(i + 30, bodyList.length)],
+                title: titleList[titleIdx],
+                body: bodyList[bodyIdx],
                 verified_purchase: true,
                 helpful_count: getPseudoRandom(i + 40, 50),
                 images: [],
@@ -457,6 +456,14 @@ export default function ProductDetailPage() {
     useEffect(() => {
         setMounted(true);
         if (product) {
+            // Persist global products to DemoStore AFTER render (avoids setState-during-render)
+            const isGlobal = product.id?.startsWith('global-') || product.id?.startsWith('global_') || product.seller_id === 'global-partners';
+            if (isGlobal) {
+                const existing = DemoStore.getProducts().find(p => p.id === product.id);
+                if (!existing) {
+                    DemoStore.addRawProduct(product as any);
+                }
+            }
 
             // Save to Browsing History
             try {
@@ -465,10 +472,7 @@ export default function ProductDetailPage() {
                 console.error("Failed to save browsing history", e);
             }
         } else {
-            // Optional: simulate a slight network delay before showing 404
-            const timer = setTimeout(() => {
-                // Not doing anything here now
-            }, 800);
+            const timer = setTimeout(() => {}, 800);
             return () => clearTimeout(timer);
         }
     }, [product]);
@@ -1156,19 +1160,12 @@ export default function ProductDetailPage() {
                             <div className="p-5 flex flex-col gap-5">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-xs text-gray-500 font-medium">Total Price</span>
-                                    {isFetchingGlobalData ? (
-                                        <div className="flex items-center gap-2 mt-1 mb-2">
-                                            <div className="h-6 w-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-                                            <span className="text-sm font-bold text-gray-500">Calculating...</span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <span className="text-3xl font-black text-emerald-500">{formatPrice(product.price * quantity)}</span>
-                                            {(product.original_price || 0) > 0 && (
-                                                <span className="text-sm text-gray-800 line-through font-medium">{formatPrice((product.original_price || 0) * quantity)}</span>
-                                            )}
-                                        </>
-                                    )}
+                                    <>
+                                        <span className="text-3xl font-black text-emerald-500">{formatPrice(product.price * quantity)}</span>
+                                        {(product.original_price || 0) > product.price && (
+                                            <span className="text-sm text-gray-800 line-through font-medium">{formatPrice((product.original_price || 0) * quantity)}</span>
+                                        )}
+                                    </>
                                 </div>
 
                                 {/* FairPrice Intelligence */}

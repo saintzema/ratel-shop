@@ -23,6 +23,7 @@ import {
     ExternalLink,
     Sparkles,
     AlertTriangle,
+    MessageCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -285,6 +286,13 @@ function OrdersContent() {
 
                                                     {/* Actions */}
                                                     <div className="flex justify-end gap-1">
+                                                        <button
+                                                            onClick={() => { setConciergeOrder(order); setConciergeMode("post_order"); setShowConcierge(true); }}
+                                                            className="text-[11px] font-semibold text-blue-500 hover:text-blue-700 hover:cursor-pointer px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                                            title="Chat with Order Concierge"
+                                                        >
+                                                            <MessageCircle className="h-3.5 w-3.5" />
+                                                        </button>
                                                         {(order.status === "pending" || order.status === "processing") && (
                                                             <button
                                                                 onClick={() => handleCancelOrder(order.id)}
@@ -345,6 +353,9 @@ function OrdersContent() {
                                                         <span className="text-sm font-bold text-gray-900">{formatPrice(order.amount)}</span>
                                                     </div>
                                                     <div className="flex gap-2">
+                                                        <Button size="sm" variant="outline" onClick={() => { setConciergeOrder(order); setConciergeMode("post_order"); setShowConcierge(true); }} className="text-xs rounded-lg font-semibold border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent px-2" title="Chat">
+                                                            <MessageCircle className="h-3 w-3 mr-1" /> Chat
+                                                        </Button>
                                                         {(order.status === "pending" || order.status === "processing") && (
                                                             <Button size="sm" variant="outline" onClick={() => handleCancelOrder(order.id)} className="flex-1 text-xs rounded-lg font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 bg-transparent px-1">
                                                                 Cancel

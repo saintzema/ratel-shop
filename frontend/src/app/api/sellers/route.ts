@@ -7,7 +7,7 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const includeInactive = searchParams.get("all") === "true";
 
-        const whereClause = includeInactive ? {} : { status: "active" };
+        const whereClause = includeInactive ? {} : { status: "active" as const };
 
         const sellers = await db.seller.findMany({
             where: whereClause,

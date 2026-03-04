@@ -97,6 +97,7 @@ export function Navbar() {
     const [globalResults, setGlobalResults] = useState<{ name: string; category: string; approxPrice: number; sourceUrl?: string }[]>([]);
     const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+    const [cachedResults, setCachedResults] = useState<any[]>([]);
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
     const { totalUnread, openMessageBox } = useMessages();
@@ -183,9 +184,9 @@ export function Navbar() {
             const allSearchProducts = [...storeProducts, ...DEMO_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
             const scored = allSearchProducts
                 .map(p => ({ product: p, score: scoreProduct(p, q) }))
-                .filter(s => s.score > 30)
+                .filter(s => s.score > 45)
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 3);
+                .slice(0, 2);
             setSuggestions(scored.map(s => s.product));
 
             // Category suggestions
@@ -236,6 +237,10 @@ export function Navbar() {
             }
             setAutocompleteSuggestions(autoSuggs.slice(0, 4));
 
+            // Instantly show fuzzy-matched cached results from past searches
+            const cached = DemoStore.searchCacheFuzzyMatch(searchQuery);
+            setCachedResults(cached.filter(c => !suggestions.some(s => s.id === c.id)));
+
             setShowSuggestions(true);
             setActiveIndex(-1);
         } else {
@@ -244,6 +249,7 @@ export function Navbar() {
             setGlobalResults([]);
             setIsGlobalSearching(false);
             setAutocompleteSuggestions([]);
+            setCachedResults([]);
             setShowSuggestions(false);
         }
     }, [searchQuery]);
@@ -280,25 +286,19 @@ export function Navbar() {
         };
     }, [searchQuery]);
 
-    // Helper: Only save the CLICKED product to DemoStore and navigate to search page
+    // Helper: Save results to search cache and navigate. Only promote the clicked product to catalog.
     const navigateWithResults = (clickedProductId: string) => {
-        // Build product objects from global results (without saving all of them)
-        const globalAsProducts = globalResults.map((r: any, i: number) => {
+        // Build product objects from global results
+        const globalAsProducts = globalResults.map((r: any) => {
             const slug = r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             const productId = `global-${slug}`;
 
-            // Sanitize image URL: strip broken Vertex AI grounding URLs
             let imageUrl = r.image_url || '';
             if (imageUrl.includes('vertexaisearch.cloud.google.com') || imageUrl.includes('grounding-api-redirect')) {
                 imageUrl = '/assets/images/placeholder.png';
             }
             if (!imageUrl || imageUrl.toLowerCase().includes('no photo') || imageUrl.toLowerCase().includes('n/a')) {
                 imageUrl = '/assets/images/placeholder.png';
-            }
-
-            const existing = DemoStore.getProducts().find(p => p.id === productId);
-            if (existing) {
-                return existing;
             }
 
             return {
@@ -325,24 +325,34 @@ export function Navbar() {
             };
         });
 
+        // Save ALL results to search cache (for fast future retrieval)
+        if (globalAsProducts.length > 0) {
+            DemoStore.addToSearchCache(searchQuery, globalAsProducts);
+        }
+
         // Resolve __global_ prefix to actual product ID
         let resolvedClickedId = clickedProductId;
         if (clickedProductId.startsWith('__global_')) {
             const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
             if (globalAsProducts[idx]) {
                 resolvedClickedId = globalAsProducts[idx].id;
-                // ONLY save the clicked product to DemoStore (not all results)
-                const clickedProduct = globalAsProducts[idx];
-                const alreadyExists = DemoStore.getProducts().find(p => p.id === clickedProduct.id);
-                if (!alreadyExists) {
-                    DemoStore.addRawProduct(clickedProduct as any);
-                }
+                // ONLY promote the clicked product from cache to catalog
+                DemoStore.promoteFromCache(resolvedClickedId) ||
+                    DemoStore.addRawProduct(globalAsProducts[idx] as any);
+            }
+        } else if (clickedProductId.startsWith('__cached_')) {
+            const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
+            if (cachedResults[idx]) {
+                resolvedClickedId = cachedResults[idx].id;
+                // Promote the cached result to catalog
+                DemoStore.promoteFromCache(resolvedClickedId);
             }
         }
 
-        // Build combined results for session cache (for search page display)
+        // Build combined results for session cache
         const combinedResults = [
             ...suggestions.map(p => ({ ...p, _source: 'local' })),
+            ...cachedResults.map(p => ({ ...p, _source: 'cached' })),
             ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
         ];
 
@@ -350,7 +360,7 @@ export function Navbar() {
             sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
             sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
             sessionStorage.setItem('fp_nav_search_query', searchQuery);
-        } catch (e) { /* quota exceeded — fail silently */ }
+        } catch (e) { /* quota exceeded */ }
 
         setShowSuggestions(false);
         router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
@@ -679,7 +689,39 @@ export function Navbar() {
                                         );
                                     })}
 
-                                    {/* Global Search Results (from Gemini API) */}
+                                    {/* Cached Results from Past Searches (instant) */}
+                                    {cachedResults.length > 0 && !isGlobalSearching && globalResults.length === 0 && (
+                                        <div className="border-t border-gray-100">
+                                            <div className="px-4 py-2 flex items-center gap-2 text-xs font-black text-blue-700 uppercase tracking-wider">
+                                                <History className="h-3.5 w-3.5 text-blue-500" />
+                                                PREVIOUSLY FOUND
+                                            </div>
+                                            {cachedResults.slice(0, 4).map((result: any, i: number) => (
+                                                <button
+                                                    key={result.id || i}
+                                                    onClick={() => navigateWithResults(`__cached_${i}`)}
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-blue-50/30 text-left"
+                                                >
+                                                    <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
+                                                        <img
+                                                            src={result.image_url || '/assets/images/placeholder.png'}
+                                                            alt={result.name}
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col flex-1 min-w-0">
+                                                        <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className="text-xs font-bold text-blue-600">₦{result.price?.toLocaleString()}</span>
+                                                            <span className="text-[11px] text-blue-500/80">Cached Result</span>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded uppercase shrink-0 border border-blue-100">CACHED</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}                                    {/* Global Search Results (from Gemini API) */}
                                     {isGlobalSearching && (
                                         <div className="border-t border-emerald-50 px-4 py-3">
                                             <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mb-2">

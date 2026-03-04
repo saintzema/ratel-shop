@@ -418,7 +418,7 @@ export default function EscrowManagement() {
                                                                         <p><span className="font-bold text-gray-500">Date:</span> <span className="font-medium">{new Date(order.created_at).toLocaleString()}</span></p>
                                                                         <p><span className="font-bold text-gray-500">Status:</span> <span className="font-medium">{order.status}</span></p>
                                                                         <p><span className="font-bold text-gray-500">Amount:</span> <span className="font-black text-gray-900">₦{order.amount.toLocaleString()}</span></p>
-                                                                        {order.delivery_address && <p><span className="font-bold text-gray-500">Delivery:</span> <span className="font-medium">{order.delivery_address}</span></p>}
+                                                                        {order.shipping_address && <p><span className="font-bold text-gray-500">Delivery:</span> <span className="font-medium">{order.shipping_address}</span></p>}
                                                                     </div>
                                                                 </div>
                                                                 <div className="space-y-3">

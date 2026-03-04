@@ -11,7 +11,7 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: "Seller ID required" }, { status: 400 });
         }
 
-        const discounts = await db.discount.findMany({
+        const discounts = await (db as any).discount.findMany({
             where: { sellerId },
             orderBy: { createdAt: "desc" },
         });
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
         }
 
-        const discount = await db.discount.create({
+        const discount = await (db as any).discount.create({
             data: {
                 code: code.toUpperCase(),
                 type: type.toLowerCase(),

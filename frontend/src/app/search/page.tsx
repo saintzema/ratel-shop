@@ -540,10 +540,14 @@ function SearchContent() {
 
   // Build the combined current view array
   const combinedCurrentResults = useMemo(() => {
+    const seenIds = new Set<string>();
     const uniqueLocalProducts = paginatedProducts.filter(
       (p) => !navResults.some((n: any) => n.id === p.id),
     );
     const combined = [...navResults, ...uniqueLocalProducts];
+
+    // Track all IDs already in the combined array
+    combined.forEach(p => seenIds.add(p.id));
 
     // Ensure the clicked NavSearch item is placed at the absolute front of the result queue
     if (navClickedId) {
@@ -597,10 +601,14 @@ function SearchContent() {
 
         return product;
       });
-      const uniqueGlobal = mappedGlobal.filter(
-        (g) =>
-          !combined.some((c) => c.name.toLowerCase() === g.name.toLowerCase()),
-      );
+      // Deduplicate by both ID and name internally as well as externally
+      const uniqueGlobal: any[] = [];
+      for (const g of mappedGlobal) {
+        if (!seenIds.has(g.id) && !combined.some((c) => c.name.toLowerCase() === g.name.toLowerCase())) {
+          seenIds.add(g.id);
+          uniqueGlobal.push(g);
+        }
+      }
       combined.push(...uniqueGlobal);
     }
     return combined;

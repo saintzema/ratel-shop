@@ -36,8 +36,8 @@ export default function NegotiationsPage() {
 
         const loadData = () => {
             const all = DemoStore.getNegotiations();
-            // Show negotiations belonging to the logged-in user AND legacy demo data ("u1")
-            const myNegotiations = all.filter(n => n.customer_id === userId);
+            // Show negotiations belonging to the logged-in user (match by id OR email)
+            const myNegotiations = all.filter(n => n.customer_id === userId || n.customer_id === user?.email || n.customer_id === user?.id);
             setNegotiations(myNegotiations);
             setProducts(DemoStore.getProducts());
         };

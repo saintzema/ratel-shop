@@ -35,8 +35,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 export default function CatalogControl() {
     const [searchTerm, setSearchTerm] = useState("");
-    const [filter, setFilter] = useState<"all" | "flagged" | "fair" | "global">("all");
+    const [filter, setFilter] = useState<"all" | "flagged" | "fair" | "global" | "cache">("all");
     const [products, setProducts] = useState<any[]>([]);
+    const [cachedProducts, setCachedProducts] = useState<any[]>([]);
+    const [editingCacheProduct, setEditingCacheProduct] = useState<any | null>(null);
+    const [cacheEditFields, setCacheEditFields] = useState<{ name: string; price: string; image_url: string; description: string }>({ name: '', price: '', image_url: '', description: '' });
 
     // Edit Modal State
     const [editingProduct, setEditingProduct] = useState<any | null>(null);
@@ -74,11 +77,15 @@ export default function CatalogControl() {
             setProducts(all);
         };
         load();
+        const loadCache = () => setCachedProducts(DemoStore.getAllCachedProducts());
+        loadCache();
         window.addEventListener("storage", load);
         window.addEventListener("demo-store-update", load);
+        window.addEventListener("demo-store-update", loadCache);
         return () => {
             window.removeEventListener("storage", load);
             window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("demo-store-update", loadCache);
         };
     }, []);
 
@@ -200,18 +207,18 @@ export default function CatalogControl() {
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="bg-white p-1.5 rounded-2xl border border-gray-100 flex gap-1">
-                        {(["all", "global", "flagged", "fair"] as const).map((v) => (
+                        {(["all", "global", "cache", "flagged", "fair"] as const).map((v) => (
                             <button
                                 key={v}
                                 onClick={() => setFilter(v)}
                                 className={cn(
                                     "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
                                     filter === v
-                                        ? "bg-indigo-600 text-white shadow-lg"
+                                        ? v === 'cache' ? "bg-blue-600 text-white shadow-lg" : "bg-indigo-600 text-white shadow-lg"
                                         : "text-gray-400 hover:text-gray-600"
                                 )}
                             >
-                                {v}
+                                {v === 'cache' ? `Cache (${cachedProducts.length})` : v}
                             </button>
                         ))}
                     </div>
@@ -233,154 +240,241 @@ export default function CatalogControl() {
                 </Button>
             </div>
 
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="border-b border-gray-100 bg-gray-50/50">
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product Reference</th>
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Pricing Model</th>
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Origin / Seller</th>
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Trust Status</th>
-                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filtered.map((p) => {
-                                const isGlobal = p.seller_name.toLowerCase().includes("global store");
-                                return (
-                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="px-6 py-4 align-middle">
-                                            <div className="flex items-center gap-4">
-                                                <div className="h-16 w-16 rounded-2xl border border-gray-100 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1 relative">
-                                                    <img src={p.image_url} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" />
-                                                    {p.price_flag !== "fair" && (
-                                                        <div className="absolute top-1 left-1">
-                                                            <div className="h-2 w-2 rounded-full bg-rose-500 shadow-sm"></div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="min-w-0 max-w-[200px] lg:max-w-xs group/edit relative flex flex-col">
-                                                    {inlineEditId === p.id ? (
-                                                        <div className="flex items-center gap-1 mt-1">
-                                                            <input
-                                                                type="text"
-                                                                value={inlineEditName}
-                                                                onChange={(e) => setInlineEditName(e.target.value)}
-                                                                className="w-full text-sm font-bold text-gray-900 border border-indigo-300 rounded px-1 min-w-[150px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                                                                autoFocus
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        DemoStore.updateProduct(p.id, { name: inlineEditName });
-                                                                        setInlineEditId(null);
-                                                                    } else if (e.key === 'Escape') setInlineEditId(null);
-                                                                }}
-                                                            />
-                                                            <button onClick={() => { DemoStore.updateProduct(p.id, { name: inlineEditName }); setInlineEditId(null); }} className="text-emerald-600 hover:text-emerald-700">
-                                                                <CheckCircle2 className="h-4 w-4" />
-                                                            </button>
-                                                            <button onClick={() => setInlineEditId(null)} className="text-gray-400 hover:text-gray-600">
-                                                                <X className="h-4 w-4" />
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            <Link href={`/product/${p.id}`} className="hover:underline flex-1 truncate">
-                                                                <p className="font-bold text-gray-900 text-sm truncate" title={p.name}>{p.name}</p>
-                                                            </Link>
-                                                            <button onClick={() => { setInlineEditId(p.id); setInlineEditName(p.name); }} className="opacity-0 group-hover/edit:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity p-1 bg-white rounded shadow-sm border border-gray-100 shrink-0">
-                                                                <Edit className="h-3 w-3" />
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{p.category}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 align-middle">
-                                            <p className="text-base font-black text-gray-900">₦{p.price.toLocaleString()}</p>
-                                            {p.original_price && (
-                                                <p className="text-[11px] text-gray-400 font-bold line-through mt-0.5">₦{p.original_price.toLocaleString()}</p>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 align-middle">
-                                            <div className="flex items-center gap-2">
-                                                {isGlobal ? <Globe className="h-4 w-4 text-blue-500" /> : <Box className="h-4 w-4 text-gray-400" />}
-                                                <p className={cn("text-xs font-bold", isGlobal ? "text-blue-700" : "text-gray-600")}>
-                                                    {p.seller_name}
-                                                </p>
-                                            </div>
-                                        </td>
-                                        <td className="px-6 py-4 align-middle">
-                                            {isGlobal && p.external_url ? (
-                                                <a href={p.external_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors truncate max-w-[150px]" title={p.external_url}>
-                                                    <ExternalLink className="h-3 w-3 shrink-0" />
-                                                    View Source
-                                                </a>
-                                            ) : (
-                                                <span className={cn(
-                                                    "text-[10px] font-black uppercase px-2.5 py-1 rounded-full inline-flex items-center gap-1",
-                                                    p.price_flag === "fair" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
-                                                        p.price_flag === "too_low" ? "bg-rose-50 text-rose-600 border border-rose-100" : "bg-amber-50 text-amber-600 border border-amber-100"
-                                                )}>
-                                                    {p.price_flag === "too_low" && <AlertCircle className="h-3 w-3" />}
-                                                    {p.price_flag === "fair" && <CheckCircle2 className="h-3 w-3" />}
-                                                    {p.price_flag}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 align-middle text-right">
-                                            <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                                <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
-                                                    <Link href={`/product/${p.id}`} target="_blank">
-                                                        <Eye className="h-4 w-4" />
-                                                    </Link>
-                                                </Button>
-                                                <Button
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    className="h-8 w-8 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
-                                                    title="Edit product"
-                                                    onClick={() => {
-                                                        setEditingProduct(p);
-                                                        setEditName(p.name);
-                                                        setEditCategory(p.category || "");
-                                                        setEditSubcategory(p.subcategory || "");
-                                                        setEditColors(p.colors ? p.colors.join(", ") : "");
-                                                        setEditDescription(p.description || "");
-                                                        setEditSpecs(p.specs ? Object.entries(p.specs).map(([key, value]) => ({ key, value: String(value) })) : []);
-                                                        setEditPrice(p.price.toString());
-                                                        setEditOriginalPrice(p.original_price?.toString() || "");
-                                                        setEditImage(p.image_url);
-                                                        setEditExternalUrl(p.external_url || "");
-                                                        setEditImages(p.images?.join(", ") || "");
-                                                    }}
-                                                >
-                                                    <Edit2 className="h-4 w-4" />
-                                                </Button>
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors" onClick={() => handleDelete(p.id)} title="Remove product">
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-
-                {filtered.length === 0 && (
-                    <div className="py-24 text-center bg-gray-50/50">
-                        <div className="h-16 w-16 bg-white border border-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-                            <Box className="h-8 w-8 text-gray-300" />
+            {/* ════════ SEARCH CACHE TAB ════════ */}
+            {filter === 'cache' ? (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50 flex items-center justify-between">
+                        <div>
+                            <h3 className="text-sm font-black text-blue-900">Search Result Cache</h3>
+                            <p className="text-xs text-blue-600/70 mt-0.5">Products found via global search. Edit details and promote to your public catalog.</p>
                         </div>
-                        <h3 className="text-lg font-black text-gray-900 mt-1">No products found</h3>
-                        <p className="text-sm text-gray-400 font-bold uppercase tracking-wider mt-1">Try adjusting your filters or search term</p>
+                        <span className="text-xs font-black text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full">{cachedProducts.length} cached</span>
                     </div>
-                )}
-            </div>
+                    {cachedProducts.length === 0 ? (
+                        <div className="px-6 py-16 text-center">
+                            <Globe className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                            <p className="text-sm font-bold text-gray-400">No cached search results yet.</p>
+                            <p className="text-xs text-gray-400 mt-1">Products will appear here when users search via the global search.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-100">
+                            {cachedProducts.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((p: any) => (
+                                <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors group">
+                                    <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
+                                        <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-xs font-bold text-blue-600">₦{p.price?.toLocaleString()}</span>
+                                            <span className="text-[10px] text-gray-400">·</span>
+                                            <span className="text-[10px] text-gray-400 uppercase">{p.category}</span>
+                                            {p.cache_query && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">Query: "{p.cache_query}"</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => { setEditingCacheProduct(p); setCacheEditFields({ name: p.name, price: String(p.price || 0), image_url: p.image_url || '', description: p.description || '' }); }}
+                                            className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                        >
+                                            <Edit2 className="h-3 w-3 inline mr-1" />Edit
+                                        </button>
+                                        <button
+                                            onClick={() => { DemoStore.promoteFromCache(p.id); DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); }}
+                                            className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                                        >
+                                            <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
+                                        </button>
+                                        <button
+                                            onClick={() => { if (confirm('Remove from cache?')) { DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); } }}
+                                            className="px-2 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
 
+                    {/* Cache Edit Modal */}
+                    <Dialog open={!!editingCacheProduct} onOpenChange={() => setEditingCacheProduct(null)}>
+                        <DialogContent className="max-w-lg">
+                            <DialogHeader>
+                                <DialogTitle className="text-lg font-black">Edit Cached Product</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 py-2">
+                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Product Name</label><Input value={cacheEditFields.name} onChange={e => setCacheEditFields(p => ({ ...p, name: e.target.value }))} /></div>
+                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="number" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
+                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
+                                {cacheEditFields.image_url && <img src={cacheEditFields.image_url} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
+                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Description</label><textarea className="w-full border rounded-lg p-2 text-sm min-h-[80px]" value={cacheEditFields.description} onChange={e => setCacheEditFields(p => ({ ...p, description: e.target.value }))} /></div>
+                            </div>
+                            <DialogFooter className="gap-2">
+                                <Button variant="outline" onClick={() => setEditingCacheProduct(null)}>Cancel</Button>
+                                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => {
+                                    DemoStore.updateSearchCacheProduct(editingCacheProduct.id, {
+                                        name: cacheEditFields.name,
+                                        price: parseFloat(cacheEditFields.price) || 0,
+                                        image_url: cacheEditFields.image_url,
+                                        description: cacheEditFields.description,
+                                    });
+                                    setCachedProducts(DemoStore.getAllCachedProducts());
+                                    setEditingCacheProduct(null);
+                                }}>Save Changes</Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            ) : (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="border-b border-gray-100 bg-gray-50/50">
+                                    <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product Reference</th>
+                                    <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Pricing Model</th>
+                                    <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Origin / Seller</th>
+                                    <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Trust Status</th>
+                                    <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filtered.map((p) => {
+                                    const isGlobal = p.seller_name.toLowerCase().includes("global store");
+                                    return (
+                                        <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                                            <td className="px-6 py-4 align-middle">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="h-16 w-16 rounded-2xl border border-gray-100 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1 relative">
+                                                        <img src={p.image_url || undefined} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                        {p.price_flag !== "fair" && (
+                                                            <div className="absolute top-1 left-1">
+                                                                <div className="h-2 w-2 rounded-full bg-rose-500 shadow-sm"></div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="min-w-0 max-w-[200px] lg:max-w-xs group/edit relative flex flex-col">
+                                                        {inlineEditId === p.id ? (
+                                                            <div className="flex items-center gap-1 mt-1">
+                                                                <input
+                                                                    type="text"
+                                                                    value={inlineEditName}
+                                                                    onChange={(e) => setInlineEditName(e.target.value)}
+                                                                    className="w-full text-sm font-bold text-gray-900 border border-indigo-300 rounded px-1 min-w-[150px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                                                    autoFocus
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') {
+                                                                            DemoStore.updateProduct(p.id, { name: inlineEditName });
+                                                                            setInlineEditId(null);
+                                                                        } else if (e.key === 'Escape') setInlineEditId(null);
+                                                                    }}
+                                                                />
+                                                                <button onClick={() => { DemoStore.updateProduct(p.id, { name: inlineEditName }); setInlineEditId(null); }} className="text-emerald-600 hover:text-emerald-700">
+                                                                    <CheckCircle2 className="h-4 w-4" />
+                                                                </button>
+                                                                <button onClick={() => setInlineEditId(null)} className="text-gray-400 hover:text-gray-600">
+                                                                    <X className="h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <Link href={`/product/${p.id}`} className="hover:underline flex-1 truncate">
+                                                                    <p className="font-bold text-gray-900 text-sm truncate" title={p.name}>{p.name}</p>
+                                                                </Link>
+                                                                <button onClick={() => { setInlineEditId(p.id); setInlineEditName(p.name); }} className="opacity-0 group-hover/edit:opacity-100 text-gray-400 hover:text-indigo-600 transition-opacity p-1 bg-white rounded shadow-sm border border-gray-100 shrink-0">
+                                                                    <Edit className="h-3 w-3" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">{p.category}</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 align-middle">
+                                                <p className="text-base font-black text-gray-900">₦{p.price.toLocaleString()}</p>
+                                                {p.original_price && (
+                                                    <p className="text-[11px] text-gray-400 font-bold line-through mt-0.5">₦{p.original_price.toLocaleString()}</p>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 align-middle">
+                                                <div className="flex items-center gap-2">
+                                                    {isGlobal ? <Globe className="h-4 w-4 text-blue-500" /> : <Box className="h-4 w-4 text-gray-400" />}
+                                                    <p className={cn("text-xs font-bold", isGlobal ? "text-blue-700" : "text-gray-600")}>
+                                                        {p.seller_name}
+                                                    </p>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 align-middle">
+                                                {isGlobal && p.external_url ? (
+                                                    <a href={p.external_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl transition-colors truncate max-w-[150px]" title={p.external_url}>
+                                                        <ExternalLink className="h-3 w-3 shrink-0" />
+                                                        View Source
+                                                    </a>
+                                                ) : (
+                                                    <span className={cn(
+                                                        "text-[10px] font-black uppercase px-2.5 py-1 rounded-full inline-flex items-center gap-1",
+                                                        p.price_flag === "fair" ? "bg-emerald-50 text-emerald-600 border border-emerald-100" :
+                                                            p.price_flag === "too_low" ? "bg-rose-50 text-rose-600 border border-rose-100" : "bg-amber-50 text-amber-600 border border-amber-100"
+                                                    )}>
+                                                        {p.price_flag === "too_low" && <AlertCircle className="h-3 w-3" />}
+                                                        {p.price_flag === "fair" && <CheckCircle2 className="h-3 w-3" />}
+                                                        {p.price_flag}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 align-middle text-right">
+                                                <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                    <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
+                                                        <Link href={`/product/${p.id}`} target="_blank">
+                                                            <Eye className="h-4 w-4" />
+                                                        </Link>
+                                                    </Button>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 rounded-xl hover:bg-emerald-50 hover:text-emerald-600 transition-colors"
+                                                        title="Edit product"
+                                                        onClick={() => {
+                                                            setEditingProduct(p);
+                                                            setEditName(p.name);
+                                                            setEditCategory(p.category || "");
+                                                            setEditSubcategory(p.subcategory || "");
+                                                            setEditColors(p.colors ? p.colors.join(", ") : "");
+                                                            setEditDescription(p.description || "");
+                                                            setEditSpecs(p.specs ? Object.entries(p.specs).map(([key, value]) => ({ key, value: String(value) })) : []);
+                                                            setEditPrice(p.price.toString());
+                                                            setEditOriginalPrice(p.original_price?.toString() || "");
+                                                            setEditImage(p.image_url);
+                                                            setEditExternalUrl(p.external_url || "");
+                                                            setEditImages(p.images?.join(", ") || "");
+                                                        }}
+                                                    >
+                                                        <Edit2 className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors" onClick={() => handleDelete(p.id)} title="Remove product">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {filtered.length === 0 && (
+                        <div className="py-24 text-center bg-gray-50/50">
+                            <div className="h-16 w-16 bg-white border border-gray-100 rounded-3xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                                <Box className="h-8 w-8 text-gray-300" />
+                            </div>
+                            <h3 className="text-lg font-black text-gray-900 mt-1">No products found</h3>
+                            <p className="text-sm text-gray-400 font-bold uppercase tracking-wider mt-1">Try adjusting your filters or search term</p>
+                        </div>
+                    )}
+                </div>
+            )}
             {/* Sync Global Prices Interactive Report Modal */}
             <Dialog open={isSyncModalOpen} onOpenChange={setIsSyncModalOpen}>
                 <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[90vh] flex flex-col">
@@ -455,7 +549,7 @@ export default function CatalogControl() {
                                                         </td>
                                                         <td className="px-5 py-4">
                                                             <div className="flex items-center gap-3">
-                                                                <img src={r.image_url} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" />
+                                                                <img src={r.image_url || undefined} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                                 <p className="text-xs font-bold text-gray-900 line-clamp-2 max-w-[200px]">{r.name}</p>
                                                             </div>
                                                         </td>
@@ -656,6 +750,32 @@ export default function CatalogControl() {
 
                         <DialogFooter className="mt-8 gap-3 sm:gap-0">
                             <Button variant="ghost" onClick={() => setEditingProduct(null)} className="rounded-2xl font-bold uppercase tracking-widest text-xs h-12 text-gray-400">Cancel</Button>
+                            <Button
+                                variant="outline"
+                                className="rounded-2xl font-bold uppercase tracking-widest text-xs h-12 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                                onClick={async () => {
+                                    if (!editName) return;
+                                    setIsGenerating(true);
+                                    try {
+                                        const res = await fetch('/api/gemini-price', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ productName: editName, mode: 'search' })
+                                        });
+                                        if (res.ok) {
+                                            const data = await res.json();
+                                            const best = data.suggestions?.[0];
+                                            if (best?.approxPrice) {
+                                                setEditPrice(String(Math.round(best.approxPrice)));
+                                                setEditOriginalPrice(String(Math.round(best.approxPrice * 1.15)));
+                                            }
+                                        }
+                                    } catch { } finally { setIsGenerating(false); }
+                                }}
+                            >
+                                {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <DollarSign className="h-3.5 w-3.5 mr-1" />}
+                                Best Price
+                            </Button>
                             <Button onClick={handleEditSave} className="rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs h-12 shadow-lg shadow-indigo-500/20 px-8">Update Product</Button>
                         </DialogFooter>
                     </div>

@@ -4,11 +4,12 @@ import { broadcast } from "../../realtime/route";
 
 export async function DELETE(
     req: Request,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const discount = await db.discount.delete({
-            where: { id: params.id },
+        const { id } = await params;
+        const discount = await (db as any).discount.delete({
+            where: { id },
         });
 
         broadcast({ type: "discount_updated", sellerId: discount.sellerId });

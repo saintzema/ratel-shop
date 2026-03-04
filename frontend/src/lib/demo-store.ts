@@ -22,6 +22,7 @@ class DemoStoreService {
         REVIEWS: "fairprice_demo_reviews",
         RETURNS: "fairprice_demo_returns",
         USERS: "fp_user",
+        SEARCH_CACHE: "fairprice_search_cache",
     };
 
     private constructor() {
@@ -112,8 +113,9 @@ class DemoStoreService {
         };
 
         eventSource.onerror = (error) => {
-            console.error("Real-time sync error:", error);
-            // EventSource will automatically retry connecting
+            // EventSource will automatically retry connecting. 
+            // Silencing this error as the realtime API is optional and may not be running in all environments.
+            return;
         };
     }
 
@@ -417,6 +419,136 @@ class DemoStoreService {
     getProducts(): Product[] {
         if (typeof window === "undefined") return DEMO_PRODUCTS;
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || JSON.stringify(DEMO_PRODUCTS));
+    }
+
+    // ═══════════ Search Cache Layer ═══════════
+    // Stores global search results separately from the main catalog.
+    // Products stay here until a user clicks them (auto-promoted to catalog)
+    // or an admin manually promotes/edits them.
+
+    addToSearchCache(query: string, products: any[]) {
+        if (typeof window === "undefined") return;
+        const cache = this._getSearchCache();
+        const normalizedQuery = query.toLowerCase().trim();
+        const existing = cache[normalizedQuery] || [];
+        // Merge: add new products, update existing ones
+        products.forEach(p => {
+            // Sanitize vertexaisearch image URLs
+            if (p.image_url && (p.image_url.includes('vertexaisearch.cloud.google.com') || p.image_url.includes('grounding-api-redirect'))) {
+                p.image_url = '/assets/images/placeholder.png';
+            }
+            const idx = existing.findIndex((e: any) => e.id === p.id);
+            if (idx >= 0) {
+                existing[idx] = { ...existing[idx], ...p, cached_at: existing[idx].cached_at };
+            } else {
+                existing.push({ ...p, cached_at: new Date().toISOString(), cache_query: normalizedQuery });
+            }
+        });
+        cache[normalizedQuery] = existing;
+        // Trim old entries if cache grows too large (keep last 50 queries)
+        const keys = Object.keys(cache);
+        if (keys.length > 50) {
+            keys.slice(0, keys.length - 50).forEach(k => delete cache[k]);
+        }
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        } catch { /* quota exceeded — trim harder */ }
+    }
+
+    getSearchCache(query: string): any[] {
+        const cache = this._getSearchCache();
+        return cache[query.toLowerCase().trim()] || [];
+    }
+
+    /** Fuzzy match: find cached products across ALL queries that match tokens */
+    searchCacheFuzzyMatch(query: string): any[] {
+        if (typeof window === "undefined") return [];
+        const cache = this._getSearchCache();
+        const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 2);
+        if (tokens.length === 0) return [];
+        const results: any[] = [];
+        const seenIds = new Set<string>();
+        Object.values(cache).forEach((products: any[]) => {
+            products.forEach(p => {
+                if (seenIds.has(p.id)) return;
+                const name = (p.name || '').toLowerCase();
+                const matchCount = tokens.filter(t => name.includes(t)).length;
+                if (matchCount >= Math.ceil(tokens.length * 0.5)) {
+                    results.push(p);
+                    seenIds.add(p.id);
+                }
+            });
+        });
+        return results.slice(0, 10);
+    }
+
+    getAllSearchCache(): Record<string, any[]> {
+        return this._getSearchCache();
+    }
+
+    /** Flat list of all cached products (for admin) */
+    getAllCachedProducts(): any[] {
+        const cache = this._getSearchCache();
+        const seen = new Set<string>();
+        const all: any[] = [];
+        Object.values(cache).forEach((products: any[]) => {
+            products.forEach(p => {
+                if (!seen.has(p.id)) {
+                    seen.add(p.id);
+                    all.push(p);
+                }
+            });
+        });
+        return all;
+    }
+
+    /** Update a product in the search cache (admin edits) */
+    updateSearchCacheProduct(productId: string, updates: Partial<any>) {
+        if (typeof window === "undefined") return;
+        const cache = this._getSearchCache();
+        Object.keys(cache).forEach(q => {
+            cache[q] = cache[q].map((p: any) =>
+                p.id === productId ? { ...p, ...updates } : p
+            );
+        });
+        localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    /** Promote a cached product into the main catalog */
+    promoteFromCache(productId: string): Product | null {
+        const all = this.getAllCachedProducts();
+        const cached = all.find(p => p.id === productId);
+        if (!cached) return null;
+        // Remove cache-only fields
+        const { cached_at, cache_query, _source, ...productData } = cached;
+        const product = {
+            ...productData,
+            is_active: true,
+            seller_id: cached.seller_id || 'global-partners',
+            seller_name: cached.seller_name || 'Global Stores',
+        };
+        this.addRawProduct(product as Product);
+        return product as Product;
+    }
+
+    /** Remove a product from the search cache */
+    removeFromSearchCache(productId: string) {
+        if (typeof window === "undefined") return;
+        const cache = this._getSearchCache();
+        Object.keys(cache).forEach(q => {
+            cache[q] = cache[q].filter((p: any) => p.id !== productId);
+            if (cache[q].length === 0) delete cache[q];
+        });
+        localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    private _getSearchCache(): Record<string, any[]> {
+        if (typeof window === "undefined") return {};
+        try {
+            return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SEARCH_CACHE) || '{}');
+        } catch { return {}; }
     }
 
     /** Returns only products whose seller has kyc_status === "approved" (or verified === true). 

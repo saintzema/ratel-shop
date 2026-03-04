@@ -19,6 +19,10 @@ export default function PayoutsPage() {
     const [seller, setSeller] = useState<Seller | undefined>();
     const [savingBank, setSavingBank] = useState(false);
     const [payouts, setPayouts] = useState<any[]>([]);
+    const [editingBank, setEditingBank] = useState(false);
+    const [bankName, setBankName] = useState("");
+    const [accountNumber, setAccountNumber] = useState("");
+    const [accountName, setAccountName] = useState("");
 
     useEffect(() => {
         const sellerId = DemoStore.getCurrentSellerId();
