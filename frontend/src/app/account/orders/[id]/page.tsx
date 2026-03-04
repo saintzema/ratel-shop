@@ -5,7 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, DisputeReason, Dispute, SupportMessage } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, CheckCircle, Clock, MapPin, Phone, ChevronLeft, ShieldCheck, AlertTriangle, MessageSquare, Mail, Star, Download, ThumbsUp } from "lucide-react";
@@ -127,7 +127,7 @@ export default function OrderDetailsPage() {
             </head>
             <body>
                 <h1>Invoice</h1>
-                <p class="subtitle">Order #${order.id} · ${new Date(order.created_at).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })}</p>
+                <p class="subtitle">Order #${order.id} · ${formatDateExact(order.created_at)}</p>
                 <div class="section">
                     <div class="section-title">Product</div>
                     <div class="product">
@@ -354,7 +354,7 @@ export default function OrderDetailsPage() {
                                         <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-1">Your Description</p>
                                         <p className="text-sm text-zinc-700">{existingDispute.description}</p>
                                     </div>
-                                    <p className="text-[10px] text-zinc-400 font-bold">Filed {new Date(existingDispute.created_at).toLocaleDateString()}</p>
+                                    <p className="text-[10px] text-zinc-400 font-bold">Filed {formatDateExact(existingDispute.created_at)}</p>
 
                                     {/* Buyer Resolve Button */}
                                     {existingDispute.status === "open" && (
@@ -402,7 +402,7 @@ export default function OrderDetailsPage() {
                                         <div key={msg.id} className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
                                             <p className="text-xs font-bold text-blue-700 mb-1">{msg.subject}</p>
                                             <p className="text-sm text-gray-700">{msg.message}</p>
-                                            <p className="text-[10px] text-gray-400 mt-2">{new Date(msg.created_at).toLocaleDateString()}</p>
+                                            <p className="text-[10px] text-gray-400 mt-2">{formatDateExact(msg.created_at)}</p>
                                         </div>
                                     ))}
                                 </div>

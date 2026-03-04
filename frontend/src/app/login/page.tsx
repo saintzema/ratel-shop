@@ -35,13 +35,14 @@ export default function UnifiedAuthPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isExistingUser, setIsExistingUser] = useState(false);
+    const [fetchedUser, setFetchedUser] = useState<any>(null);
 
     // Get redirect path
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const redirectPath = searchParams?.get("from") || "/";
 
     // Lookup existing user for OTP login flow
-    const existingUser = (() => {
+    const existingUser = fetchedUser || (() => {
         if (typeof window === "undefined" || !identifier) return null;
         try {
             const registered = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
@@ -119,8 +120,32 @@ export default function UnifiedAuthPage() {
         if (!identifier.trim()) return;
 
         setIsLoading(true);
+        const normalizedId = identifier.toLowerCase().trim();
+
+        try {
+            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`);
+            if (res.ok) {
+                const fetched = await res.json();
+                if (fetched && fetched.email) {
+                    setIsExistingUser(true);
+                    setFetchedUser(fetched);
+
+                    if (fetched.name) {
+                        const parts = fetched.name.split(" ");
+                        setFirstName(parts[0] || "");
+                        setLastName(parts.slice(1).join(" ") || "");
+                    }
+
+                    setStep(fetched.password ? "password_existing" : "password_new");
+                    setIsLoading(false);
+                    return;
+                }
+            }
+        } catch (err) {
+            console.error("Failed to lookup user:", err);
+        }
+
         setTimeout(() => {
-            const normalizedId = identifier.toLowerCase().trim();
             // Check registered users first, then known demo accounts
             const isExisting =
                 checkRegisteredUser(normalizedId) ||

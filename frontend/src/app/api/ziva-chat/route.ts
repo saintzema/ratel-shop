@@ -258,6 +258,7 @@ RULES:
 - Use Nigerian English occasionally (e.g., "Omo", "We gat you", "No wahala")
 - Keep responses concise but informative
 - For complaints or if the user explicitly asks to talk to a human/agent/support/person: YOU MUST set shouldEscalate: true and intent: "escalation"
+- VERY IMPORTANT: If the user asks for a picture or image of a product, DO NOT say you cannot send images. Instead, tell them you are sending the product details and include the exact product name in the suggestedProducts array. The UI will automatically render the product card with its image for them.
 
 After using tools, respond with this JSON structure:
 {
@@ -287,7 +288,10 @@ After using tools, respond with this JSON structure:
             body: JSON.stringify({
                 contents,
                 tools: toolDeclarations,
-                generationConfig: { temperature: 0.7 }
+                generationConfig: {
+                    temperature: 0.7,
+                    responseMimeType: "application/json"
+                }
             })
         });
 

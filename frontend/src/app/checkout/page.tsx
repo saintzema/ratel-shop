@@ -1489,14 +1489,14 @@ function CheckoutContent() {
             {isClient && (
                 <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
                     <RecommendedProducts
-                        products={DemoStore.getProducts().slice(8, 16)}
+                        products={DemoStore.getApprovedProducts().slice(8, 16)}
                         title="Frequently Bought Together"
                         subtitle="Customers also added these items"
                     />
                     <div className="text-center mt-4">
                         {/* You May Also Like — more products from the same or related categories */}
                         {visibleProductsCount > 8 && (() => {
-                            const youMayLike = DemoStore.getProducts()
+                            const youMayLike = DemoStore.getApprovedProducts()
                                 .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
                                 .sort(() => Math.random() - 0.5)
                                 .slice(0, visibleProductsCount - 8);

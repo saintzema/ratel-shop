@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Order, ReturnRequest } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -222,7 +222,7 @@ export default function SellerOrders() {
                                                     </Badge>
                                                 </div>
                                                 <h4 className="font-bold text-sm text-gray-900 mt-1 truncate">{order.product?.name}</h4>
-                                                <p className="text-[11px] text-gray-400">{new Date(order.created_at).toLocaleDateString()} · Qty: 1</p>
+                                                <p className="text-[11px] text-gray-400">{formatDateExact(order.created_at)} · Qty: 1</p>
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-4 shrink-0">

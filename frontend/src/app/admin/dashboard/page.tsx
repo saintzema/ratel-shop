@@ -23,7 +23,7 @@ import {
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatDateExact } from "@/lib/utils";
 
 export default function AdminDashboard() {
     const [stats, setStats] = useState<any>(null);
@@ -364,6 +364,7 @@ export default function AdminDashboard() {
                             <thead>
                                 <tr className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
                                     <th className="px-6 py-3">Order ID</th>
+                                    <th className="px-6 py-3">Date</th>
                                     <th className="px-6 py-3">Customer</th>
                                     <th className="px-6 py-3">Product</th>
                                     <th className="px-6 py-3">Amount</th>
@@ -376,6 +377,9 @@ export default function AdminDashboard() {
                                     <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
                                         <td className="px-6 py-4 font-mono text-xs text-gray-500">
                                             {order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}
+                                        </td>
+                                        <td className="px-6 py-4 text-[11px] text-gray-500 whitespace-nowrap">
+                                            {formatDateExact(order.created_at)}
                                         </td>
                                         <td className="px-6 py-4 font-bold text-gray-900">
                                             {order.customer_id.split('@')[0]}

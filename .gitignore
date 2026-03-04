@@ -7,3 +7,11 @@ dist/
 build/
 .next/
 *.log
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+*.db
+zemaai-service-account.json
+*-service-account.json

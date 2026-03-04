@@ -318,6 +318,17 @@ export function ZivaChat() {
                             const innerParsed = JSON.parse(finalMsg);
                             if (innerParsed.message) data.message = innerParsed.message;
                         } catch { /* keep as-is */ }
+                    } else if (finalMsg.includes('"message"') && finalMsg.includes('"intent"')) {
+                        // Last resort: extract JSON object embedded in text
+                        const jsonMatch = finalMsg.match(/\{[\s\S]*"message"\s*:\s*"[\s\S]*"[\s\S]*\}/);
+                        if (jsonMatch) {
+                            try {
+                                const extracted = JSON.parse(jsonMatch[0]);
+                                if (extracted.message) {
+                                    data = { ...data, ...extracted };
+                                }
+                            } catch { /* keep as-is */ }
+                        }
                     } else {
                         data.message = finalMsg;
                     }
@@ -394,10 +405,49 @@ export function ZivaChat() {
                 }
             }
 
+            // ─── Auto-detect placeholder images & request from seller ───
+            const finalProducts = suggestedProducts.slice(0, 4);
+            const isPlaceholder = (url: string | undefined | null) =>
+                !url || !url.trim() || url.includes('/placeholder') || url.includes('data:image/svg');
+
+            const productsNeedingImages = finalProducts.filter((p: any) => isPlaceholder(p.image_url));
+            let imageRequestNote = "";
+
+            if (productsNeedingImages.length > 0 && user) {
+                const buyerName = user.name || "A Customer";
+                const buyerEmail = user.email || "guest@fairprice.ng";
+
+                productsNeedingImages.forEach((product: any) => {
+                    const sellerId = product.seller_id;
+                    if (!sellerId) return;
+
+                    // Avoid duplicate requests — check if we already sent one this session
+                    const requestKey = `fp_img_req_${product.id}_${buyerEmail}`;
+                    if (typeof window !== "undefined" && sessionStorage.getItem(requestKey)) return;
+
+                    DemoStore.addSupportMessage({
+                        user_name: buyerName,
+                        user_email: buyerEmail,
+                        subject: `📸 Image Request: ${product.name}`,
+                        message: `Hi, I'm ${buyerName} and I'm interested in "${product.name}" but there's no product image available. Could you please upload a photo of this product? It would really help me make a purchase decision. Thank you!`,
+                        source: "image_request",
+                        target_user_id: sellerId,
+                    });
+
+                    if (typeof window !== "undefined") {
+                        sessionStorage.setItem(requestKey, "sent");
+                    }
+                });
+
+                imageRequestNote = productsNeedingImages.length === 1
+                    ? `\n\n📩 **I've also sent a message to the seller requesting a product photo for "${productsNeedingImages[0].name}"** — you'll be notified when they respond!`
+                    : `\n\n📩 **I've sent messages to the sellers requesting product photos for ${productsNeedingImages.length} products** — you'll be notified when they respond!`;
+            }
+
             return {
-                content: data.message,
+                content: data.message + imageRequestNote,
                 intent: data.intent,
-                products: suggestedProducts.slice(0, 4),
+                products: finalProducts,
                 quickActions: []
             };
 
@@ -743,18 +793,45 @@ export function ZivaChat() {
                 productQuery = productQuery.replace(/^the\s+/i, '').trim();
 
                 const allProducts = DemoStore.getProducts();
-                // Multi-token fuzzy match: score products by how many terms match
-                const queryTokens = productQuery.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
-                const matchProduct = allProducts
-                    .map(p => ({
-                        product: p,
-                        score: queryTokens.filter((t: string) => p.name.toLowerCase().includes(t)).length
-                    }))
-                    .filter(m => m.score > 0)
-                    .sort((a, b) => b.score - a.score)[0]?.product
-                    || currentProduct;
+                
+                // First try exact match
+                let matchProduct = allProducts.find(p => p.name.toLowerCase() === productQuery.toLowerCase());
+                
+                // Fallback to Multi-token fuzzy match: score products by how many terms match
+                if (!matchProduct) {
+                    const queryTokens = productQuery.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
+                    matchProduct = allProducts
+                        .map(p => ({
+                            product: p,
+                            score: queryTokens.filter((t: string) => p.name.toLowerCase().includes(t)).length
+                        }))
+                        .filter(m => m.score > 0)
+                        .sort((a, b) => b.score - a.score)[0]?.product;
+                }
+                
+                matchProduct = matchProduct || currentProduct;
 
                 if (matchProduct && offerAmount > 0) {
+                    // Reject obviously unreasonable offers (less than 5% of listed price)
+                    if (matchProduct.price > 0 && offerAmount < matchProduct.price * 0.05) {
+                        setTimeout(() => {
+                            setMessages(prev => [
+                                ...prev.filter(m => m.id !== typingId),
+                                {
+                                    id: `offer_reject_${Date.now()}`,
+                                    role: "assistant",
+                                    content: `😅 Omo, ₦${offerAmount.toLocaleString()} for **${matchProduct.name}** (listed at ₦${matchProduct.price.toLocaleString()}) is too low o! That's only ${Math.round((offerAmount / matchProduct.price) * 100)}% of the price.\n\nPlease make a more reasonable offer — most sellers accept offers within **10-30%** below the listed price. Try again! 💰`,
+                                    quickActions: [
+                                        { label: `💰 Offer ₦${Math.round(matchProduct.price * 0.85).toLocaleString()}`, query: `I want to offer ₦${Math.round(matchProduct.price * 0.85)} for ${matchProduct.name}`, icon: "" },
+                                        { label: `💰 Offer ₦${Math.round(matchProduct.price * 0.75).toLocaleString()}`, query: `I want to offer ₦${Math.round(matchProduct.price * 0.75)} for ${matchProduct.name}`, icon: "" },
+                                    ]
+                                }
+                            ]);
+                            setIsProcessing(false);
+                        }, 1000);
+                        return;
+                    }
+
                     // Save as proper negotiation entry (shows on /account/negotiations)
                     DemoStore.addNegotiation({
                         id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -791,6 +868,25 @@ export function ZivaChat() {
                         ]);
                         setIsProcessing(false);
                     }, 1500);
+                    return;
+                } else if (matchProduct && offerAmount === 0) {
+                    // Handle explicit ₦0 offers
+                    setTimeout(() => {
+                        setMessages(prev => [
+                            ...prev.filter(m => m.id !== typingId),
+                            {
+                                id: `offer_zero_${Date.now()}`,
+                                role: "assistant",
+                                content: `😄 Abeg o, ₦0 no be valid price! 😂 The **${matchProduct.name}** is listed at **₦${matchProduct.price.toLocaleString()}**.\n\nPlease enter a real offer — sellers typically accept offers within **10-30%** below the listed price. What's your best price? 💰`,
+                                products: [matchProduct],
+                                quickActions: [
+                                    { label: `💰 Offer ₦${Math.round(matchProduct.price * 0.85).toLocaleString()}`, query: `I want to offer ₦${Math.round(matchProduct.price * 0.85)} for ${matchProduct.name}`, icon: "" },
+                                    { label: `💰 Offer ₦${Math.round(matchProduct.price * 0.75).toLocaleString()}`, query: `I want to offer ₦${Math.round(matchProduct.price * 0.75)} for ${matchProduct.name}`, icon: "" },
+                                ]
+                            }
+                        ]);
+                        setIsProcessing(false);
+                    }, 1000);
                     return;
                 }
             }
@@ -1011,7 +1107,7 @@ export function ZivaChat() {
                             style={{ background: "linear-gradient(180deg, rgba(15,15,20,1) 0%, rgba(10,10,15,1) 100%)" }}
                         >
                             {messages.map(msg => (
-                                <div key={msg.id} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
+                                <div key={msg.id} data-role={msg.role} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
                                     <div className="max-w-[90%] space-y-2">
                                         {/* Typing indicator */}
                                         {msg.isTyping ? (
@@ -1039,7 +1135,7 @@ export function ZivaChat() {
                                                                 : "bg-white/5 text-gray-200 rounded-bl-none border border-white/5"
                                                     )}
                                                 >
-                                                    {msg.image && msg.image.length > 0 && (
+                                                    {msg.image && msg.image.trim().length > 0 && (
                                                         <img src={msg.image} alt="Uploaded" className="mb-2 rounded-xl max-w-full h-auto max-h-48 object-cover border border-white/10" />
                                                     )}
                                                     {hasTable(msg.content) ? (
@@ -1063,7 +1159,7 @@ export function ZivaChat() {
                                                             >
                                                                 <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
                                                                     <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
-                                                                        {product.image_url ? (
+                                                                        {product.image_url && typeof product.image_url === 'string' && product.image_url.trim() ? (
                                                                             <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                                         ) : (
                                                                             <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">

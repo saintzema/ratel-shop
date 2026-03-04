@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import { DemoStore } from "@/lib/demo-store";
 import { Order } from "@/lib/types";
+import { formatDateExact } from "@/lib/utils";
 
 export default function AdminOrdersTakeoverPage() {
     const [activeTab, setActiveTab] = useState<"all" | "active_chats" | "flagged">("active_chats");
@@ -137,7 +138,7 @@ export default function AdminOrdersTakeoverPage() {
                             <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                                 <div>
                                     <h2 className="font-bold text-lg text-gray-900">{selectedOrder.customer_name || 'Customer'}</h2>
-                                    <p className="text-xs text-gray-500 font-medium">Order: <span className="font-mono text-gray-900">#{selectedOrder.id.substring(0, 8)}</span> • {selectedOrder.product?.name || selectedOrder.product_id}</p>
+                                    <p className="text-xs text-gray-500 font-medium">Order: <span className="font-mono text-gray-900">#{selectedOrder.id.substring(0, 8)}</span> • {selectedOrder.product?.name || selectedOrder.product_id} • {formatDateExact(selectedOrder.created_at)}</p>
                                 </div>
                                 {selectedOrder.zivaActive ? (
                                     <Button onClick={handleTakeover} className="bg-black hover:bg-gray-800 text-white font-bold h-9">

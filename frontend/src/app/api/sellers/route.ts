@@ -29,8 +29,15 @@ export async function GET(req: Request) {
             bank_name: s.bankName,
             account_number: s.accountNumber,
             account_name: s.accountName,
+            store_url: s.storeUrl,
+            location: s.location,
+            weekly_orders: s.weeklyOrders,
+            currencies: s.currencies,
+            staff_count: s.staffCount,
+            physical_stores: s.physicalStores,
             created_at: s.createdAt.toISOString(),
-            owner_email: s.ownerEmail, // and other fields if they exist in schema
+            owner_name: s.ownerName,
+            owner_email: s.ownerEmail,
         }));
 
         return NextResponse.json(mappedSellers);
@@ -81,13 +88,21 @@ export async function POST(req: Request) {
             accountNumber: body.account_number,
             accountName: body.account_name,
             storeUrl: body.store_url,
+            location: body.location,
+            weeklyOrders: body.weekly_orders,
+            currencies: body.currencies || [],
+            staffCount: body.staff_count,
+            physicalStores: body.physical_stores,
             ownerName: body.owner_name || user.name,
             ownerEmail: body.owner_email || user.email,
         };
 
         const seller = await db.seller.upsert({
-            where: { id: sellerData.id },
-            update: sellerData,
+            where: { userId: sellerData.userId },
+            update: {
+                ...sellerData,
+                id: undefined, // Never overwrite the primary key on update
+            },
             create: sellerData,
         });
 

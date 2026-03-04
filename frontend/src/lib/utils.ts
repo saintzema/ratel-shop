@@ -14,6 +14,17 @@ export function formatPrice(amount: number): string {
     }).format(amount);
 }
 
+export function formatDateExact(dateStr: string | number | Date): string {
+    return new Date(dateStr).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true
+    });
+}
+
 export function formatNumber(num: number): string {
     if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
     if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, formatDateExact } from "@/lib/utils";
 import { Order } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -286,7 +286,7 @@ export default function EscrowManagement() {
                                                             {order.customer_name || `Customer ${order.customer_id}`}
                                                         </p>
                                                         <p className="text-[10px] text-gray-300 font-medium">
-                                                            {new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                            {formatDateExact(order.created_at)}
                                                         </p>
                                                     </div>
                                                 </td>

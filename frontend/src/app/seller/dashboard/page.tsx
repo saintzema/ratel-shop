@@ -54,6 +54,7 @@ export default function SellerDashboard() {
                 const newSellerId = `seller_${Math.random().toString(36).substr(2, 9)}`;
                 const newSeller: Seller = {
                     id: newSellerId,
+                    user_id: user.id,
                     business_name: user.name || "My Store",
                     owner_name: user.name || "",
                     owner_email: user.email,
@@ -76,23 +77,29 @@ export default function SellerDashboard() {
 
         if (!sellerId) { router.push("/seller/login"); return; }
 
-        const seller = DemoStore.getCurrentSeller();
-        setCurrentSeller(seller);
-
         const loadData = () => {
-            const allNegs = DemoStore.getNegotiations(sellerId!);
-            setNegotiations(allNegs);
+            const seller = DemoStore.getCurrentSeller();
+            if (seller) {
+                setCurrentSeller(seller);
 
-            const allOrders = DemoStore.getOrders();
-            setOrders(allOrders.filter(o => o.seller_id === sellerId));
+                const allNegs = DemoStore.getNegotiations(seller.id);
+                setNegotiations(allNegs);
 
-            const allProducts = DemoStore.getProducts();
-            setProducts(allProducts.filter(p => p.seller_id === sellerId));
+                const allOrders = DemoStore.getOrders();
+                setOrders(allOrders.filter(o => o.seller_id === seller.id));
+
+                const allProducts = DemoStore.getProducts();
+                setProducts(allProducts.filter(p => p.seller_id === seller.id));
+            }
         };
 
         loadData();
         window.addEventListener("storage", loadData);
-        return () => window.removeEventListener("storage", loadData);
+        window.addEventListener("demo-store-update", loadData);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("demo-store-update", loadData);
+        }
     }, [router, user]);
 
     const handleNegAction = (id: string, status: "accepted" | "rejected") => {

@@ -17,7 +17,11 @@ export function MobileBottomNav() {
     const { totalUnread, openMessageBox } = useMessages();
     const { favoritesCount } = useFavorites();
     const { user } = useAuth();
-    const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
+    const [pic, setPic] = useState<string | null>(null);
+
+    useEffect(() => {
+        setPic(localStorage.getItem('fp_profile_pic'));
+    }, []);
 
     const [unreadNotifs, setUnreadNotifs] = useState(0);
 

@@ -55,23 +55,29 @@ export default function SellerLayout({
     useEffect(() => {
         if (isPublicRoute) return;
 
+        const loadData = () => {
+            const seller = DemoStore.getCurrentSeller();
+            if (seller) {
+                setCurrentSeller(seller);
+                const negs = DemoStore.getNegotiations(seller.id);
+                setPendingNegotiations(negs.filter(n => n.status === "pending").length);
+            }
+        };
+
+        // If no seller session at all, redirect to login
         const sellerId = DemoStore.getCurrentSellerId();
         if (!sellerId) {
             router.push("/seller/login");
             return;
         }
 
-        const seller = DemoStore.getCurrentSeller();
-        setCurrentSeller(seller);
-
-        const loadCounts = () => {
-            const negs = DemoStore.getNegotiations(sellerId);
-            setPendingNegotiations(negs.filter(n => n.status === "pending").length);
+        loadData();
+        window.addEventListener("storage", loadData);
+        window.addEventListener("demo-store-update", loadData);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("demo-store-update", loadData);
         };
-
-        loadCounts();
-        window.addEventListener("storage", loadCounts);
-        return () => window.removeEventListener("storage", loadCounts);
     }, [router, isPublicRoute]);
 
     // For public routes (login, onboarding, verified), just render children

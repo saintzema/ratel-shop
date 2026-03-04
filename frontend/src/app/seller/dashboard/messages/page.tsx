@@ -120,21 +120,22 @@ export default function UniversalMessagesPage() {
                 }
             });
 
-            // Load real support messages from DemoStore (admin replies, Ziva escalations, etc.)
+            // Load real support messages from DemoStore (admin replies, Ziva escalations, image requests, etc.)
             const supportMsgs = DemoStore.getSupportMessages();
             const sellerEmail = DemoStore.getSellers().find(s => s.id === sellerId)?.store_url || sellerId;
             supportMsgs.forEach((msg: any) => {
                 // Show messages targeted at this seller, or from this seller, or general admin messages
-                const isForSeller = msg.target_user_id === sellerId || msg.target_user_email === sellerEmail || msg.source === 'ziva_escalation';
+                const isForSeller = msg.target_user_id === sellerId || msg.target_user_email === sellerEmail || msg.source === 'ziva_escalation' || msg.source === 'image_request';
                 if (isForSeller || msg.source === 'dispute_admin') {
+                    const isImageRequest = msg.source === 'image_request';
                     convos.push({
                         id: `sup-${msg.id}`,
-                        type: "support",
+                        type: isImageRequest ? "support" : "support",
                         customer_name: msg.user_name || "FairPrice Support",
                         product_name: msg.subject || "Support",
                         preview: msg.message?.substring(0, 80) || "New message",
                         updated_at: new Date(msg.created_at),
-                        unread: msg.status === "open",
+                        unread: msg.status === "open" || msg.status === "new",
                         chat_messages: [
                             { sender: "buyer" as const, text: msg.message || "", timestamp: new Date(msg.created_at) }
                         ]

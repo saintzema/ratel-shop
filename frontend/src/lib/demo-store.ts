@@ -133,12 +133,27 @@ class DemoStoreService {
                 }
             }
 
-            // Fetch latest sellers from Postgres
-            const sellersRes = await fetch("/api/sellers");
+            // Fetch latest sellers from Postgres (including pending for dashboard access)
+            const sellersRes = await fetch("/api/sellers?all=true");
             if (sellersRes.ok) {
                 const dbSellers = await sellersRes.json();
                 if (dbSellers.length > 0) {
                     localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(dbSellers));
+
+                    // Reconcile CURRENT_SELLER key: the DB may have assigned a
+                    // different ID than the one the frontend generated.
+                    const storedSellerId = this.getCurrentSellerId();
+                    if (storedSellerId && !dbSellers.find((s: any) => s.id === storedSellerId)) {
+                        // The stored ID doesn't exist in DB data.
+                        // Try to find the seller by user_id instead.
+                        const currentUser = this._getCurrentUserId();
+                        if (currentUser) {
+                            const match = dbSellers.find((s: any) => s.user_id === currentUser);
+                            if (match) {
+                                localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, match.id);
+                            }
+                        }
+                    }
                 }
             }
 
@@ -383,7 +398,34 @@ class DemoStoreService {
         const id = this.getCurrentSellerId();
         if (!id) return undefined;
         const sellers = this.getSellers();
-        return sellers.find(s => s.id === id);
+        const exact = sellers.find(s => s.id === id);
+        if (exact) return exact;
+
+        // Fallback: the DB may have a different ID for this seller.
+        // Try matching by user_id and auto-heal the stored key.
+        const userId = this._getCurrentUserId();
+        if (userId) {
+            const byUser = sellers.find(s => s.user_id === userId);
+            if (byUser) {
+                // Auto-heal: update the stored seller ID to the canonical DB ID
+                localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, byUser.id);
+                return byUser;
+            }
+        }
+        return undefined;
+    }
+
+    /** Helper: get the current logged-in user's ID from AuthContext storage */
+    private _getCurrentUserId(): string | null {
+        if (typeof window === "undefined") return null;
+        try {
+            const raw = localStorage.getItem("fp_user") || sessionStorage.getItem("fp_user");
+            if (raw) {
+                const user = JSON.parse(raw);
+                return user?.id || null;
+            }
+        } catch { }
+        return null;
     }
 
     logout() {
@@ -393,9 +435,21 @@ class DemoStoreService {
 
     updateSeller(id: string, updates: Partial<Seller>) {
         const sellers = this.getSellers();
-        const updated = sellers.map(s => s.id === id ? { ...s, ...updates } : s);
+        const updatedSeller = sellers.find(s => s.id === id);
+        if (!updatedSeller) return;
+
+        const mergedSeller = { ...updatedSeller, ...updates };
+        const updated = sellers.map(s => s.id === id ? mergedSeller : s);
+
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+
+        // Persist to Postgres
+        fetch("/api/sellers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mergedSeller),
+        }).catch(err => console.error("Failed to persist seller update:", err));
     }
 
     getSellerCommissionRate(seller: Seller): number {

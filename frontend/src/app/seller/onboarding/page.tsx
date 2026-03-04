@@ -87,10 +87,10 @@ export default function KYCOnboarding() {
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const sellerId = `s_${Math.random().toString(36).substr(2, 9)}`;
-        const newSeller: Seller = {
-            id: sellerId,
-            user_id: user?.id || "",
+        const currentSeller = DemoStore.getCurrentSeller();
+        const sellerId = currentSeller?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
+
+        const sellerUpdates: Partial<Seller> = {
             business_name: businessName || (user ? `${user.name}'s Shop` : "New Seller"),
             description: "A new seller on FairPrice",
             category: "electronics",
@@ -115,11 +115,20 @@ export default function KYCOnboarding() {
             account_number: accountNumber || undefined,
             account_name: accountName || undefined,
             logo_url: "https://ui-avatars.com/api/?name=" + encodeURIComponent(businessName || "Shop") + "&background=random",
-            created_at: new Date().toISOString()
         };
 
-        DemoStore.addSeller(newSeller);
-        DemoStore.loginSeller(sellerId);
+        if (currentSeller) {
+            DemoStore.updateSeller(sellerId, sellerUpdates);
+        } else {
+            // Fallback just in case onboarding was reached directly
+            DemoStore.addSeller({
+                ...sellerUpdates,
+                id: sellerId,
+                user_id: user?.id || "",
+                created_at: new Date().toISOString()
+            } as Seller);
+            DemoStore.loginSeller(sellerId);
+        }
 
         // Create KYC submission so admin sees it in dashboard
         DemoStore.addKYCSubmission({

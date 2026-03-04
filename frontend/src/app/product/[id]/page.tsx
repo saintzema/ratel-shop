@@ -140,13 +140,18 @@ export default function ProductDetailPage() {
     const [replyText, setReplyText] = useState("");
 
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
+    const [storeVersion, setStoreVersion] = useState(0);
 
     useEffect(() => {
         setMounted(true);
+        const handleStorageChange = () => setStoreVersion(v => v + 1);
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
     }, []);
 
     // Use DemoStore for live product data (includes seller-added products)
-    const allProducts = DemoStore.getProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const allProducts = DemoStore.getProducts(); // re-reads on storeVersion change
     const allSellers = DemoStore.getSellers();
 
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
@@ -252,31 +257,31 @@ export default function ProductDetailPage() {
                         is_active: true,
                     } as any;
                 } else {
-            // Last resort: create a rich placeholder from the URL slug
-            const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+                    // Last resort: create a rich placeholder from the URL slug
+                    const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-            product = {
-                id: decodedId,
-                name,
-                price: 0,
-                original_price: 0,
-                category: "electronics",
-                description: generateDescription(name),
-                image_url: "",
-                images: [],
-                seller_id: 'global-partners',
-                seller_name: 'Global Stores',
-                price_flag: 'fair',
-                sold_count: 50,
-                review_count: 12,
-                avg_rating: 4.8,
-                is_active: true,
-                created_at: new Date().toISOString(),
-                recommended_price: 0,
-                specs: generateSpecs(name),
-            } as any;
+                    product = {
+                        id: decodedId,
+                        name,
+                        price: 0,
+                        original_price: 0,
+                        category: "electronics",
+                        description: generateDescription(name),
+                        image_url: "",
+                        images: [],
+                        seller_id: 'global-partners',
+                        seller_name: 'Global Stores',
+                        price_flag: 'fair',
+                        sold_count: 50,
+                        review_count: 12,
+                        avg_rating: 4.8,
+                        is_active: true,
+                        created_at: new Date().toISOString(),
+                        recommended_price: 0,
+                        specs: generateSpecs(name),
+                    } as any;
 
-            // Persist deferred to useEffect below
+                    // Persist deferred to useEffect below
                 }
             }
         }
@@ -472,7 +477,7 @@ export default function ProductDetailPage() {
                 console.error("Failed to save browsing history", e);
             }
         } else {
-            const timer = setTimeout(() => {}, 800);
+            const timer = setTimeout(() => { }, 800);
             return () => clearTimeout(timer);
         }
     }, [product]);
@@ -482,6 +487,7 @@ export default function ProductDetailPage() {
         if (product && product.price === 0 && product.id?.startsWith('global') && !isFetchingGlobalData) {
             setIsFetchingGlobalData(true);
             const namePart = product.name;
+            const productId = product.id;
             fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -492,16 +498,36 @@ export default function ProductDetailPage() {
                     const bestMatch = data.suggestions?.[0];
                     if (bestMatch && bestMatch.approxPrice) {
                         const validImageUrl = bestMatch.image_url && !bestMatch.image_url.toLowerCase().includes('no photo') && !bestMatch.image_url.toLowerCase().includes('n/a') ? bestMatch.image_url : null;
-                        const updatedProduct = {
-                            ...product,
-                            price: bestMatch.approxPrice,
-                            original_price: Math.round(bestMatch.approxPrice * 1.15),
-                            recommended_price: bestMatch.approxPrice,
-                            specs: bestMatch.specs || product.specs,
-                            ...(validImageUrl ? { image_url: validImageUrl } : {}),
-                        };
-                        // Save to Store and trigger re-render
-                        DemoStore.addRawProduct(updatedProduct as any);
+                        // Update existing product in DemoStore (addRawProduct skips if ID exists)
+                        try {
+                            const products = DemoStore.getProducts();
+                            const idx = products.findIndex((p: any) => p.id === productId);
+                            if (idx >= 0) {
+                                products[idx] = {
+                                    ...products[idx],
+                                    price: bestMatch.approxPrice,
+                                    original_price: Math.round(bestMatch.approxPrice * 1.15),
+                                    recommended_price: bestMatch.approxPrice,
+                                    specs: bestMatch.specs || products[idx].specs,
+                                    ...(validImageUrl ? { image_url: validImageUrl } : {}),
+                                };
+                                localStorage.setItem('fp_products', JSON.stringify(products));
+                            } else {
+                                const updatedProduct = {
+                                    ...product,
+                                    price: bestMatch.approxPrice,
+                                    original_price: Math.round(bestMatch.approxPrice * 1.15),
+                                    recommended_price: bestMatch.approxPrice,
+                                    specs: bestMatch.specs || product.specs,
+                                    ...(validImageUrl ? { image_url: validImageUrl } : {}),
+                                };
+                                DemoStore.addRawProduct(updatedProduct as any);
+                            }
+                            window.dispatchEvent(new Event("storage"));
+                            setStoreVersion(v => v + 1);
+                        } catch (e) {
+                            console.error("Failed to update global product price:", e);
+                        }
                     }
                 })
                 .catch(() => { })
@@ -692,6 +718,9 @@ export default function ProductDetailPage() {
     const sizeInfo = product?.specs?.['Dimensions'] || product?.specs?.['Size'] || null;
     const weightInfo = product?.specs?.['Weight'] || product?.specs?.['Item Weight'] || null;
 
+    const isOwner = user && seller && user.id === seller.user_id;
+    const isSellerApproved = seller?.status === "active" || seller?.verified === true || seller?.kyc_status === "approved" || seller?.id === "global-partners";
+
     // Dynamic features list
     if (!product || !seller) {
         return (
@@ -703,6 +732,31 @@ export default function ProductDetailPage() {
                         <p className="text-gray-500 mb-4">The product you are looking for does not exist.</p>
                         <Button asChild>
                             <Link href="/">Go Home</Link>
+                        </Button>
+                    </div>
+                </div>
+                <Footer />
+            </div>
+        );
+    }
+
+    if (!isSellerApproved && !isOwner) {
+        return (
+            <div className="min-h-screen flex flex-col">
+                <Navbar />
+                <div className="flex-1 flex items-center justify-center bg-gray-50/30 backdrop-blur-3xl p-4">
+                    <div className="text-center p-12 bg-white/40 rounded-[40px] border border-white/60 shadow-2xl max-w-md mx-auto">
+                        <div className="h-20 w-20 bg-gray-900 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl">
+                            <ShieldCheck className="h-10 w-10 text-white opacity-20" />
+                        </div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-4">
+                            Product Restricted
+                        </h1>
+                        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
+                            This product belongs to a storefront currently undergoing administrative verification.
+                        </p>
+                        <Button asChild className="mt-10 h-14 px-10 rounded-2xl bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest text-[10px] transition-all hover:scale-105">
+                            <Link href="/">Return to Nexus</Link>
                         </Button>
                     </div>
                 </div>

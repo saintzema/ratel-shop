@@ -318,7 +318,7 @@ export interface SupportMessage {
     user_email: string;
     subject: string;
     message: string;
-    source: "ziva_escalation" | "ziva_negotiation" | "contact_form" | "order_issue" | "dispute_admin";
+    source: "ziva_escalation" | "ziva_negotiation" | "contact_form" | "order_issue" | "dispute_admin" | "image_request";
     status: "new" | "read" | "replied" | "resolved";
     transcript?: string;
     created_at: string;

@@ -5,7 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, NegotiationRequest, Product } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -270,9 +270,8 @@ function OrdersContent() {
                                                         </div>
                                                     </div>
 
-                                                    {/* Date */}
-                                                    <span className="text-xs text-gray-500">
-                                                        {new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                    <span className="text-xs text-gray-500 whitespace-nowrap">
+                                                        {formatDateExact(order.created_at)}
                                                     </span>
 
                                                     {/* Amount */}
@@ -347,7 +346,7 @@ function OrdersContent() {
                                                                     {status.label}
                                                                 </div>
                                                                 <span className="text-[10px] text-gray-400">•</span>
-                                                                <span className="text-xs text-gray-500">{new Date(order.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                                                <span className="text-xs text-gray-500">{formatDateExact(order.created_at)}</span>
                                                             </div>
                                                         </div>
                                                         <span className="text-sm font-bold text-gray-900">{formatPrice(order.amount)}</span>
@@ -614,7 +613,7 @@ function OrdersContent() {
                                                 </div>
                                                 <div>
                                                     <p className={`text-xs font-semibold ${step.completed ? 'text-gray-900' : 'text-gray-400'}`}>{step.status}</p>
-                                                    <p className="text-[10px] text-gray-400">{step.location} • {new Date(step.timestamp).toLocaleDateString()}</p>
+                                                    <p className="text-[10px] text-gray-400">{step.location} • {formatDateExact(step.timestamp)}</p>
                                                 </div>
                                             </div>
                                         ))}

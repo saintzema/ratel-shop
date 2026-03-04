@@ -2,10 +2,11 @@
 
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { MessageSquare, Package, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { MessageSquare, Package, AlertCircle, CheckCircle, Camera, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { DemoStore } from "@/lib/demo-store";
+import { useAuth } from "@/context/AuthContext";
 
 interface Message {
     id: string;
@@ -14,47 +15,92 @@ interface Message {
     body: string;
     date: string;
     read: boolean;
-    type: "order_update" | "seller_message" | "system" | "promo";
+    type: "order_update" | "seller_message" | "system" | "promo" | "image_request";
     orderId?: string;
 }
 
 export default function MessagesPage() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [selected, setSelected] = useState<Message | null>(null);
+    const { user } = useAuth();
 
     useEffect(() => {
-        // Load from localStorage or generate demo messages
-        const saved = localStorage.getItem("fp_user_messages");
-        if (saved) {
-            setMessages(JSON.parse(saved));
-        } else {
-            const orders = DemoStore.getOrders();
-            const demo: Message[] = [
-                {
-                    id: "msg_1", from: "FairPrice", subject: "Welcome to FairPrice! 🎉",
-                    body: "Welcome to FairPrice, Nigeria's first AI-regulated marketplace. We're glad to have you! Start shopping and enjoy fair prices verified by our AI.\n\nNeed help? Chat with Ziva, our AI assistant, anytime.",
-                    date: new Date(Date.now() - 86400000 * 3).toISOString(), read: true, type: "system"
-                },
-                {
-                    id: "msg_2", from: "FairPrice Deals", subject: "🔥 Flash Sale: Up to 60% off Electronics",
-                    body: "Don't miss our weekend flash sale! Samsung, Apple, and more — all AI-verified fair prices.\n\nShop now before stock runs out.",
-                    date: new Date(Date.now() - 86400000).toISOString(), read: false, type: "promo"
-                },
-                ...(orders.length > 0 ? [{
-                    id: "msg_3", from: "FairPrice Shipping", subject: `Order ${orders[0].id.slice(0, 12)}... Update`,
-                    body: `Your order has been confirmed and is being prepared for shipping. You can track your order using the link below.\n\nEstimated delivery: 3-5 business days.`,
-                    date: orders[0].created_at, read: false, type: "order_update" as const, orderId: orders[0].id
-                }] : [])
-            ];
-            setMessages(demo);
-            localStorage.setItem("fp_user_messages", JSON.stringify(demo));
-        }
-    }, []);
+        const loadMessages = () => {
+            const allMessages: Message[] = [];
+
+            // Load saved user messages
+            const saved = localStorage.getItem("fp_user_messages");
+            if (saved) {
+                try { allMessages.push(...JSON.parse(saved)); } catch { }
+            } else {
+                const orders = DemoStore.getOrders();
+                const demo: Message[] = [
+                    {
+                        id: "msg_1", from: "FairPrice", subject: "Welcome to FairPrice! 🎉",
+                        body: "Welcome to FairPrice, Nigeria's first AI-regulated marketplace. We're glad to have you! Start shopping and enjoy fair prices verified by our AI.\n\nNeed help? Chat with Ziva, our AI assistant, anytime.",
+                        date: new Date(Date.now() - 86400000 * 3).toISOString(), read: true, type: "system"
+                    },
+                    {
+                        id: "msg_2", from: "FairPrice Deals", subject: "🔥 Flash Sale: Up to 60% off Electronics",
+                        body: "Don't miss our weekend flash sale! Samsung, Apple, and more — all AI-verified fair prices.\n\nShop now before stock runs out.",
+                        date: new Date(Date.now() - 86400000).toISOString(), read: false, type: "promo"
+                    },
+                    ...(orders.length > 0 ? [{
+                        id: "msg_3", from: "FairPrice Shipping", subject: `Order ${orders[0].id.slice(0, 12)}... Update`,
+                        body: `Your order has been confirmed and is being prepared for shipping. You can track your order using the link below.\n\nEstimated delivery: 3-5 business days.`,
+                        date: orders[0].created_at, read: false, type: "order_update" as const, orderId: orders[0].id
+                    }] : [])
+                ];
+                allMessages.push(...demo);
+                localStorage.setItem("fp_user_messages", JSON.stringify(demo));
+            }
+
+            // Pull in image request conversations from DemoStore support messages
+            if (user?.email) {
+                const supportMsgs = DemoStore.getSupportMessages();
+                supportMsgs.forEach((msg: any) => {
+                    // Show messages the buyer sent (image_request) or replies targeted to this buyer
+                    if (msg.source === "image_request" && msg.user_email === user.email) {
+                        // Check if this message is already in allMessages
+                        if (!allMessages.some(m => m.id === `img-${msg.id}`)) {
+                            // Find the seller name from the target
+                            const sellers = DemoStore.getSellers();
+                            const seller = sellers.find((s: any) => s.id === msg.target_user_id);
+                            const sellerName = seller?.business_name || seller?.store_url || "Seller";
+
+                            allMessages.push({
+                                id: `img-${msg.id}`,
+                                from: sellerName,
+                                subject: msg.subject || "📸 Image Request",
+                                body: msg.message,
+                                date: msg.created_at,
+                                read: msg.status !== "new",
+                                type: "image_request"
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Sort by date, newest first
+            allMessages.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setMessages(allMessages);
+        };
+
+        loadMessages();
+
+        // Listen for storage events (when seller replies)
+        const handleStorageChange = () => loadMessages();
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, [user]);
 
     const markRead = (id: string) => {
         const updated = messages.map(m => m.id === id ? { ...m, read: true } : m);
         setMessages(updated);
-        localStorage.setItem("fp_user_messages", JSON.stringify(updated));
+        // Only persist base messages to localStorage
+        const baseMessages = updated.filter(m => !m.id.startsWith("img-"));
+        localStorage.setItem("fp_user_messages", JSON.stringify(baseMessages));
     };
 
     const unreadCount = messages.filter(m => !m.read).length;
@@ -63,6 +109,7 @@ export default function MessagesPage() {
         switch (type) {
             case "order_update": return <Package className="h-5 w-5 text-blue-500" />;
             case "seller_message": return <MessageSquare className="h-5 w-5 text-emerald-500" />;
+            case "image_request": return <Camera className="h-5 w-5 text-purple-500" />;
             case "promo": return <AlertCircle className="h-5 w-5 text-orange-500" />;
             default: return <CheckCircle className="h-5 w-5 text-emerald-500" />;
         }
@@ -120,6 +167,11 @@ export default function MessagesPage() {
                                     <div className="flex items-center gap-1">{getIcon(selected.type)}</div>
                                 </div>
                                 <div className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{selected.body}</div>
+                                {selected.type === "image_request" && (
+                                    <div className="mt-4 p-3 bg-purple-50 border border-purple-100 rounded-xl">
+                                        <p className="text-xs text-purple-700 font-medium">📸 This image request was sent to the seller by Ziva AI on your behalf. You'll receive a notification when the seller uploads the product photo.</p>
+                                    </div>
+                                )}
                                 {selected.orderId && (
                                     <Link href={`/account/orders`} className="mt-4 inline-block text-sm text-emerald-600 font-bold hover:underline">
                                         View Order →

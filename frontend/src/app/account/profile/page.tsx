@@ -8,11 +8,14 @@ import { useState, useRef, useEffect } from "react";
 import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useNotification } from "@/components/ui/NotificationProvider";
+import { LocationModal } from "@/components/modals/LocationModal";
+import { useLocation } from "@/context/LocationContext";
 
 export default function ProfilePage() {
     const { user, updateUser } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const { showNotification } = useNotification();
+    const { location: globalLocation, setLocation } = useLocation();
 
     // Form State
     const [formData, setFormData] = useState({
@@ -21,12 +24,26 @@ export default function ProfilePage() {
         phone: (user as any)?.phone || "",
         address: (user as any)?.address || "",
         password: "",
-        location: user?.location || "Lagos, Nigeria"
+        location: user?.location || globalLocation || "Lagos, Nigeria"
     });
+
+    useEffect(() => {
+        if (user) {
+            setFormData(prev => ({
+                ...prev,
+                name: user.name || "",
+                email: user.email || "",
+                phone: (user as any)?.phone || "",
+                address: (user as any)?.address || "",
+                location: user.location || prev.location || globalLocation || "Lagos, Nigeria"
+            }));
+        }
+    }, [user, globalLocation]);
 
     // State to track editing
     const [editingField, setEditingField] = useState<string | null>(null);
     const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,18 +73,27 @@ export default function ProfilePage() {
 
     const handleSave = () => {
         setIsLoading(true);
-        // Simulate API call and update context
+        updateUser({
+            name: formData.name,
+            email: formData.email,
+            location: formData.location,
+            phone: formData.phone,
+            address: formData.address
+        } as any);
+
+        if (formData.location) {
+            setLocation(formData.location);
+        }
+
         setTimeout(() => {
-            updateUser({
-                name: formData.name,
-                email: formData.email,
-                location: formData.location,
-                phone: formData.phone,
-                address: formData.address
-            } as any);
             setIsLoading(false);
             setEditingField(null);
-        }, 1000);
+            showNotification({
+                title: "Profile Updated",
+                message: "Your profile details have been saved successfully.",
+                type: "success"
+            });
+        }, 300);
     };
 
     const handlePasswordChange = () => {
@@ -76,14 +102,18 @@ export default function ProfilePage() {
             return;
         }
         setIsLoading(true);
+        updateUser({ password: newPassword } as any);
         setTimeout(() => {
-            // In a real app, we'd call an API. Here we just mock success.
             setIsLoading(false);
             setNewPassword("");
             setConfirmPassword("");
             setEditingField(null);
-            alert("Password updated successfully!");
-        }, 1000);
+            showNotification({
+                title: "Security Updated",
+                message: "Password updated successfully!",
+                type: "success"
+            });
+        }, 500);
     };
 
     return (
@@ -256,23 +286,14 @@ export default function ProfilePage() {
                             <div className="mt-1"><MapPin className="h-5 w-5 text-gray-400" /></div>
                             <div className="flex-1">
                                 <label className="block text-sm font-bold text-gray-700 mb-1">Primary Location</label>
-                                {editingField === "location" ? (
-                                    <Input
-                                        value={formData.location}
-                                        onChange={e => setFormData({ ...formData, location: e.target.value })}
-                                        className="h-10 border-emerald-500 focus:ring-emerald-500/20"
-                                        autoFocus
-                                    />
-                                ) : (
-                                    <p className="text-gray-900 h-10 flex items-center">{formData.location}</p>
-                                )}
+                                <p className="text-gray-900 h-10 flex items-center">{formData.location}</p>
                             </div>
                             <Button
                                 variant="outline"
                                 className="mt-6"
-                                onClick={() => setEditingField(editingField === "location" ? null : "location")}
+                                onClick={() => setIsLocationModalOpen(true)}
                             >
-                                {editingField === "location" ? "Cancel" : "Edit"}
+                                Edit
                             </Button>
                         </div>
                     </div>
@@ -291,6 +312,23 @@ export default function ProfilePage() {
                     </div>
                 </div>
             </main>
+
+            <LocationModal
+                isOpen={isLocationModalOpen}
+                onClose={() => setIsLocationModalOpen(false)}
+                currentLocation={formData.location}
+                onSelectLocation={(loc) => {
+                    setFormData(prev => ({ ...prev, location: loc }));
+                    // Auto-save location immediately
+                    updateUser({ ...user, location: loc } as any);
+                    setLocation(loc);
+                    showNotification({
+                        title: "Location Updated",
+                        message: `Your primary location is now set to ${loc}.`,
+                        type: "success"
+                    });
+                }}
+            />
 
             <Footer />
         </div>
