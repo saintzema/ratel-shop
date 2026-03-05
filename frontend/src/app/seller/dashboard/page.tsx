@@ -88,12 +88,33 @@ export default function SellerDashboard() {
                 const allOrders = DemoStore.getOrders();
                 setOrders(allOrders.filter(o => o.seller_id === seller.id));
 
-                const allProducts = DemoStore.getProducts();
+                const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
                 setProducts(allProducts.filter(p => p.seller_id === seller.id));
             }
         };
 
         loadData();
+
+        // Onboarding Verification Notification Logic
+        const seller = DemoStore.getCurrentSeller();
+        if (seller && seller.verified) {
+            const hasNotified = localStorage.getItem(`fp_notified_onboarding_${seller.id}`);
+            if (!hasNotified) {
+                // Check if they just got verified and have 0 products
+                const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+                const myProducts = allProducts.filter(p => p.seller_id === seller.id);
+                if (myProducts.length === 0) {
+                    DemoStore.addNotification({
+                        userId: seller.id,
+                        type: "system",
+                        message: `🎉 Congratulations! Your store "${seller.business_name}" is now verified. You can start uploading products!`,
+                        link: "/seller/products/new"
+                    });
+                    localStorage.setItem(`fp_notified_onboarding_${seller.id}`, "true");
+                }
+            }
+        }
+
         window.addEventListener("storage", loadData);
         window.addEventListener("demo-store-update", loadData);
         return () => {

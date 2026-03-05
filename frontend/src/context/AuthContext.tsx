@@ -67,7 +67,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = () => {
+        // Grab the user email BEFORE removing fp_user so we can clear their cart
+        const currentEmail = user?.email;
+
         localStorage.removeItem("fp_user");
+        localStorage.removeItem("fp-cart-guest");
+        if (currentEmail) {
+            localStorage.removeItem(`fp-cart-${currentEmail}`);
+        }
+        // Also clear seller session
+        localStorage.removeItem("fairprice_demo_current_seller");
+
         setUser(null);
         window.dispatchEvent(new Event("fp-auth-update"));
     };

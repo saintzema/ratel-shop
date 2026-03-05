@@ -22,7 +22,7 @@ interface PostOrderChatProps {
     product: Product | null;
     orderId?: string;
     order?: Order | null;
-    mode?: "post_order" | "return";
+    mode?: "post_order" | "return" | "cancel";
 }
 
 const POST_ORDER_ACTIONS = [
@@ -37,6 +37,13 @@ const RETURN_ACTIONS = [
     { id: "damaged", label: "Item Damaged", icon: <AlertCircle className="h-3.5 w-3.5" /> },
     { id: "not_as_described", label: "Not as Described", icon: <AlertCircle className="h-3.5 w-3.5" /> },
     { id: "upload_photo", label: "Upload Photo Evidence", icon: <Camera className="h-3.5 w-3.5" /> },
+];
+
+const CANCEL_ACTIONS = [
+    { id: "changed_mind", label: "Changed my mind", icon: <RotateCcw className="h-3.5 w-3.5" /> },
+    { id: "found_better", label: "Found a better price", icon: <Search className="h-3.5 w-3.5" /> },
+    { id: "mistake", label: "Ordered by mistake", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "too_long", label: "Shipping takes too long", icon: <Clock className="h-3.5 w-3.5" /> },
 ];
 
 export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, order, mode = "post_order" }: PostOrderChatProps) {
@@ -68,7 +75,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         } else {
             // Initialize if empty
             if (messages.length === 0) {
-                if (mode === "return") {
+                if (mode === "cancel") {
+                    setMessages([
+                        {
+                            id: Date.now().toString(),
+                            sender: "ziva",
+                            text: `I noticed you want to cancel the **${product.name}** (Order **${trackingId}**). Could you tell me why you're cancelling? This helps us improve our service.\n\nPlease select a reason below or type a message.`,
+                            timestamp: new Date(),
+                        }
+                    ]);
+                } else if (mode === "return") {
                     setMessages([
                         {
                             id: Date.now().toString(),
@@ -192,7 +208,18 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
             const lowerText = text.toLowerCase();
 
-            if (mode === "return") {
+            if (mode === "cancel") {
+                DemoStore.updateOrderStatus(orderId!, "cancelled");
+                DemoStore.addNotification({
+                    userId: DemoStore.getCurrentUserId() || "guest",
+                    type: "order",
+                    message: `Order Cancelled — Your order #${trackingId.substring(0, 8)} has been cancelled. Reason: ${text}`,
+                    link: "/account/orders"
+                });
+                zivaText = `I have successfully cancelled your order **${trackingId}**. The reason recorded is: "${text}". Your full payment will be refunded immediately. If there's anything else, feel free to ask.`;
+                // Fire demo store update to refresh UI
+                window.dispatchEvent(new Event("demo-store-update"));
+            } else if (mode === "return") {
                 // Return mode responses
                 if (lowerText.includes("wrong item")) {
                     zivaText = `I'm sorry you received the wrong item. I've flagged this on Order **${trackingId}**. Please upload a photo of what you received so we can compare it with the original listing. Our team will arrange a replacement or full refund within 24–48 hours.`;
@@ -217,7 +244,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     } else if (orderStatus === "shipped") {
                         zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 2–4 business days. I'll notify you when it arrives!`;
                     } else {
-                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated processing: 1–2 business days.`;
+                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–5 business days**.`;
                     }
                 } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
                     zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 7-day return window after delivery.";
@@ -244,7 +271,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         }, 1500);
     };
 
-    const quickActions = mode === "return" ? RETURN_ACTIONS : POST_ORDER_ACTIONS;
+    const quickActions = mode === "cancel" ? CANCEL_ACTIONS : (mode === "return" ? RETURN_ACTIONS : POST_ORDER_ACTIONS);
 
     return (
         <AnimatePresence>
@@ -269,16 +296,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         <div className={`px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 relative z-20 ${mode === "return" ? "bg-rose-50/80 backdrop-blur-xl" : "bg-white/80 backdrop-blur-xl"}`}>
                             <div className="flex items-center gap-3">
                                 <div className="relative">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-white shadow-sm overflow-hidden ${mode === "return" ? "bg-rose-100" : "bg-brand-green-100"}`}>
-                                        <span className={`font-black text-lg ${mode === "return" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-white shadow-sm overflow-hidden ${mode === "return" || mode === "cancel" ? "bg-rose-100" : "bg-brand-green-100"}`}>
+                                        <span className={`font-black text-lg ${mode === "return" || mode === "cancel" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
                                     </div>
                                     <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-gray-900 leading-none">
-                                        {mode === "return" ? "Return Assistant" : "Order Concierge"}
+                                        {mode === "cancel" ? "Cancellation Assistant" : (mode === "return" ? "Return Assistant" : "Order Concierge")}
                                     </h3>
-                                    <p className={`text-[11px] font-medium mt-1 ${mode === "return" ? "text-rose-600" : "text-emerald-600"}`}>
+                                    <p className={`text-[11px] font-medium mt-1 ${mode === "return" || mode === "cancel" ? "text-rose-600" : "text-emerald-600"}`}>
                                         Ziva AI & Support Team active
                                     </p>
                                 </div>
@@ -299,6 +326,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                     <p className="text-xs font-semibold text-gray-900 truncate">{product.name}</p>
                                     <p className="text-[10px] text-gray-500 font-medium">
                                         Order {trackingId} • {orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1)}
+                                        {mode === "cancel" && <span className="text-rose-600 font-bold ml-1">• Cancellation</span>}
                                         {mode === "return" && <span className="text-rose-600 font-bold ml-1">• Return Request</span>}
                                     </p>
                                 </div>
@@ -357,6 +385,10 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                     <img src={msg.imageUrl} alt="Uploaded" className="w-full max-h-48 object-contain bg-gray-50 p-2" />
                                                 </div>
                                             )}
+                                            {/* Timestamp */}
+                                            <span className={`text-[9px] font-medium mt-0.5 px-1 ${msg.sender === "user" ? "text-gray-400 text-right" : "text-gray-400"}`}>
+                                                {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
                                         </div>
 
                                     </div>

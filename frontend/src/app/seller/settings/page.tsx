@@ -17,7 +17,11 @@ import {
     Globe,
     MapPin,
     Users,
-    Package
+    Package,
+    ShieldAlert,
+    Copy,
+    Lock,
+    Check
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,6 +32,7 @@ export default function SellerSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const logoInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
@@ -136,32 +141,7 @@ export default function SellerSettingsPage() {
                         <div className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-xs font-black uppercase tracking-widest text-gray-800">Store Domain URL</label>
-                                {seller.subscription_plan === "Starter" ? (
-                                    <>
-                                        <div className="flex relative">
-                                            <div className="absolute left-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-r-0 rounded-l-xl px-4 text-gray-500 text-sm font-semibold pointer-events-none">
-                                                fairprice.ng/store/
-                                            </div>
-                                            <Input
-                                                value={formData.store_url}
-                                                onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                                                placeholder="your-store-name"
-                                                className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-l-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pl-[140px]"
-                                            />
-                                        </div>
-                                        <div className="flex items-start justify-between mt-2 gap-4 bg-brand-green-50/50 p-3 rounded-xl border border-brand-green-100/50">
-                                            <p className="text-[11px] text-gray-600 flex items-center gap-1.5 leading-tight">
-                                                <Globe className="h-3.5 w-3.5 text-brand-green-600 shrink-0" />
-                                                <span>Want a more professional link like <strong>{formData.store_url || 'yourstore'}.fairprice.ng</strong>?</span>
-                                            </p>
-                                            <Link href="/seller/settings/billing">
-                                                <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-100 shrink-0 rounded-lg">
-                                                    Upgrade to Pro
-                                                </Button>
-                                            </Link>
-                                        </div>
-                                    </>
-                                ) : (
+                                {seller.subscription_plan && ["Pro", "Growth", "Scale"].includes(seller.subscription_plan) ? (
                                     <>
                                         <div className="flex relative">
                                             <Input
@@ -174,9 +154,69 @@ export default function SellerSettingsPage() {
                                                 .fairprice.ng
                                             </div>
                                         </div>
-                                        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-1">
-                                            <Globe className="h-3 w-3" /> Share this link with your customers to visit your store directly.
-                                        </p>
+                                        <div className="flex items-center justify-between mt-2 gap-4">
+                                            <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                                <Globe className="h-3 w-3 text-brand-green-600" /> Share this link with customers.
+                                            </p>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-8 px-3 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
+                                                    setCopied(true);
+                                                    setTimeout(() => setCopied(false), 2000);
+                                                }}
+                                            >
+                                                {copied ? <Check className="h-3 w-3 mr-1.5 text-emerald-600" /> : <Copy className="h-3 w-3 mr-1.5" />}
+                                                {copied ? "Copied!" : "Copy Link"}
+                                            </Button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex relative">
+                                            <div className="absolute left-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-r-0 rounded-l-xl px-3 text-gray-500 text-sm font-semibold pointer-events-none">
+                                                fairprice.ng/
+                                            </div>
+                                            <Input
+                                                value={formData.store_url}
+                                                onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+                                                placeholder="your-store-name"
+                                                className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-l-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pl-[110px]"
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between mt-2 gap-4">
+                                            <p className="text-[11px] text-gray-500 flex items-center gap-1.5">
+                                                <Globe className="h-3 w-3 text-brand-green-600" /> Share this link with customers.
+                                            </p>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-8 px-3 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
+                                                    setCopied(true);
+                                                    setTimeout(() => setCopied(false), 2000);
+                                                }}
+                                            >
+                                                {copied ? <Check className="h-3 w-3 mr-1.5 text-emerald-600" /> : <Copy className="h-3 w-3 mr-1.5" />}
+                                                {copied ? "Copied!" : "Copy Link"}
+                                            </Button>
+                                        </div>
+                                        <div className="flex items-start justify-between mt-3 gap-4 bg-brand-green-50/50 p-3 rounded-xl border border-brand-green-100/50">
+                                            <p className="text-[11px] text-gray-600 flex items-center gap-1.5 leading-tight">
+                                                <ShieldAlert className="h-3.5 w-3.5 text-brand-green-600 shrink-0" />
+                                                <span>Want a custom domain like <strong>{formData.store_url || 'yourstore'}.fairprice.ng</strong>?</span>
+                                            </p>
+                                            <Link href="/seller/settings/billing">
+                                                <Button size="sm" variant="outline" className="h-7 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-100 shrink-0 rounded-lg">
+                                                    Upgrade to Pro
+                                                </Button>
+                                            </Link>
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -254,10 +294,10 @@ export default function SellerSettingsPage() {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div >
 
                 {/* Operations Section */}
-                <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">
+                < div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm" >
                     <div className="flex items-center gap-2 mb-6 text-brand-green-600">
                         <Users className="h-5 w-5" />
                         <h2 className="font-bold uppercase tracking-widest text-xs">Business Operations</h2>
@@ -335,10 +375,10 @@ export default function SellerSettingsPage() {
                             </select>
                         </div>
                     </div>
-                </div>
+                </div >
 
                 {/* Save Button */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-[24px] border border-gray-200 p-4 sm:p-6 shadow-xl sticky bottom-6 z-10 transition-all">
+                < div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-[24px] border border-gray-200 p-4 sm:p-6 shadow-xl sticky bottom-6 z-10 transition-all" >
                     <div className="flex items-center gap-3">
                         <AnimatePresence>
                             {success && (
@@ -365,8 +405,8 @@ export default function SellerSettingsPage() {
                         )}
                         {saving ? "Saving Changes" : "Save Changes"}
                     </Button>
-                </div>
-            </form>
-        </div>
+                </div >
+            </form >
+        </div >
     );
 }

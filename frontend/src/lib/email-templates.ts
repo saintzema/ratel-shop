@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY';
 
 interface EmailPayload {
     name?: string;
@@ -11,6 +11,11 @@ interface EmailPayload {
     promoContent?: string;
     storeUrl?: string;
     orderIds?: string[];
+    businessName?: string;
+    ownerEmail?: string;
+    daysRemaining?: number;
+    planName?: string;
+    reviewUrl?: string;
 }
 
 const BRAND_COLOR = "#059669";
@@ -340,6 +345,59 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 
 <div style="text-align:center;">
     <a href="https://fairprice.ng/admin/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Payout Request</a>
+</div>
+            `);
+            break;
+
+        case 'ADMIN_NEW_KYC':
+            subject = `New Seller KYC Submitted: ${payload.businessName || "New Business"}`;
+            html = BaseTemplate("New Seller Registration", `
+<p style="margin:0 0 16px 0;">Hi Admin,</p>
+<p style="margin:0 0 24px 0;">A new seller has completed their KYC onboarding and is awaiting your approval.</p>
+
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+    <tr>
+        <td style="padding:16px;background-color:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;" class="feature-box">
+            <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+                <tr>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Business Name</td>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;" class="divider text-main">${payload.businessName || "Unknown"}</td>
+                </tr>
+                <tr>
+                    <td style="padding-top:12px;" class="text-muted">Owner Email</td>
+                    <td style="padding-top:12px;text-align:right;font-weight:700;" class="text-main">${payload.ownerEmail || "N/A"}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<div style="text-align:center;">
+    <a href="${payload.reviewUrl || "https://fairprice.ng/admin/users"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review & Approve</a>
+</div>
+            `);
+            break;
+
+        case 'PLAN_EXPIRY':
+            subject = payload.daysRemaining === 0
+                ? `Your ${payload.planName || ""} plan has expired`
+                : `Your ${payload.planName || ""} plan expires in ${payload.daysRemaining} day${(payload.daysRemaining || 0) > 1 ? 's' : ''}`;
+            html = BaseTemplate(
+                payload.daysRemaining === 0 ? "Plan Expired" : "Plan Expiring Soon",
+                `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+${payload.daysRemaining === 0 ? `
+<p style="margin:0 0 24px 0;">Your <strong>${payload.planName || ""}</strong> plan for <strong>${payload.businessName || "your store"}</strong> has expired. Your second store and its products are now inactive and hidden from the marketplace.</p>
+<div style="background-color:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:16px;margin-bottom:32px;">
+    <p style="margin:0;color:#dc2626;font-size:14px;font-weight:700;text-align:center;">
+        ⚠️ Your store is now inactive. Renew your plan to restore it.
+    </p>
+</div>
+` : `
+<p style="margin:0 0 24px 0;">Your <strong>${payload.planName || ""}</strong> plan for <strong>${payload.businessName || "your store"}</strong> will expire in <strong>${payload.daysRemaining} day${(payload.daysRemaining || 0) > 1 ? 's' : ''}</strong>. After expiry, your store and products will be hidden from the marketplace.</p>
+`}
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/seller/settings/billing" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">${payload.daysRemaining === 0 ? 'Renew Now' : 'Renew Your Plan'}</a>
 </div>
             `);
             break;

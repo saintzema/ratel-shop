@@ -20,7 +20,7 @@ export async function POST(request: Request) {
         const { subject, html } = buildEmailTemplate(type, payload || {});
 
         const data = await resend.emails.send({
-            from: 'FairPrice.ng <hello@fairprice.zemaai.com>', // We use the resend dev email for testing since domain isn't verified in demo
+            from: 'Ziva from FairPrice.ng <hello@fairprice.zemaai.com>', 
             to: [to],
             subject: subject,
             html: html,

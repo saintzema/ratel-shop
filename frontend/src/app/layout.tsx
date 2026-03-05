@@ -14,6 +14,8 @@ import { FloatingNotification } from "@/components/ui/FloatingNotification";
 import { MessageBox } from "@/components/messaging/MessageBox";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PwaManager } from "@/components/ui/PwaManager";
+import { ClientImageFallback } from "@/components/ui/ClientImageFallback";
+
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
   description: "Secure, reliable, and premium e-commerce platform for Africa with Escrow protection.",
@@ -39,6 +41,7 @@ export default function RootLayout({
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}
         suppressHydrationWarning
       >
+        <ClientImageFallback />
         <LocationProvider>
           <AuthProvider>
             <CartProvider>

@@ -142,6 +142,8 @@ export default function ProductDetailPage() {
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
 
+    if (!mounted) return null;
+
     useEffect(() => {
         setMounted(true);
         const handleStorageChange = () => setStoreVersion(v => v + 1);
@@ -756,7 +758,7 @@ export default function ProductDetailPage() {
                             This product belongs to a storefront currently undergoing administrative verification.
                         </p>
                         <Button asChild className="mt-10 h-14 px-10 rounded-2xl bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest text-[10px] transition-all hover:scale-105">
-                            <Link href="/">Return to Nexus</Link>
+                            <Link href="/">Return to Home</Link>
                         </Button>
                     </div>
                 </div>
@@ -765,7 +767,7 @@ export default function ProductDetailPage() {
         );
     }
 
-    if (!mounted) return null; // Prevent hydration error from DemoStore local storage
+
 
     return (
         <div className="min-h-screen bg-white">

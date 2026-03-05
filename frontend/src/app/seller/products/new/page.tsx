@@ -217,7 +217,7 @@ export default function NewProduct() {
         const newProduct = {
             id: `seller-${Date.now()}`,
             seller_id: sellerId,
-            seller_name: "My Store",
+            seller_name: DemoStore.getCurrentSeller()?.business_name || "New Store",
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,

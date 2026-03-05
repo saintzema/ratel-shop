@@ -14,6 +14,7 @@ import {
     X,
     Wallet,
     ChevronRight,
+    ChevronDown,
     Settings,
     Crown,
     BarChart3,
@@ -28,6 +29,13 @@ import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
 import { Seller, NegotiationRequest } from "@/lib/types";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -45,7 +53,9 @@ export default function SellerLayout({
 }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
+    const [allUserStores, setAllUserStores] = useState<Seller[]>([]);
     const [pendingNegotiations, setPendingNegotiations] = useState(0);
+    const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
 
@@ -61,6 +71,14 @@ export default function SellerLayout({
                 setCurrentSeller(seller);
                 const negs = DemoStore.getNegotiations(seller.id);
                 setPendingNegotiations(negs.filter(n => n.status === "pending").length);
+
+                // Load all stores owned by this user
+                const allSellers = DemoStore.getSellers();
+                const myStores = allSellers.filter(s => s.user_id === seller.user_id || s.owner_email === seller.owner_email);
+                setAllUserStores(myStores);
+
+                // Check for plan expiry and send notifications/deactivate if needed
+                DemoStore.checkPlanExpiry(seller.id);
             }
         };
 
@@ -89,11 +107,11 @@ export default function SellerLayout({
         { label: "Overview", href: "/seller/dashboard", icon: LayoutDashboard },
         { label: "Products", href: "/seller/products", icon: Package },
         { label: "Orders", href: "/seller/orders", icon: ShoppingBag },
+        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: pendingNegotiations > 0 ? pendingNegotiations.toString() : undefined },
         { label: "Customers", href: "/seller/customers", icon: Users },
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
-        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: pendingNegotiations > 0 ? pendingNegotiations.toString() : undefined },
         { label: "Payouts", href: "/seller/dashboard/payouts", icon: Wallet },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
@@ -125,18 +143,22 @@ export default function SellerLayout({
                         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
-                    {/* Seller identity */}
+                    {/* Seller identity — clickable to switch stores */}
                     <div className="p-5 border-b border-gray-200">
                         <div className="flex items-center gap-2 mb-5 cursor-pointer" onClick={() => router.push("/")}>
                             <Logo variant="dark" />
                         </div>
-                        <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                        <button
+                            type="button"
+                            onClick={() => setIsSwitchModalOpen(true)}
+                            className="w-full flex items-center gap-3 rounded-xl p-2 -m-2 hover:bg-gray-50 transition-colors cursor-pointer group"
+                        >
+                            <div className="h-10 w-10 md:h-12 md:w-12 rounded-2xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
                                 {currentSeller.business_name.charAt(0).toUpperCase()}
                             </div>
-                            <div className="flex-1 min-w-0">
-                                <h2 className="font-bold text-sm text-gray-900 truncate tracking-tight">{currentSeller.business_name}</h2>
-                                <div className="flex flex-col gap-1 mt-0.5">
+                            <div className="flex-1 min-w-0 text-left">
+                                <h2 className="font-bold text-sm text-gray-900 truncate tracking-tight px-1">{currentSeller.business_name}</h2>
+                                <div className="flex flex-col gap-1 mt-0.5 px-1">
                                     {currentSeller.verified && (
                                         <div className="flex items-center gap-1.5">
                                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -151,7 +173,8 @@ export default function SellerLayout({
                                     )}
                                 </div>
                             </div>
-                        </div>
+                            <ChevronDown className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0" />
+                        </button>
                     </div>
 
                     {/* Navigation */}
@@ -255,15 +278,29 @@ export default function SellerLayout({
                                             Become Premium Seller
                                         </Link>
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-indigo-50 focus:text-indigo-700 text-indigo-600 transition-colors font-bold">
-                                        Run Sponsored Ads
+                                    <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-indigo-50 focus:text-indigo-700 text-indigo-600 transition-colors font-bold">
+                                        <Link href="/seller/dashboard/promotions" className="w-full flex items-center font-medium">
+                                            Run Sponsored Ads
+                                        </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
-                                    <DropdownMenuItem className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors font-medium">
+                                    <DropdownMenuItem
+                                        className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors font-medium"
+                                        onClick={() => setIsSwitchModalOpen(true)}
+                                    >
                                         <Store className="mr-3 h-4 w-4 text-emerald-500" />
                                         Switch Business
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors font-medium text-xs">
+                                    <DropdownMenuItem
+                                        className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors font-medium text-xs"
+                                        onClick={() => {
+                                            if (currentSeller.subscription_plan === "Starter" || !currentSeller.subscription_plan) {
+                                                router.push("/seller/settings/billing");
+                                            } else {
+                                                router.push("/seller/onboarding");
+                                            }
+                                        }}
+                                    >
                                         + Add New Store Profile
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
@@ -284,6 +321,67 @@ export default function SellerLayout({
                         {children}
                     </main>
                 </div>
+
+                {/* Switch Business Modal */}
+                <Dialog open={isSwitchModalOpen} onOpenChange={setIsSwitchModalOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle className="font-black text-gray-900">Switch Business</DialogTitle>
+                            <DialogDescription>
+                                Select a store profile to manage. Creating multiple stores requires a Premium plan.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid gap-2 py-4 mt-2">
+                            {allUserStores.map((store) => (
+                                <button
+                                    key={store.id}
+                                    onClick={() => {
+                                        DemoStore.loginSeller(store.id);
+                                        setIsSwitchModalOpen(false);
+                                        window.dispatchEvent(new Event("demo-store-update"));
+                                        router.push("/seller/dashboard");
+                                    }}
+                                    className={cn(
+                                        "w-full flex items-center gap-4 p-3 rounded-2xl border transition-all text-left",
+                                        currentSeller.id === store.id
+                                            ? "border-emerald-500 bg-emerald-50 shadow-sm"
+                                            : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
+                                    )}
+                                >
+                                    <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shrink-0">
+                                        {store.logo_url ? (
+                                            <img src={store.logo_url} alt="" className="h-full w-full object-cover rounded-xl" />
+                                        ) : store.business_name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-gray-900 truncate tracking-tight">{store.business_name}</h4>
+                                        <p className="text-[11px] font-bold text-gray-400 tracking-wider uppercase truncate">
+                                            {store.subscription_plan || "Starter"} Plan
+                                        </p>
+                                    </div>
+                                    {currentSeller.id === store.id && (
+                                        <div className="h-2 w-2 rounded-full bg-emerald-500 mr-2 shrink-0" />
+                                    )}
+                                </button>
+                            ))}
+
+                            <Button
+                                variant="outline"
+                                className="w-full mt-4 h-12 rounded-xl border-dashed border-2 font-bold text-gray-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors border-gray-200"
+                                onClick={() => {
+                                    setIsSwitchModalOpen(false);
+                                    if (currentSeller.subscription_plan === "Starter" || !currentSeller.subscription_plan) {
+                                        router.push("/seller/settings/billing");
+                                    } else {
+                                        router.push("/seller/onboarding");
+                                    }
+                                }}
+                            >
+                                + Create New Business
+                            </Button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </ProtectedRoute>
     );

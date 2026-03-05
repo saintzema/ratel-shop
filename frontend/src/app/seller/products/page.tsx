@@ -45,6 +45,7 @@ export default function SellerProducts() {
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [showPaystack, setShowPaystack] = useState(false);
+    const [selectedAdPlan, setSelectedAdPlan] = useState<"3_day" | "10_day" | "30_day">("3_day");
     const [saveSuccess, setSaveSuccess] = useState(false);
     const router = useRouter();
 
@@ -108,18 +109,12 @@ export default function SellerProducts() {
     const handlePromoteSuccess = (reference: string) => {
         if (!promoteModalOpen.product) return;
 
-        DemoStore.promoteProduct(promoteModalOpen.product.id, true);
-
-        // Refresh local list
         const sellerId = DemoStore.getCurrentSellerId();
         if (sellerId) {
-            setProducts(DemoStore.getProducts().filter(p => p.seller_id === sellerId));
+            // Create a promotion in DemoStore with the selected plan
+            DemoStore.createPromotion(promoteModalOpen.product.id, sellerId, selectedAdPlan);
+            setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId));
         }
-
-        // Update local state to reflect UI instantly
-        setProducts(prev => prev.map(p =>
-            p.id === promoteModalOpen.product!.id ? { ...p, is_sponsored: true } : p
-        ));
 
         setShowPaystack(false);
         setPromoteModalOpen({ isOpen: false, product: null });
@@ -447,25 +442,50 @@ export default function SellerProducts() {
                 </table>
             </div>
 
-            {/* Promote Product Modal */}
+            {/* Promote Product Modal — 3-Tier Selector */}
             <Dialog open={promoteModalOpen.isOpen} onOpenChange={(open) => !open && setPromoteModalOpen({ isOpen: false, product: null })}>
-                <DialogContent className="sm:max-w-[425px]">
+                <DialogContent className="sm:max-w-[480px]">
                     <DialogHeader>
-                        <DialogTitle>Boost Your Sales</DialogTitle>
+                        <DialogTitle className="text-lg font-black tracking-tight">Boost Your Sales</DialogTitle>
                         <DialogDescription>
-                            Promote "{promoteModalOpen.product?.name}" to the top of search results and category pages.
+                            Promote &quot;{promoteModalOpen.product?.name}&quot; to the top of search results and category pages.
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-4">
-                            <div className="bg-amber-100 p-2 rounded-lg h-10 w-10 flex items-center justify-center shrink-0">
-                                <TrendingUp className="h-5 w-5 text-amber-700" />
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-gray-900 text-sm">Sponsored Product Placement</h4>
-                                <p className="text-xs text-gray-600 mt-1">Get up to 5x more views by featuring this product.</p>
-                                <p className="text-sm font-black text-amber-700 mt-2">₦2,500 <span className="text-xs font-normal text-amber-600">/ 7 days</span></p>
-                            </div>
+                    <div className="py-4 space-y-3">
+                        {[
+                            { key: "3_day", days: 3, price: 5000, label: "3 Days", desc: "Quick visibility boost" },
+                            { key: "10_day", days: 10, price: 9999, label: "10 Days", desc: "Extended reach campaign", popular: true },
+                            { key: "30_day", days: 30, price: 20000, label: "30 Days", desc: "Maximum exposure & sales" },
+                        ].map(plan => (
+                            <button
+                                key={plan.key}
+                                type="button"
+                                onClick={() => setSelectedAdPlan(plan.key as any)}
+                                className={cn(
+                                    "w-full text-left p-4 rounded-2xl border-2 transition-all relative",
+                                    selectedAdPlan === plan.key
+                                        ? "border-amber-500 bg-amber-50 shadow-md"
+                                        : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
+                                )}
+                            >
+                                {plan.popular && (
+                                    <span className="absolute -top-2.5 right-4 text-[9px] font-black uppercase tracking-widest bg-amber-500 text-white px-2.5 py-0.5 rounded-full">Popular</span>
+                                )}
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h4 className="font-bold text-gray-900 text-sm">{plan.label}</h4>
+                                        <p className="text-xs text-gray-500 mt-0.5">{plan.desc}</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-lg font-black text-gray-900">₦{plan.price.toLocaleString()}</span>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                        <div className="pt-2 text-center">
+                            <Link href="/seller/dashboard/promotions" className="text-xs text-indigo-600 font-bold hover:underline">
+                                View all running ads →
+                            </Link>
                         </div>
                     </div>
                     <DialogFooter>
@@ -474,7 +494,7 @@ export default function SellerProducts() {
                             className="bg-amber-500 hover:bg-amber-600 text-white font-bold"
                             onClick={handlePromoteProductInit}
                         >
-                            Promote Now
+                            Promote Now — ₦{selectedAdPlan === "3_day" ? "5,000" : selectedAdPlan === "10_day" ? "9,999" : "20,000"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -482,7 +502,7 @@ export default function SellerProducts() {
 
             {showPaystack && promoteModalOpen.product && (
                 <PaystackCheckout
-                    amount={250000} // ₦2,500 in kobo
+                    amount={(selectedAdPlan === "3_day" ? 500000 : selectedAdPlan === "10_day" ? 999900 : 2000000)}
                     email={DemoStore.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
                     onSuccess={handlePromoteSuccess}
                     onClose={() => setShowPaystack(false)}

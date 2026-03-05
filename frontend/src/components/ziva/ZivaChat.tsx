@@ -16,6 +16,7 @@ import { formatPrice } from "@/lib/utils";
 import { getDemoPriceComparison } from "@/lib/data";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -166,6 +167,7 @@ interface ChatMessage {
 export function ZivaChat() {
     const [mounted, setMounted] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    const { startConversation } = useMessages();
     // Detect current product page for context-aware suggestions
     const pathname = usePathname();
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
@@ -210,10 +212,18 @@ export function ZivaChat() {
 
     const scrollToBottom = useCallback(() => {
         if (messagesAreaRef.current) {
-            messagesAreaRef.current.scrollTo({
-                top: messagesAreaRef.current.scrollHeight,
-                behavior: "smooth"
-            });
+            // Scroll the last message into view, keeping quick actions visible
+            const lastMsg = messagesAreaRef.current.querySelector("[data-last-msg]");
+            if (lastMsg) {
+                lastMsg.scrollIntoView({ behavior: "smooth", block: "end" });
+            } else {
+                // fallback: scroll to near-bottom but leave room for quick actions
+                const maxScroll = messagesAreaRef.current.scrollHeight - messagesAreaRef.current.clientHeight;
+                messagesAreaRef.current.scrollTo({
+                    top: Math.max(0, maxScroll - 10),
+                    behavior: "smooth"
+                });
+            }
         }
     }, []);
 
@@ -536,6 +546,7 @@ export function ZivaChat() {
                     subject: "Customer Requested Human Support",
                     message: `Customer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`,
                     source: "ziva_escalation",
+                    target_user_id: "admin",
                 });
 
                 setTimeout(() => {
@@ -577,8 +588,7 @@ export function ZivaChat() {
                     subject: `📷 Image Request: ${currentProduct.name}`,
                     message: `A customer has requested real product images for "${currentProduct.name}" (₦${currentProduct.price.toLocaleString()}).\n\nCustomer: ${user?.name || 'Guest'} (${user?.email || 'not logged in'})\nMessage: "${resolvedText}"\n\nPlease upload clear product photos to respond to this request.`,
                     source: "order_issue",
-                    target_user_id: user?.id,
-                    target_user_email: user?.email,
+                    target_user_id: currentProduct.seller_id || "admin",
                 });
 
                 // Also notify the seller
@@ -672,14 +682,14 @@ export function ZivaChat() {
                             status: "pending",
                             created_at: new Date().toISOString(),
                         });
-                        // Also save to admin support inbox
-                        DemoStore.addSupportMessage({
-                            user_name: user?.name || "Guest Customer",
-                            user_email: user?.email || "guest@fairprice.ng",
-                            subject: `💰 Price Negotiation: ${matchProduct.name}`,
-                            message: `Customer offered ₦${amount.toLocaleString()} for "${matchProduct.name}" (listed at ₦${matchProduct.price.toLocaleString()}).\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nAction required: Accept, counter-offer, or decline.`,
-                            source: "ziva_negotiation",
-                        });
+                        // Also save to inbox conversation thread
+                        const negMessage = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${amount.toLocaleString()}\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+                        startConversation(
+                            `neg_${matchProduct.id}_${Date.now()}`,
+                            matchProduct.name,
+                            matchProduct.image_url,
+                            negMessage
+                        );
 
                         setTimeout(() => {
                             setMessages(prev => [
@@ -793,10 +803,10 @@ export function ZivaChat() {
                 productQuery = productQuery.replace(/^the\s+/i, '').trim();
 
                 const allProducts = DemoStore.getProducts();
-                
+
                 // First try exact match
                 let matchProduct = allProducts.find(p => p.name.toLowerCase() === productQuery.toLowerCase());
-                
+
                 // Fallback to Multi-token fuzzy match: score products by how many terms match
                 if (!matchProduct) {
                     const queryTokens = productQuery.toLowerCase().split(/\s+/).filter((t: string) => t.length > 2);
@@ -808,7 +818,7 @@ export function ZivaChat() {
                         .filter(m => m.score > 0)
                         .sort((a, b) => b.score - a.score)[0]?.product;
                 }
-                
+
                 matchProduct = matchProduct || currentProduct;
 
                 if (matchProduct && offerAmount > 0) {
@@ -843,14 +853,14 @@ export function ZivaChat() {
                         status: "pending",
                         created_at: new Date().toISOString(),
                     });
-                    // Also save to admin support inbox
-                    DemoStore.addSupportMessage({
-                        user_name: user?.name || "Guest Customer",
-                        user_email: user?.email || "guest@fairprice.ng",
-                        subject: `💰 Price Negotiation: ${matchProduct.name}`,
-                        message: `Customer offered ₦${offerAmount.toLocaleString()} for "${matchProduct.name}" (listed at ₦${matchProduct.price.toLocaleString()}).\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nAction required: Accept, counter-offer, or decline.`,
-                        source: "ziva_negotiation",
-                    });
+                    // Also save to inbox conversation thread
+                    const negMessage = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${offerAmount.toLocaleString()}\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+                    startConversation(
+                        `neg_${matchProduct.id}_${Date.now()}`,
+                        matchProduct.name,
+                        matchProduct.image_url,
+                        negMessage
+                    );
 
                     setTimeout(() => {
                         setMessages(prev => [
@@ -1106,8 +1116,8 @@ export function ZivaChat() {
                             className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scroll-smooth"
                             style={{ background: "linear-gradient(180deg, rgba(15,15,20,1) 0%, rgba(10,10,15,1) 100%)" }}
                         >
-                            {messages.map(msg => (
-                                <div key={msg.id} data-role={msg.role} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
+                            {messages.map((msg, msgIdx) => (
+                                <div key={msg.id} data-role={msg.role} {...(msgIdx === messages.length - 1 ? { "data-last-msg": "true" } : {})} className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}>
                                     <div className="max-w-[90%] space-y-2">
                                         {/* Typing indicator */}
                                         {msg.isTyping ? (

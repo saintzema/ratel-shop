@@ -24,7 +24,7 @@ export async function POST(req: Request) {
         
         Output MUST be valid JSON matching this exact structure:
         {
-            "description": "A compelling, 3-4 paragraph product description. First paragraph: hook with the key value proposition. Second paragraph: detailed features, materials, and build quality. Third paragraph: use cases and who it's perfect for. Fourth paragraph: what's in the box and why it's a great value. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
+            "description": "A compelling, 3-4 paragraph product description. FIRST PARAGRAPH MUST START IMMEDIATELY WITH FACTUAL DETAILS about material, build, and durability. STRICTLY AVOID generic intros, marketing fluff, or phrases like 'Unlock cinematic-quality...'. Second paragraph: detailed features and technical specs. Third paragraph: use cases and who it's perfect for. Fourth paragraph: what's in the box and why it's a great value. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
             "highlights": [
                 "Key selling point 1 — be specific with numbers/specs where possible",
                 "Key selling point 2",

@@ -40,6 +40,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; 
     processing: { label: "Processing", color: "text-amber-400", bg: "bg-amber-500/10", dot: "bg-amber-400" },
     shipped: { label: "In Transit", color: "text-blue-400", bg: "bg-blue-500/10", dot: "bg-blue-400" },
     delivered: { label: "Delivered", color: "text-brand-green-400", bg: "bg-brand-green-500/10", dot: "bg-brand-green-400" },
+    return_requested: { label: "Return Requested", color: "text-orange-400", bg: "bg-orange-500/10", dot: "bg-orange-400" },
+    return_approved: { label: "Return Approved", color: "text-blue-400", bg: "bg-blue-500/10", dot: "bg-blue-400" },
+    returned: { label: "Returned & Refunded", color: "text-gray-400", bg: "bg-gray-500/10", dot: "bg-gray-400" },
     cancelled: { label: "Cancelled", color: "text-red-400", bg: "bg-red-500/10", dot: "bg-red-400" },
 };
 
@@ -117,20 +120,23 @@ function OrdersContent() {
     };
 
     const handleCancelOrder = (orderId: string) => {
-        if (confirm("Are you sure you want to cancel this order?")) {
-            DemoStore.updateOrderStatus(orderId, "cancelled");
-            DemoStore.addNotification({
-                userId: user?.email || "guest",
-                type: "order",
-                message: `Order Cancelled — Your order #${orderId.split('_')[1]?.substring(0, 8) || orderId.substring(0, 8)} has been cancelled successfully.`,
-                link: "/account/orders"
-            });
-            loadData();
-        }
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+        setConciergeOrder(order);
+        setConciergeMode("cancel");
+        setShowConcierge(true);
     };
 
     const handleReturnOrder = (order: Order) => {
-        setConciergeOrder(order);
+        DemoStore.updateOrderStatus(order.id, "return_requested");
+        DemoStore.addNotification({
+            userId: user?.email || "guest",
+            type: "order",
+            message: `Return requested for ${order.product?.name || 'your order'}. The seller will review your request.`,
+            link: "/account/orders"
+        });
+        loadData();
+        setConciergeOrder({ ...order, status: "return_requested" });
         setConciergeMode("return");
         setShowConcierge(true);
     };
@@ -213,7 +219,7 @@ function OrdersContent() {
                         {/* Orders Table */}
                         <div className="bg-white backdrop-blur-[12px] rounded-xl border border-gray-200 shadow-lg overflow-hidden">
                             {/* Table Header */}
-                            <div className="hidden md:grid grid-cols-[44px_1fr_100px_100px_90px_110px] gap-4 px-4 py-3 bg-white border-b border-gray-200 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            <div className="hidden md:grid grid-cols-[44px_minmax(0,1fr)_110px_110px_100px_120px] gap-3 px-4 py-3 bg-white border-b border-gray-200 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
                                 <span></span>
                                 <span>Product</span>
                                 <span>Date</span>
@@ -246,7 +252,7 @@ function OrdersContent() {
                                                 className="group"
                                             >
                                                 {/* Desktop Row */}
-                                                <div className="hidden md:grid grid-cols-[44px_1fr_100px_100px_90px_110px] gap-4 px-4 py-3 items-center hover:bg-white transition-colors">
+                                                <div className="hidden md:grid grid-cols-[44px_minmax(0,1fr)_110px_110px_100px_120px] gap-3 px-4 py-3 items-center hover:bg-white transition-colors">
                                                     {/* Thumbnail */}
                                                     <Link href={`/product/${order.product_id}`} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                         <img

@@ -175,15 +175,27 @@ interface SavedAddress {
     city: string;
 }
 
+function getAddressKey(): string {
+    if (typeof window === "undefined") return "fp_saved_addresses";
+    try {
+        const raw = localStorage.getItem("fp_user");
+        if (raw) {
+            const user = JSON.parse(raw);
+            if (user?.id) return `fp_saved_addresses_${user.id}`;
+        }
+    } catch { }
+    return "fp_saved_addresses";
+}
+
 function getSavedAddresses(): SavedAddress[] {
     if (typeof window === "undefined") return [];
     try {
-        return JSON.parse(localStorage.getItem("fp_saved_addresses") || "[]");
+        return JSON.parse(localStorage.getItem(getAddressKey()) || "[]");
     } catch { return []; }
 }
 
 function persistAddresses(addresses: SavedAddress[]) {
-    localStorage.setItem("fp_saved_addresses", JSON.stringify(addresses));
+    localStorage.setItem(getAddressKey(), JSON.stringify(addresses));
 }
 
 function CheckoutContent() {
@@ -596,8 +608,9 @@ function CheckoutContent() {
             const orderUserId = user?.email || address.email;
             const fullName = `${address.firstName} ${address.lastName}`.trim();
 
+            const createdOrders: any[] = [];
             checkoutItems.forEach(item => {
-                DemoStore.addOrder({
+                const newOrder = DemoStore.addOrder({
                     product_id: item.product.id,
                     customer_id: orderUserId,
                     seller_id: item.product.seller_id,
@@ -608,6 +621,7 @@ function CheckoutContent() {
                         ? `${fullName}, Pickup at: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
                         : `${fullName}, ${address.street}, ${address.city}`
                 }, item.product);
+                createdOrders.push({ order: newOrder, product: item.product, item });
             });
 
             if (negotiationId) {
@@ -642,9 +656,11 @@ function CheckoutContent() {
             // Show concierge before redirect
             setShowConcierge(true);
 
-            // Fire off an Order Confirmation Email asynchronously
+            // Fire off Order Confirmation Email to BUYER with real order IDs
             if (user?.email || address.email) {
                 const targetEmail = user?.email || address.email;
+                const firstOrder = createdOrders[0];
+                const realOrderId = firstOrder?.order?.id || "PENDING";
                 fetch("/api/email", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -653,14 +669,47 @@ function CheckoutContent() {
                         type: "ORDER_PLACED",
                         payload: {
                             name: address.firstName || "Customer",
-                            orderId: `ORD-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
+                            orderId: realOrderId,
                             productName: checkoutItems.length > 1 ? `${checkoutItems[0].product.name} +${checkoutItems.length - 1} more` : checkoutItems[0].product.name,
                             amount: checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0),
                             trackingUrl: `https://fairprice.ng/account/orders`
                         }
                     })
-                }).catch(console.error); // Silently catch email errors so checkout doesn't brick
+                }).catch(console.error);
             }
+
+            // Fire off Order Alert Email to SELLER(s)
+            const sellerGroups = new Map<string, { sellerEmail: string, sellerName: string, orders: typeof createdOrders }>();
+            createdOrders.forEach(co => {
+                const sellers = DemoStore.getSellers();
+                const seller = sellers.find(s => s.id === co.product.seller_id);
+                if (seller?.owner_email) {
+                    if (!sellerGroups.has(seller.id)) {
+                        sellerGroups.set(seller.id, { sellerEmail: seller.owner_email, sellerName: seller.business_name, orders: [] });
+                    }
+                    sellerGroups.get(seller.id)!.orders.push(co);
+                }
+            });
+            sellerGroups.forEach(({ sellerEmail, sellerName, orders: sellerOrders }) => {
+                const firstSellerOrder = sellerOrders[0];
+                const productNames = sellerOrders.map(o => o.product.name).join(", ");
+                const totalAmount = sellerOrders.reduce((sum: number, o: any) => sum + o.order.amount, 0);
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: sellerEmail,
+                        type: "ORDER_PLACED",
+                        payload: {
+                            name: sellerName,
+                            orderId: firstSellerOrder.order.id,
+                            productName: productNames,
+                            amount: totalAmount,
+                            trackingUrl: `https://fairprice.ng/seller/orders`
+                        }
+                    })
+                }).catch(console.error);
+            });
 
             // Redirect after a brief delay so user sees the concierge
             setTimeout(() => {

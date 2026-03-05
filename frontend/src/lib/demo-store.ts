@@ -22,6 +22,7 @@ class DemoStoreService {
         REVIEWS: "fairprice_demo_reviews",
         RETURNS: "fairprice_demo_returns",
         USERS: "fp_user",
+        USER_OVERRIDES: "fp_user_overrides",
         SEARCH_CACHE: "fairprice_search_cache",
     };
 
@@ -108,7 +109,7 @@ class DemoStoreService {
                 // If it's a specific user update, we could also trigger an auth update event 
                 // but AuthContext should ideally handle its own sync or listen to storage events.
             } catch (e) {
-                console.error("Failed to parse real-time event:", e);
+                console.warn("Failed to parse real-time event:", e);
             }
         };
 
@@ -161,7 +162,9 @@ class DemoStoreService {
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
         } catch (error) {
-            console.error("Database sync failed:", error);
+            // Use warn instead of error to prevent Next.js dev overlay from throwing a red screen
+            // on simple network failures (e.g offline or route missing)
+            console.warn("Database sync failed quietly:", (error as Error).message || "Network issue");
         }
     }
 
@@ -189,7 +192,7 @@ class DemoStoreService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(request),
-        }).catch(err => console.error("Failed to persist negotiation:", err));
+        }).catch(err => console.warn("Failed to persist negotiation:", err));
 
         // Notify Seller
         const product = this.getProducts().find(p => p.id === request.product_id);
@@ -449,7 +452,19 @@ class DemoStoreService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(mergedSeller),
-        }).catch(err => console.error("Failed to persist seller update:", err));
+        }).catch(err => console.warn("Failed to persist seller update:", err));
+
+        // Create generic notification for important status changes
+        if (updates.status && updates.status !== updatedSeller.status) {
+            this.addNotification({
+                userId: id, // Route to seller inbox/dashboard
+                type: "system",
+                message: updates.status === "frozen" || updates.status === "suspended"
+                    ? "Your seller account has been temporarily suspended. Please respond to the admin enquiry."
+                    : `Your seller account status has been updated to: ${updates.status}.`,
+                link: "/seller/dashboard/messages"
+            });
+        }
     }
 
     getSellerCommissionRate(seller: Seller): number {
@@ -470,9 +485,27 @@ class DemoStoreService {
     }
 
     // --- Getters ---
-    getProducts(): Product[] {
+    getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
         if (typeof window === "undefined") return DEMO_PRODUCTS;
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || JSON.stringify(DEMO_PRODUCTS));
+        const allProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || JSON.stringify(DEMO_PRODUCTS));
+
+        // Always map seller_name so 'My Store' defaults are overwritten by the true business name
+        const allSellers = this.getSellers();
+        const derivedProducts = allProducts.map((p: Product) => {
+            const seller = allSellers.find(s => s.id === p.seller_id);
+            if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
+                return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
+            }
+            return p;
+        });
+
+        if (options?.includeInactiveSellers) return derivedProducts;
+
+        // By default, filter out products belonging to inactive/unverified sellers 
+        // to prevent unapproved sellers from showing up in global search or catalogs.
+        const activeSellerIds = new Set(allSellers.filter(s => s.status === "active" || s.verified || s.kyc_status === "approved").map(s => s.id));
+
+        return derivedProducts.filter((p: Product) => activeSellerIds.has(p.seller_id));
     }
 
     // ═══════════ Search Cache Layer ═══════════
@@ -637,7 +670,24 @@ class DemoStoreService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(seller),
-        }).catch(err => console.error("Failed to persist seller:", err));
+        }).catch(err => console.warn("Failed to persist seller:", err));
+
+        // Trigger Admin Registration Email
+        try {
+            fetch('/api/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: 'techzema@gmail.com',
+                    type: 'NEW_SELLER_REGISTRATION',
+                    payload: {
+                        name: seller.business_name || seller.owner_name,
+                        email: seller.owner_email,
+                        storeUrl: seller.store_url || seller.id
+                    }
+                })
+            });
+        } catch (e) { }
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
@@ -645,7 +695,24 @@ class DemoStoreService {
 
     getOrders(): Order[] {
         if (typeof window === "undefined") return DEMO_ORDERS;
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || JSON.stringify(DEMO_ORDERS));
+        const allOrders: Order[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || JSON.stringify(DEMO_ORDERS));
+        const allSellers = this.getSellers();
+
+        return allOrders.map(order => {
+            if (order.product) {
+                const seller = allSellers.find(s => s.id === order.product.seller_id);
+                if (seller && (order.product.seller_name === "My Store" || !order.product.seller_name)) {
+                    return {
+                        ...order,
+                        product: {
+                            ...order.product,
+                            seller_name: seller.business_name || seller.owner_name || "FairPrice Seller"
+                        }
+                    };
+                }
+            }
+            return order;
+        });
     }
 
     addOrder(order: Omit<Order, "id" | "created_at" | "updated_at" | "product">, sourceProduct?: Product): Order {
@@ -715,7 +782,7 @@ class DemoStoreService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newOrder),
-        }).catch(err => console.error("Failed to persist order:", err));
+        }).catch(err => console.warn("Failed to persist order:", err));
 
         // Notify Buyer
         this.addNotification({
@@ -856,7 +923,7 @@ class DemoStoreService {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(product),
-        }).catch(err => console.error("Failed to persist product:", err));
+        }).catch(err => console.warn("Failed to persist product:", err));
 
         try {
             this.addToHistory(product);
@@ -1116,7 +1183,51 @@ class DemoStoreService {
                 }
             } catch { }
         }
-        return Array.from(userMap.values());
+
+        // Merge with any manual status overrides (suspensions, activations) made by admin
+        const overridesStr = localStorage.getItem(this.STORAGE_KEYS.USER_OVERRIDES);
+        let overrides: Record<string, Partial<any>> = {};
+        if (overridesStr) {
+            try { overrides = JSON.parse(overridesStr); } catch { }
+        }
+
+        const allUsers = Array.from(userMap.values()).map(u => {
+            if (overrides[u.id]) {
+                return { ...u, ...overrides[u.id] };
+            }
+            if (overrides[u.email]) {
+                return { ...u, ...overrides[u.email] };
+            }
+            return u;
+        });
+
+        return allUsers;
+    }
+
+    updateUserStatus(userId: string, status: "active" | "suspended" | "frozen") {
+        if (typeof window === "undefined") return;
+        const overridesStr = localStorage.getItem(this.STORAGE_KEYS.USER_OVERRIDES);
+        let overrides: Record<string, Partial<any>> = {};
+        if (overridesStr) {
+            try { overrides = JSON.parse(overridesStr); } catch { }
+        }
+
+        overrides[userId] = { ...overrides[userId], status };
+        localStorage.setItem(this.STORAGE_KEYS.USER_OVERRIDES, JSON.stringify(overrides));
+
+        // Just in case they are currently logged in right now, we can update the active user object too
+        const activeUserStr = localStorage.getItem(this.STORAGE_KEYS.USERS);
+        if (activeUserStr) {
+            try {
+                const u = JSON.parse(activeUserStr);
+                if (u.id === userId || u.email === userId) {
+                    localStorage.setItem(this.STORAGE_KEYS.USERS, JSON.stringify({ ...u, status }));
+                }
+            } catch { }
+        }
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 
     sendAdminMessageToUser(userId: string, subject: string, message: string) {
@@ -1197,20 +1308,23 @@ class DemoStoreService {
 
     // --- Promotions ---
     private PROMO_KEY = "fp_promotions";
-    private PROMO_PLANS: Record<string, { days: number; price: number }> = {
-        "7_day": { days: 7, price: 5000 },
-        "14_day": { days: 14, price: 8500 },
-        "30_day": { days: 30, price: 15000 },
+    private PROMO_PLANS: Record<string, { days: number; price: number; label: string }> = {
+        "3_day": { days: 3, price: 5000, label: "3 Days" },
+        "10_day": { days: 10, price: 9999, label: "10 Days" },
+        "30_day": { days: 30, price: 20000, label: "30 Days" },
     };
 
-    createPromotion(productId: string, sellerId: string, plan: "7_day" | "14_day" | "30_day") {
+    createPromotion(productId: string, sellerId: string, plan: "3_day" | "10_day" | "30_day") {
         const planInfo = this.PROMO_PLANS[plan];
         const now = new Date();
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === productId);
         const promo = {
-            id: `promo_${Date.now()}_${Math.random().toString(36).substr(2, 6)} `,
+            id: `promo_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             product_id: productId,
+            product_name: product?.name || "Product",
             seller_id: sellerId,
             plan,
+            plan_label: planInfo.label,
             amount_paid: planInfo.price,
             started_at: now.toISOString(),
             expires_at: new Date(now.getTime() + planInfo.days * 24 * 60 * 60 * 1000).toISOString(),
@@ -1224,6 +1338,14 @@ class DemoStoreService {
         localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
         // Mark product as sponsored
         this.updateProduct(productId, { is_sponsored: true });
+        // Notification
+        this.addNotification({
+            type: "promotion",
+            title: "Sponsored Ad is Live! 🚀",
+            message: `Your ad for "${product?.name || "Product"}" is now live for ${planInfo.label}. It will appear across the platform.`,
+            user_id: sellerId,
+            link: "/seller/dashboard/promotions",
+        });
         window.dispatchEvent(new Event("storage"));
         return promo;
     }
@@ -1238,6 +1360,14 @@ class DemoStoreService {
             if (p.status === "active" && new Date(p.expires_at).getTime() < now) {
                 p.status = "ended";
                 this.updateProduct(p.product_id, { is_sponsored: false });
+                // Notification on ad expiry
+                this.addNotification({
+                    type: "promotion",
+                    title: "Ad Campaign Ended",
+                    message: `Your sponsored ad for "${p.product_name || "Product"}" has expired. Renew to keep boosting your sales.`,
+                    user_id: p.seller_id,
+                    link: "/seller/dashboard/promotions",
+                });
                 changed = true;
             }
         }
@@ -1276,6 +1406,84 @@ class DemoStoreService {
             }
             localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
             window.dispatchEvent(new Event("storage"));
+        }
+    }
+
+    async checkPlanExpiry(sellerId: string) {
+        const seller = this.getSeller(sellerId);
+        if (!seller || seller.subscription_plan === "Starter" || !seller.subscription_plan) return;
+
+        // If plan is paid but has no expiry date, set it to 30 days from now (for demo purposes)
+        if (!seller.plan_expiry_date) {
+            const exp = new Date();
+            exp.setDate(exp.getDate() + 30);
+            this.updateSeller(sellerId, { plan_expiry_date: exp.toISOString() });
+            return;
+        }
+
+        const expiry = new Date(seller.plan_expiry_date);
+        const now = new Date();
+        const daysRemaining = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        const notifiedKey = `fp_expiry_notified_${sellerId}`;
+        const notifiedRaw = localStorage.getItem(notifiedKey);
+        const notified: number[] = notifiedRaw ? JSON.parse(notifiedRaw) : [];
+
+        // Check 7, 4, 1, and 0 days
+        const thresholds = [7, 4, 1, 0];
+        let triggered = -1;
+
+        for (const t of thresholds) {
+            if (daysRemaining <= t && daysRemaining > t - 1 && !notified.includes(t)) {
+                triggered = t;
+                break;
+            }
+        }
+
+        if (triggered !== -1) {
+            // Trigger notification
+            const isExpired = triggered === 0;
+
+            this.addNotification({
+                type: "system",
+                title: isExpired ? "Plan Expired ⚠️" : "Plan Expiring Soon 🔔",
+                message: isExpired
+                    ? `Your ${seller.subscription_plan} plan for ${seller.business_name} has expired. Your store is now inactive.`
+                    : `Your ${seller.subscription_plan} plan for ${seller.business_name} expires in ${triggered} day${triggered > 1 ? 's' : ''}. Renew now to avoid disruption.`,
+                user_id: sellerId,
+                link: "/seller/settings/billing",
+            });
+
+            try {
+                // Determine owner email based on user list or default to current user if demo
+                const currentSession = this.getCurrentSession();
+                const ownerEmail = currentSession?.user?.email || "seller@fairprice.ng";
+
+                await fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: ownerEmail,
+                        type: 'PLAN_EXPIRY',
+                        payload: {
+                            name: currentSession?.user?.name || "Seller",
+                            businessName: seller.business_name,
+                            planName: seller.subscription_plan,
+                            daysRemaining: triggered
+                        }
+                    })
+                });
+            } catch (e) {
+                console.warn("Failed to trigger expiry email", e);
+            }
+
+            // Mark this threshold as notified
+            notified.push(triggered);
+            localStorage.setItem(notifiedKey, JSON.stringify(notified));
+
+            if (isExpired) {
+                this.updateSeller(sellerId, { is_active: false }); // Deactivate the store
+            }
         }
     }
 
@@ -1382,7 +1590,7 @@ class DemoStoreService {
         fetch('/api/email', {
             method: 'POST',
             body: JSON.stringify({ to: 'admin@fairprice.ng', type: 'SELLER_PAYOUT_REQUEST', payload: { sellerName: seller.business_name, amount, orderIds } })
-        }).catch(err => console.error("Error triggering payout email:", err));
+        }).catch(err => console.warn("Error triggering payout email:", err));
 
         window.dispatchEvent(new Event("storage"));
     }
@@ -1516,7 +1724,7 @@ class DemoStoreService {
                 userId: order.customer_id,
                 type: "system",
                 message: `Funds for ${order.product?.name || 'your order'} have been released.Please leave a review!`,
-                link: `/ product / ${order.product_id}?review = true`,
+                link: `/product/${order.product_id}?review=true`,
             });
             // Update stats & trigger storage event
             this.updateOrderEscrow(orderId, "released");

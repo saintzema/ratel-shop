@@ -62,40 +62,65 @@ export default function AdminUserDetailPage() {
         if (!id) return;
         setLoading(true);
         let found = false;
+        let localStatus: string | null | undefined = null;
 
-        // Try DemoStore first (always has latest registrations)
-        const dsSeller = DemoStore.getSellers().find((s: any) => s.id === id);
+        // ── Step 1: Check if this is a seller (match by id, user_id, or email) ──
+        const dsSeller = DemoStore.getSellers().find((s: any) => s.id === id || s.user_id === id || s.owner_email === id);
         if (dsSeller) {
-            const dsOrders = DemoStore.getOrders().filter((o: any) => o.seller_id === id);
+            const dsOrders = DemoStore.getOrders().filter((o: any) => o.seller_id === dsSeller.id || o.customer_id === id || o.customer_email === id);
+            localStatus = dsSeller.status;
             setUserEntity({ ...dsSeller, role: "seller" });
             setOrders(dsOrders);
             found = true;
-        } else {
-            // Check if it's a buyer from orders
+        }
+
+        // ── Step 2: If not a seller, check if buyer from orders or getAllUsers ──
+        if (!found) {
             const dsOrders = DemoStore.getOrders();
             const buyerOrders = dsOrders.filter((o: any) => o.customer_id === id || o.customer_email === id);
-            if (buyerOrders.length > 0) {
+
+            // Also check getAllUsers for registered users who may have no orders yet
+            const dsUser = DemoStore.getAllUsers().find((u: any) => u.id === id || u.email === id);
+
+            if (buyerOrders.length > 0 || dsUser) {
                 const first = buyerOrders[0];
+                const resolvedStatus = dsUser?.status || "active";
+                localStatus = resolvedStatus;
                 setUserEntity({
                     id,
-                    name: first.customer_name || id.split("@")[0],
-                    email: first.customer_email || id,
+                    name: dsUser?.name || first?.customer_name || id.split("@")[0],
+                    email: dsUser?.email || first?.customer_email || id,
                     role: "buyer",
-                    status: "active",
-                    created_at: first.created_at,
+                    status: resolvedStatus,
+                    created_at: dsUser?.created_at || first?.created_at || new Date().toISOString(),
+                    avatarUrl: dsUser?.avatarUrl || null,
                 });
                 setOrders(buyerOrders);
                 found = true;
             }
         }
 
-        // Also try API to get richer data
+        // ── Step 3: Enrich from API but never overwrite locally-set status ──
         try {
-            const sellerRes = await fetch(`/api/sellers/${id}`);
+            const sellerRes = await fetch(`/api/sellers/${dsSeller ? dsSeller.id : id}`);
             if (sellerRes.ok) {
                 const data = await sellerRes.json();
                 if (data && data.id) {
-                    setUserEntity((prev: any) => ({ ...prev, ...data, role: "seller" }));
+                    setUserEntity((prev: any) => {
+                        const merged = { ...prev };
+                        for (const key in data) {
+                            if (data[key] !== null && data[key] !== undefined && data[key] !== "") {
+                                // Never let API overwrite locally-authoritative status
+                                if (key === "status" && localStatus) continue;
+                                merged[key] = data[key];
+                            }
+                        }
+                        merged.role = "seller";
+                        if (data.businessName && !merged.business_name) merged.business_name = data.businessName;
+                        if (data.logoUrl && !merged.logo_url) merged.logo_url = data.logoUrl;
+                        if (data.coverImageUrl && !merged.cover_image_url) merged.cover_image_url = data.coverImageUrl;
+                        return merged;
+                    });
                     if (data.orders?.length) setOrders(data.orders);
                     found = true;
                 }
@@ -104,7 +129,17 @@ export default function AdminUserDetailPage() {
                 if (userRes.ok) {
                     const data = await userRes.json();
                     if (data && data.id) {
-                        setUserEntity((prev: any) => ({ ...(prev || {}), ...data, role: "buyer" }));
+                        setUserEntity((prev: any) => {
+                            const merged = { ...(prev || {}) };
+                            for (const key in data) {
+                                if (data[key] !== null && data[key] !== undefined && data[key] !== "") {
+                                    if (key === "status" && localStatus) continue;
+                                    merged[key] = data[key];
+                                }
+                            }
+                            merged.role = "buyer";
+                            return merged;
+                        });
                         found = true;
                     }
                 }
@@ -117,13 +152,13 @@ export default function AdminUserDetailPage() {
     };
 
     const handleApprove = async () => {
-        if (!id || isUpdating) return;
+        if (!userEntity?.id || isUpdating) return;
         setIsUpdating(true);
-        // Update in DemoStore immediately
-        DemoStore.updateSeller(id, { status: "active", verified: true, kyc_status: "approved" });
+        // Update in DemoStore immediately using the resolved seller ID
+        DemoStore.updateSeller(userEntity.id, { status: "active", verified: true, kyc_status: "approved" });
         // Also try API
         try {
-            await fetch(`/api/sellers/${id}`, {
+            await fetch(`/api/sellers/${userEntity.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: "active", verified: true }),
@@ -227,14 +262,56 @@ export default function AdminUserDetailPage() {
                     <Button onClick={() => router.push(`/admin/inbox?user_id=${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                         <Mail className="h-4 w-4 mr-2" /> Message
                     </Button>
-                    <Button onClick={() => {
-                        if (confirm("Are you sure you want to suspend this account?")) {
-                            DemoStore.updateSeller(id, { status: "frozen" });
-                            loadData();
-                        }
-                    }} variant="outline" className="h-11 px-5 rounded-2xl border-gray-100 bg-white/80 text-gray-600 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
-                        <Ban className="h-4 w-4 mr-2" /> Suspend
-                    </Button>
+                    {/* Activate — for pending users (buyers or sellers not yet approved) */}
+                    {(userEntity.status === "pending" || userEntity.status === "not_verified" || !userEntity.status) && (
+                        <Button onClick={() => {
+                            if (confirm("Are you sure you want to activate this account?")) {
+                                const newStatus = "active";
+                                if (userEntity.role === "seller") {
+                                    DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
+                                } else {
+                                    DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                }
+                                setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
+                            }
+                        }} className="h-11 px-5 rounded-2xl bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105">
+                            <CheckCircle2 className="h-4 w-4 mr-2" /> Activate Account
+                        </Button>
+                    )}
+
+                    {/* Reactivate — for frozen/suspended users */}
+                    {(userEntity.status === "frozen" || userEntity.status === "suspended") && (
+                        <Button onClick={() => {
+                            if (confirm("Are you sure you want to reactivate this account?")) {
+                                const newStatus = "active";
+                                if (userEntity.role === "seller") {
+                                    DemoStore.updateSeller(userEntity.id, { status: newStatus });
+                                } else {
+                                    DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                }
+                                setUserEntity((prev: any) => ({ ...prev, status: newStatus }));
+                            }
+                        }} variant="outline" className="h-11 px-5 rounded-2xl border-emerald-100 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-100 shadow-sm">
+                            <CheckCircle2 className="h-4 w-4 mr-2" /> Reactivate
+                        </Button>
+                    )}
+
+                    {/* Suspend — only for currently active users */}
+                    {userEntity.status === "active" && (
+                        <Button onClick={() => {
+                            if (confirm("Are you sure you want to suspend this account?")) {
+                                const newStatus = userEntity.role === "seller" ? "frozen" : "suspended";
+                                if (userEntity.role === "seller") {
+                                    DemoStore.updateSeller(userEntity.id, { status: newStatus });
+                                } else {
+                                    DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                }
+                                setUserEntity((prev: any) => ({ ...prev, status: newStatus }));
+                            }
+                        }} variant="outline" className="h-11 px-5 rounded-2xl border-rose-100 bg-rose-50 text-rose-600 font-bold text-xs uppercase tracking-wider hover:bg-rose-100 shadow-sm">
+                            <Ban className="h-4 w-4 mr-2" /> Suspend
+                        </Button>
+                    )}
                 </div>
             </div>
 

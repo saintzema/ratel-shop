@@ -77,18 +77,25 @@ export default function UserDirectory() {
                 const mappedSellers = sellers.map((s: any) => {
                     const sellerOrders = dsOrders.filter((o: any) => o.seller_id === s.id);
                     const revenue = sellerOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
+
+                    const buyerOrders = dsOrders.filter((o: any) => o.customer_id === s.user_id || o.customer_id === s.id || o.customer_email === s.owner_email || o.customer_email === s.email);
+                    const isBuyerAsWell = buyerOrders.length > 0;
+
                     return {
                         ...s,
                         role: "seller",
-                        display_name: s.business_name || s.owner_name || "Seller",
-                        avatar_url: s.logo_url || null,
+                        is_buyer: isBuyerAsWell,
+                        display_name: s.business_name || s.name || s.owner_name || "Seller",
+                        avatar_url: s.logo_url || s.avatar_url || null,
                         order_count: sellerOrders.length,
+                        purchase_count: buyerOrders.length,
                         revenue,
                     };
                 });
 
-                const sellerUserIds = new Set(mappedSellers.map((s: any) => s.user_id));
+                const sellerUserIds = new Set(mappedSellers.map((s: any) => s.user_id).filter(Boolean));
                 const sellerIds = new Set(mappedSellers.map((s: any) => s.id));
+                const sellerEmails = new Set(mappedSellers.map((s: any) => s.owner_email || s.email).filter(Boolean));
 
                 // Merge buyers from API + DemoStore
                 const buyerIdSet = new Set<string>();
@@ -96,9 +103,13 @@ export default function UserDirectory() {
 
                 for (const u of [...buyers, ...dsUsers]) {
                     const uid = u.id || u.email;
-                    if (buyerIdSet.has(uid) || sellerUserIds.has(uid) || sellerIds.has(uid)) continue;
+                    if (!uid) continue;
+
+                    // If user is already mapped as a seller, skip adding them as a separate buyer entity
+                    if (buyerIdSet.has(uid) || sellerUserIds.has(uid) || sellerIds.has(uid) || sellerEmails.has(uid)) continue;
+
                     buyerIdSet.add(uid);
-                    const userOrders = dsOrders.filter((o: any) => o.customer_id === uid || o.customer_id === u.email);
+                    const userOrders = dsOrders.filter((o: any) => o.customer_id === uid || o.customer_email === uid || o.customer_email === u.email);
                     const spent = userOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
                     allBuyers.push({
                         id: uid,
@@ -106,10 +117,12 @@ export default function UserDirectory() {
                         owner_email: u.email,
                         avatar_url: u.avatarUrl || u.avatar_url || null,
                         role: "buyer",
-                        status: u.is_active === false ? "suspended" : "active",
+                        is_buyer: true,
+                        status: u.status || (u.is_active === false ? "suspended" : "active"),
                         created_at: u.created_at || new Date().toISOString(),
                         trust_score: 90,
                         order_count: userOrders.length,
+                        purchase_count: userOrders.length,
                         revenue: spent,
                     });
                 }
@@ -145,7 +158,7 @@ export default function UserDirectory() {
             (p.owner_email && p.owner_email.toLowerCase().includes(term));
         const matchesView = view === "all" ||
             (view === "sellers" && p.role === "seller") ||
-            (view === "buyers" && p.role === "buyer") ||
+            (view === "buyers" && (p.role === "buyer" || p.is_buyer)) ||
             (view === "pending" && (p.status === "pending" || p.kyc_status === "pending"));
         return matchesSearch && matchesView;
     });
@@ -285,6 +298,11 @@ export default function UserDirectory() {
                                                     className="h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"
                                                     onClick={() => {
                                                         DemoStore.updateSeller(p.id, { status: "active", verified: true, kyc_status: "approved" });
+                                                        setParticipants(prev => prev.map(participant =>
+                                                            participant.id === p.id ? { ...participant, status: "active", verified: true, kyc_status: "approved" } : participant
+                                                        ));
+                                                        toast.success(`Seller ${p.display_name} has been approved.`);
+                                                        window.dispatchEvent(new Event("demo-store-update"));
                                                     }}
                                                 >
                                                     Approve

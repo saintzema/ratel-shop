@@ -373,50 +373,55 @@ export default function AdminDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {recentOrders.map((order) => (
-                                    <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-6 py-4 font-mono text-xs text-gray-500">
-                                            {order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}
-                                        </td>
-                                        <td className="px-6 py-4 text-[11px] text-gray-500 whitespace-nowrap">
-                                            {formatDateExact(order.created_at)}
-                                        </td>
-                                        <td className="px-6 py-4 font-bold text-gray-900">
-                                            {order.customer_id.split('@')[0]}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate">
-                                            {order.product?.name || "Product"}
-                                        </td>
-                                        <td className="px-6 py-4 font-black text-gray-900">
-                                            ₦{order.amount.toLocaleString()}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <span className={cn(
-                                                "text-[10px] font-black uppercase px-2 py-1 rounded-full",
-                                                order.status === 'delivered' ? "bg-emerald-100 text-emerald-700" :
-                                                    order.status === 'shipped' ? "bg-blue-100 text-blue-700" :
-                                                        "bg-amber-100 text-amber-700"
-                                            )}>
-                                                {order.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-xs">
-                                            {order.status === 'shipped' || order.status === 'delivered' ? (
-                                                <div className="flex flex-col gap-0.5">
-                                                    <span className="font-bold text-gray-900">{order.carrier || "Standard"}</span>
-                                                    <span className="text-[10px] text-gray-400 font-mono tracking-wider">{order.tracking_id || "N/A"}</span>
-                                                    {order.tracking_steps && order.tracking_steps.length > 0 && (
-                                                        <span className="text-[10px] text-indigo-500 font-bold mt-1">
-                                                            📍 {order.tracking_steps[order.tracking_steps.length - 1].location}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <span className="text-gray-400 italic text-[11px]">Awaiting Dispatch</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {recentOrders.map((order) => {
+                                    const buyer = DemoStore.getUser(order.customer_id);
+                                    const buyerName = buyer?.name || buyer?.email?.split('@')[0] || order.customer_name || order.customer_id.split('@')[0];
+
+                                    return (
+                                        <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                                            <td className="px-6 py-4 font-mono text-xs text-gray-500">
+                                                {order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}
+                                            </td>
+                                            <td className="px-6 py-4 text-[11px] text-gray-500 whitespace-nowrap">
+                                                {formatDateExact(order.created_at)}
+                                            </td>
+                                            <td className="px-6 py-4 font-bold text-gray-900">
+                                                {buyerName}
+                                            </td>
+                                            <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate">
+                                                {order.product?.name || "Product"}
+                                            </td>
+                                            <td className="px-6 py-4 font-black text-gray-900">
+                                                ₦{order.amount.toLocaleString()}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <span className={cn(
+                                                    "text-[10px] font-black uppercase px-2 py-1 rounded-full",
+                                                    order.status === 'delivered' ? "bg-emerald-100 text-emerald-700" :
+                                                        order.status === 'shipped' ? "bg-blue-100 text-blue-700" :
+                                                            "bg-amber-100 text-amber-700"
+                                                )}>
+                                                    {order.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs">
+                                                {order.status === 'shipped' || order.status === 'delivered' ? (
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="font-bold text-gray-900">{order.carrier || "Standard"}</span>
+                                                        <span className="text-[10px] text-gray-400 font-mono tracking-wider">{order.tracking_id || "N/A"}</span>
+                                                        {order.tracking_steps && order.tracking_steps.length > 0 && (
+                                                            <span className="text-[10px] text-indigo-500 font-bold mt-1">
+                                                                📍 {order.tracking_steps[order.tracking_steps.length - 1].location}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 italic text-[11px]">Awaiting Dispatch</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    )
+                                })}
                             </tbody>
                         </table>
                     )}

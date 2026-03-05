@@ -2286,16 +2286,11 @@ export const DEMO_PRICE_ALERTS: PriceAlert[] = [
 
 // ─── KYC ────────────────────────────────────────────────────
 
-export const DEMO_KYC: KYCSubmission[] = [
-    { id: "kyc1", seller_id: "s5", seller_name: "Lagos Gadget World", id_type: "nin", id_number: "12345678901", document_url: "/kyc/doc1.pdf", status: "pending", created_at: "2026-02-08T10:00:00Z" },
-];
+export const DEMO_KYC: KYCSubmission[] = [];
 
 // ─── Complaints ─────────────────────────────────────────────
 
-export const DEMO_COMPLAINTS: Complaint[] = [
-    { id: "c1", user_id: "u14", user_name: "Tunde B.", seller_id: "s5", seller_name: "Lagos Gadget World", order_id: "o5", type: "scam", description: "Paid ₦420,000 for Samsung S24 Ultra. Never received. Seller won't respond. Price was suspiciously low.", status: "investigating", created_at: "2026-02-02T10:00:00Z" },
-    { id: "c2", user_id: "u15", user_name: "Ada K.", seller_id: "s4", seller_name: "PhoneZone Nigeria", order_id: "o6", type: "price", description: "iPhone 15 Pro Max listed at ₦1,450,000 when market average is ₦1,200,000. This is price gouging.", status: "open", created_at: "2026-02-09T10:00:00Z" },
-];
+export const DEMO_COMPLAINTS: Complaint[] = [];
 
 // ─── Dashboard Stats ────────────────────────────────────────
 
@@ -2322,90 +2317,7 @@ export const DEMO_SELLER_STATS: SellerDashboardStats = {
 // ─── Price Comparison Helper ────────────────────────────────
 
 // ─── Orders ──────────────────────────────────────────────────
-export const DEMO_ORDERS: Order[] = [
-    {
-        id: "FP-7729LGKX",
-        customer_id: "u1",
-        product_id: "p1",
-        seller_id: "s1",
-        product: DEMO_PRODUCTS[0],
-        amount: 890000,
-        status: "delivered",
-        escrow_status: "released",
-        shipping_address: "123 Lekki Phase 1, Lagos",
-        tracking_status: "delivered",
-        tracking_id: "FP-7729LGKX",
-        carrier: "RT Logistics",
-        tracking_steps: [
-            { status: "Order Placed", location: "Lagos", timestamp: "2023-10-15T10:30:00Z", completed: true },
-            { status: "Processing", location: "TechHub Lagos", timestamp: "2023-10-15T14:00:00Z", completed: true },
-            { status: "Shipped", location: "Lagos Warehouse", timestamp: "2023-10-16T09:00:00Z", completed: true },
-            { status: "Out for Delivery", location: "Lekki Distribution Center", timestamp: "2023-10-18T08:30:00Z", completed: true },
-            { status: "Delivered", location: "123 Lekki Phase 1", timestamp: "2023-10-18T14:20:00Z", completed: true },
-        ],
-        created_at: "2023-10-15T10:30:00Z",
-        updated_at: "2023-10-18T14:20:00Z",
-    },
-    {
-        id: "FP-8821XP99",
-        customer_id: "u1",
-        product_id: "p6",
-        seller_id: "s1",
-        product: DEMO_PRODUCTS[3],
-        amount: 1850000,
-        status: "shipped",
-        escrow_status: "held",
-        shipping_address: "123 Lekki Phase 1, Lagos",
-        tracking_status: "shipped",
-        tracking_id: "FP-8821XP99",
-        carrier: "DHL Nigeria",
-        tracking_steps: [
-            { status: "Order Placed", location: "Lagos", timestamp: "2026-02-11T14:30:00Z", completed: true },
-            { status: "Processing", location: "TechHub Lagos", timestamp: "2026-02-11T16:00:00Z", completed: true },
-            { status: "Shipped", location: "Lagos Hub", timestamp: "2026-02-11T18:00:00Z", completed: true },
-        ],
-        created_at: "2026-02-11T14:30:00Z",
-        updated_at: "2026-02-11T14:30:00Z",
-    },
-    {
-        id: "FP-XPL70UKL",
-        customer_id: "u1",
-        product_id: "p8",
-        seller_id: "s1",
-        product: DEMO_PRODUCTS[4],
-        amount: 650000,
-        status: "processing",
-        escrow_status: "held",
-        shipping_address: "123 Lekki Phase 1, Lagos",
-        tracking_status: "processing",
-        tracking_id: "FP-XPL70UKL",
-        tracking_steps: [
-            { status: "Order Placed", location: "Lagos", timestamp: "2026-02-12T09:15:00Z", completed: true },
-            { status: "Payment Confirmed", location: "System", timestamp: "2026-02-12T09:20:00Z", completed: true },
-        ],
-        created_at: "2026-02-12T09:15:00Z",
-        updated_at: "2026-02-12T09:15:00Z",
-    },
-    {
-        id: "FP-RET551O",
-        customer_id: "u1",
-        product_id: "p10",
-        seller_id: "s1",
-        product: DEMO_PRODUCTS[6],
-        amount: 185000,
-        status: "return_requested",
-        escrow_status: "held",
-        shipping_address: "123 Lekki Phase 1, Lagos",
-        tracking_status: "delivered",
-        tracking_id: "FP-RET551O",
-        tracking_steps: [
-            { status: "Order Placed", location: "Lagos", timestamp: "2026-02-10T10:00:00Z", completed: true },
-            { status: "Delivered", location: "123 Lekki Phase 1", timestamp: "2026-02-12T14:20:00Z", completed: true },
-        ],
-        created_at: "2026-02-10T10:00:00Z",
-        updated_at: "2026-02-13T09:00:00Z",
-    }
-];
+export const DEMO_ORDERS: Order[] = [];
 
 // ─── Negotiations ─────────────────────────────────────────────
 export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [

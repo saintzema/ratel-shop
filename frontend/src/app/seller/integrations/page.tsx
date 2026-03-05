@@ -168,9 +168,17 @@ export default function IntegrationsPage() {
                         <div className="mt-auto">
                             {app.status === 'Connected' ? (
                                 <div className="flex gap-2">
-                                    <Button variant="outline" className="flex-1 h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
-                                        Manage
-                                    </Button>
+                                    {app.id === 'instagram' || app.id === 'whatsapp' ? (
+                                        <Link href="/seller/integrations/meta" className="flex-1">
+                                            <Button variant="outline" className="w-full h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
+                                                Manage
+                                            </Button>
+                                        </Link>
+                                    ) : (
+                                        <Button variant="outline" className="flex-1 h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
+                                            Manage
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="outline"
                                         onClick={() => handleConnect(app.id, app.requiresPremium)}

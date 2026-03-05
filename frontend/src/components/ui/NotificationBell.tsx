@@ -40,7 +40,7 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
                 }
             }
         } catch (err) {
-            console.error("Failed to load notifications:", err);
+            console.warn("Notifications sync failed quietly:", (err as Error).message || "Network issue");
         }
     }, [user?.email]);
 
@@ -78,7 +78,7 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
             });
             await loadNotifications();
         } catch (err) {
-            console.error("Failed to mark all as read:", err);
+            console.warn("Failed to mark all as read:", (err as Error).message || err);
         } finally {
             setIsLoading(false);
         }
@@ -90,7 +90,7 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
                 await fetch(`/api/notifications?id=${n.id}`, { method: "PATCH" });
                 await loadNotifications();
             } catch (err) {
-                console.error("Failed to mark notification as read:", err);
+                console.warn("Failed to mark notification as read:", (err as Error).message || err);
             }
         }
         setIsOpen(false);

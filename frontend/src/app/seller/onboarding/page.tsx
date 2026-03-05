@@ -164,6 +164,32 @@ export default function KYCOnboarding() {
             });
         } catch (e) { }
 
+        // Admin notification (in-app bell) for KYC review
+        DemoStore.addNotification({
+            type: "kyc",
+            title: "New Seller KYC Submitted",
+            message: `${businessName || "A new seller"} has completed onboarding and is awaiting approval.`,
+            user_id: "admin",
+            link: `/admin/users/${sellerId}`,
+        });
+
+        // Admin email via Resend
+        try {
+            await fetch('/api/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: process.env.NEXT_PUBLIC_ESCALATION_EMAIL || 'techzema@gmail.com',
+                    type: 'ADMIN_NEW_KYC',
+                    payload: {
+                        businessName: businessName || "New Seller",
+                        ownerEmail: user?.email || "unknown",
+                        reviewUrl: `${window.location.origin}/admin/users/${sellerId}`,
+                    }
+                })
+            });
+        } catch (e) { }
+
         setTimeout(() => {
             router.push("/seller/dashboard");
         }, 100);
