@@ -142,8 +142,6 @@ export default function ProductDetailPage() {
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
 
-    if (!mounted) return null;
-
     useEffect(() => {
         setMounted(true);
         const handleStorageChange = () => setStoreVersion(v => v + 1);
@@ -722,6 +720,9 @@ export default function ProductDetailPage() {
 
     const isOwner = user && seller && user.id === seller.user_id;
     const isSellerApproved = seller?.status === "active" || seller?.verified === true || seller?.kyc_status === "approved" || seller?.id === "global-partners";
+
+    // Wait for client-side hydration before rendering
+    if (!mounted) return null;
 
     // Dynamic features list
     if (!product || !seller) {

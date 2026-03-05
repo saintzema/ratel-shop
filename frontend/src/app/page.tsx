@@ -195,20 +195,49 @@ export default function Home() {
     };
   }, []);
 
-  const fairPriceProducts = allProducts.filter(p => p.price_flag === "fair").slice(0, 30);
-  const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 30);
-  const phonesProducts = allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")).slice(0, 12);
-  const gamingProducts = allProducts.filter(p => ["gaming", "computers"].includes(p.category || "")).slice(0, 12);
-  const computerProducts = allProducts.filter(p => ["computers", "office"].includes(p.category || "")).slice(0, 12);
-  const carProducts = allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")).slice(0, 12);
-  const fashionProducts = allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")).slice(0, 12);
-  const beautyProducts = allProducts.filter(p => ["beauty"].includes(p.category || "")).slice(0, 12);
-  const homeProducts = allProducts.filter(p => ["home", "furniture"].includes(p.category || "")).slice(0, 12);
-  const electronicsProducts = allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")).slice(0, 12);
-  const fitnessProducts = allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")).slice(0, 12);
-  const groceryProducts = allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")).slice(0, 12);
-  const topPicks = allProducts.slice(0, 30);
+  // ─── Product De-Duplication System ───
+  // Each product appears in at most ONE section (except sponsored products which can appear in their section + one category section).
+  // This maximizes catalog visibility across the homepage.
+  const usedIds = new Set<string>();
+  const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
+
+  // Helper: take from pool, skip already-used IDs (sponsored bypass)
+  const takeUnique = (pool: Product[], count: number): Product[] => {
+    const result: Product[] = [];
+    for (const p of pool) {
+      if (result.length >= count) break;
+      if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
+      result.push(p);
+      usedIds.add(p.id);
+    }
+    return result;
+  };
+
+  // 1. Trending — sorted by popularity (sold_count), gives real "trending" feel
+  const trendingPool = [...allProducts].sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0));
+  const topPicks = takeUnique(trendingPool, 20);
+
+  // 2. Sponsored — always shown regardless of duplication
   const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
+  // Don't add sponsored to usedIds — they're allowed to also appear in category sections
+
+  // 3. Deals
+  const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 30);
+
+  // 4. Category sections — each draws from its own filtered pool, de-duplicated
+  const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
+  const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
+  const computerProducts = takeUnique(allProducts.filter(p => ["computers", "office"].includes(p.category || "")), 12);
+  const carProducts = takeUnique(allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")), 12);
+  const fashionProducts = takeUnique(allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")), 12);
+  const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
+  const homeProducts = takeUnique(allProducts.filter(p => ["home", "furniture"].includes(p.category || "")), 12);
+  const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
+  const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
+  const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
+
+  // 5. Verified Fair Prices — from remaining fair-priced products
+  const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30);
 
   // ─── From Stores You Follow ──────────────
   const { favoriteStores } = useFavorites();
@@ -335,7 +364,7 @@ export default function Home() {
             {/* ═══ Global Recommended Products ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 mb-12">
-                <RecommendedProducts products={topPicks} title="Recommended For You" subtitle="Based on your browsing history" />
+                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id)).slice(0, 30)} title="Recommended For You" subtitle="Based on your browsing history" />
               </section>
             )}
           </div>

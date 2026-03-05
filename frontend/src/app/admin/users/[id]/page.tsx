@@ -285,11 +285,11 @@ export default function AdminUserDetailPage() {
                             if (confirm("Are you sure you want to reactivate this account?")) {
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
-                                    DemoStore.updateSeller(userEntity.id, { status: newStatus });
+                                    DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
                                 } else {
                                     DemoStore.updateUserStatus(userEntity.id, newStatus);
                                 }
-                                setUserEntity((prev: any) => ({ ...prev, status: newStatus }));
+                                setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
                             }
                         }} variant="outline" className="h-11 px-5 rounded-2xl border-emerald-100 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-100 shadow-sm">
                             <CheckCircle2 className="h-4 w-4 mr-2" /> Reactivate

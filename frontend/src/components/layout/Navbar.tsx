@@ -756,15 +756,8 @@ export function Navbar() {
                                                     }}
                                                     className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
                                                 >
-                                                    <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                        <img
-                                                            src={(result as any).image_url || '/assets/images/placeholder.png'}
-                                                            alt={result.name}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => {
-                                                                e.currentTarget.src = '/assets/images/placeholder.png';
-                                                            }}
-                                                        />
+                                                    <div className="h-10 w-10 shrink-0 rounded overflow-hidden">
+                                                        <CategoryIconFallback category={result.category || 'electronics'} />
                                                     </div>
                                                     <div className="flex flex-col flex-1 min-w-0">
                                                         <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
