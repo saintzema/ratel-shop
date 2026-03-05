@@ -19,7 +19,8 @@ import {
     TrendingUp,
     MessageSquare,
     X,
-    Eye
+    Eye,
+    ChevronLeft
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,8 @@ export default function EscrowManagement() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [allOrders, setAllOrders] = useState<Order[]>([]);
     const [filter, setFilter] = useState<"all" | "held" | "seller_confirmed" | "released" | "disputed">("all");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15;
 
     // Action Modal State
     const [actionModal, setActionModal] = useState<{
@@ -78,6 +81,9 @@ export default function EscrowManagement() {
                 : filter === "disputed"
                     ? orders.filter(o => o.escrow_status === "disputed")
                     : orders.filter(o => o.escrow_status === "held");
+
+    const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+    const paginatedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const heldCount = orders.filter(o => o.escrow_status === "held").length;
     const pendingReleaseCount = orders.filter(o => o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed").length;
@@ -236,7 +242,7 @@ export default function EscrowManagement() {
                 ] as const).map(f => (
                     <button
                         key={f.key}
-                        onClick={() => setFilter(f.key)}
+                        onClick={() => { setFilter(f.key); setCurrentPage(1); }}
                         className={cn(
                             "px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
                             filter === f.key
@@ -272,7 +278,7 @@ export default function EscrowManagement() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {filteredOrders.map(order => {
+                                {paginatedOrders.map(order => {
                                     const isAutoEligible = DemoStore.checkAutoReleaseEligible(order);
                                     const days = getDaysSinceOrder(order.created_at);
                                     const dispute = order.escrow_status === "disputed" ? DemoStore.getDisputeByOrderId(order.id) : null;
@@ -453,6 +459,38 @@ export default function EscrowManagement() {
                                 })}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                    <div className="bg-gray-50/50 border-t border-gray-100 px-6 py-4 flex items-center justify-between">
+                        <p className="text-xs text-gray-500 font-medium">
+                            Showing <span className="font-black text-gray-900">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-black text-gray-900">{Math.min(currentPage * itemsPerPage, filteredOrders.length)}</span> of <span className="font-black text-gray-900">{filteredOrders.length}</span> orders
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="h-8 border-gray-200"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <span className="text-xs font-bold text-gray-700 mx-2">
+                                Page {currentPage} of {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                disabled={currentPage === totalPages}
+                                className="h-8 border-gray-200"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

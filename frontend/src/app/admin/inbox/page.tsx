@@ -127,7 +127,25 @@ export default function AdminInbox() {
 
     const getOtherParticipant = (conv: any) => {
         const otherId = conv.participants.find((p: string) => p !== ADMIN_ID) || "";
-        return { id: otherId, name: conv.participant_names?.[otherId] || otherId };
+        let resolvedName = conv.participant_names?.[otherId] || otherId;
+        let resolvedEmail = otherId.includes("@") ? otherId : "user@globalstores.shop";
+
+        // Attempt to enrich from DemoStore
+        if (typeof window !== "undefined") {
+            const allUsers = DemoStore.getAllUsers();
+            const sellers = DemoStore.getSellers();
+            const userMatch = allUsers.find((u: any) => u.id === otherId || u.email === otherId);
+            const sellerMatch = sellers.find((s: any) => s.id === otherId || s.owner_email === otherId);
+
+            if (userMatch) {
+                resolvedName = userMatch.name || resolvedName;
+                resolvedEmail = userMatch.email || resolvedEmail;
+            } else if (sellerMatch) {
+                resolvedName = sellerMatch.owner_name || sellerMatch.business_name || resolvedName;
+                resolvedEmail = sellerMatch.owner_email || resolvedEmail;
+            }
+        }
+        return { id: otherId, name: resolvedName, email: resolvedEmail };
     };
 
     const totalUnread = conversations.reduce((sum, c) => sum + (c.unread_count?.[ADMIN_ID] || 0), 0);
@@ -265,7 +283,7 @@ export default function AdminInbox() {
                                 <div className="flex-1">
                                     <h3 className="text-sm font-bold text-gray-900">{getOtherParticipant(activeConv).name}</h3>
                                     <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">
-                                        {activeConv.context?.type === "admin_dm" ? "Admin DM" :
+                                        {getOtherParticipant(activeConv).email} • {activeConv.context?.type === "admin_dm" ? "Admin DM" :
                                             activeConv.context?.type === "ziva_escalation" ? "Ziva Escalation" : "Chat"}
                                     </p>
                                 </div>

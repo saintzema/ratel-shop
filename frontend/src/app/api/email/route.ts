@@ -33,7 +33,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, data });
 
-    } catch (error) {
+        } catch (error) {
         console.error("Email dispatcher error:", error);
         return NextResponse.json(
             { success: false, error: 'Internal server error while sending email' },

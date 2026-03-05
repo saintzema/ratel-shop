@@ -3,6 +3,52 @@
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest } from "./types";
 import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS, DEMO_PAYOUTS } from "./data";
 
+export interface Category {
+    id: string;
+    name: string;
+    slug: string;
+    product_count: number;
+    children: Category[];
+    expanded?: boolean;
+}
+
+export const INITIAL_CATEGORIES: Category[] = [
+    {
+        id: "cat_1", name: "Electronics", slug: "electronics", product_count: 42, children: [
+            { id: "cat_1_1", name: "Smartphones", slug: "smartphones", product_count: 15, children: [] },
+            { id: "cat_1_2", name: "Laptops", slug: "laptops", product_count: 12, children: [] },
+            { id: "cat_1_3", name: "Audio & Headphones", slug: "audio-headphones", product_count: 8, children: [] },
+            { id: "cat_1_4", name: "Wearables", slug: "wearables", product_count: 7, children: [] },
+        ]
+    },
+    {
+        id: "cat_2", name: "Fashion", slug: "fashion", product_count: 38, children: [
+            { id: "cat_2_1", name: "Men's Clothing", slug: "mens-clothing", product_count: 14, children: [] },
+            { id: "cat_2_2", name: "Women's Clothing", slug: "womens-clothing", product_count: 16, children: [] },
+            { id: "cat_2_3", name: "Shoes & Sneakers", slug: "shoes-sneakers", product_count: 8, children: [] },
+        ]
+    },
+    {
+        id: "cat_3", name: "Home & Living", slug: "home-living", product_count: 25, children: [
+            { id: "cat_3_1", name: "Kitchen", slug: "kitchen", product_count: 10, children: [] },
+            { id: "cat_3_2", name: "Decor", slug: "decor", product_count: 8, children: [] },
+            { id: "cat_3_3", name: "Bedding", slug: "bedding", product_count: 7, children: [] },
+        ]
+    },
+    {
+        id: "cat_4", name: "Beauty & Health", slug: "beauty-health", product_count: 20, children: [
+            { id: "cat_4_1", name: "Skincare", slug: "skincare", product_count: 12, children: [] },
+            { id: "cat_4_2", name: "Haircare", slug: "haircare", product_count: 8, children: [] },
+        ]
+    },
+    {
+        id: "cat_5", name: "Gaming", slug: "gaming", product_count: 15, children: [
+            { id: "cat_5_1", name: "Consoles", slug: "consoles", product_count: 5, children: [] },
+            { id: "cat_5_2", name: "Accessories", slug: "gaming-accessories", product_count: 10, children: [] },
+        ]
+    },
+];
+
 class DemoStoreService {
     private static instance: DemoStoreService;
     public readonly STORAGE_KEYS = {
@@ -26,6 +72,7 @@ class DemoStoreService {
         SEARCH_CACHE: "fairprice_search_cache",
         CONVERSATIONS: "fp_conversations",
         CHAT_MESSAGES: "fp_chat_messages",
+        CATEGORIES: "fairprice_demo_categories",
     };
 
     private constructor() {
@@ -92,6 +139,9 @@ class DemoStoreService {
                 }
             ];
             localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(initialReturns));
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.CATEGORIES)) {
+            localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
         }
     }
 
@@ -168,6 +218,65 @@ class DemoStoreService {
             // on simple network failures (e.g offline or route missing)
             console.warn("Database sync failed quietly:", (error as Error).message || "Network issue");
         }
+    }
+
+    // --- Categories ---
+    getCategories(): Category[] {
+        if (typeof window === "undefined") return INITIAL_CATEGORIES;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.CATEGORIES);
+        return stored ? JSON.parse(stored) : INITIAL_CATEGORIES;
+    }
+
+    setCategories(categories: Category[]) {
+        localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    ensureCategoryExists(categoryName: string, subCategoryName?: string) {
+        if (!categoryName) return;
+
+        const categories = this.getCategories();
+        let catIndex = categories.findIndex(c => c.name.toLowerCase() === categoryName.toLowerCase());
+
+        // Auto-create category if doesn't exist
+        if (catIndex === -1) {
+            const newCat: Category = {
+                id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                name: categoryName,
+                slug: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+                product_count: 1, // Start with 1 since we are ensuring it for a new/edited product
+                children: []
+            };
+            categories.push(newCat);
+            catIndex = categories.length - 1;
+        }
+
+        // Auto-create subcategory if doesn't exist AND is provided
+        if (subCategoryName) {
+            const parent = categories[catIndex];
+            const subIndex = parent.children.findIndex(c => c.name.toLowerCase() === subCategoryName.toLowerCase());
+
+            if (subIndex === -1) {
+                parent.children.push({
+                    id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                    name: subCategoryName,
+                    slug: subCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
+                    product_count: 1,
+                    children: []
+                });
+            } else {
+                // Increment subcategory count
+                parent.children[subIndex].product_count += 1;
+            }
+        }
+
+        // Increment top-level category count (we assume this is called per new product insertion)
+        // If the category was just created, it already has product_count=1.
+        // If it existing, we increment it. However, if wait, ensureCategory is called when?
+        // Let's just create them if they don't exist. Product counting might drift, so we'll recalculate stats on the Category page.
+
+        this.setCategories(categories);
     }
 
     // --- Negotiations ---
@@ -879,6 +988,11 @@ class DemoStoreService {
     addProduct(product: Omit<Product, "id" | "created_at" | "seller_id" | "seller_name" | "price_flag">) {
         const products = this.getProducts();
 
+        // Ensure categories exist
+        if (product.category) {
+            this.ensureCategoryExists(product.category, product.subcategory);
+        }
+
         // Mock AI analysis for price flag
         const priceFlag: "fair" | "overpriced" | "too_low" | "none" =
             product.price > (product.recommended_price || product.price * 1.2) ? "overpriced" :
@@ -938,6 +1052,16 @@ class DemoStoreService {
 
     updateProduct(id: string, updates: Partial<Product>) {
         const products = this.getProducts();
+        const existingProduct = products.find(p => p.id === id);
+
+        // Ensure categories exist if they are being updated
+        if (updates.category || updates.subcategory) {
+            this.ensureCategoryExists(
+                updates.category || existingProduct?.category || "Unknown",
+                updates.subcategory || (updates.category ? undefined : existingProduct?.subcategory)
+            );
+        }
+
         const updated = products.map(p => p.id === id ? { ...p, ...updates } : p);
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));

@@ -59,7 +59,7 @@ export default function AdminLayout({
 
     return (
         <ProtectedRoute allowedRoles={["admin"]}>
-            <div className="min-h-screen bg-[#F0F2F5] flex transition-colors duration-300">
+            <div className="h-screen overflow-hidden bg-[#F0F2F5] flex transition-colors duration-300">
                 {/* Mobile overlay */}
                 {isSidebarOpen && (
                     <div
@@ -130,7 +130,7 @@ export default function AdminLayout({
                 </aside>
 
                 {/* Main Content */}
-                <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+                <div className="flex-1 flex flex-col h-full overflow-hidden">
                     {/* Top bar */}
                     <header className="flex items-center justify-between px-6 md:px-10 py-4 bg-[#0F1B12]/90 backdrop-blur-xl border-b border-[#0F1B12]/10 sticky top-0 z-30">
                         <div className="flex items-center gap-4">

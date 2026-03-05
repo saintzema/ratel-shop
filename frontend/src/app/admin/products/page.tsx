@@ -36,6 +36,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 export default function CatalogControl() {
     const [searchTerm, setSearchTerm] = useState("");
     const [filter, setFilter] = useState<"all" | "flagged" | "fair" | "global" | "cache">("all");
+    const [sort, setSort] = useState<"date_desc" | "date_asc" | "price_desc" | "price_asc" | "category_asc">("date_desc");
     const [products, setProducts] = useState<any[]>([]);
     const [cachedProducts, setCachedProducts] = useState<any[]>([]);
     const [editingCacheProduct, setEditingCacheProduct] = useState<any | null>(null);
@@ -89,7 +90,7 @@ export default function CatalogControl() {
         };
     }, []);
 
-    const filtered = products.filter(p => {
+    let filtered = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
         const isGlobal = p._source === "global" || p.seller_id === "global-partners" || p.seller_name.toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
@@ -97,6 +98,21 @@ export default function CatalogControl() {
             (filter === "fair" && p.price_flag === "fair") ||
             (filter === "global" && isGlobal);
         return matchesSearch && matchesFilter;
+    });
+
+    filtered = filtered.sort((a, b) => {
+        if (sort === "date_desc") {
+            return (new Date(b.created_at || 0).getTime()) - (new Date(a.created_at || 0).getTime());
+        } else if (sort === "date_asc") {
+            return (new Date(a.created_at || 0).getTime()) - (new Date(b.created_at || 0).getTime());
+        } else if (sort === "price_desc") {
+            return b.price - a.price;
+        } else if (sort === "price_asc") {
+            return a.price - b.price;
+        } else if (sort === "category_asc") {
+            return (a.category || "").localeCompare(b.category || "");
+        }
+        return 0;
     });
 
     const handleDelete = (id: string) => {
@@ -114,8 +130,8 @@ export default function CatalogControl() {
                 colors: editColors.split(",").map(c => c.trim()).filter(Boolean),
                 description: editDescription || editingProduct.description,
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
-                price: parseFloat(editPrice) || editingProduct.price,
-                original_price: editOriginalPrice ? parseFloat(editOriginalPrice) : editingProduct.original_price,
+                price: parseFloat(editPrice.replace(/,/g, '')) || editingProduct.price,
+                original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
                 images: editImages ? editImages.split(",").map(s => s.trim()).filter(Boolean) : editingProduct.images || []
@@ -202,7 +218,10 @@ export default function CatalogControl() {
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
-                    <h2 className="text-3xl font-black text-gray-900 tracking-tight">Catalog Control</h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-3xl font-black text-gray-900 tracking-tight">Catalog Control</h2>
+                        <span className="bg-indigo-100 text-indigo-700 text-sm font-black px-3 py-1 rounded-full">{filtered.length}</span>
+                    </div>
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Platform-wide product monitoring & management</p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -235,7 +254,24 @@ export default function CatalogControl() {
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
-                <Button onClick={handleInitiateSync} className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20" title="Syncs prices for Global Stores items against live 3rd party APIs (e.g. Amazon, BestBuy)">
+            </div>
+
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 w-full md:w-auto shrink-0 scrollbar-hide">
+                    <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest mr-2 whitespace-nowrap">Sort By</span>
+                    <select
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value as any)}
+                        className="bg-white border border-gray-200 h-10 rounded-xl text-xs font-bold px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="date_desc">Newest First</option>
+                        <option value="date_asc">Oldest First</option>
+                        <option value="price_desc">Highest Price</option>
+                        <option value="price_asc">Lowest Price</option>
+                        <option value="category_asc">Category (A-Z)</option>
+                    </select>
+                </div>
+                <Button onClick={handleInitiateSync} className="h-10 px-4 md:px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 w-full md:w-auto shrink-0 whitespace-nowrap" title="Syncs prices for Global Stores items against live 3rd party APIs (e.g. Amazon, BestBuy)">
                     <Globe className="mr-2 h-4 w-4" /> Sync Global Prices
                 </Button>
             </div>
@@ -305,7 +341,7 @@ export default function CatalogControl() {
                             </DialogHeader>
                             <div className="space-y-4 py-2">
                                 <div><label className="text-xs font-bold text-gray-500 mb-1 block">Product Name</label><Input value={cacheEditFields.name} onChange={e => setCacheEditFields(p => ({ ...p, name: e.target.value }))} /></div>
-                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="number" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
+                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="text" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
                                 <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
                                 {cacheEditFields.image_url && <img src={cacheEditFields.image_url} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
                                 <div><label className="text-xs font-bold text-gray-500 mb-1 block">Description</label><textarea className="w-full border rounded-lg p-2 text-sm min-h-[80px]" value={cacheEditFields.description} onChange={e => setCacheEditFields(p => ({ ...p, description: e.target.value }))} /></div>
@@ -315,7 +351,7 @@ export default function CatalogControl() {
                                 <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => {
                                     DemoStore.updateSearchCacheProduct(editingCacheProduct.id, {
                                         name: cacheEditFields.name,
-                                        price: parseFloat(cacheEditFields.price) || 0,
+                                        price: parseFloat(cacheEditFields.price.replace(/,/g, '')) || 0,
                                         image_url: cacheEditFields.image_url,
                                         description: cacheEditFields.description,
                                     });
@@ -400,9 +436,11 @@ export default function CatalogControl() {
                                             <td className="px-6 py-4 align-middle">
                                                 <div className="flex items-center gap-2">
                                                     {isGlobal ? <Globe className="h-4 w-4 text-blue-500" /> : <Box className="h-4 w-4 text-gray-400" />}
-                                                    <p className={cn("text-xs font-bold", isGlobal ? "text-blue-700" : "text-gray-600")}>
-                                                        {p.seller_name}
-                                                    </p>
+                                                    <Link href={`/store/${p.seller_id}`} className="hover:underline">
+                                                        <p className={cn("text-xs font-bold", isGlobal ? "text-blue-700 hover:text-blue-800" : "text-gray-600 hover:text-indigo-600")}>
+                                                            {p.seller_name}
+                                                        </p>
+                                                    </Link>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 align-middle">
@@ -703,7 +741,7 @@ export default function CatalogControl() {
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Our FairPrice (₦)</label>
                                             <Input
-                                                type="number"
+                                                type="text"
                                                 value={editPrice}
                                                 onChange={(e) => setEditPrice(e.target.value)}
                                                 className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-black"
@@ -713,7 +751,7 @@ export default function CatalogControl() {
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Others' Price (₦) <span className="text-gray-300 normal-case">— strikethrough</span></label>
                                             <Input
-                                                type="number"
+                                                type="text"
                                                 value={editOriginalPrice}
                                                 onChange={(e) => setEditOriginalPrice(e.target.value)}
                                                 className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-medium text-gray-400 line-through"
