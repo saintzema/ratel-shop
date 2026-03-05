@@ -24,6 +24,8 @@ class DemoStoreService {
         USERS: "fp_user",
         USER_OVERRIDES: "fp_user_overrides",
         SEARCH_CACHE: "fairprice_search_cache",
+        CONVERSATIONS: "fp_conversations",
+        CHAT_MESSAGES: "fp_chat_messages",
     };
 
     private constructor() {
@@ -1231,21 +1233,41 @@ class DemoStoreService {
     }
 
     sendAdminMessageToUser(userId: string, subject: string, message: string) {
-        // Find the user by ID or Email
-        const usersJson = localStorage.getItem(this.STORAGE_KEYS.USERS);
-        let targetUser = null;
-        if (usersJson) {
-            const users = Object.values(JSON.parse(usersJson));
-            targetUser = users.find((u: any) => u.id === userId || u.email === userId);
-        }
+        // Resolve user identity
+        const seller = this.getSellers().find(s => s.id === userId || s.user_id === userId || s.owner_email === userId);
+        const allUsers = this.getAllUsers();
+        const dsUser = allUsers.find(u => u.id === userId || u.email === userId);
 
-        const actualUserId = targetUser ? (targetUser as any).id : userId;
+        const actualUserId = seller?.id || dsUser?.id || userId;
+        const targetName = seller?.business_name || seller?.owner_name || dsUser?.name || userId;
+        const targetEmail = seller?.owner_email || dsUser?.email || userId;
 
+        // 1) Create notification for the user
         this.addNotification({
             userId: actualUserId,
             type: "system",
-            message: `[Admin Message: ${subject}]- ${message} `,
+            message: `[Admin Message: ${subject}] ${message}`,
             link: "/account/messages"
+        });
+
+        // 2) Create/reuse a conversation thread (the core DM system)
+        const conv = this.getOrCreateConversation(
+            "admin",
+            actualUserId,
+            { admin: "FairPrice Admin", [actualUserId]: targetName },
+            { type: "admin_dm" }
+        );
+        this.sendChatMessage(conv.id, "admin", "FairPrice Admin", subject ? `**${subject}**\n${message}` : message);
+
+        // 3) Also create support message for backward compat
+        this.addSupportMessage({
+            user_name: "Admin → " + targetName,
+            user_email: targetEmail,
+            subject,
+            message,
+            source: "dispute_admin",
+            target_user_email: targetEmail,
+            target_user_id: actualUserId,
         });
     }
 
@@ -2071,6 +2093,113 @@ class DemoStoreService {
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    // ─── Chat / DM System ────────────────────────────────────
+
+    getConversations(userId?: string): any[] {
+        if (typeof window === "undefined") return [];
+        const convs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CONVERSATIONS) || "[]");
+        if (!userId) return convs;
+        return convs.filter((c: any) => c.participants.includes(userId));
+    }
+
+    getOrCreateConversation(
+        participant1: string,
+        participant2: string,
+        names: Record<string, string>,
+        context?: { type: "admin_dm" | "buyer_seller" | "ziva_escalation"; product_id?: string; order_id?: string }
+    ): any {
+        if (typeof window === "undefined") return null;
+        const conversations = this.getConversations();
+
+        // Find existing conversation between these two participants
+        const existing = conversations.find((c: any) =>
+            c.participants.includes(participant1) && c.participants.includes(participant2)
+        );
+        if (existing) return existing;
+
+        // Create new conversation
+        const conv = {
+            id: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            participants: [participant1, participant2],
+            participant_names: names,
+            last_message: "",
+            last_message_at: new Date().toISOString(),
+            unread_count: { [participant1]: 0, [participant2]: 0 },
+            context: context || { type: "admin_dm" as const },
+        };
+        conversations.unshift(conv);
+        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+        return conv;
+    }
+
+    getChatMessages(conversationId: string): any[] {
+        if (typeof window === "undefined") return [];
+        const allMsgs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+        return allMsgs.filter((m: any) => m.conversation_id === conversationId);
+    }
+
+    sendChatMessage(conversationId: string, senderId: string, senderName: string, text: string): any {
+        if (typeof window === "undefined") return null;
+
+        const msg = {
+            id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+            conversation_id: conversationId,
+            sender_id: senderId,
+            sender_name: senderName,
+            text,
+            timestamp: new Date().toISOString(),
+            read_by: [senderId],
+        };
+
+        // Append message
+        const allMsgs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+        allMsgs.push(msg);
+        localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(allMsgs));
+
+        // Update conversation metadata
+        const conversations = this.getConversations();
+        const updated = conversations.map((c: any) => {
+            if (c.id === conversationId) {
+                const newUnread = { ...c.unread_count };
+                // Increment unread for all participants except sender
+                c.participants.forEach((p: string) => {
+                    if (p !== senderId) newUnread[p] = (newUnread[p] || 0) + 1;
+                });
+                return { ...c, last_message: text, last_message_at: msg.timestamp, unread_count: newUnread };
+            }
+            return c;
+        });
+        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+        return msg;
+    }
+
+    markConversationRead(conversationId: string, userId: string) {
+        if (typeof window === "undefined") return;
+        const conversations = this.getConversations();
+        const updated = conversations.map((c: any) => {
+            if (c.id === conversationId) {
+                return { ...c, unread_count: { ...c.unread_count, [userId]: 0 } };
+            }
+            return c;
+        });
+        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
+
+        // Also mark messages as read
+        const allMsgs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+        const updatedMsgs = allMsgs.map((m: any) => {
+            if (m.conversation_id === conversationId && !m.read_by.includes(userId)) {
+                return { ...m, read_by: [...m.read_by, userId] };
+            }
+            return m;
+        });
+        localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(updatedMsgs));
+        window.dispatchEvent(new Event("storage"));
     }
 }
 

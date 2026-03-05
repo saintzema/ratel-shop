@@ -613,7 +613,7 @@ export default function CatalogControl() {
                         <div className="space-y-6">
                             <div className="flex gap-6 items-center">
                                 <div className="h-20 w-20 border border-gray-100 rounded-2xl overflow-hidden p-2 flex-shrink-0 bg-white shadow-sm">
-                                    <img src={editImage || editingProduct?.image_url} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/150")} />
+                                    <img src={editImage || editingProduct?.image_url || undefined} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/150")} />
                                 </div>
                                 <div className="space-y-2 flex-1">
                                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Image Source URL</label>

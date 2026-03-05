@@ -360,14 +360,18 @@ export function ZivaChat() {
                 }).catch(console.error);
 
                 // Also persist to admin inbox (DemoStore)
-                DemoStore.addSupportMessage({
-                    user_name: user?.name || "Guest",
-                    user_email: user?.email || "guest@globalstores.shop",
-                    subject: data.escalationReason || "Ziva AI Escalation",
-                    message: messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n"),
-                    source: "ziva_escalation",
-                    transcript: messages.map(m => `${m.role}: ${m.content}`).join("\n"),
-                });
+                const conv = DemoStore.getOrCreateConversation(
+                    "admin",
+                    user?.id || user?.email || "guest",
+                    { admin: "FairPrice Admin", [user?.id || user?.email || "guest"]: user?.name || "Guest" },
+                    { type: "ziva_escalation" }
+                );
+                DemoStore.sendChatMessage(
+                    conv.id,
+                    user?.id || user?.email || "guest",
+                    user?.name || "Guest",
+                    `[ZIVA ESCALATION: ${data.escalationReason || "Customer Requested Support"}]\n\nTranscript:\n${messages.map(m => `${m.role}: ${m.content}`).join("\n")}`
+                );
 
                 return {
                     content: data.message + "\n\n🛡️ **Your message has been forwarded to our support team.** A human agent will review your case and respond shortly.",
@@ -435,14 +439,17 @@ export function ZivaChat() {
                     const requestKey = `fp_img_req_${product.id}_${buyerEmail}`;
                     if (typeof window !== "undefined" && sessionStorage.getItem(requestKey)) return;
 
-                    DemoStore.addSupportMessage({
-                        user_name: buyerName,
-                        user_email: buyerEmail,
-                        subject: `📸 Image Request: ${product.name}`,
-                        message: `Hi, I'm ${buyerName} and I'm interested in "${product.name}" but there's no product image available. Could you please upload a photo of this product? It would really help me make a purchase decision. Thank you!`,
-                        source: "image_request",
-                        target_user_id: sellerId,
-                    });
+                    const conv = DemoStore.getOrCreateConversation(
+                        buyerEmail, sellerId,
+                        { [buyerEmail]: buyerName, [sellerId]: product.seller_name || "Seller" },
+                        { type: "buyer_seller", product_id: product.id }
+                    );
+                    DemoStore.sendChatMessage(
+                        conv.id,
+                        buyerEmail,
+                        buyerName,
+                        `📸 Image Request: ${product.name}\n\nHi, I'm ${buyerName} and I'm interested in "${product.name}" but there's no product image available. Could you please upload a photo of this product? It would really help me make a purchase decision. Thank you!`
+                    );
 
                     if (typeof window !== "undefined") {
                         sessionStorage.setItem(requestKey, "sent");
@@ -540,14 +547,18 @@ export function ZivaChat() {
             const isHumanRequest = /\b(talk\s*to\s*(a\s*)?(human|person|agent|manager|support|representative)|escalate|real\s*person|human\s*support|live\s*chat|speak\s*to|customer\s*(support|care|service)|speak\s*with|connect\s*me|i\s*need\s*help|complain|complaint)/i.test(resolvedText);
             if (isHumanRequest) {
                 // Save escalation to admin inbox
-                DemoStore.addSupportMessage({
-                    user_name: user?.name || "Guest",
-                    user_email: user?.email || "guest@globalstores.shop",
-                    subject: "Customer Requested Human Support",
-                    message: `Customer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`,
-                    source: "ziva_escalation",
-                    target_user_id: "admin",
-                });
+                const userIdLog = user?.id || user?.email || "guest@globalstores.shop";
+                const conv = DemoStore.getOrCreateConversation(
+                    "admin", userIdLog,
+                    { admin: "FairPrice Admin", [userIdLog]: user?.name || "Guest" },
+                    { type: "ziva_escalation" }
+                );
+                DemoStore.sendChatMessage(
+                    conv.id,
+                    userIdLog,
+                    user?.name || "Guest",
+                    `[ZIVA ESCALATION: Customer Requested Human Support]\n\nCustomer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`
+                );
 
                 setTimeout(() => {
                     setMessages(prev => [
@@ -581,15 +592,20 @@ export function ZivaChat() {
             // ─── LOCAL: Product Image Request → Seller Inbox ─────────
             const isImageRequest = /\b(product\s*image|show\s*me.*photo|show\s*me.*image|show\s*me.*picture|send\s*me.*image|can\s*i\s*(see|get)\s*(the\s*)?(image|photo|picture)|real\s*photo|actual\s*photo|real\s*image)\b/i.test(resolvedText);
             if (isImageRequest && currentProduct) {
-                // Send request to seller's inbox
-                DemoStore.addSupportMessage({
-                    user_name: user?.name || "Customer",
-                    user_email: user?.email || "customer@fairprice.ng",
-                    subject: `📷 Image Request: ${currentProduct.name}`,
-                    message: `A customer has requested real product images for "${currentProduct.name}" (₦${currentProduct.price.toLocaleString()}).\n\nCustomer: ${user?.name || 'Guest'} (${user?.email || 'not logged in'})\nMessage: "${resolvedText}"\n\nPlease upload clear product photos to respond to this request.`,
-                    source: "order_issue",
-                    target_user_id: currentProduct.seller_id || "admin",
-                });
+                // Send request to seller's DM inbox
+                const buyerEmailLocal = user?.id || user?.email || "customer@fairprice.ng";
+                const sellerIdLocal = currentProduct.seller_id || "admin";
+                const conv = DemoStore.getOrCreateConversation(
+                    buyerEmailLocal, sellerIdLocal,
+                    { [buyerEmailLocal]: user?.name || "Customer", [sellerIdLocal]: currentProduct.seller_name || "Seller" },
+                    { type: "buyer_seller", product_id: currentProduct.id }
+                );
+                DemoStore.sendChatMessage(
+                    conv.id,
+                    buyerEmailLocal,
+                    user?.name || "Customer",
+                    `📷 Image Request: ${currentProduct.name}\n\nHi, I'm requesting real product images for "${currentProduct.name}" (₦${currentProduct.price.toLocaleString()}).\nMessage: "${resolvedText}"\n\nPlease upload clear product photos to respond to this request.`
+                );
 
                 // Also notify the seller
                 if (currentProduct.seller_id) {

@@ -327,6 +327,32 @@ export interface SupportMessage {
     order_id?: string;
 }
 
+// ─── Chat / DM System ──────────────────────────────────────
+
+export interface Conversation {
+    id: string;
+    participants: string[];            // ["admin", "user_4a2oib40x"]
+    participant_names: Record<string, string>; // { admin: "FairPrice Admin", user_4a2oib40x: "Zee Medic" }
+    last_message: string;
+    last_message_at: string;
+    unread_count: Record<string, number>;
+    context?: {
+        type: "admin_dm" | "buyer_seller" | "ziva_escalation";
+        product_id?: string;
+        order_id?: string;
+    };
+}
+
+export interface ChatMessage {
+    id: string;
+    conversation_id: string;
+    sender_id: string;
+    sender_name: string;
+    text: string;
+    timestamp: string;
+    read_by: string[];
+}
+
 // ─── Disputes ────────────────────────────────────────────────
 
 export type DisputeReason = "wrong_item" | "damaged" | "not_received" | "not_as_described" | "other";

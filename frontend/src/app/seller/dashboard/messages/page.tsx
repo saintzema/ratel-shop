@@ -120,44 +120,40 @@ export default function UniversalMessagesPage() {
                 }
             });
 
-            // Load real support messages from DemoStore (admin replies, Ziva escalations, image requests, etc.)
-            const supportMsgs = DemoStore.getSupportMessages();
-            const sellerEmail = DemoStore.getSellers().find(s => s.id === sellerId)?.store_url || sellerId;
-            supportMsgs.forEach((msg: any) => {
-                // Show messages targeted at this seller, or from this seller, or general admin messages
-                const isForSeller = msg.target_user_id === sellerId || msg.target_user_email === sellerEmail || msg.source === 'ziva_escalation' || msg.source === 'image_request';
-                if (isForSeller || msg.source === 'dispute_admin') {
-                    const isImageRequest = msg.source === 'image_request';
-                    convos.push({
-                        id: `sup-${msg.id}`,
-                        type: isImageRequest ? "support" : "support",
-                        customer_name: msg.user_name || "FairPrice Support",
-                        product_name: msg.subject || "Support",
-                        preview: msg.message?.substring(0, 80) || "New message",
-                        updated_at: new Date(msg.created_at),
-                        unread: msg.status === "open" || msg.status === "new",
-                        chat_messages: [
-                            { sender: "buyer" as const, text: msg.message || "", timestamp: new Date(msg.created_at) }
-                        ]
-                    });
-                }
-            });
+            // Load real DM conversations
+            const dmConvs = DemoStore.getConversations(sellerId);
+            dmConvs.forEach((conv: any) => {
+                const isImageRequest = conv.context?.type === "buyer_seller" && conv.context?.product_id;
+                const otherParticipantId = conv.participants.find((p: string) => p !== sellerId) || "";
+                const customerName = conv.participant_names?.[otherParticipantId] || "Customer";
 
-            // Fallback: if no real support messages, show a welcome mock
-            if (!convos.some(c => c.type === "support")) {
+                let productName = isImageRequest ? "Image Request" : "Chat";
+                if (isImageRequest) {
+                    const prod = allProds.find(p => p.id === conv.context.product_id);
+                    if (prod) productName = prod.name;
+                }
+
+                // Map to unified conversation type
+                const mappedMsgs = DemoStore.getChatMessages(conv.id).map((m: any) => ({
+                    sender: m.sender_id === sellerId ? "seller" : "buyer",
+                    text: m.text,
+                    timestamp: new Date(m.timestamp),
+                    imageUrl: undefined, // Add support for images later if needed
+                }));
+
                 convos.push({
-                    id: "sup-welcome",
-                    type: "support",
-                    customer_name: "FairPrice Support",
-                    product_name: "Welcome",
-                    preview: "Welcome to FairPrice! Your seller account is ready.",
-                    updated_at: new Date(Date.now() - 3600000),
-                    unread: false,
-                    chat_messages: [
-                        { sender: "buyer", text: "Welcome to FairPrice! Your seller account is set up. If you need help listing products or managing your store, reach out anytime.", timestamp: new Date(Date.now() - 3600000) }
-                    ]
+                    id: conv.id,
+                    type: isImageRequest ? "support" : "order", // use order icon for general chat
+                    customer_name: customerName,
+                    customer_id: otherParticipantId,
+                    product_id: conv.context?.product_id,
+                    product_name: productName,
+                    preview: conv.last_message || "Active chat",
+                    updated_at: new Date(conv.last_message_at),
+                    unread: (conv.unread_count?.[sellerId] || 0) > 0,
+                    chat_messages: mappedMsgs.length > 0 ? mappedMsgs : []
                 });
-            }
+            });
 
             // If a URL parameter specifies a customer id to message directly
             const params = new URLSearchParams(window.location.search);
@@ -211,6 +207,14 @@ export default function UniversalMessagesPage() {
         }
     }, [conversations, selectedId]);
 
+    // Mark as read when active conversation changes
+    useEffect(() => {
+        if (selectedId && !selectedId.startsWith("neg-") && !selectedId.startsWith("ord-") && !selectedId.startsWith("sup-") && !selectedId.startsWith("chat-")) {
+            const sellerId = DemoStore.getCurrentSellerId();
+            if (sellerId) DemoStore.markConversationRead(selectedId, sellerId);
+        }
+    }, [selectedId]);
+
     const handleAction = (negId: string, status: "accepted" | "rejected") => {
         DemoStore.updateNegotiationStatus(negId, status);
         // Force reload by triggering a storage event manually or just state update
@@ -244,11 +248,24 @@ export default function UniversalMessagesPage() {
         e.preventDefault();
         if (!activeConvo || (!chatMessage.trim() && !selectedImagePreview)) return;
 
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (!sellerId) return;
+        const sellerObj = DemoStore.getSellers().find(s => s.id === sellerId);
+        const sellerName = sellerObj?.business_name || "Seller";
+
         // In a real app, logic branches based on conversation type (DemoStore handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
             DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage || "[Image Attached]");
+        } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-") && !activeConvo.id.startsWith("chat-")) {
+            // It's a real DM conversation
+            DemoStore.sendChatMessage(
+                activeConvo.id,
+                sellerId,
+                sellerName,
+                chatMessage || (selectedImagePreview ? "[Image Uploaded]" : "")
+            );
         } else {
-            // Mock adding to local state for orders/disputes
+            // Mock adding to local state for legacy orders/disputes
             setConversations(prev => prev.map(c => {
                 if (c.id === activeConvo.id) {
                     return {

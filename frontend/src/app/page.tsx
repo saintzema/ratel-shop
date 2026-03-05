@@ -259,7 +259,7 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: "easeOut" }}
                 className="text-4xl md:text-7xl font-black tracking-tighter mb-4 md:mb-8 text-balance drop-shadow-2xl"
               >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-green-400 to-emerald-400">Fair</span>Price
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-green-400 to-emerald-400">Fair</span>Price.ng
               </motion.h1>
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
