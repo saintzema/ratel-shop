@@ -22,7 +22,7 @@ interface PostOrderChatProps {
     product: Product | null;
     orderId?: string;
     order?: Order | null;
-    mode?: "post_order" | "return" | "cancel";
+    mode?: "post_order" | "return" | "cancel" | "review";
 }
 
 const POST_ORDER_ACTIONS = [
@@ -50,6 +50,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
+    const [reviewRating, setReviewRating] = useState<number>(0);
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -81,6 +82,15 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                             id: Date.now().toString(),
                             sender: "ziva",
                             text: `I noticed you want to cancel the **${product.name}** (Order **${trackingId}**). Could you tell me why you're cancelling? This helps us improve our service.\n\nPlease select a reason below or type a message.`,
+                            timestamp: new Date(),
+                        }
+                    ]);
+                } else if (mode === "review") {
+                    setMessages([
+                        {
+                            id: Date.now().toString(),
+                            sender: "ziva",
+                            text: `Your delivery for **${product.name}** has been confirmed! 🎉\n\nPlease select a star rating below to leave a quick review. This really helps other shoppers!`,
                             timestamp: new Date(),
                         }
                     ]);
@@ -242,7 +252,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     if (orderStatus === "delivered") {
                         zivaText = `Your order **${trackingId}** has been marked as **delivered**. If you've received your item and it's in good condition, you can confirm delivery from your orders page to release the payment from escrow. If there's any issue, let me know immediately!`;
                     } else if (orderStatus === "shipped") {
-                        zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 2–4 business days. I'll notify you when it arrives!`;
+                        zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 3–7 business days. I'll notify you when it arrives!`;
                     } else {
                         zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–5 business days**.`;
                     }
@@ -271,7 +281,45 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         }, 1500);
     };
 
-    const quickActions = mode === "cancel" ? CANCEL_ACTIONS : (mode === "return" ? RETURN_ACTIONS : POST_ORDER_ACTIONS);
+    const handleRate = (stars: number) => {
+        if (reviewRating > 0 || !product) return;
+        setReviewRating(stars);
+
+        // Save the review instantly
+        const currentUser = DemoStore.getCurrentUser();
+        DemoStore.addReview({
+            product_id: product.id,
+            user_id: currentUser?.id || "guest",
+            user_name: currentUser?.name || "Guest User",
+            rating: stars,
+            comment: ""
+        });
+
+        const userMsg: Message = {
+            id: Date.now().toString(),
+            sender: "user",
+            text: `⭐ Rating: ${stars} Stars`,
+            timestamp: new Date()
+        };
+        DemoStore.addOrderMessage(orderId!, "user", userMsg.text);
+        setMessages(prev => [...prev, userMsg]);
+        setIsTyping(true);
+
+        setTimeout(() => {
+            const zivaText = `Thanks for the ${stars}-star rating! Your review has been saved.\n\nWould you like to tell us more about why you gave this rating? Click the button below to write a detailed review on the product page.`;
+            const zivaMsg = {
+                id: (Date.now() + 1).toString(),
+                sender: "ziva" as const,
+                text: zivaText,
+                timestamp: new Date()
+            };
+            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            setMessages(prev => [...prev, zivaMsg]);
+            setIsTyping(false);
+        }, 1000);
+    };
+
+    const quickActions = mode === "cancel" ? CANCEL_ACTIONS : (mode === "return" ? RETURN_ACTIONS : (mode === "review" ? [] : POST_ORDER_ACTIONS));
 
     return (
         <AnimatePresence>
@@ -441,46 +489,81 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                             onChange={handleImageUpload}
                         />
 
-                        {/* Input Area */}
-                        <div className="p-4 bg-white border-t border-gray-100 shrink-0">
-                            <div className="relative flex items-center gap-2">
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${mode === "return"
-                                        ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
-                                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                                        }`}
-                                    title="Upload image"
-                                >
-                                    <Paperclip className="w-4 h-4" />
-                                </button>
-                                <div className="relative flex-1">
-                                    <Input
-                                        className="pr-12 bg-gray-50 border-gray-200 h-11 rounded-full text-sm focus:bg-white transition-colors"
-                                        placeholder="Type a message..."
-                                        value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleSend();
-                                            }
-                                        }}
-                                    />
-                                    <Button
-                                        size="icon"
-                                        className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black hover:bg-gray-800 text-white shadow-sm"
-                                        onClick={() => handleSend()}
-                                        disabled={!input.trim()}
+                        {/* Input Area or Review UI */}
+                        {mode === "review" ? (
+                            <div className="p-5 bg-white border-t border-gray-100 shrink-0 flex flex-col items-center justify-center space-y-4">
+                                {reviewRating === 0 ? (
+                                    <>
+                                        <p className="text-sm font-bold text-gray-700">Tap to Rate</p>
+                                        <div className="flex gap-2">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <button
+                                                    key={star}
+                                                    onClick={() => handleRate(star)}
+                                                    className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                                                >
+                                                    <Star className="w-10 h-10 text-gray-300 hover:text-amber-400 hover:fill-amber-400 transition-colors" />
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="flex gap-1 mb-2">
+                                            {[1, 2, 3, 4, 5].map((star) => (
+                                                <Star key={star} className={`w-8 h-8 ${star <= reviewRating ? "text-amber-400 fill-amber-400" : "text-gray-200"}`} />
+                                            ))}
+                                        </div>
+                                        <a href={`/product/${product?.id}#reviews-section`} onClick={onClose} className="w-full">
+                                            <Button className="w-full h-12 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                                                Write a Detailed Review
+                                                <RotateCcw className="w-4 h-4 rotate-180" />
+                                            </Button>
+                                        </a>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+                                <div className="relative flex items-center gap-2">
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors ${mode === "return"
+                                            ? "bg-rose-50 text-rose-600 hover:bg-rose-100"
+                                            : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                                            }`}
+                                        title="Upload image"
                                     >
-                                        <Send className="w-4 h-4" />
-                                    </Button>
+                                        <Paperclip className="w-4 h-4" />
+                                    </button>
+                                    <div className="relative flex-1">
+                                        <Input
+                                            className="pr-12 bg-gray-50 border-gray-200 h-11 rounded-full text-sm focus:bg-white transition-colors"
+                                            placeholder="Type a message..."
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    handleSend();
+                                                }
+                                            }}
+                                        />
+                                        <Button
+                                            size="icon"
+                                            className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black hover:bg-gray-800 text-white shadow-sm"
+                                            onClick={() => handleSend()}
+                                            disabled={!input.trim()}
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="text-center mt-3">
+                                    <p className="text-[9px] text-gray-400 font-medium">End-to-end encrypted • Escrow Protected</p>
                                 </div>
                             </div>
-                            <div className="text-center mt-3">
-                                <p className="text-[9px] text-gray-400 font-medium">End-to-end encrypted • Escrow Protected</p>
-                            </div>
-                        </div>
+                        )}
 
                     </motion.div>
                 </div>

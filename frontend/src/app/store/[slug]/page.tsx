@@ -33,6 +33,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { Input } from "@/components/ui/input";
 import { ContactSellerModal } from "@/components/modals/ContactSellerModal";
+import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 
 export default function StoreProfile() {
     const params = useParams();
@@ -429,6 +430,9 @@ export default function StoreProfile() {
                     </div>
                 </div>
             </div>
+
+            {/* You May Also Like */}
+            <YouMayAlsoLike title="Recommended Products" />
 
             {/* Contact Seller Modal */}
             {seller && (

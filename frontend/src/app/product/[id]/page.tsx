@@ -15,6 +15,7 @@ import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import {
     Handshake,
@@ -1654,20 +1655,11 @@ export default function ProductDetailPage() {
                         )} */}
 
                         {/* You May Also Like — more products from the same or related categories */}
-                        {visibleProductsCount > 8 && (() => {
-                            const youMayLike = allProducts
-                                .filter(p => p.id !== product?.id && !similarProducts.includes(p) && !alsoBoughtProducts.includes(p))
-                                .sort(() => Math.random() - 0.5)
-                                .slice(0, visibleProductsCount - 8);
-                            if (youMayLike.length === 0) return null;
-                            return (
-                                <RecommendedProducts
-                                    products={youMayLike}
-                                    title="You May Also Like"
-                                    subtitle="Curated picks based on this product"
-                                />
-                            );
-                        })()}
+                        <YouMayAlsoLike
+                            cartCategories={product?.category ? [product.category] : []}
+                            cartIds={new Set([product?.id].filter(Boolean) as string[])}
+                            title="You May Also Like"
+                        />
                     </div>
                 )}
 

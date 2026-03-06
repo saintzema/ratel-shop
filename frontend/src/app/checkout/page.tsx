@@ -699,7 +699,7 @@ function CheckoutContent() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         to: sellerEmail,
-                        type: "ORDER_PLACED",
+                        type: "SELLER_NEW_ORDER",
                         payload: {
                             name: sellerName,
                             orderId: firstSellerOrder.order.id,
@@ -1252,7 +1252,7 @@ function CheckoutContent() {
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
                                             <Lock className="h-3 w-3" /> Your card details are stored securely and encrypted
                                         </p>
-                                        <p className="text-xs text-emerald-600 font-bold mt-1">FREE delivery when you pay online! 🎉 </p>
+                                        <p className="text-xs text-emerald-600 font-bold mt-1">FREE delivery when you pay online 🎉</p>
                                     </div>
                                 </label>
 

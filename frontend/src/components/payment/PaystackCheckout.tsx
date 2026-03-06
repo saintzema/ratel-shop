@@ -79,8 +79,10 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     }, []);
 
     useEffect(() => {
-        return () => cleanupPaystack();
-    }, [cleanupPaystack]);
+        // Do NOT aggressively clean up paystack iframe on unmount during React strict mode,
+        // it breaks window.PaystackPop's internal state if it tries to reuse the iframe.
+        // Paystack handles its own cleanup and hiding.
+    }, []);
 
     const startPayment = (key: string) => {
         setStep("processing");

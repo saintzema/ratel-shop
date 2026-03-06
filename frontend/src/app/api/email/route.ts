@@ -20,7 +20,8 @@ export async function POST(request: Request) {
         const { subject, html } = buildEmailTemplate(type, payload || {});
 
         const data = await resend.emails.send({
-            from: 'Ziva from FairPrice.ng <hello@fairprice.zemaai.com>', 
+            from: 'FairPrice <hello@fairprice.zemaai.com>',
+            replyTo: 'support@fairprice.ng',
             to: [to],
             subject: subject,
             html: html,
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, data });
 
-        } catch (error) {
+    } catch (error) {
         console.error("Email dispatcher error:", error);
         return NextResponse.json(
             { success: false, error: 'Internal server error while sending email' },

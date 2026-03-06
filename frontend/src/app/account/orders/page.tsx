@@ -55,7 +55,7 @@ function OrdersContent() {
     const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeOrder, setConciergeOrder] = useState<Order | null>(null);
-    const [conciergeMode, setConciergeMode] = useState<"post_order" | "return">("post_order");
+    const [conciergeMode, setConciergeMode] = useState<"post_order" | "return" | "cancel" | "review">("post_order");
 
     const { addToCart } = useCart();
     const router = useRouter();
@@ -115,8 +115,12 @@ function OrdersContent() {
             link: `/product/${order?.product_id}?review=true`
         });
         loadData();
-        // We do NOT redirect to PDP to allow user to confirm other orders.
-        // Instead, the notification allows them to go to the PDP when ready.
+
+        if (order) {
+            setConciergeOrder({ ...order, status: "delivered" });
+            setConciergeMode("review");
+            setShowConcierge(true);
+        }
     };
 
     const handleCancelOrder = (orderId: string) => {

@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER';
 
 interface EmailPayload {
     name?: string;
@@ -242,6 +242,41 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 
 <div style="text-align:center;">
     <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Confirm Receipt</a>
+</div>
+            `);
+            break;
+
+        case 'SELLER_NEW_ORDER':
+            subject = `New Order Placed! 🎊 (${payload.orderId})`;
+            html = BaseTemplate("You Have a New Order!", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">Congratulations! A customer just placed an order on your store, and the funds have been secured in Escrow.</p>
+
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+    <tr>
+        <td style="padding:16px;background-color:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;" class="feature-box">
+            <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+                <tr>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Order ID</td>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;font-family:monospace;" class="divider text-main">${payload.orderId}</td>
+                </tr>
+                <tr>
+                    <td style="padding:12px 0;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Item</td>
+                    <td style="padding:12px 0;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;" class="divider text-main">${payload.productName}</td>
+                </tr>
+                <tr>
+                    <td style="padding-top:12px;" class="text-muted">Expected Payout</td>
+                    <td style="padding-top:12px;text-align:right;font-weight:900;font-size:18px;color:${BRAND_COLOR};" class="code-text">₦${payload.amount?.toLocaleString() || "0"}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Please fulfill this order within your SLA timeframe to maintain your store rating.</p>
+
+<div style="text-align:center;">
+    <a href="${payload.trackingUrl || "https://fairprice.ng/seller/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Order Dashboard</a>
 </div>
             `);
             break;
