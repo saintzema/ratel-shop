@@ -41,6 +41,7 @@ export interface Seller {
     category: string;
     verified: boolean;
     subscription_plan?: "Starter" | "Pro" | "Growth" | "Scale";
+    plan_expiry_date?: string;
     rating?: number;
     trust_score: number;
     commission_rate?: number;

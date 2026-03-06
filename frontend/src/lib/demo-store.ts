@@ -532,15 +532,23 @@ class DemoStoreService {
 
     /** Helper: get the current logged-in user's ID from AuthContext storage */
     private _getCurrentUserId(): string | null {
+        return this.getCurrentUserId();
+    }
+
+    getCurrentUser(): any | null {
         if (typeof window === "undefined") return null;
         try {
             const raw = localStorage.getItem("fp_user") || sessionStorage.getItem("fp_user");
             if (raw) {
-                const user = JSON.parse(raw);
-                return user?.id || null;
+                return JSON.parse(raw);
             }
         } catch { }
         return null;
+    }
+
+    getCurrentUserId(): string | null {
+        const user = this.getCurrentUser();
+        return user ? user.id : null;
     }
 
     logout() {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, AlertCircle, Paperclip, RotateCcw, Camera, Search, Clock } from "lucide-react";
+import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, AlertCircle, Paperclip, RotateCcw, Camera, Search, Clock, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Product, Order } from "@/lib/types";
