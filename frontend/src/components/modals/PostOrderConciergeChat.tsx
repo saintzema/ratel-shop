@@ -51,6 +51,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [reviewRating, setReviewRating] = useState<number>(0);
+    const [hoverRating, setHoverRating] = useState<number>(0);
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -248,6 +249,58 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     zivaText = `📦 **Order Details:**\n• Order ID: **${trackingId}**\n• Status: **${orderStatus}**\n• Carrier: **${carrier}**${order?.tracking_id ? `\n• Tracking #: **${order.tracking_id}**` : ""}\n\nYou can use this information to track your shipment. Is there anything else you need help with?`;
                 } else if (lowerText.includes("image") || lowerText.includes("picture") || lowerText.includes("photo")) {
                     zivaText = "I am requesting real-time photos of the actual unit from the merchant's warehouse. As soon as they upload them, they will appear here. You'll also receive a notification when the images are ready.";
+
+                    // --- Send bell notification + email to seller ---
+                    if (product) {
+                        const sellerId = product.seller_id;
+                        const seller = DemoStore.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DemoStore.getCurrentUser();
+                        const buyerName = currentUser?.name || "A Buyer";
+
+                        // In-app bell notification for seller
+                        DemoStore.addNotification({
+                            userId: sellerId,
+                            type: "order",
+                            message: `📸 ${buyerName} has requested product images for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please upload photos from your dashboard.`,
+                            link: "/seller/dashboard/messages"
+                        });
+
+                        // Initiate or continue DM conversation with seller
+                        const sellerDisplayName = seller?.business_name || product.seller_name || "Seller";
+                        const conv = DemoStore.getOrCreateConversation(
+                            currentUser?.id || "guest",
+                            sellerId,
+                            { [currentUser?.id || "guest"]: buyerName, [sellerId]: sellerDisplayName },
+                            { type: "buyer_seller", product_id: product.id }
+                        );
+                        if (conv) {
+                            DemoStore.sendChatMessage(
+                                conv.id,
+                                currentUser?.id || "guest",
+                                buyerName,
+                                `📸 Hi, I'd like to request real-time photos of the "${product.name}" before it ships. Can you upload images of the actual unit from your warehouse? (Order: ${trackingId})`
+                            );
+                        }
+
+                        // Email notification to seller
+                        if (seller?.owner_email) {
+                            fetch('/api/email', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    to: seller.owner_email,
+                                    type: 'SELLER_IMAGE_REQUEST',
+                                    payload: {
+                                        name: seller.business_name || "Seller",
+                                        productName: product.name,
+                                        orderId: trackingId,
+                                        buyerName,
+                                        dashboardUrl: `${window.location.origin}/seller/dashboard/messages`,
+                                    }
+                                })
+                            }).catch(() => { /* Email send is best-effort */ });
+                        }
+                    }
                 } else if (lowerText.includes("ship") || lowerText.includes("delivery") || lowerText.includes("where") || lowerText.includes("when") || lowerText.includes("got the delivery") || lowerText.includes("received")) {
                     if (orderStatus === "delivered") {
                         zivaText = `Your order **${trackingId}** has been marked as **delivered**. If you've received your item and it's in good condition, you can confirm delivery from your orders page to release the payment from escrow. If there's any issue, let me know immediately!`;
@@ -426,6 +479,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                     }
                                                     return part;
                                                 })}
+                                                {msg.sender === "ziva" && msg.text.includes("Thanks for the") && msg.text.includes("star rating!") && (
+                                                    <div className="mt-3">
+                                                        <a href={`/product/${product?.id}#reviews-section`} onClick={onClose} className="block w-full">
+                                                            <Button className="w-full h-8 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
+                                                                Write a Detailed Review
+                                                                <RotateCcw className="w-3 h-3 rotate-180" />
+                                                            </Button>
+                                                        </a>
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {msg.imageUrl && (
@@ -495,14 +558,15 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 {reviewRating === 0 ? (
                                     <>
                                         <p className="text-sm font-bold text-gray-700">Tap to Rate</p>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2" onMouseLeave={() => setHoverRating(0)}>
                                             {[1, 2, 3, 4, 5].map((star) => (
                                                 <button
                                                     key={star}
                                                     onClick={() => handleRate(star)}
-                                                    className="p-1 hover:scale-110 transition-transform focus:outline-none"
+                                                    onMouseEnter={() => setHoverRating(star)}
+                                                    className="p-1 hover:scale-110 transition-transform focus:outline-none group"
                                                 >
-                                                    <Star className="w-10 h-10 text-gray-300 hover:text-amber-400 hover:fill-amber-400 transition-colors" />
+                                                    <Star className={`w-10 h-10 transition-colors ${hoverRating >= star ? "text-amber-400 fill-amber-400" : "text-gray-300 group-hover:text-amber-400 group-hover:fill-amber-400"}`} />
                                                 </button>
                                             ))}
                                         </div>

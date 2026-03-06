@@ -171,8 +171,12 @@ interface SavedAddress {
     firstName: string;
     lastName: string;
     phone: string;
+    email: string;
     street: string;
     city: string;
+    state?: string;
+    station?: string;
+    method: "doorstep" | "pickup";
 }
 
 function getAddressKey(): string {
@@ -402,34 +406,7 @@ function CheckoutContent() {
         const saved = getSavedAddresses();
         setSavedAddresses(saved);
 
-        if (user) {
-            const nameParts = (user.name || "").split(" ");
-            const firstName = nameParts[0] || "";
-            const lastName = nameParts.slice(1).join(" ") || "";
-            // If user has a saved address, use the most recent one
-            if (saved.length > 0) {
-                const latest = saved[0];
-                setAddress({
-                    firstName: latest.firstName || firstName,
-                    lastName: latest.lastName || lastName,
-                    street: latest.street,
-                    city: latest.city,
-                    phone: latest.phone || (user as any)?.phone || "",
-                    email: user.email
-                });
-                setIsEditingAddress(false);
-            } else {
-                setAddress(prev => ({
-                    ...prev,
-                    firstName,
-                    lastName,
-                    email: user.email,
-                    phone: (user as any)?.phone || ""
-                }));
-                // Logged-in users with no saved address need to edit
-                setIsEditingAddress(true);
-            }
-        } else if (saved.length > 0) {
+        if (saved.length > 0) {
             const latest = saved[0];
             setAddress({
                 firstName: latest.firstName,
@@ -437,9 +414,32 @@ function CheckoutContent() {
                 street: latest.street,
                 city: latest.city,
                 phone: latest.phone,
-                email: ""
+                email: latest.email || user?.email || ""
             });
+            if (latest.method === "pickup") {
+                setDeliveryMethod("pickup");
+                setPickupDetails({
+                    state: latest.state || "",
+                    city: latest.city || "",
+                    station: latest.station || ""
+                });
+            } else {
+                setDeliveryMethod("doorstep");
+            }
             setIsEditingAddress(false);
+        } else if (user) {
+            const nameParts = (user.name || "").split(" ");
+            const firstName = nameParts[0] || "";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            setAddress(prev => ({
+                ...prev,
+                firstName,
+                lastName,
+                email: user.email,
+                phone: (user as any)?.phone || ""
+            }));
+            // Logged-in users with no saved address need to edit
+            setIsEditingAddress(true);
         }
 
         if (typeof window !== "undefined") {
@@ -501,21 +501,25 @@ function CheckoutContent() {
     );
 
     const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
-    const canPayOnDelivery = subtotal <= 50000 && !hasGlobalProduct; // Only allow COD for local orders up to ₦50k
+    const canPayOnDelivery = total <= 20000 && !hasGlobalProduct; // Only allow COD for local orders up to ₦20k (including shipping and discounts)
 
     // Save address to localStorage
     const saveCurrentAddress = () => {
         const newAddr: SavedAddress = {
             id: `addr_${Date.now()}`,
-            label: `${address.firstName}'s Address – ${address.city}`,
+            label: `${address.firstName}'s Address – ${deliveryMethod === 'pickup' ? pickupDetails.station : address.city}`,
             firstName: address.firstName,
             lastName: address.lastName,
             phone: address.phone,
+            email: address.email || user?.email || "",
             street: address.street,
-            city: address.city
+            city: address.city,
+            state: pickupDetails.state,
+            station: pickupDetails.station,
+            method: deliveryMethod
         };
-        // Avoid duplicates by matching street + city
-        const existing = savedAddresses.filter(a => !(a.street === newAddr.street && a.city === newAddr.city));
+        // Avoid duplicates by matching street + city + method
+        const existing = savedAddresses.filter(a => !(a.method === newAddr.method && a.street === newAddr.street && a.city === newAddr.city && a.station === newAddr.station));
         const updated = [newAddr, ...existing].slice(0, 5); // Keep max 5
         setSavedAddresses(updated);
         persistAddresses(updated);
@@ -527,9 +531,18 @@ function CheckoutContent() {
             firstName: addr.firstName,
             lastName: addr.lastName,
             phone: addr.phone,
+            email: addr.email || prev.email,
             street: addr.street,
             city: addr.city
         }));
+        setDeliveryMethod(addr.method || "doorstep");
+        if (addr.method === "pickup") {
+            setPickupDetails({
+                state: addr.state || "",
+                city: addr.city || "",
+                station: addr.station || ""
+            });
+        }
         setShowAddressPicker(false);
         setIsEditingAddress(false);
     };
@@ -584,8 +597,8 @@ function CheckoutContent() {
         }
         setAddressError("");
 
-        // Auto-save this address for next time if doorstep
-        if (deliveryMethod === "doorstep" && address.street.trim()) {
+        // Auto-save this address for next time
+        if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
             saveCurrentAddress();
         }
 
@@ -771,7 +784,9 @@ function CheckoutContent() {
                                                     <div key={addr.id} className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer group">
                                                         <div onClick={() => selectSavedAddress(addr)} className="flex-1">
                                                             <p className="font-semibold text-sm text-gray-900">{addr.firstName} {addr.lastName}</p>
-                                                            <p className="text-xs text-gray-500">{addr.street}, {addr.city} · {addr.phone}</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {addr.method === "pickup" ? `Pickup: ${addr.station}, ${addr.city}` : `${addr.street}, ${addr.city}`} · {addr.phone}
+                                                            </p>
                                                         </div>
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); deleteSavedAddress(addr.id); }}
@@ -1141,7 +1156,9 @@ function CheckoutContent() {
                                                         return;
                                                     }
                                                     setAddressError("");
-                                                    if (deliveryMethod === "doorstep" && address.street.trim()) saveCurrentAddress();
+                                                    if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
+                                                        saveCurrentAddress();
+                                                    }
                                                     setIsEditingAddress(false);
                                                     setCheckoutStep(2);
                                                 }}
@@ -1277,8 +1294,8 @@ function CheckoutContent() {
                                         <div>
                                             <span className="font-bold text-gray-500">Pay on Delivery</span>
                                             <p className="text-xs text-gray-400">
-                                                {subtotal > 50000
-                                                    ? "Not available for orders above ₦50,000"
+                                                {total > 20000
+                                                    ? "Not available for orders above ₦20,000"
                                                     : "Not available for imported global products"}
                                             </p>
                                         </div>

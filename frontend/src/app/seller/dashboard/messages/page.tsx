@@ -134,8 +134,8 @@ export default function UniversalMessagesPage() {
                 }
 
                 // Map to unified conversation type
-                const mappedMsgs = DemoStore.getChatMessages(conv.id).map((m: any) => ({
-                    sender: m.sender_id === sellerId ? "seller" : "buyer",
+                const mappedMsgs: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[] = DemoStore.getChatMessages(conv.id).map((m: any) => ({
+                    sender: m.sender_id === sellerId ? "seller" as const : "buyer" as const,
                     text: m.text,
                     timestamp: new Date(m.timestamp),
                     imageUrl: undefined, // Add support for images later if needed

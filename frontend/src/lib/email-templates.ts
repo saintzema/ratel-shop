@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST';
 
 interface EmailPayload {
     name?: string;
@@ -16,6 +16,8 @@ interface EmailPayload {
     daysRemaining?: number;
     planName?: string;
     reviewUrl?: string;
+    buyerName?: string;
+    dashboardUrl?: string;
 }
 
 const BRAND_COLOR = "#059669";
@@ -276,7 +278,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Please fulfill this order within your SLA timeframe to maintain your store rating.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.trackingUrl || "https://fairprice.ng/seller/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Order Dashboard</a>
+    <a href="${payload.trackingUrl || "https://fairprice.ng/seller/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;text-align:center;color:white; font-weight:700;font-size:16px;" class="btn">View Order Dashboard</a>
 </div>
             `);
             break;
@@ -433,6 +435,41 @@ ${payload.daysRemaining === 0 ? `
 `}
 <div style="text-align:center;">
     <a href="https://fairprice.ng/seller/settings/billing" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">${payload.daysRemaining === 0 ? 'Renew Now' : 'Renew Your Plan'}</a>
+</div>
+            `);
+            break;
+
+        case 'SELLER_IMAGE_REQUEST':
+            subject = `📸 Image Request for ${payload.productName || "a Product"} (Order ${payload.orderId || ""})`;
+            html = BaseTemplate("Product Image Requested", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">A buyer has requested <strong>real-time photos</strong> of the actual product unit from your warehouse or inventory.</p>
+
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+    <tr>
+        <td style="padding:16px;background-color:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;" class="feature-box">
+            <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+                <tr>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Product</td>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;" class="divider text-main">${payload.productName || "Unknown"}</td>
+                </tr>
+                <tr>
+                    <td style="padding:12px 0;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Order ID</td>
+                    <td style="padding:12px 0;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;font-family:monospace;" class="divider text-main">${payload.orderId || "N/A"}</td>
+                </tr>
+                <tr>
+                    <td style="padding-top:12px;" class="text-muted">Requested By</td>
+                    <td style="padding-top:12px;text-align:right;font-weight:700;" class="text-main">${payload.buyerName || "A Buyer"}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Please upload clear photos of the actual unit as soon as possible. Responding promptly improves your seller trust score.</p>
+
+<div style="text-align:center;">
+    <a href="${payload.dashboardUrl || "https://fairprice.ng/seller/dashboard/messages"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Upload Photos Now</a>
 </div>
             `);
             break;

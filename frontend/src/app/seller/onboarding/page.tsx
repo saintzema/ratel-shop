@@ -166,10 +166,10 @@ export default function KYCOnboarding() {
 
         // Admin notification (in-app bell) for KYC review
         DemoStore.addNotification({
-            type: "kyc",
+            type: "system",
             title: "New Seller KYC Submitted",
             message: `${businessName || "A new seller"} has completed onboarding and is awaiting approval.`,
-            user_id: "admin",
+            userId: "admin",
             link: `/admin/users/${sellerId}`,
         });
 

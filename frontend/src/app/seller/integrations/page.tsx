@@ -14,6 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const INTEGRATIONS = [
     {

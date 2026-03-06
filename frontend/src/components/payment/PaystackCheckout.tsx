@@ -84,36 +84,42 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
         // Paystack handles its own cleanup and hiding.
     }, []);
 
+    const runDemoFallback = useCallback(() => {
+        setStep("processing");
+        setTimeout(() => {
+            setStep("success");
+            setTimeout(() => {
+                onSuccess(`mock_ref_${Date.now()}`);
+                if (!autoStart) onClose();
+            }, 2000);
+        }, 2000);
+    }, [onSuccess, onClose, autoStart]);
+
     const startPayment = (key: string) => {
         setStep("processing");
 
+        // Demo / mock mode — no real Paystack key
         if (!key || key === "mock_key") {
-            // Simulate Paystack flow for demo mode
-            setTimeout(() => {
-                setStep("success");
-                setTimeout(() => {
-                    onSuccess(`mock_ref_${Date.now()}`);
-                    if (!autoStart) onClose();
-                }, 2000);
-            }, 2000);
+            runDemoFallback();
             return;
         }
 
         // Guard: ensure PaystackPop is actually available before calling setup
         if (!window.PaystackPop || typeof window.PaystackPop.setup !== "function") {
             console.warn("PaystackPop not available, falling back to demo mode");
-            setTimeout(() => {
-                setStep("success");
-                setTimeout(() => {
-                    onSuccess(`mock_ref_${Date.now()}`);
-                    if (!autoStart) onClose();
-                }, 2000);
-            }, 2000);
+            runDemoFallback();
             return;
         }
 
+        // Paystack's SDK sometimes crashes internally with
+        //   "null is not an object (evaluating 'this.iframe.contentWindow.postMessage')"
+        // because it immediately posts to an iframe it just created before the browser
+        // has fully attached it to the DOM. We wrap everything in try-catch and always
+        // fall back gracefully to demo-mode on any error.
+        let handler: { openIframe: () => void } | null = null;
+
         try {
-            const handler = window.PaystackPop.setup({
+            handler = window.PaystackPop.setup({
                 key,
                 email,
                 amount,
@@ -142,32 +148,33 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                     }
                 },
             });
+        } catch (setupErr) {
+            console.warn("Paystack setup() threw — falling back to demo mode:", setupErr);
+            runDemoFallback();
+            return;
+        }
 
-            // Give the browser a frame to fully attach the iframe before Paystack posts to it
+        if (!handler || typeof handler.openIframe !== "function") {
+            console.warn("Paystack handler missing openIframe, falling back to demo mode");
+            runDemoFallback();
+            return;
+        }
+
+        // Give the browser multiple frames to fully attach the Paystack iframe
+        // before we ask it to open. Two rAF + setTimeout gives the most reliable result.
+        requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 setTimeout(() => {
                     try {
-                        handler.openIframe();
+                        handler!.openIframe();
                     } catch (iframeErr) {
-                        console.error("Paystack iframe Error:", iframeErr);
-                        // Fall back to demo mode instead of showing error
-                        setStep("success");
-                        setTimeout(() => {
-                            onSuccess(`mock_ref_${Date.now()}`);
-                            if (!autoStart) onClose();
-                        }, 2000);
+                        console.warn("Paystack openIframe() threw — falling back to demo mode:", iframeErr);
+                        cleanupPaystack();
+                        runDemoFallback();
                     }
-                }, 50);
+                }, 150);
             });
-        } catch (err) {
-            console.error("Paystack Init Error:", err);
-            // Fall back to demo mode on any setup error
-            setStep("success");
-            setTimeout(() => {
-                onSuccess(`mock_ref_${Date.now()}`);
-                if (!autoStart) onClose();
-            }, 2000);
-        }
+        });
     };
 
     useEffect(() => {
