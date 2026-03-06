@@ -301,7 +301,7 @@ export default function UserDirectory() {
                                                         setParticipants(prev => prev.map(participant =>
                                                             participant.id === p.id ? { ...participant, status: "active", verified: true, kyc_status: "approved" } : participant
                                                         ));
-                                                        toast.success(`Seller ${p.display_name} has been approved.`);
+                                                        alert(`Seller ${p.display_name} has been approved.`);
                                                         window.dispatchEvent(new Event("demo-store-update"));
                                                     }}
                                                 >

@@ -264,15 +264,18 @@ export default function AdminUserDetailPage() {
                     </Button>
                     {/* Activate — for pending users (buyers or sellers not yet approved) */}
                     {(userEntity.status === "pending" || userEntity.status === "not_verified" || !userEntity.status) && (
-                        <Button onClick={() => {
+                        <Button onClick={async () => {
                             if (confirm("Are you sure you want to activate this account?")) {
+                                setIsUpdating(true);
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
+                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
                                     DemoStore.updateUserStatus(userEntity.id, newStatus);
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
+                                setIsUpdating(false);
                             }
                         }} className="h-11 px-5 rounded-2xl bg-emerald-600 text-white font-bold text-xs uppercase tracking-wider hover:bg-emerald-700 shadow-lg shadow-emerald-500/20 transition-all hover:scale-105">
                             <CheckCircle2 className="h-4 w-4 mr-2" /> Activate Account
@@ -281,15 +284,18 @@ export default function AdminUserDetailPage() {
 
                     {/* Reactivate — for frozen/suspended users */}
                     {(userEntity.status === "frozen" || userEntity.status === "suspended") && (
-                        <Button onClick={() => {
+                        <Button onClick={async () => {
                             if (confirm("Are you sure you want to reactivate this account?")) {
+                                setIsUpdating(true);
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
+                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
                                     DemoStore.updateUserStatus(userEntity.id, newStatus);
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
+                                setIsUpdating(false);
                             }
                         }} variant="outline" className="h-11 px-5 rounded-2xl border-emerald-100 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-100 shadow-sm">
                             <CheckCircle2 className="h-4 w-4 mr-2" /> Reactivate
@@ -298,13 +304,14 @@ export default function AdminUserDetailPage() {
 
                     {/* Suspend — only for currently active users */}
                     {userEntity.status === "active" && (
-                        <Button onClick={() => {
+                        <Button onClick={async () => {
                             if (confirm("Are you sure you want to suspend this account?")) {
-                                const newStatus = userEntity.role === "seller" ? "frozen" : "suspended";
+                                const newStatus = userEntity.role === "seller" ? "frozen" : "banned";
                                 if (userEntity.role === "seller") {
                                     DemoStore.updateSeller(userEntity.id, { status: newStatus });
+                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus }) }); } catch { }
                                 } else {
-                                    DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                    DemoStore.updateUserStatus(userEntity.id, newStatus as any);
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus }));
                             }

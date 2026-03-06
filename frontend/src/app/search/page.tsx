@@ -560,8 +560,8 @@ function SearchContent() {
 
     if (showGlobalResults) {
       const mappedGlobal = globalResults.map((r, i) => {
-        // Create a stable, URL-safe ID from the product name
-        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}`;
+        // Create a stable, URL-safe ID from the product name, appending the index to ensure uniqueness across continuous fetches
+        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}-${i}`;
         const descCategories = {
           electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
           phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",

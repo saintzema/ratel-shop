@@ -23,7 +23,9 @@ import {
     Edit2,
     Edit,
     X,
-    Plus
+    Plus,
+    Flame, // Added Flame icon
+    ArrowLeft, Upload, Star, Image as ImageIcon, Shield, AlertTriangle, Sparkles, Wand2, FileOutput // Added other icons from instruction
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,13 @@ export default function CatalogControl() {
     const [cachedProducts, setCachedProducts] = useState<any[]>([]);
     const [editingCacheProduct, setEditingCacheProduct] = useState<any | null>(null);
     const [cacheEditFields, setCacheEditFields] = useState<{ name: string; price: string; image_url: string; description: string }>({ name: '', price: '', image_url: '', description: '' });
+
+    const [scrapedProducts, setScrapedProducts] = useState<any[]>([]);
+    const [isScraping, setIsScraping] = useState(false);
+    const [scrapeUrl, setScrapeUrl] = useState("");
+
+    // Curation State
+    const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set());
 
     // Edit Modal State
     const [editingProduct, setEditingProduct] = useState<any | null>(null);
@@ -76,6 +85,7 @@ export default function CatalogControl() {
                 return db - da;
             });
             setProducts(all);
+            setTrendingIds(new Set(DemoStore.getTrendingIds())); // Load trending IDs
         };
         load();
         const loadCache = () => setCachedProducts(DemoStore.getAllCachedProducts());
@@ -294,42 +304,52 @@ export default function CatalogControl() {
                         </div>
                     ) : (
                         <div className="divide-y divide-gray-100">
-                            {cachedProducts.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())).map((p: any) => (
-                                <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors group">
-                                    <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
-                                        <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs font-bold text-blue-600">₦{p.price?.toLocaleString()}</span>
-                                            <span className="text-[10px] text-gray-400">·</span>
-                                            <span className="text-[10px] text-gray-400 uppercase">{p.category}</span>
-                                            {p.cache_query && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">Query: "{p.cache_query}"</span>}
+                            {[...cachedProducts]
+                                .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
+                                .sort((a, b) => {
+                                    if (sort === "date_desc") return (new Date(b.created_at || b.cached_at || 0).getTime()) - (new Date(a.created_at || a.cached_at || 0).getTime());
+                                    if (sort === "date_asc") return (new Date(a.created_at || a.cached_at || 0).getTime()) - (new Date(b.created_at || b.cached_at || 0).getTime());
+                                    if (sort === "price_desc") return (b.price || 0) - (a.price || 0);
+                                    if (sort === "price_asc") return (a.price || 0) - (b.price || 0);
+                                    if (sort === "category_asc") return (a.category || "").localeCompare(b.category || "");
+                                    return 0;
+                                })
+                                .map((p: any) => (
+                                    <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors group">
+                                        <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
+                                            <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-xs font-bold text-blue-600">₦{p.price?.toLocaleString()}</span>
+                                                <span className="text-[10px] text-gray-400">·</span>
+                                                <span className="text-[10px] text-gray-400 uppercase">{p.category}</span>
+                                                {p.cache_query && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">Query: "{p.cache_query}"</span>}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button
+                                                onClick={() => { setEditingCacheProduct(p); setCacheEditFields({ name: p.name, price: String(p.price || 0), image_url: p.image_url || '', description: p.description || '' }); }}
+                                                className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                            >
+                                                <Edit2 className="h-3 w-3 inline mr-1" />Edit
+                                            </button>
+                                            <button
+                                                onClick={() => { DemoStore.promoteFromCache(p.id); DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); }}
+                                                className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                                            >
+                                                <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
+                                            </button>
+                                            <button
+                                                onClick={() => { if (confirm('Remove from cache?')) { DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); } }}
+                                                className="px-2 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button
-                                            onClick={() => { setEditingCacheProduct(p); setCacheEditFields({ name: p.name, price: String(p.price || 0), image_url: p.image_url || '', description: p.description || '' }); }}
-                                            className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                                        >
-                                            <Edit2 className="h-3 w-3 inline mr-1" />Edit
-                                        </button>
-                                        <button
-                                            onClick={() => { DemoStore.promoteFromCache(p.id); DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); }}
-                                            className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                                        >
-                                            <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
-                                        </button>
-                                        <button
-                                            onClick={() => { if (confirm('Remove from cache?')) { DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); } }}
-                                            className="px-2 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                ))}
                         </div>
                     )}
 
@@ -463,6 +483,17 @@ export default function CatalogControl() {
                                             </td>
                                             <td className="px-6 py-4 align-middle text-right">
                                                 <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                    <Button
+                                                        variant="ghost" size="icon"
+                                                        onClick={() => {
+                                                            DemoStore.toggleTrending(p.id);
+                                                            setTrendingIds(new Set(DemoStore.getTrendingIds()));
+                                                        }}
+                                                        className={cn("h-8 w-8 rounded-xl", trendingIds.has(p.id) ? "text-orange-500 bg-orange-50 hover:bg-orange-100" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50")}
+                                                        title={trendingIds.has(p.id) ? "Remove from Trending" : "Pin to Trending"}
+                                                    >
+                                                        <Flame className="h-4 w-4" />
+                                                    </Button>
                                                     <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
                                                         <Link href={`/product/${p.id}`} target="_blank">
                                                             <Eye className="h-4 w-4" />

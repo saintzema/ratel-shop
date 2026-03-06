@@ -213,8 +213,19 @@ export default function Home() {
     return result;
   };
 
-  // 1. Trending — sorted by popularity (sold_count), gives real "trending" feel
-  const trendingPool = [...allProducts].sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0));
+  // 1. Trending — First show Admin Curated Trending, then fallback to popularity (sold_count)
+  const trendingIdsStr = typeof window !== "undefined" ? localStorage.getItem("fp_trending_ids") : "[]";
+  const trendingIds = new Set(JSON.parse(trendingIdsStr || "[]"));
+
+  const trendingPool = [...allProducts].sort((a, b) => {
+    // Curated items float to very top
+    const aTrending = trendingIds.has(a.id);
+    const bTrending = trendingIds.has(b.id);
+    if (aTrending && !bTrending) return -1;
+    if (!aTrending && bTrending) return 1;
+    // Otherwise sort by sold count
+    return (b.sold_count || 0) - (a.sold_count || 0);
+  });
   const topPicks = takeUnique(trendingPool, 20);
 
   // 2. Sponsored — always shown regardless of duplication

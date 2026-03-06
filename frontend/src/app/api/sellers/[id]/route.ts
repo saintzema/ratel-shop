@@ -51,13 +51,14 @@ export async function PATCH(
     try {
         const { id } = await params;
         const body = await req.json();
-        const { status, verified } = body;
+        const { status, verified, kyc_status, kycStatus } = body;
 
         const seller = await db.seller.update({
             where: { id },
             data: {
                 status: status,
                 verified: verified !== undefined ? verified : undefined,
+                kycStatus: kyc_status || kycStatus || undefined,
                 user: {
                     update: {
                         role: status === "active" ? "seller" : undefined

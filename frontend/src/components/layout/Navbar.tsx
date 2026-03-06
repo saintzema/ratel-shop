@@ -10,33 +10,31 @@ import {
     MapPin,
     ChevronDown,
     X,
-    Phone,
-    Monitor,
-    Sofa,
-    Home,
-    Zap,
-    ShoppingBag,
-    Car,
-    Gamepad,
     Heart,
     Handshake,
     Sparkles,
     Globe,
-    Shirt,
-    Baby,
-    Dumbbell,
-    BookOpen,
-    Wrench,
-    Paintbrush,
-    Package,
     History,
     TrendingUp,
-    Flame,
     Lock,
     Shield,
     ArrowRight,
     Crown,
-    MessageCircle
+    MessageCircle,
+    Zap,
+    Phone,
+    Monitor,
+    Shirt,
+    Paintbrush,
+    Home,
+    Dumbbell,
+    BookOpen,
+    Sofa,
+    ShoppingBag,
+    Baby,
+    Car,
+    Gamepad,
+    Package
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -55,34 +53,21 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useMessages } from "@/context/MessageContext";
 
-// Category icon map for product image fallback
 const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
     phones: <Phone className="h-6 w-6" />,
+    smartphones: <Phone className="h-6 w-6" />,
+    computers: <Monitor className="h-6 w-6" />,
+    laptops: <Monitor className="h-6 w-6" />,
     electronics: <Monitor className="h-6 w-6" />,
-    computing: <Monitor className="h-6 w-6" />,
     fashion: <Shirt className="h-6 w-6" />,
-    home: <Home className="h-6 w-6" />,
-    furniture: <Sofa className="h-6 w-6" />,
-    cars: <Car className="h-6 w-6" />,
-    gaming: <Gamepad className="h-6 w-6" />,
-    energy: <Zap className="h-6 w-6" />,
-    baby: <Baby className="h-6 w-6" />,
-    sports: <Dumbbell className="h-6 w-6" />,
-    books: <BookOpen className="h-6 w-6" />,
-    tools: <Wrench className="h-6 w-6" />,
+    clothing: <Shirt className="h-6 w-6" />,
     beauty: <Paintbrush className="h-6 w-6" />,
-    grocery: <ShoppingBag className="h-6 w-6" />,
+    home: <Home className="h-6 w-6" />,
+    gym: <Dumbbell className="h-6 w-6" />,
+    office: <BookOpen className="h-6 w-6" />,
+    furniture: <Sofa className="h-6 w-6" />,
+    grocery: <ShoppingBag className="h-6 w-6" />
 };
-
-function CategoryIconFallback({ category }: { category: string }) {
-    const cat = category?.toLowerCase() || "";
-    const icon = Object.entries(CATEGORY_ICON_MAP).find(([key]) => cat.includes(key))?.[1] || <Package className="h-6 w-6" />;
-    return (
-        <div className="w-full h-full rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
-            {icon}
-        </div>
-    );
-}
 
 export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -638,9 +623,7 @@ export function Navbar() {
                                                             "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm transition-all relative",
                                                             isPopular ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] group-hover:shadow-[0_0_20px_rgba(16,185,129,0.7)]" : "bg-white/10 group-hover:bg-white/20 border border-white/5"
                                                         )}>
-                                                            <span className={cn("transition-transform group-hover:scale-110", isPopular ? "text-white" : "text-emerald-400")}>
-                                                                {CATEGORY_ICON_MAP[cat.value] || <Package className="h-6 w-6" />}
-                                                            </span>
+                                                            {CATEGORY_ICON_MAP[cat.label.toLowerCase()] || CATEGORY_ICON_MAP[cat.value.toLowerCase()] || <Package className="h-6 w-6" />}
                                                         </div>
                                                         <span className="text-[10px] sm:text-xs font-medium text-black text-center leading-tight">
                                                             {cat.label}
@@ -756,8 +739,13 @@ export function Navbar() {
                                                     }}
                                                     className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
                                                 >
-                                                    <div className="h-10 w-10 shrink-0 rounded overflow-hidden">
-                                                        <CategoryIconFallback category={result.category || 'electronics'} />
+                                                    <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
+                                                        <img
+                                                            src={'/assets/images/placeholder.png'}
+                                                            alt={result.name}
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                        />
                                                     </div>
                                                     <div className="flex flex-col flex-1 min-w-0">
                                                         <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>

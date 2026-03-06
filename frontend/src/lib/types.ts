@@ -259,6 +259,7 @@ export interface CartItem {
 export interface Notification {
     id: string;
     type: "system" | "order" | "negotiation" | "promo";
+    title?: string;
     message: string;
     read: boolean;
     timestamp: string;
