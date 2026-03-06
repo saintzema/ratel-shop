@@ -501,7 +501,7 @@ function CheckoutContent() {
     );
 
     const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
-    const canPayOnDelivery = subtotal < 50000 && !hasGlobalProduct; // Only allow COD for local orders under ₦50k
+    const canPayOnDelivery = subtotal <= 50000 && !hasGlobalProduct; // Only allow COD for local orders up to ₦50k
 
     // Save address to localStorage
     const saveCurrentAddress = () => {
@@ -1252,7 +1252,7 @@ function CheckoutContent() {
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
                                             <Lock className="h-3 w-3" /> Your card details are stored securely and encrypted
                                         </p>
-                                        <p className="text-xs text-emerald-600 font-bold mt-1">🎉 FREE delivery when you pay online!</p>
+                                        <p className="text-xs text-emerald-600 font-bold mt-1">FREE delivery when you pay online! 🎉 </p>
                                     </div>
                                 </label>
 
@@ -1276,7 +1276,11 @@ function CheckoutContent() {
                                         <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
                                         <div>
                                             <span className="font-bold text-gray-500">Pay on Delivery</span>
-                                            <p className="text-xs text-gray-400">Not available for orders above ₦50,000</p>
+                                            <p className="text-xs text-gray-400">
+                                                {subtotal > 50000
+                                                    ? "Not available for orders above ₦50,000"
+                                                    : "Not available for imported global products"}
+                                            </p>
                                         </div>
                                     </div>
                                 )}
