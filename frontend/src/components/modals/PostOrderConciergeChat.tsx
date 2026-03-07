@@ -398,7 +398,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                             <div className="flex items-center gap-3">
                                 <div className="relative">
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-white shadow-sm overflow-hidden ${mode === "return" || mode === "cancel" ? "bg-rose-100" : "bg-brand-green-100"}`}>
-                                        <span className={`font-black text-lg ${mode === "return" || mode === "cancel" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
+                                        <img src="/assets/images/image_v2.png" alt="Ziva AI" className="w-full h-full object-cover" />
                                     </div>
                                     <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
                                 </div>
@@ -455,8 +455,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                         {/* Avatar */}
                                         <div className="shrink-0 mt-auto">
                                             {msg.sender === "ziva" ? (
-                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${mode === "return" ? "bg-rose-100 border-rose-200" : "bg-brand-green-100 border-brand-green-200"}`}>
-                                                    <span className={`text-[10px] font-bold ${mode === "return" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
+                                                <div className={`w-6 h-6 rounded-full flex items-center justify-center border overflow-hidden ${mode === "return" ? "bg-rose-100 border-rose-200" : "bg-brand-green-100 border-brand-green-200"}`}>
+                                                    <img src="/assets/images/image_v2.png" alt="Ziva AI" className="w-full h-full object-cover" />
                                                 </div>
                                             ) : msg.sender === "admin" ? (
                                                 <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
@@ -510,8 +510,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                                     <div className="flex gap-2 max-w-[80%] flex-row">
                                         <div className="shrink-0 mt-auto">
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${mode === "return" ? "bg-rose-100 border-rose-200" : "bg-brand-green-100 border-brand-green-200"}`}>
-                                                <span className={`text-[10px] font-bold ${mode === "return" ? "text-rose-700" : "text-brand-green-700"}`}>Z</span>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center border overflow-hidden ${mode === "return" ? "bg-rose-100 border-rose-200" : "bg-brand-green-100 border-brand-green-200"}`}>
+                                                <img src="/assets/images/image_v2.png" alt="Ziva AI" className="w-full h-full object-cover" />
                                             </div>
                                         </div>
                                         <div className="px-4 py-3 rounded-2xl bg-white border border-gray-100 shadow-sm rounded-bl-sm flex gap-1.5 items-center">

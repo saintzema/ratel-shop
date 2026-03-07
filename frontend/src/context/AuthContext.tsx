@@ -61,6 +61,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const login = (userData: User) => {
+        // Transfer any guest negotiations to the logged-in user
+        try {
+            const stored = localStorage.getItem("fairprice_demo_negotiations");
+            if (stored) {
+                const negs = JSON.parse(stored);
+                let changed = false;
+                negs.forEach((n: any) => {
+                    if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
+                        n.customer_id = userData.id || userData.email;
+                        n.customer_name = userData.name || userData.email;
+                        changed = true;
+                    }
+                });
+                if (changed) localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
+            }
+        } catch (e) { /* ignore */ }
+
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
         window.dispatchEvent(new Event("fp-auth-update"));
@@ -83,6 +100,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const register = (userData: User) => {
+        // Transfer any guest negotiations to the newly registered user
+        try {
+            const stored = localStorage.getItem("fairprice_demo_negotiations");
+            if (stored) {
+                const negs = JSON.parse(stored);
+                let changed = false;
+                negs.forEach((n: any) => {
+                    if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
+                        n.customer_id = userData.id || userData.email;
+                        n.customer_name = userData.name || userData.email;
+                        changed = true;
+                    }
+                });
+                if (changed) localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
+            }
+        } catch (e) { /* ignore */ }
+
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
 

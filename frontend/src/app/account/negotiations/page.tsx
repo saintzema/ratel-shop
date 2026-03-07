@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
 import { Navbar } from "@/components/layout/Navbar";
+import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
+import { ProductCard } from "@/components/product/ProductCard";
 import {
     CheckCircle,
     XCircle,
@@ -18,7 +20,9 @@ import {
     ShoppingCart,
     AlertTriangle,
     ArrowRight,
-    Check
+    Check,
+    ChevronLeft,
+    TrendingUp
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -80,13 +84,21 @@ export default function NegotiationsPage() {
         <div className="min-h-screen bg-gray-50 text-gray-900">
             <Navbar />
             <div className="container mx-auto px-4 py-8 max-w-5xl">
-                <div className="mb-8">
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">
-                        Your Negotiations
-                    </h1>
-                    <p className="text-gray-500 mt-2">
-                        Track your offers and responses from sellers.
-                    </p>
+                <div className="mb-8 flex items-center gap-3">
+                    <button
+                        onClick={() => router.push('/')}
+                        className="h-10 w-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors shrink-0"
+                    >
+                        <ChevronLeft className="h-5 w-5 text-gray-600" />
+                    </button>
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+                            Your Negotiations
+                        </h1>
+                        <p className="text-gray-500 mt-2">
+                            Track your offers and responses from sellers.
+                        </p>
+                    </div>
                 </div>
 
                 {/* Filter chips */}
@@ -233,6 +245,51 @@ export default function NegotiationsPage() {
                             );
                         })
                     )}
+                </div>
+
+                {/* Customers Also Bought Section */}
+                <div className="mt-10">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <ShoppingCart className="h-5 w-5 text-blue-600" />
+                            <h2 className="text-lg font-bold text-gray-900">Customers Also Bought</h2>
+                        </div>
+                        <Link href="/search">
+                            <Button variant="ghost" size="sm" className="text-xs font-bold text-brand-green-600 hover:text-brand-green-700">
+                                View More <ArrowRight className="h-3 w-3 ml-1" />
+                            </Button>
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {(() => {
+                            const allProds = DemoStore.getProducts();
+                            // Use negotiated product categories to find related items
+                            const negCategories = new Set(
+                                negotiations.map(n => products.find(p => p.id === n.product_id)?.category).filter(Boolean)
+                            );
+                            const negProductIds = new Set(negotiations.map(n => n.product_id));
+                            // Prioritize same-category products, then fill with popular items
+                            const related = allProds
+                                .filter(p => !negProductIds.has(p.id))
+                                .sort((a, b) => {
+                                    const aMatch = negCategories.has(a.category) ? 1 : 0;
+                                    const bMatch = negCategories.has(b.category) ? 1 : 0;
+                                    if (aMatch !== bMatch) return bMatch - aMatch;
+                                    return b.sold_count - a.sold_count;
+                                });
+                            return related.slice(0, 5).map(p => (
+                                <ProductCard key={p.id} product={p} />
+                            ));
+                        })()}
+                    </div>
+                </div>
+
+                {/* You May Also Like Section */}
+                <div className="mt-10">
+                    <YouMayAlsoLike
+                        cartCategories={negotiations.map(n => products.find(p => p.id === n.product_id)?.category || "").filter(Boolean)}
+                        cartIds={new Set(negotiations.map(n => n.product_id))}
+                    />
                 </div>
             </div>
         </div>

@@ -45,7 +45,7 @@ export function FloatingCart() {
                     }
                 }}
                 // Show only on mobile (hidden on md and above) — positioned on the right
-                className="md:hidden fixed z-[999] right-4 top-[30%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5"
+                className="md:hidden fixed z-[999] right-4 top-[55%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5"
                 style={{ WebkitTapHighlightColor: "transparent" }}
             >
                 <motion.div

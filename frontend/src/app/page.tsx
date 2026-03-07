@@ -680,7 +680,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
         {canScrollLeft && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-0 group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
             aria-label="Scroll left"
           >
             <ChevronLeft className="h-5 w-5" />
@@ -691,7 +691,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
         {canScrollRight && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-0 group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
             aria-label="Scroll right"
           >
             <ChevronRight className="h-5 w-5" />

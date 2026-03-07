@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 export default function RecommendationsPage() {
     const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
     const [mounted, setMounted] = useState(false);
+    const [viewCount, setViewCount] = useState(12);
     const router = useRouter();
 
     useEffect(() => {
@@ -41,12 +42,12 @@ export default function RecommendationsPage() {
             pool.sort((a, b) => b.sold_count - a.sold_count);
         }
 
-        // Add a bit of randomness to the top 12
-        const top12 = pool.slice(0, 12);
-        top12.sort(() => Math.random() - 0.5);
+        // Add a bit of randomness to the first page
+        const topSet = pool.slice(0, Math.max(viewCount, 12));
+        topSet.sort(() => Math.random() - 0.5);
 
-        setRecommendedProducts(top12);
-    }, []);
+        setRecommendedProducts(topSet);
+    }, [viewCount]);
 
     if (!mounted) return null;
 
@@ -76,11 +77,24 @@ export default function RecommendationsPage() {
                     </div>
 
                     {recommendedProducts.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
-                            {recommendedProducts.map((product) => (
-                                <ProductCard key={product.id} product={product} />
-                            ))}
-                        </div>
+                        <>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-6">
+                                {recommendedProducts.slice(0, viewCount).map((product) => (
+                                    <ProductCard key={product.id} product={product} />
+                                ))}
+                            </div>
+                            {viewCount < recommendedProducts.length && (
+                                <div className="flex justify-center mt-8">
+                                    <Button
+                                        onClick={() => setViewCount(prev => prev + 12)}
+                                        variant="outline"
+                                        className="rounded-full font-bold px-8 border-brand-green-200 text-brand-green-700 hover:bg-brand-green-50"
+                                    >
+                                        View More <ChevronLeft className="h-4 w-4 ml-2 rotate-[-90deg]" />
+                                    </Button>
+                                </div>
+                            )}
+                        </>
                     ) : (
                         <div className="bg-white rounded-2xl border border-gray-100 p-12 flex flex-col items-center justify-center text-center shadow-sm h-[50vh]">
                             <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">

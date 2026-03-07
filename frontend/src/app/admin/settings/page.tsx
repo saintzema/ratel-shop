@@ -30,6 +30,7 @@ export default function AdminSettings() {
     const [escrowFee, setEscrowFee] = useState("1000");
     const [doorstepFee, setDoorstepFee] = useState("4000");
     const [pickupFee, setPickupFee] = useState("2500");
+    const [maxNegotiationDiscount, setMaxNegotiationDiscount] = useState("10");
 
     // COD Settings
     const [codThreshold, setCodThreshold] = useState("20000");
@@ -88,6 +89,11 @@ export default function AdminSettings() {
                     setEscrowRelease(data.escrowRelease ?? true);
                     setStrictSeller(data.strictSeller ?? true);
 
+                    if (data.maxNegotiationDiscount !== undefined) {
+                        setMaxNegotiationDiscount(data.maxNegotiationDiscount.toString());
+                        localStorage.setItem("fp_max_negotiation_discount", data.maxNegotiationDiscount.toString());
+                    }
+
                     if (data.categoryMargins) {
                         setMargins(data.categoryMargins as Record<string, string>);
                     }
@@ -126,13 +132,18 @@ export default function AdminSettings() {
         }
     };
 
-    const handleSaveCommission = () => saveSection({
-        platformMargin: parseFloat(platformMargin) || 15.0,
-        serviceCharge: parseFloat(serviceCharge) || 25.0,
-        standardCommission: parseFloat(standardCommission) || 2.5,
-        escrowFee: parseFloat(escrowFee) || 1000,
-        categoryMargins: margins
-    }, setIsSavingCommission);
+    const handleSaveCommission = () => {
+        // Also persist to localStorage for client-side pickup
+        localStorage.setItem("fp_max_negotiation_discount", maxNegotiationDiscount || "10");
+        return saveSection({
+            platformMargin: parseFloat(platformMargin) || 15.0,
+            serviceCharge: parseFloat(serviceCharge) || 25.0,
+            standardCommission: parseFloat(standardCommission) || 2.5,
+            escrowFee: parseFloat(escrowFee) || 1000,
+            categoryMargins: margins,
+            maxNegotiationDiscount: parseFloat(maxNegotiationDiscount) || 10,
+        }, setIsSavingCommission);
+    };
 
     const handleSaveShipping = () => saveSection({
         doorstepFee: parseFloat(doorstepFee) || 4000,
@@ -205,6 +216,11 @@ export default function AdminSettings() {
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Escrow Fee (Fixed ₦)</label>
                                     <Input value={escrowFee} onChange={(e) => setEscrowFee(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Max Negotiation Discount (%)</label>
+                                    <Input value={maxNegotiationDiscount} onChange={(e) => setMaxNegotiationDiscount(e.target.value)} type="number" min="1" max="50" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
+                                    <p className="text-[10px] text-gray-400 pl-1">Buyers cannot offer more than this % below the listing price</p>
                                 </div>
                             </div>
                             <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-start gap-3">

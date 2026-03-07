@@ -160,14 +160,21 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     </div>
 
                     {/* Price Section */}
-                    <div className="flex items-baseline gap-2 mb-2 mt-auto">
+                    <div className="flex items-baseline gap-1.5 mb-2 mt-auto flex-wrap">
                         <span className="text-lg font-black text-foreground">
                             {formatPrice(product.price)}
                         </span>
                         {product.original_price && (
-                            <span className="text-[10px] text-muted-foreground line-through font-medium">
-                                {formatPrice(product.original_price)}
-                            </span>
+                            <>
+                                <span className="text-[10px] text-muted-foreground line-through font-medium">
+                                    {formatPrice(product.original_price)}
+                                </span>
+                                {savingsPct > 0 && (
+                                    <span className="text-[9px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
+                                        -{savingsPct}% OFF
+                                    </span>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

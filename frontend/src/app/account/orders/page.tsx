@@ -8,6 +8,8 @@ import { DemoStore } from "@/lib/demo-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
+import { ProductCard } from "@/components/product/ProductCard";
 import {
     ShieldCheck,
     Package,
@@ -24,6 +26,8 @@ import {
     Sparkles,
     AlertTriangle,
     MessageCircle,
+    TrendingUp,
+    ChevronLeft,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -173,10 +177,18 @@ function OrdersContent() {
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-8 pt-6 max-w-7xl">
-                {/* Page Header */}
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900">Your Orders</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Track, return, or buy items again.</p>
+                {/* Page Header with Back Nav */}
+                <div className="mb-6 flex items-center gap-3">
+                    <button
+                        onClick={() => router.push('/')}
+                        className="h-10 w-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors shrink-0"
+                    >
+                        <ChevronLeft className="h-5 w-5 text-gray-600" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Your Orders</h1>
+                        <p className="text-sm text-gray-500 mt-0.5">Track, return, or buy items again.</p>
+                    </div>
                 </div>
 
                 {/* Two Column Layout */}
@@ -520,6 +532,44 @@ function OrdersContent() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* You May Also Like Section */}
+                <div className="mt-10">
+                    <YouMayAlsoLike
+                        cartCategories={orders.map(o => o.product?.category || "").filter(Boolean)}
+                        cartIds={new Set(orders.map(o => o.product_id))}
+                    />
+                </div>
+
+                {/* Trending in Nigeria Section */}
+                <div className="mt-10">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <TrendingUp className="h-5 w-5 text-brand-green-600" />
+                            <h2 className="text-lg font-bold text-gray-900">Trending in Nigeria</h2>
+                        </div>
+                        <Link href="/search">
+                            <Button variant="ghost" size="sm" className="text-xs font-bold text-brand-green-600 hover:text-brand-green-700">
+                                View More <ArrowRight className="h-3 w-3 ml-1" />
+                            </Button>
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                        {(() => {
+                            const allProds = DemoStore.getProducts();
+                            // Fair visibility: shuffle with time-based seed so every product gets equal exposure
+                            const seed = Math.floor(Date.now() / (1000 * 60 * 5)); // changes every 5 min
+                            const shuffled = [...allProds].sort((a, b) => {
+                                const hashA = (a.id.charCodeAt(0) * seed) % 100;
+                                const hashB = (b.id.charCodeAt(0) * seed) % 100;
+                                return hashA - hashB;
+                            });
+                            return shuffled.slice(0, 5).map(p => (
+                                <ProductCard key={p.id} product={p} />
+                            ));
+                        })()}
                     </div>
                 </div>
             </main>
