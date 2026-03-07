@@ -117,10 +117,10 @@ export default function NegotiationsPage() {
                     ))}
                 </div>
 
-                {/* Negotiations List */}
-                <div className="space-y-4">
+                {/* Negotiations Table */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                     {filteredNegs.length === 0 ? (
-                        <div className="text-center py-20 bg-white shadow-sm rounded-3xl border border-dashed border-gray-200">
+                        <div className="text-center py-20">
                             <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                             <h3 className="font-bold text-lg text-gray-900">No negotiations found</h3>
                             <p className="text-gray-500">You haven&apos;t made any offers yet.</p>
@@ -129,121 +129,146 @@ export default function NegotiationsPage() {
                             </Link>
                         </div>
                     ) : (
-                        filteredNegs.map((neg) => {
-                            const product = products.find(p => p.id === neg.product_id);
-                            if (!product) return null;
+                        <>
+                            {/* Desktop Table Header */}
+                            <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                                <span></span>
+                                <span>Product</span>
+                                <span>List Price</span>
+                                <span>Your Offer</span>
+                                <span>Counter</span>
+                                <span>Status</span>
+                                <span className="text-right">Action</span>
+                            </div>
 
-                            const isCounterOffer = neg.counter_status === "pending";
-                            const justAdded = addedIds.has(neg.id);
+                            {/* Scrollable list */}
+                            <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100">
+                                {filteredNegs.map((neg) => {
+                                    const product = products.find(p => p.id === neg.product_id);
+                                    if (!product) return null;
 
-                            return (
-                                <div key={neg.id} className="bg-white shadow-sm backdrop-blur-[12px] border border-gray-200 rounded-2xl p-4 sm:p-6 shadow-lg hover:bg-gray-100 transition-colors">
-                                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
-                                        {/* Product Image */}
-                                        <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 rounded-xl flex items-center justify-center p-2 shrink-0 mx-auto sm:mx-0">
-                                            <img src={product.image_url} alt={product.name} className="max-w-full max-h-full object-contain" />
-                                        </div>
+                                    const isCounterOffer = neg.counter_status === "pending";
+                                    const justAdded = addedIds.has(neg.id);
 
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4 mb-4">
+                                    const statusBadge = isCounterOffer && neg.status === "pending"
+                                        ? <Badge className="bg-blue-500/15 text-blue-600 border-none text-[10px] animate-pulse">Counter</Badge>
+                                        : neg.status === "pending"
+                                            ? <Badge className="bg-amber-500/15 text-amber-600 border-none text-[10px]">Pending</Badge>
+                                            : neg.status === "accepted"
+                                                ? <Badge className="bg-brand-green-500/15 text-brand-green-600 border-none text-[10px]">Accepted</Badge>
+                                                : <Badge className="bg-red-500/15 text-red-600 border-none text-[10px]">Rejected</Badge>;
+
+                                    return (
+                                        <div key={neg.id}>
+                                            {/* Desktop Row */}
+                                            <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 items-center hover:bg-gray-50 transition-colors">
+                                                <Link href={`/product/${product.id}`} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                    <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" />
+                                                </Link>
                                                 <div className="min-w-0">
-                                                    <Link href={`/product/${product.id}`} className="font-bold text-base sm:text-lg hover:text-brand-green-400 text-gray-900 line-clamp-2 transition-colors">
+                                                    <Link href={`/product/${product.id}`} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
                                                         {product.name}
                                                     </Link>
-                                                    <p className="text-xs sm:text-sm text-gray-500">Sold by {product.seller_name}</p>
+                                                    <span className="text-[10px] text-gray-400">{product.seller_name}</span>
                                                 </div>
-
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    {neg.status === "pending" && !isCounterOffer && (
-                                                        <Badge className="bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border-none text-[10px] sm:text-xs">Pending</Badge>
+                                                <span className="text-xs text-gray-400 line-through">{formatPrice(product.price)}</span>
+                                                <span className="text-sm font-bold text-gray-900">{formatPrice(neg.proposed_price)}</span>
+                                                <div>
+                                                    {neg.counter_price ? (
+                                                        <span className="text-sm font-black text-blue-600">{formatPrice(neg.counter_price)}</span>
+                                                    ) : (
+                                                        <span className="text-xs text-gray-300">—</span>
                                                     )}
-                                                    {isCounterOffer && neg.status === "pending" && (
-                                                        <Badge className="bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 border-none animate-pulse text-[10px] sm:text-xs">Counter Offer</Badge>
+                                                </div>
+                                                {statusBadge}
+                                                <div className="flex justify-end gap-1">
+                                                    {isCounterOffer && (
+                                                        <>
+                                                            <Button size="sm" onClick={() => handleAction(neg.id, "accepted")} className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-2">Accept</Button>
+                                                            <Button size="sm" variant="outline" onClick={() => handleAction(neg.id, "rejected")} className="text-[10px] font-bold rounded-lg h-7 px-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent">Reject</Button>
+                                                        </>
                                                     )}
                                                     {neg.status === "accepted" && (
-                                                        <Badge className="bg-brand-green-500/20 text-brand-green-400 hover:bg-brand-green-500/30 border-none text-[10px] sm:text-xs">Accepted</Badge>
+                                                        <Button size="sm" onClick={() => handleAddToCart(neg, product)} disabled={justAdded} className={`text-[10px] font-bold rounded-lg h-7 px-3 ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
+                                                            {justAdded ? "✓ Added" : <>Buy <ArrowRight className="h-3 w-3 ml-1" /></>}
+                                                        </Button>
                                                     )}
                                                     {neg.status === "rejected" && (
-                                                        <Badge className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border-none text-[10px] sm:text-xs">Rejected</Badge>
+                                                        <Link href={`/product/${product.id}`}>
+                                                            <Button size="sm" variant="outline" className="text-[10px] font-bold rounded-lg h-7 px-2 border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View</Button>
+                                                        </Link>
+                                                    )}
+                                                    {neg.status === "pending" && !isCounterOffer && (
+                                                        <span className="text-[10px] text-gray-400 italic">Awaiting seller</span>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            {/* Price Details */}
-                                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 p-3 sm:p-4 bg-white shadow-sm rounded-xl border border-gray-200">
-                                                <div>
-                                                    <div className="text-[10px] sm:text-xs text-gray-500 uppercase font-bold">List Price</div>
-                                                    <div className="text-xs sm:text-sm line-through text-gray-400">{formatPrice(product.price)}</div>
-                                                </div>
-                                                <div>
-                                                    <div className="text-[10px] sm:text-xs text-gray-500 uppercase font-bold">Your Offer</div>
-                                                    <div className="font-bold text-sm sm:text-base text-gray-900">{formatPrice(neg.proposed_price)}</div>
-                                                </div>
-                                                {(neg.counter_price || isCounterOffer) && (
-                                                    <div className="flex-1 border-l pl-4 sm:pl-6 border-gray-200">
-                                                        <div className="text-[10px] sm:text-xs text-blue-400 uppercase font-bold mb-1">Counter Offer</div>
-                                                        <div className="flex items-baseline gap-2 flex-wrap">
-                                                            <span className="text-lg sm:text-xl font-black text-blue-400">
-                                                                {formatPrice(neg.counter_price || 0)}
-                                                            </span>
-                                                            {neg.counter_message && (
-                                                                <span className="text-xs sm:text-sm text-gray-900/70 italic">&quot;{neg.counter_message}&quot;</span>
-                                                            )}
+                                            {/* Mobile Card */}
+                                            <div className="md:hidden p-4 space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <Link href={`/product/${product.id}`} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block">
+                                                        <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" />
+                                                    </Link>
+                                                    <div className="flex-1 min-w-0">
+                                                        <Link href={`/product/${product.id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
+                                                            {product.name}
+                                                        </Link>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            {statusBadge}
+                                                            <span className="text-[10px] text-gray-400">{product.seller_name}</span>
                                                         </div>
                                                     </div>
-                                                )}
-                                            </div>
-
-                                            {/* Actions */}
-                                            <div className="mt-4 sm:mt-6 flex flex-wrap gap-2 sm:gap-3">
-                                                {isCounterOffer && (
-                                                    <>
-                                                        <Button
-                                                            onClick={() => handleAction(neg.id, "accepted")}
-                                                            className="bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold rounded-full text-xs sm:text-sm h-9 sm:h-10"
-                                                        >
-                                                            <CheckCircle className="w-4 h-4 mr-1.5" />
-                                                            Accept
+                                                </div>
+                                                <div className="flex items-center gap-4 text-xs bg-gray-50 rounded-xl px-3 py-2">
+                                                    <div>
+                                                        <div className="text-[9px] text-gray-400 uppercase font-bold">Listed</div>
+                                                        <div className="line-through text-gray-400">{formatPrice(product.price)}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[9px] text-gray-400 uppercase font-bold">Offer</div>
+                                                        <div className="font-bold text-gray-900">{formatPrice(neg.proposed_price)}</div>
+                                                    </div>
+                                                    {neg.counter_price && (
+                                                        <div className="border-l border-gray-200 pl-4">
+                                                            <div className="text-[9px] text-blue-500 uppercase font-bold">Counter</div>
+                                                            <div className="font-black text-blue-600">{formatPrice(neg.counter_price)}</div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    {isCounterOffer && (
+                                                        <>
+                                                            <Button size="sm" onClick={() => handleAction(neg.id, "accepted")} className="flex-1 text-xs rounded-lg font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white">
+                                                                <CheckCircle className="h-3 w-3 mr-1" /> Accept
+                                                            </Button>
+                                                            <Button size="sm" variant="outline" onClick={() => handleAction(neg.id, "rejected")} className="flex-1 text-xs rounded-lg font-bold border-red-200 text-red-600 hover:bg-red-50 bg-transparent">
+                                                                Reject
+                                                            </Button>
+                                                        </>
+                                                    )}
+                                                    {neg.status === "accepted" && (
+                                                        <Button size="sm" onClick={() => handleAddToCart(neg, product)} disabled={justAdded} className={`flex-1 text-xs rounded-lg font-bold ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
+                                                            {justAdded ? <>✓ Added — Checkout</> : <>Buy at {formatPrice(neg.counter_status === 'accepted' ? (neg.counter_price || neg.proposed_price) : neg.proposed_price)} <ArrowRight className="h-3 w-3 ml-1" /></>}
                                                         </Button>
-                                                        <Button
-                                                            onClick={() => handleAction(neg.id, "rejected")}
-                                                            variant="outline"
-                                                            className="border-red-500/50 text-red-400 hover:bg-red-500/20 hover:text-gray-900 rounded-full font-bold text-xs sm:text-sm h-9 sm:h-10 bg-transparent transition-colors"
-                                                        >
-                                                            Reject
-                                                        </Button>
-                                                    </>
-                                                )}
-
-                                                {neg.status === "accepted" && (
-                                                    <Button
-                                                        onClick={() => handleAddToCart(neg, product)}
-                                                        disabled={justAdded}
-                                                        className={`rounded-full font-bold text-xs sm:text-sm h-9 sm:h-10 shadow-lg transition-all ${justAdded
-                                                            ? "bg-brand-green-600 text-white shadow-brand-green-500/20"
-                                                            : "bg-brand-orange hover:bg-amber-500 text-black shadow-orange-500/20"
-                                                            }`}
-                                                    >
-                                                        {justAdded ? (
-                                                            <><Check className="w-4 h-4 mr-1.5" /> Added — Going to Checkout</>
-                                                        ) : (
-                                                            <><ShoppingCart className="w-4 h-4 mr-1.5" /> Buy at {formatPrice(neg.counter_status === 'accepted' ? (neg.counter_price || neg.proposed_price) : neg.proposed_price)} <ArrowRight className="w-3 h-3 ml-1" /></>
-                                                        )}
-                                                    </Button>
-                                                )}
-
-                                                {neg.status === "rejected" && (
-                                                    <Link href={`/product/${product.id}`}>
-                                                        <Button variant="outline" className="rounded-full text-xs sm:text-sm h-9 sm:h-10 border-gray-300 text-gray-900 hover:bg-gray-100 bg-transparent">View Product</Button>
-                                                    </Link>
-                                                )}
+                                                    )}
+                                                    {neg.status === "rejected" && (
+                                                        <Link href={`/product/${product.id}`} className="flex-1">
+                                                            <Button size="sm" variant="outline" className="w-full text-xs rounded-lg font-bold border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View Product</Button>
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                            );
-                        })
+                                    );
+                                })}
+                            </div>
+
+                            {/* Count footer */}
+                            <div className="px-5 py-2.5 bg-gray-50 border-t border-gray-200 text-[11px] text-gray-400 font-semibold">
+                                Showing {filteredNegs.length} negotiation{filteredNegs.length !== 1 ? "s" : ""}
+                            </div>
+                        </>
                     )}
                 </div>
 
