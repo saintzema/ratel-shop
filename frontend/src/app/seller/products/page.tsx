@@ -248,7 +248,7 @@ export default function SellerProducts() {
                             <div className="flex gap-5">
                                 {/* Thumbnail: Elite Style */}
                                 <div className="h-24 w-24 bg-white rounded-[20px] border border-gray-100 shadow-xl overflow-hidden flex items-center justify-center p-2 shrink-0 relative group">
-                                    <img src={product.image_url} alt={product.name} className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" />
+                                    <img src={product.image_url || "/assets/images/placeholder-product.svg"} alt={product.name} className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" />
                                     {product.price_flag === "overpriced" && (
                                         <div className="absolute top-1 right-1 bg-rose-500 rounded-full p-1 shadow-lg">
                                             <AlertTriangle className="h-3 w-3 text-white" />
@@ -355,7 +355,7 @@ export default function SellerProducts() {
                                 <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-6 py-5">
                                         <div className="h-14 w-14 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden flex items-center justify-center p-1 relative">
-                                            <img src={product.image_url} alt={product.name} className="h-full w-full object-contain mix-blend-multiply" />
+                                            <img src={product.image_url || "/assets/images/placeholder-product.svg"} alt={product.name} className="h-full w-full object-contain mix-blend-multiply" />
                                             {product.price_flag === "overpriced" && (
                                                 <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full p-0.5">
                                                     <AlertTriangle className="h-2.5 w-2.5 text-white" />

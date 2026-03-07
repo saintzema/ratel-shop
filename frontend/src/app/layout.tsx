@@ -20,6 +20,11 @@ export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
   description: "Secure, reliable, and premium e-commerce platform for Africa with Escrow protection.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/logo.png",
+    shortcut: "/favicon.ico",
+  },
 };
 
 export const viewport = {

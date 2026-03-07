@@ -80,7 +80,7 @@ export async function POST(req: Request) {
             category: body.category,
             imageUrl: body.image_url,
             images: body.images || [],
-            stock: body.stock || 0,
+            stock: body.stock ?? 100,
             priceFlag: body.price_flag || "none",
             isSponsored: body.is_sponsored || false,
             isActive: isSellerActive ? (body.is_active !== false) : false,

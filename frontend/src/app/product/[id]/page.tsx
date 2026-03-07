@@ -203,7 +203,41 @@ export default function ProductDetailPage() {
                 if (/camera|canon|nikon|sony alpha|gopro|drone/.test(nl)) {
                     return `Capture stunning moments with the ${n}. Featuring a high-resolution sensor for sharp, detailed images in any lighting condition, fast autofocus for action shots, and professional-grade video capabilities. Intuitive controls and a bright LCD screen make framing perfect shots effortless. Built for both enthusiasts and professionals who demand exceptional image quality and reliability.`;
                 }
-                return `Discover the ${n} — a premium product carefully selected for quality, durability, and exceptional value. Designed to meet the highest standards with attention to detail and superior craftsmanship. Every unit undergoes rigorous quality checks to ensure you receive a product that exceeds expectations. Backed by our buyer protection guarantee and secure escrow payment system for a worry-free shopping experience.`;
+                if (/massager|massage|percussion|deep tissue|muscle/.test(nl)) {
+                    return `Relieve tension and accelerate recovery with the ${n}. Engineered with multiple speed settings and interchangeable massage heads to target every muscle group — from deep tissue knots to gentle relaxation. The powerful yet whisper-quiet brushless motor delivers up to 3,200 percussions per minute, penetrating deep into sore muscles to increase blood circulation and reduce recovery time. Lightweight, ergonomic design with a long-lasting rechargeable battery means you can enjoy professional-grade therapy at home, at the gym, or on the go.`;
+                }
+                if (/chopper|slicer|blender|mixer|kitchen|grater|peeler|juicer|food processor/.test(nl)) {
+                    return `Simplify your meal prep with the ${n}. This versatile kitchen essential features precision-engineered stainless steel blades for effortless chopping, slicing, dicing, and grating. The ergonomic, non-slip design ensures safe and comfortable use, while the removable components make cleanup a breeze. Built to handle everything from delicate herbs to tough root vegetables, it saves you valuable time in the kitchen without sacrificing quality or consistency in every cut.`;
+                }
+                if (/car.*vacuum|car.*seat|dash.*cam|car.*charger|car.*mount|steering|tire|windshield|car.*paint|car.*wax/.test(nl)) {
+                    return `Upgrade your driving experience with the ${n}. Designed specifically for automotive use with durable, high-quality materials built to withstand daily wear and extreme temperatures. Easy installation requires no professional help, and the sleek design blends seamlessly with any vehicle interior. Whether you're maintaining your car's appearance, enhancing safety, or adding convenience, this accessory delivers reliable performance and lasting value for drivers who refuse to compromise.`;
+                }
+                if (/gaming|rgb|controller|joystick|game.*pad|thumb.*grip/.test(nl)) {
+                    return `Level up your gaming setup with the ${n}. Designed for serious gamers who demand precision, comfort, and style. Features responsive controls with minimal input lag, immersive RGB lighting with multiple customizable effects, and an ergonomic build for marathon gaming sessions. Compatible with multiple platforms and devices, this accessory gives you the competitive edge you need to dominate every match.`;
+                }
+                if (/fitness|resistance.*band|yoga.*mat|push.*up|jump.*rope|dumbbell|kettlebell|workout/.test(nl)) {
+                    return `Take your fitness to the next level with the ${n}. Built from premium, sweat-resistant materials designed for intense workouts and long-term durability. Whether you're training at home, outdoors, or at the gym, this equipment provides the versatility and resistance you need for effective full-body workouts. Compact, portable design makes it easy to stay consistent with your fitness goals anywhere, anytime.`;
+                }
+                if (/led.*light|night.*light|lamp|cabinet.*light|strip.*light|bulb|chandelier/.test(nl)) {
+                    return `Illuminate your space with the ${n}. Features energy-efficient LED technology that delivers warm, eye-friendly lighting while consuming minimal power. Easy to install with no wiring required — the smart design includes adjustable brightness and automatic sensors for hands-free convenience. Perfect for bedrooms, hallways, closets, kitchens, and workspaces, it combines modern aesthetics with practical everyday functionality.`;
+                }
+                if (/scrubber|cleaning|mop|vacuum.*cleaner|duster|window.*clean|brush/.test(nl)) {
+                    return `Make cleaning effortless with the ${n}. This powerful cleaning tool features a high-torque motor and interchangeable brush heads designed for kitchens, bathrooms, floors, and hard-to-reach areas. The cordless, rechargeable design gives you freedom of movement without tangled cords, while the waterproof construction allows safe use in wet environments. Spend less time scrubbing and more time enjoying a sparkling clean home.`;
+                }
+                if (/organizer|storage.*box|shelf|rack|container|stackable|drawer/.test(nl)) {
+                    return `Maximize your space with the ${n}. Crafted from durable, food-safe materials (where applicable) with a smart stackable design that keeps your belongings neatly organized. Transparent construction lets you quickly identify contents, while reinforced handles and secure locking mechanisms ensure easy handling and spill-proof storage. Perfect for refrigerators, pantries, closets, offices, and more — transform cluttered spaces into tidy, efficient storage solutions.`;
+                }
+                if (/surveillance|security.*cam|cctv|spy.*cam|hidden.*cam|wifi.*cam|ip.*cam/.test(nl)) {
+                    return `Protect what matters most with the ${n}. This compact security camera delivers crisp HD video with advanced night vision, wide-angle coverage, and smart motion detection alerts sent directly to your phone. Easy Wi-Fi setup takes minutes with no professional installation required. Features cloud and local storage, two-way audio for real-time communication, and a discreet design that blends into any environment. Keep your home, office, or business monitored 24/7 from anywhere in the world.`;
+                }
+                if (/hair.*clipper|trimmer|shaver|razor|grooming|beard/.test(nl)) {
+                    return `Achieve a precision grooming experience with the ${n}. Featuring self-sharpening stainless steel blades for clean, even cuts every time. Multiple length settings and guide combs provide versatility for any hairstyle or beard shape. The powerful yet quiet motor, rechargeable battery with USB-C charging, and waterproof design make it perfect for use at home or on the go. Professional results without the salon price tag.`;
+                }
+                if (/humidifier|diffuser|air.*purifier|fan|cooler|heater|dehumidifier/.test(nl)) {
+                    return `Create the perfect atmosphere with the ${n}. Combining innovative technology with elegant design, this device quietly regulates your environment for optimal comfort. Features smart auto-shutoff safety, adjustable mist or airflow settings, and ultra-quiet operation that won't disturb your sleep or work. Energy-efficient and easy to maintain, it's the perfect addition to bedrooms, offices, and living spaces for improved air quality and comfort year-round.`;
+                }
+                // Enhanced generic fallback with product-aware details
+                return `Discover the ${n} — a carefully curated product selected for exceptional quality and outstanding value. Built with premium materials and meticulous attention to detail, each unit undergoes rigorous quality inspection to ensure reliability and long-lasting performance.\n\nKey Highlights:\n• Premium build quality with durable, high-grade materials\n• Thoughtful design focused on ease of use and practical everyday functionality\n• Thorough quality testing and inspection before dispatch\n• Comprehensive packaging to ensure safe delivery\n\nYour purchase is protected by FairPrice's buyer protection guarantee and secure escrow payment system, so you can shop with complete confidence. Fast, tracked delivery with real-time updates keeps you informed every step of the way.`;
             };
 
             const generateSpecs = (n: string): Record<string, string> => {
@@ -261,11 +295,16 @@ export default function ProductDetailPage() {
                     // Last resort: create a rich placeholder from the URL slug
                     const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+                    // Generate a deterministic realistic price based on the name string
+                    const seed = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                    // Price between 5,000 and 150,000 rounded to nearest 500
+                    const generatedPrice = 5000 + (seed % 290) * 500;
+
                     product = {
                         id: decodedId,
                         name,
-                        price: 0,
-                        original_price: 0,
+                        price: generatedPrice,
+                        original_price: Math.floor(generatedPrice * 1.5),
                         category: "electronics",
                         description: generateDescription(name),
                         image_url: "",
@@ -273,12 +312,12 @@ export default function ProductDetailPage() {
                         seller_id: 'global-partners',
                         seller_name: 'Global Stores',
                         price_flag: 'fair',
-                        sold_count: 50,
-                        review_count: 12,
-                        avg_rating: 4.8,
+                        sold_count: 50 + (seed % 500),
+                        review_count: 12 + (seed % 100),
+                        avg_rating: 4.5 + ((seed % 5) / 10),
                         is_active: true,
                         created_at: new Date().toISOString(),
-                        recommended_price: 0,
+                        recommended_price: generatedPrice,
                         specs: generateSpecs(name),
                     } as any;
 
@@ -324,6 +363,47 @@ export default function ProductDetailPage() {
             kyc_status: "approved",
             created_at: "2026-01-01T00:00:00Z",
         } as any;
+    }
+    // Enhance generic/boilerplate descriptions with richer category-specific content
+    if (product && product.description) {
+        const GENERIC_PATTERNS = [
+            /explore this highly-rated/i,
+            /premium quality.*secure checkout/i,
+            /verified for fair pricing/i,
+            /guaranteed quality delivery/i,
+        ];
+        const isGeneric = GENERIC_PATTERNS.some(p => p.test(product!.description)) || product.description.length < 80;
+        if (isGeneric) {
+            const generateEnhancedDescription = (n: string): string => {
+                const nl = n.toLowerCase();
+                if (/iphone|samsung|galaxy|pixel|redmi|xiaomi|oppo|vivo|phone|smartphone/.test(nl)) return `Experience premium performance with the ${n}. Featuring a stunning edge-to-edge display, pro-grade camera system for capturing every detail in vivid clarity, and an all-day battery that keeps up with your lifestyle. Built with aerospace-grade materials for durability, offering smooth multitasking, fast 5G connectivity, and advanced security features.`;
+                if (/macbook|laptop|thinkpad|chromebook|notebook|dell|hp elitebook|surface/.test(nl)) return `Unleash your productivity with the ${n}. This powerhouse laptop features a brilliant high-resolution display, lightning-fast processor, and generous storage. Premium aluminum body, advanced thermal management, backlit keyboard, and long-lasting battery life — designed for demanding workloads.`;
+                if (/airpods|earbuds|headphone|earphone|buds|headset/.test(nl)) return `Immerse yourself in crystal-clear sound with the ${n}. Featuring advanced Active Noise Cancellation, premium drivers for rich bass, and comfortable ergonomic design for all-day wear. Seamless Bluetooth 5.3 connectivity and industry-leading battery life.`;
+                if (/watch|smartwatch|fitbit/.test(nl)) return `Stay connected and track your health with the ${n}. Advanced AMOLED display, comprehensive health monitoring including heart rate, blood oxygen, and sleep tracking, plus built-in GPS. Water-resistant with multi-day battery life.`;
+                if (/tv|television|monitor|display|screen/.test(nl)) return `Transform your entertainment with the ${n}. Breathtaking 4K resolution with HDR support, smart TV capabilities for instant access to streaming apps, and powerful built-in speakers for immersive audio.`;
+                if (/shoe|sneaker|nike|adidas|jordan|boot|sandal|slider/.test(nl)) return `Step up your style with the ${n}. Crafted with premium materials for lasting comfort and durability. Cushioned midsole provides responsive support for all-day wear with breathable upper construction.`;
+                if (/bag|backpack|luggage|suitcase|handbag|purse|shoulder.*bag/.test(nl)) return `Carry in style with the ${n}. Premium materials, thoughtful organization with multiple compartments, padded straps for comfortable carrying, and water-resistant fabric for all-weather protection.`;
+                if (/camera|canon|nikon|gopro|drone/.test(nl)) return `Capture stunning moments with the ${n}. High-resolution sensor for sharp images, fast autofocus for action shots, and professional-grade video capabilities.`;
+                if (/massager|massage|percussion|deep tissue|muscle/.test(nl)) return `Relieve tension and accelerate recovery with the ${n}. Multiple speed settings and interchangeable massage heads target every muscle group. Powerful yet whisper-quiet motor delivers up to 3,200 percussions per minute with a long-lasting rechargeable battery.`;
+                if (/chopper|slicer|blender|mixer|kitchen|grater|juicer|food processor/.test(nl)) return `Simplify your meal prep with the ${n}. Precision-engineered stainless steel blades for effortless chopping, slicing, dicing, and grating. Ergonomic non-slip design with easy-clean removable components.`;
+                if (/car.*vacuum|car.*seat|dash.*cam|car.*charger|car.*paint|car.*wax/.test(nl)) return `Upgrade your driving experience with the ${n}. Durable, high-quality materials built for daily automotive use. Easy installation, sleek design, and reliable performance for drivers who refuse to compromise.`;
+                if (/gaming|rgb|controller|joystick|thumb.*grip/.test(nl)) return `Level up your gaming setup with the ${n}. Responsive controls with minimal input lag, immersive RGB lighting, and ergonomic design for marathon gaming sessions. Multi-platform compatible.`;
+                if (/fitness|resistance.*band|yoga.*mat|push.*up|jump.*rope|workout/.test(nl)) return `Take your fitness to the next level with the ${n}. Premium sweat-resistant materials designed for intense workouts and long-term durability. Compact, portable design for training anywhere.`;
+                if (/led.*light|night.*light|lamp|cabinet.*light|strip.*light/.test(nl)) return `Illuminate your space with the ${n}. Energy-efficient LED technology delivering warm, eye-friendly lighting with adjustable brightness and smart sensors.`;
+                if (/scrubber|cleaning|mop|vacuum.*cleaner|window.*clean/.test(nl)) return `Make cleaning effortless with the ${n}. High-torque motor and interchangeable heads for kitchens, bathrooms, and hard-to-reach areas. Cordless rechargeable design with waterproof construction.`;
+                if (/organizer|storage.*box|stackable|container/.test(nl)) return `Maximize your space with the ${n}. Durable materials with smart stackable design. Transparent construction for quick identification with secure locking mechanisms.`;
+                if (/surveillance|security.*cam|cctv|wifi.*cam/.test(nl)) return `Protect what matters most with the ${n}. Crisp HD video with night vision, wide-angle coverage, and smart motion detection alerts sent to your phone. Easy Wi-Fi setup with cloud storage.`;
+                if (/hair.*clipper|trimmer|shaver|razor|grooming|beard/.test(nl)) return `Achieve precision grooming with the ${n}. Self-sharpening stainless steel blades, multiple length settings, powerful quiet motor, and USB-C rechargeable battery with waterproof design.`;
+                if (/humidifier|diffuser|air.*purifier|fan|cooler/.test(nl)) return `Create the perfect atmosphere with the ${n}. Quiet operation, adjustable settings, and smart safety features for bedrooms, offices, and living spaces.`;
+                if (/earring|necklace|bracelet|jewelry|ring|pendant|chain/.test(nl)) return `Elevate your look with the ${n}. Crafted with premium metals and stones for lasting brilliance. Hypoallergenic, tarnish-resistant finish with a gift-ready presentation box.`;
+                if (/sunglasses|eyewear|glasses/.test(nl)) return `Make a statement with the ${n}. UV400 polarized lenses protect your eyes while the lightweight, durable frame ensures all-day comfort. Timeless design suits every face shape and occasion.`;
+                if (/projector/.test(nl)) return `Transform any room into a cinema with the ${n}. Delivers bright, crisp visuals with full HD support, built-in speakers, and multiple connectivity options including HDMI, USB, and Wi-Fi. Portable design perfect for movie nights, presentations, and gaming.`;
+                if (/power.*bank|charger|cable|adapter/.test(nl)) return `Stay powered up with the ${n}. Fast-charging technology ensures your devices are ready when you need them. Compact, portable design with intelligent safety circuitry to protect your devices from overcharging.`;
+                if (/nail|press.*on|manicure|pedicure/.test(nl)) return `Get salon-quality nails at home with the ${n}. Premium designs with easy application and long-lasting wear. No salon appointment needed — achieve beautiful, Instagram-worthy nails in minutes.`;
+                return `Discover the ${n} — carefully selected for exceptional quality and outstanding value. Built with premium materials and meticulous attention to detail. Every unit undergoes rigorous quality inspection to ensure reliability and long-lasting performance. Protected by FairPrice buyer guarantee and secure escrow payment.`;
+            };
+            (product as any).description = generateEnhancedDescription(product.name);
+        }
     }
     // Define 'Customers Also Bought' exactly like search results (popular products across entire catalog, excluding self)
     const alsoBoughtProducts = allProducts
@@ -481,7 +561,8 @@ export default function ProductDetailPage() {
             const timer = setTimeout(() => { }, 800);
             return () => clearTimeout(timer);
         }
-    }, [product]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [product?.id]);
 
     // Hydrate Global Product Price if missing
     useEffect(() => {
@@ -1641,7 +1722,7 @@ export default function ProductDetailPage() {
                             icon={<ShoppingCart className="h-5 w-5 text-blue-500" />}
                         />
 
-                        {/* View More CAB
+                        {/* View More CAB */}
                         {visibleCABCount < alsoBoughtProducts.length && (
                             <div className="flex flex-col items-center gap-8 mt-6">
                                 <Button
@@ -1652,7 +1733,7 @@ export default function ProductDetailPage() {
                                     VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
                                 </Button>
                             </div>
-                        )} */}
+                        )}
 
                         {/* You May Also Like — more products from the same or related categories */}
                         <YouMayAlsoLike

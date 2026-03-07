@@ -87,6 +87,7 @@ function BaseTemplate(title: string, contentHTML: string) {
                         <tr>
                             <td style="padding:48px;">
                                 <div style="text-align:center;margin-bottom:32px;">
+                                    <img src="https://fairprice.ng/logo.png" alt="FairPrice" style="width:48px;height:48px;border-radius:12px;margin:0 auto 12px auto;display:block;" />
                                     <h1 style="margin:0;font-size:32px;font-weight:900;letter-spacing:-1px;color:${BRAND_COLOR};">FairPrice</h1>
                                     <h2 style="margin:8px 0 0 0;font-size:24px;font-weight:700;color:#1d1d1f;letter-spacing:-0.5px;" class="text-main">${title}</h2>
                                 </div>
@@ -249,7 +250,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
             break;
 
         case 'SELLER_NEW_ORDER':
-            subject = `New Order Placed! 🎊 (${payload.orderId})`;
+            subject = `Your Store has a New Order 🛒 (${payload.orderId})`;
             html = BaseTemplate("You Have a New Order!", `
 <p style="margin:0 0 16px 0;">Hi ${name},</p>
 <p style="margin:0 0 24px 0;">Congratulations! A customer just placed an order on your store, and the funds have been secured in Escrow.</p>

@@ -18,7 +18,7 @@ cd "$BACKEND_DIR"
 
 # Check if venv exists, if not create it
 if [ ! -d "venv" ]; then
-    echo "🐍 Creating Python virtual environment..."
+    echo "Creating Python virtual environment...🐍 "
     python3 -m venv venv
 fi
 
@@ -30,6 +30,6 @@ source venv/bin/activate
 echo "Installing modules..."
 pip install -r requirements.txt
 
-echo "✅ Starting FastAPI Server..."
+echo "Starting FastAPI Server...✅"
 # Run on port 8000
 uvicorn app.main:app --reload --port 8000

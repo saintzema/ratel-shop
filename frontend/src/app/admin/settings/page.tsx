@@ -31,6 +31,11 @@ export default function AdminSettings() {
     const [doorstepFee, setDoorstepFee] = useState("4000");
     const [pickupFee, setPickupFee] = useState("2500");
 
+    // COD Settings
+    const [codThreshold, setCodThreshold] = useState("20000");
+    const [codEnabled, setCodEnabled] = useState(true);
+    const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
+
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
     const [kycVerification, setKycVerification] = useState(false);
@@ -73,6 +78,10 @@ export default function AdminSettings() {
                     setEscrowFee(data.escrowFee?.toString() || "1000");
                     setDoorstepFee(data.doorstepFee?.toString() || "4000");
                     setPickupFee(data.pickupFee?.toString() || "2500");
+
+                    setCodThreshold(data.codThreshold?.toString() || "20000");
+                    setCodEnabled(data.codEnabled ?? true);
+                    setCodAllowExpensiveCategories(data.codAllowExpensiveCategories ?? true);
 
                     setAiMonitoring(data.aiMonitoring ?? true);
                     setKycVerification(data.kycVerification ?? false);
@@ -128,7 +137,10 @@ export default function AdminSettings() {
     const handleSaveShipping = () => saveSection({
         doorstepFee: parseFloat(doorstepFee) || 4000,
         pickupFee: parseFloat(pickupFee) || 2500,
-        stateShipping
+        stateShipping,
+        codThreshold: parseFloat(codThreshold) || 20000,
+        codEnabled,
+        codAllowExpensiveCategories
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
@@ -343,6 +355,35 @@ export default function AdminSettings() {
                             <div className="p-4 bg-orange-50/50 rounded-2xl border border-orange-100 flex items-start gap-3">
                                 <AlertCircle className="h-5 w-5 text-orange-500 mt-0.5" />
                                 <p className="text-xs text-orange-700 font-medium">Global products or remote regions may apply smart multipliers to these base rates at checkout.</p>
+                            </div>
+
+                            {/* Pay on Delivery Settings */}
+                            <div className="pt-6 border-t border-gray-50">
+                                <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <Truck className="h-4 w-4 text-amber-500" />
+                                    Pay on Delivery (COD)
+                                </h4>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between py-3 rounded-xl bg-amber-50/50 px-4 border border-amber-100">
+                                        <div>
+                                            <h4 className="text-sm font-bold text-gray-900">Enable Pay on Delivery</h4>
+                                            <p className="text-xs text-gray-500 mt-0.5">Allow customers to pay cash upon delivery</p>
+                                        </div>
+                                        <Switch checked={codEnabled} onCheckedChange={setCodEnabled} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">COD Order Threshold (₦)</label>
+                                        <Input value={codThreshold} onChange={(e) => setCodThreshold(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
+                                        <p className="text-[10px] text-gray-400 pl-1">Orders at or below this amount can use Pay on Delivery</p>
+                                    </div>
+                                    <div className="flex items-center justify-between py-3 rounded-xl bg-gray-50 px-4 border border-gray-100">
+                                        <div>
+                                            <h4 className="text-sm font-bold text-gray-900">Allow COD for Expensive Categories</h4>
+                                            <p className="text-xs text-gray-500 mt-0.5">Cars, automotive, and high-value items can use COD regardless of threshold</p>
+                                        </div>
+                                        <Switch checked={codAllowExpensiveCategories} onCheckedChange={setCodAllowExpensiveCategories} />
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Custom State Shipping Override */}

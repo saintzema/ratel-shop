@@ -302,6 +302,11 @@ function CheckoutContent() {
     const [baseDoorFee, setBaseDoorFee] = useState(4000);
     const [basePickupFee, setBasePickupFee] = useState(2500);
 
+    // COD settings from admin
+    const [codThreshold, setCodThreshold] = useState(20000);
+    const [codEnabled, setCodEnabled] = useState(true);
+    const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
+
     const PICKUP_STATIONS: Record<string, Record<string, string[]>> = {
         "Lagos": {
             "Ikeja": ["Ikeja Under Bridge Park", "Oshodi Transport Interchange", "Computer Village Hub"],
@@ -446,6 +451,20 @@ function CheckoutContent() {
             setBaseDoorFee(Number(localStorage.getItem("fp_doorstep_fee")) || 4000);
             setBasePickupFee(Number(localStorage.getItem("fp_pickup_fee")) || 2500);
         }
+
+        // Load COD settings from admin API
+        fetch("/api/admin/settings")
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data) {
+                    if (data.codThreshold != null) setCodThreshold(Number(data.codThreshold));
+                    if (data.codEnabled != null) setCodEnabled(data.codEnabled);
+                    if (data.codAllowExpensiveCategories != null) setCodAllowExpensiveCategories(data.codAllowExpensiveCategories);
+                    if (data.doorstepFee) setBaseDoorFee(Number(data.doorstepFee));
+                    if (data.pickupFee) setBasePickupFee(Number(data.pickupFee));
+                }
+            })
+            .catch(() => { });
     }, [user]);
 
     // Determine items to show
@@ -501,7 +520,15 @@ function CheckoutContent() {
     );
 
     const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
-    const canPayOnDelivery = total <= 20000 && !hasGlobalProduct; // Only allow COD for local orders up to ₦20k (including shipping and discounts)
+
+    // COD eligibility: admin-configurable threshold + expensive category override
+    const EXPENSIVE_CATEGORIES = ["cars", "automotive", "vehicles"];
+    const hasExpensiveCategoryItem = checkoutItems.some(item =>
+        EXPENSIVE_CATEGORIES.some(cat => (item.product.category || "").toLowerCase().includes(cat))
+    );
+    const canPayOnDelivery = codEnabled && !hasGlobalProduct && (
+        total <= codThreshold || (codAllowExpensiveCategories && hasExpensiveCategoryItem)
+    );
 
     // Save address to localStorage
     const saveCurrentAddress = () => {
@@ -1294,9 +1321,11 @@ function CheckoutContent() {
                                         <div>
                                             <span className="font-bold text-gray-500">Pay on Delivery</span>
                                             <p className="text-xs text-gray-400">
-                                                {total > 20000
-                                                    ? "Not available for orders above ₦20,000"
-                                                    : "Not available for imported global products"}
+                                                {!codEnabled
+                                                    ? "Pay on Delivery is currently disabled"
+                                                    : hasGlobalProduct
+                                                        ? "Not available for imported global products"
+                                                        : `Not available for orders above ₦${codThreshold.toLocaleString()}`}
                                             </p>
                                         </div>
                                     </div>
