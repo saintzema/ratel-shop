@@ -94,7 +94,8 @@ class DemoStoreService {
     private init() {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
-        const DATA_VERSION = "8";
+        // v9: DATABASE-FIRST — products & sellers come from Neon DB, not hardcoded constants
+        const DATA_VERSION = "9";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -109,12 +110,9 @@ class DemoStoreService {
         if (!localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
             localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(DEMO_ORDERS));
         }
-        if (!localStorage.getItem(this.STORAGE_KEYS.SELLERS)) {
-            localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(DEMO_SELLERS));
-        }
-        if (!localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(DEMO_PRODUCTS));
-        }
+        // NOTE: Products & Sellers are NO LONGER seeded from hardcoded constants.
+        // They will be populated exclusively by syncWithDB() from the Neon database.
+        // This ensures all users see the same prices regardless of browser/session.
         if (!localStorage.getItem(this.STORAGE_KEYS.KYC)) {
             localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(DEMO_KYC));
         }
@@ -606,8 +604,10 @@ class DemoStoreService {
 
     // --- Getters ---
     getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
-        if (typeof window === "undefined") return DEMO_PRODUCTS;
-        const allProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || JSON.stringify(DEMO_PRODUCTS));
+        if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
+        // Database-first: if no DB sync has happened yet, return empty (not stale hardcoded data)
+        const allProducts: Product[] = stored ? JSON.parse(stored) : [];
 
         // Always map seller_name so 'My Store' defaults are overwritten by the true business name
         const allSellers = this.getSellers();
@@ -800,8 +800,10 @@ class DemoStoreService {
     }
 
     getSellers(): Seller[] {
-        if (typeof window === "undefined") return DEMO_SELLERS;
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || JSON.stringify(DEMO_SELLERS));
+        if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
+        // Database-first: if no DB sync has happened yet, return empty (not stale hardcoded data)
+        return stored ? JSON.parse(stored) : [];
     }
 
     addSeller(seller: Seller) {

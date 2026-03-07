@@ -18,7 +18,7 @@ export function Logo({ className, variant = "light", hideTextMobile = false }: L
                 <span className={cn("text-xl font-black tracking-tight leading-none", variant === "light" ? "text-white" : "text-brand-green-900")}>
                     FairPrice
                 </span>
-                <span className={cn("text-[10px] font-bold italic uppercase tracking-widest opacity-75", variant === "light" ? "text-brand-green-400" : "text-brand-green-700")}>
+                <span className={cn("text-[10px] font-bold text:white italic uppercase tracking-widest opacity-75", variant === "light" ? "text-brand-green-400" : "text-brand-green-700")}>
                     Never overpay again!        </span>
             </div>
         </Link>
