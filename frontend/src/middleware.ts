@@ -29,13 +29,17 @@ export function middleware(request: NextRequest) {
             subdomain = parts[0];
         }
     } else {
-        // Handling production domains (e.g., store.fairprice.ng)
-        const mainDomainChunks = 2; // e.g. fairprice.ng
-        const parts = hostWithoutPort.split('.');
-        if (parts.length > mainDomainChunks && parts[0] !== 'www') {
-            // This assumes the subdomain is always the first part.
-            // e.g. "seller1.fairprice.ng" -> "seller1"
-            subdomain = parts[0];
+        // Skip Vercel deployment URLs entirely — they are NOT subdomains
+        const isVercel = hostWithoutPort.endsWith('.vercel.app');
+        if (!isVercel) {
+            // Handling production domains (e.g., store.fairprice.ng)
+            const mainDomainChunks = 2; // e.g. fairprice.ng
+            const parts = hostWithoutPort.split('.');
+            if (parts.length > mainDomainChunks && parts[0] !== 'www') {
+                // This assumes the subdomain is always the first part.
+                // e.g. "seller1.fairprice.ng" -> "seller1"
+                subdomain = parts[0];
+            }
         }
     }
 
