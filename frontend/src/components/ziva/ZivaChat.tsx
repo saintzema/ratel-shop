@@ -1084,6 +1084,14 @@ export function ZivaChat() {
             "fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300",
             pathname === "/checkout" ? "bottom-[280px] lg:bottom-12" : "bottom-[18vh] lg:bottom-12"
         )}>
+            {/* Click-outside overlay to close chat */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 z-[-1] pointer-events-auto"
+                    onClick={() => setIsOpen(false)}
+                />
+            )}
+
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
@@ -1328,24 +1336,32 @@ export function ZivaChat() {
                 )}
             </AnimatePresence>
 
-            {/* FAB Button */}
+            {/* FAB Button — always visible, acts as toggle */}
             <motion.div
                 initial={false}
-                animate={{ scale: isOpen ? 0 : 1, opacity: isOpen ? 0 : 1 }}
                 whileHover={{ scale: 1.08 }}
                 className="pointer-events-auto"
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}
                     onClick={toggleChat}
-                    className="relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 border-emerald-500/30 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible"
+                    className={cn(
+                        "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all",
+                        isOpen
+                            ? "border-emerald-400/50 ring-2 ring-emerald-400/30"
+                            : "border-emerald-500/30"
+                    )}
                     style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(20px)" }}
                 >
                     <div className="absolute inset-0 bg-gradient-to-tr from-emerald-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
-                    <img src="/assets/images/image_v2.png" className="w-full h-full object-cover z-10 scale-110 rounded-full" alt="Ziva AI" />
+                    {isOpen ? (
+                        <X className="h-6 w-6 text-white z-10" strokeWidth={2.5} />
+                    ) : (
+                        <img src="/assets/images/image_v2.png" className="w-full h-full object-cover z-10 scale-110 rounded-full" alt="Ziva AI" />
+                    )}
 
                     {/* Unread pulse - top right exterior */}
-                    {hasUnread && (
+                    {hasUnread && !isOpen && (
                         <>
                             <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full z-[30] flex items-center justify-center border border-white">
                                 <span className="text-[8px] font-bold text-white leading-none">1</span>

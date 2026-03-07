@@ -1540,6 +1540,26 @@ function CheckoutContent() {
                                 )}
                             </div>
 
+                            {/* You Save */}
+                            {(() => {
+                                const productSavings = checkoutItems.reduce((acc, item) => {
+                                    if (item.product.original_price && item.product.original_price > item.price) {
+                                        return acc + ((item.product.original_price - item.price) * item.quantity);
+                                    }
+                                    return acc;
+                                }, 0);
+                                const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * (hasGlobalProduct ? 1.5 : 1)) : Math.round(baseDoorFee * (hasGlobalProduct ? 1.5 : 1))) : 0;
+                                const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
+                                return totalSavings > 0 ? (
+                                    <div className="flex justify-between items-center bg-emerald-50 -mx-4 px-4 py-2.5 rounded-xl border border-emerald-100">
+                                        <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
+                                            🎉 You Save:
+                                        </span>
+                                        <span className="font-black text-emerald-600 text-sm">{formatPrice(totalSavings)}</span>
+                                    </div>
+                                ) : null;
+                            })()}
+
                             <div className="flex justify-between items-end border-t border-gray-200 pt-4 mt-2">
                                 <div className="space-y-1">
                                     <span className="font-bold text-lg text-gray-900 block">Total:</span>

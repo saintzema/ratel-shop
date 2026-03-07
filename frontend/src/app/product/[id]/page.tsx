@@ -1302,7 +1302,12 @@ export default function ProductDetailPage() {
                                     <>
                                         <span className="text-3xl font-black text-emerald-500">{formatPrice(product.price * quantity)}</span>
                                         {(product.original_price || 0) > product.price && (
-                                            <span className="text-sm text-gray-800 line-through font-medium">{formatPrice((product.original_price || 0) * quantity)}</span>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-sm text-gray-800 line-through font-medium">{formatPrice((product.original_price || 0) * quantity)}</span>
+                                                <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                                    -{Math.round(((product.original_price! - product.price) / product.original_price!) * 100)}% OFF
+                                                </span>
+                                            </div>
                                         )}
                                     </>
                                 </div>
