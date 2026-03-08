@@ -325,14 +325,14 @@ export default function Home() {
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 mb-6 relative z-40">
-                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} />
+                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll />
               </section>
             )}
 
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
               <section className="container mx-auto px-4 mb-6 relative z-30">
-                <ProductSlider title="Sponsored Collections" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} />
+                <ProductSlider title="Sponsored Collections" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll />
               </section>
             )}
 
@@ -634,13 +634,15 @@ function ScrollerProductCard({ product }: { product: any }) {
   );
 }
 
-function ProductSlider({ title, link, products, icon }: { title: string; link: string; products: any[]; icon?: React.ReactNode }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
 
   const checkScroll = () => {
-    if (scrollRef.current) {
+    if (scrollRef.current && !autoScroll) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
       setCanScrollLeft(scrollLeft > 0);
       setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
@@ -653,6 +655,39 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
     return () => window.removeEventListener("resize", checkScroll);
   }, [products]);
 
+  // Auto-scroll effect
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!autoScroll) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const startAutoScroll = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(() => {
+        if (!el) return;
+        if (el.scrollLeft >= el.scrollWidth / 3) {
+          el.scrollLeft = 0;
+        } else {
+          el.scrollLeft += 1;
+        }
+      }, 30);
+    };
+
+    if (!isPaused) {
+      startAutoScroll();
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [autoScroll, isPaused]);
+
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
       const scrollAmount = direction === "left" ? -300 : 300;
@@ -663,8 +698,16 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
 
   if (products.length === 0) return null;
 
+  const displayProducts = autoScroll ? [...products, ...products, ...products] : products;
+
   return (
-    <div className="bg-white rounded-lg p-4 md:p-5 shadow-sm relative group/slider">
+    <div
+      className="bg-white rounded-lg p-4 md:p-5 shadow-sm relative group/slider"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onTouchStart={() => setIsPaused(true)}
+      onTouchEnd={() => setTimeout(() => setIsPaused(false), 3000)}
+    >
       <div className="flex items-center gap-4 mb-4 md:mb-6">
         <h2 className="text-lg md:text-xl font-extrabold tracking-tight text-gray-900 line-clamp-1 flex items-center gap-2">
           {icon && <span className="shrink-0">{icon}</span>}
@@ -677,7 +720,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
 
       <div className="relative">
         {/* Left Arrow */}
-        {canScrollLeft && (
+        {canScrollLeft && !autoScroll && (
           <button
             onClick={() => scroll("left")}
             className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
@@ -688,7 +731,7 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
         )}
 
         {/* Right Arrow */}
-        {canScrollRight && (
+        {canScrollRight && !autoScroll && (
           <button
             onClick={() => scroll("right")}
             className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
@@ -700,11 +743,12 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
 
         <div
           ref={scrollRef}
-          onScroll={checkScroll}
-          className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x scroll-smooth items-stretch"
+          onScroll={!autoScroll ? checkScroll : undefined}
+          className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x items-stretch"
+          style={{ scrollBehavior: isPaused ? "smooth" : "auto" }}
         >
-          {products.map((product) => (
-            <div key={product.id} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
+          {displayProducts.map((product, idx) => (
+            <div key={`${product.id}-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
               <ProductCard product={product} className="h-full w-full" />
             </div>
           ))}
@@ -713,3 +757,4 @@ function ProductSlider({ title, link, products, icon }: { title: string; link: s
     </div>
   );
 }
+
