@@ -1676,50 +1676,51 @@ export default function ProductDetailPage() {
                     </div>
                 )}
 
-                {/* Similar Products */}
-                {similarProducts.length > 0 && (
+                <div className="mt-12 mb-8 space-y-12">
+                    <RecommendedProducts
+                        products={similarProducts.length > 0 ? similarProducts : allProducts.filter(p => p.id !== product?.id).slice(0, 4)}
+                        title="Similar Items in this Category"
+                        subtitle="Compare with related products"
+                        icon={<Zap className="h-5 w-5 text-ratel-orange" />}
+                    />
+                    <div className="flex justify-center mt-2 flex-col items-center w-full">
+                        {loadedMore && (
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 w-full mt-4 mb-4">
+                                {Array.from({ length: visibleProductsCount }).map((_, i) => {
+                                    // Filter extra products excluding similar products to prevent adjacent duplicates
+                                    const extraProducts = allProducts.filter(p => p.id !== product?.id && !similarProducts.some(s => s.id === p.id));
+
+                                    // If extraProducts is empty, fallback to similar products, or just allProducts
+                                    const sourceProducts = extraProducts.length > 0 ? extraProducts : allProducts;
+
+                                    const item = sourceProducts[i % sourceProducts.length];
+                                    return (
+                                        <div key={`${item.id}-${i}`} className="h-full">
+                                            <SearchGridCard product={item} />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        <Button
+                            variant="outline"
+                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
+                            onClick={() => {
+                                if (!loadedMore) {
+                                    setLoadedMore(true);
+                                } else {
+                                    setVisibleProductsCount(prev => prev + 8);
+                                }
+                            }}
+                        >
+                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
+                        </Button>
+                    </div>
+                </div>
+
+                {alsoBoughtProducts.length > 0 && (
                     <div className="mt-12 mb-8 space-y-12">
-                        <RecommendedProducts
-                            products={similarProducts}
-                            title="Similar Items in this Category"
-                            subtitle="Compare with related products"
-                            icon={<Zap className="h-5 w-5 text-ratel-orange" />}
-                        />
-                        <div className="flex justify-center mt-2 flex-col items-center w-full">
-                            {loadedMore && (
-                                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 w-full mt-4 mb-4">
-                                    {Array.from({ length: visibleProductsCount }).map((_, i) => {
-                                        // Filter extra products excluding similar products to prevent adjacent duplicates
-                                        const extraProducts = allProducts.filter(p => p.id !== product?.id && !similarProducts.some(s => s.id === p.id));
-
-                                        // If extraProducts is empty, fallback to similar products, or just allProducts
-                                        const sourceProducts = extraProducts.length > 0 ? extraProducts : allProducts;
-
-                                        const item = sourceProducts[i % sourceProducts.length];
-                                        return (
-                                            <div key={`${item.id}-${i}`} className="h-full">
-                                                <SearchGridCard product={item} />
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            <Button
-                                variant="outline"
-                                className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
-                                onClick={() => {
-                                    if (!loadedMore) {
-                                        setLoadedMore(true);
-                                    } else {
-                                        setVisibleProductsCount(prev => prev + 8);
-                                    }
-                                }}
-                            >
-                                VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
-                            </Button>
-                        </div>
-
                         <RecommendedProducts
                             products={alsoBoughtProducts.slice(0, visibleCABCount)}
                             title="Customers Also Bought"
@@ -1739,15 +1740,17 @@ export default function ProductDetailPage() {
                                 </Button>
                             </div>
                         )}
-
-                        {/* You May Also Like — more products from the same or related categories */}
-                        <YouMayAlsoLike
-                            cartCategories={product?.category ? [product.category] : []}
-                            cartIds={new Set([product?.id].filter(Boolean) as string[])}
-                            title="You May Also Like"
-                        />
                     </div>
                 )}
+
+                <div className="mt-12 mb-8 space-y-12">
+                    {/* You May Also Like — more products from the same or related categories */}
+                    <YouMayAlsoLike
+                        cartCategories={product?.category ? [product.category] : []}
+                        cartIds={new Set([product?.id].filter(Boolean) as string[])}
+                        title="You May Also Like"
+                    />
+                </div>
 
                 <NegotiationModal
                     isOpen={isNegotiationOpen}

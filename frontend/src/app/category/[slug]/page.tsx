@@ -11,6 +11,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 
 const MIN_PRICE = 0;
 const MAX_PRICE = 2000000;
@@ -228,6 +229,13 @@ export default function CategoryPage() {
                             </div>
                         </div>
                     )}
+
+                    <div className="mt-16 mb-8">
+                        <YouMayAlsoLike
+                            cartCategories={slug !== 'all' && slug !== 'verified' ? [slug] : []}
+                            title="More Suggestions For You"
+                        />
+                    </div>
                 </div>
             </main>
 

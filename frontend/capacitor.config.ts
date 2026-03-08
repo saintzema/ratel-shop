@@ -1,3 +1,4 @@
+import { KeyboardResize } from "@capacitor/keyboard";
 import type { CapacitorConfig } from "@capacitor/cli";
 
 // ─── FairPrice Capacitor Configuration ─────────────────────
@@ -71,7 +72,7 @@ const config: CapacitorConfig = {
       backgroundColor: "#059669",       // Android status bar color
     },
     Keyboard: {
-      resize: "body",                   // Resize WebView when keyboard opens
+      resize: KeyboardResize.Body,      // Resize WebView when keyboard opens
       resizeOnFullScreen: true,
     },
     PushNotifications: {

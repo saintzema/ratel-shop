@@ -18,7 +18,7 @@ export function Logo({ className, variant = "light", hideTextMobile = false }: L
                 <span className={cn("text-xl font-black tracking-tight leading-none", variant === "light" ? "text-white" : "text-brand-green-900")}>
                     FairPrice.ng
                 </span>
-                <span className={cn("text-[10px] font-bold font-white text-white italic uppercase tracking-widest opacity-75", variant === "light" ? "text-yellow-400" : "text-yellow-400")}>
+                <span className={cn("text-[10px] font-bold text-yellow-900 italic py-1.5 uppercase tracking-widest opacity-75", variant === "light" ? "text-yellow" : "text-yellow")}>
                     Never overpay again!        </span>
             </div>
         </Link>
