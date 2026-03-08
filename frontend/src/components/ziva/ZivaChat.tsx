@@ -215,9 +215,14 @@ export function ZivaChat() {
             // Scroll the last message into view, keeping quick actions visible
             const lastMsg = messagesAreaRef.current.querySelector("[data-last-msg]");
             if (lastMsg) {
-                lastMsg.scrollIntoView({ behavior: "smooth", block: "end" });
+                // If the message is tall, scroll so the user can read from the beginning
+                if (lastMsg.clientHeight > messagesAreaRef.current.clientHeight * 0.7) {
+                    lastMsg.scrollIntoView({ behavior: "smooth", block: "start" });
+                } else {
+                    lastMsg.scrollIntoView({ behavior: "smooth", block: "end" });
+                }
             } else {
-                // fallback: scroll to near-bottom but leave room for quick actions
+                // fallback: scroll to near-bottom
                 const maxScroll = messagesAreaRef.current.scrollHeight - messagesAreaRef.current.clientHeight;
                 messagesAreaRef.current.scrollTo({
                     top: Math.max(0, maxScroll - 10),

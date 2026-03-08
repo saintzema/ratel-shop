@@ -85,14 +85,6 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                             <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
                         </div>
                     )}
-                    {/* Discount Badge */}
-                    {savings > 0 && !product.price_flag && (
-                        <Badge variant="destructive" className="absolute top-3 left-3 z-10 font-bold">
-                            -{savingsPct}%
-                        </Badge>
-                    )}
-
-
                     {/* Fair Price / Overpriced Badge Overlay */}
                     {product.price_flag === "fair" && (
                         <div className="absolute top-3 left-3 z-20 flex items-center gap-1 px-2 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
@@ -139,42 +131,43 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     />
                 </div>
 
-                <div className="px-3 pt-3 flex flex-col flex-1">
-                    <h3 className="text-sm font-bold line-clamp-2 mb-2 group-hover:text-brand-green-600 transition-colors leading-snug min-h-[40px]">
+                <div className="flex flex-col flex-1 px-3 pb-2 pt-2.5">
+                    <h3 className="text-sm font-bold line-clamp-2 mb-1 group-hover:text-brand-green-600 transition-colors leading-tight min-h-[36px]">
                         {product.name}
                     </h3>
 
-                    {/* Rating */}
-                    <div className="flex items-center gap-1.5 mb-2">
+                    {/* Rating & Discount */}
+                    <div className="flex items-center justify-between gap-1 mb-1">
                         <div className="flex text-amber-400">
                             {[...Array(5)].map((_, i) => (
                                 <Star
                                     key={i}
-                                    className={`h-3 w-3 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-300"}`}
+                                    className={`h-[10px] w-[10px] sm:h-3 sm:w-3 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-300"}`}
                                 />
                             ))}
                         </div>
-                        <span className="text-[10px] text-muted-foreground font-bold">
-                            ({product.review_count.toLocaleString()})
-                        </span>
+
+                        {/* Inline Discount Badge */}
+                        {product.original_price && product.original_price > product.price && (
+                            <div className="font-black px-1.5 py-0.5 rounded bg-red-100 text-[9px] sm:text-[10px] text-red-600 flex items-center justify-center leading-none">
+                                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+                            </div>
+                        )}
                     </div>
 
                     {/* Price Section */}
-                    <div className="flex items-baseline gap-1.5 mb-2 mt-auto flex-wrap">
-                        <span className="text-lg font-black text-foreground">
-                            {formatPrice(product.price)}
-                        </span>
+                    <div className="flex flex-col mt-auto items-start justify-end flex-wrap gap-0.5">
+                        <div className="flex items-center gap-1.5 w-full">
+                            <span className="text-base sm:text-lg font-black text-foreground leading-none">
+                                {formatPrice(product.price)}
+                            </span>
+                        </div>
                         {product.original_price && (
-                            <>
-                                <span className="text-[10px] text-muted-foreground line-through font-medium">
+                            <div className="flex items-center gap-1 w-full -mt-0.5">
+                                <span className="text-[10px] text-muted-foreground line-through font-medium leading-none">
                                     {formatPrice(product.original_price)}
                                 </span>
-                                {savingsPct > 0 && (
-                                    <span className="text-[9px] font-black text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full leading-none whitespace-nowrap">
-                                        -{savingsPct}% OFF
-                                    </span>
-                                )}
-                            </>
+                            </div>
                         )}
                     </div>
                 </div>

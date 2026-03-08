@@ -410,7 +410,7 @@ export function Navbar() {
 
     return (
         <>
-            <header className="fixed top-0 left-0 right-0 z-50 w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
+            <header className="sticky top-0 left-0 right-0 z-[100] w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
                 {/* Top Bar — Liquid Glass */}
                 <div className="flex w-full items-center gap-2 md:gap-4 liquid-glass px-3 md:px-4 py-3 text-white relative z-10">
                     {/* Logo */}
@@ -970,9 +970,6 @@ export function Navbar() {
                     </div>
                 </div>
             </header>
-
-            {/* Spacer for fixed navbar height */}
-            <div className="h-[120px]" />
 
             {/* Location Filter Modal */}
             <LocationModal

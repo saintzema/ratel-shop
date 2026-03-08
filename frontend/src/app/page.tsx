@@ -377,7 +377,7 @@ export default function Home() {
       </div>
 
       <Footer />
-    </div>
+    </div >
   );
 }
 
@@ -605,12 +605,33 @@ function ScrollerProductCard({ product }: { product: any }) {
             </div>
           )}
         </div>
-        <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6">
-          {product.name}
-        </p>
+        <div className="flex flex-col flex-1 pb-1 pt-1.5">
+          <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6 mb-1 min-h-[40px]">
+            {product.name}
+          </p>
+
+          {/* Rating & Discount */}
+          <div className="flex items-center justify-between gap-1 mb-1 mt-auto">
+            <div className="flex text-amber-400">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={`h-3 w-3 ${i < Math.round(product.avg_rating || 5) ? "fill-current" : "text-gray-300"}`}
+                />
+              ))}
+            </div>
+
+            {/* Inline Discount Badge */}
+            {product.original_price && product.original_price > product.price && (
+              <div className="font-black px-1.5 py-0.5 rounded bg-red-100 text-[10px] text-red-600 flex items-center justify-center leading-none">
+                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+              </div>
+            )}
+          </div>
+        </div>
       </Link>
       {/* Price + Add to Cart row */}
-      <div className="flex flex-col mt-auto gap-2 shrink-0">
+      <div className="flex flex-col mt-auto gap-1.5 shrink-0">
         <span className="text-base font-black text-gray-900">{formatPrice(product.price)}</span>
         <Button
           size="sm"
@@ -736,7 +757,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       onTouchStart={() => setIsPaused(true)}
       onTouchEnd={() => setTimeout(() => setIsPaused(false), 3000)}
     >
-      <div className="flex items-center gap-4 mb-4 md:mb-6">
+      <div className="flex items-center gap-4 mb-2 md:mb-2">
         <h2 className="text-lg md:text-xl font-extrabold tracking-tight text-gray-900 line-clamp-1 flex items-center gap-2">
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
@@ -772,7 +793,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         <div
           ref={scrollRef}
           onScroll={!autoScroll ? checkScroll : undefined}
-          className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-none items-stretch"
+          className="flex gap-2 md:gap-2 overflow-x-auto pb-2 scrollbar-hide snap-none items-stretch"
           style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1rem' }}
         >
           {displayProducts.map((product, idx) => (

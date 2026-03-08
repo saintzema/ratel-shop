@@ -1760,7 +1760,10 @@ export default function ProductDetailPage() {
                 />
 
                 {/* Mobile Fixed Action Bar */}
-                <div className="md:hidden fixed bottom-16 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] z-40 pb-safe">
+                <div
+                    className="md:hidden fixed left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] z-[45]"
+                    style={{ bottom: '64px', marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                >
                     <div className="flex gap-3">
                         <Button
                             className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-md"
@@ -1770,12 +1773,22 @@ export default function ProductDetailPage() {
                         </Button>
                         <Button
                             className="flex-1 rounded-full bg-black hover:bg-gray-800 text-white font-bold h-12"
-                            onClick={() => { for (let i = 0; i < quantity; i++) addToCart(product); }}
+                            onClick={() => {
+                                setIsAdding(true);
+                                setTimeout(() => {
+                                    for (let i = 0; i < quantity; i++) addToCart(product);
+                                    setIsAdding(false);
+                                    setAddedToCart(true);
+                                }, 600);
+                            }}
                         >
-                            Add to Cart
+                            {isAdding ? "Adding..." : addedToCart ? "Added!" : "Add to Cart"}
                         </Button>
                     </div>
                 </div>
+
+                {/* Spacer to prevent Footer from hiding behind fixed bars on mobile */}
+                <div className="md:hidden h-32 w-full" />
             </main>
             <Footer />
         </div>
