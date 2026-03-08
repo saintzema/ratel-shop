@@ -410,32 +410,34 @@ export function Navbar() {
 
     return (
         <>
-            <header className="fixed top-0 left-0 right-0 z-[100] w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
+            <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 9999, transform: 'translateZ(0)' }}>
                 {/* Top Bar — Liquid Glass */}
-                <div className="flex w-full items-center gap-2 md:gap-4 liquid-glass px-3 md:px-4 py-3 text-white relative z-10">
-                    {/* Logo */}
-                    <Logo variant="light" hideTextMobile />
+                <div className="flex w-full items-center justify-between gap-1 md:gap-4 liquid-glass px-1 md:px-4 py-2.5 md:py-3 text-white relative z-10">
+                    <div className="flex items-center gap-1 md:gap-4 shrink-0">
+                        {/* Logo */}
+                        <Logo variant="light" hideTextMobile />
 
-                    {/* Deliver To - Now Clickable */}
-                    <button
-                        onClick={() => setIsLocationModalOpen(true)}
-                        className="hidden md:flex flex-col text-left text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all"
-                    >
-                        <span className="text-white ml-3">Deliver to</span>
-                        <div className="flex items-center font-bold text-white">
-                            <MapPin className="mr-1 h-3.5 w-3.5 text-white/70" />
-                            {location}
-                        </div>
-                    </button>
+                        {/* Deliver To - Now Clickable */}
+                        <button
+                            onClick={() => setIsLocationModalOpen(true)}
+                            className="hidden md:flex flex-col text-left text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all"
+                        >
+                            <span className="text-white ml-3">Deliver to</span>
+                            <div className="flex items-center font-bold text-white">
+                                <MapPin className="mr-1 h-3.5 w-3.5 text-white/70" />
+                                {location}
+                            </div>
+                        </button>
+                    </div>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center max-w-2xl mx-2 md:mx-4 relative" ref={searchRef}>
-                        <div className="flex h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
+                    <div className="flex flex-1 items-center w-full md:max-w-2xl mx-0.5 md:mx-4 relative" ref={searchRef}>
+                        <div className="flex h-[44px] md:h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
                                 <button
                                     onClick={() => setIsCategoryOpen(!isCategoryOpen)}
-                                    className="hidden sm:flex h-full items-center gap-1 bg-gray-50 px-4 text-xs font-bold text-gray-700 hover:bg-gray-100 border-r border-gray-200 transition-colors rounded-l-2xl cursor-pointer whitespace-nowrap"
+                                    className="hidden sm:flex h-full items-center gap-1 bg-gray-50 px-3 md:px-4 text-xs font-bold text-gray-700 hover:bg-gray-100 border-r border-gray-200 transition-colors rounded-l-2xl cursor-pointer whitespace-nowrap"
                                 >
                                     {selectedCategory} <ChevronDown className="h-3 w-3 opacity-60" />
                                 </button>
@@ -510,8 +512,8 @@ export function Navbar() {
                             </div>
 
                             <Input
-                                className="flex-1 border-0 bg-transparent px-5 text-sm focus-visible:ring-0 placeholder:text-gray-400 rounded-none h-full text-gray-900 font-medium"
-                                placeholder="Search products, brands and categories..."
+                                className="flex-1 border-0 bg-transparent px-2 md:px-5 text-[13px] md:text-sm focus-visible:ring-0 placeholder:text-gray-400 rounded-none h-full text-gray-900 font-medium"
+                                placeholder="Neck massager"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => setShowSuggestions(true)}
@@ -520,10 +522,10 @@ export function Navbar() {
 
                             <Button
                                 onClick={handleSearch}
-                                className="h-full rounded-r-2xl rounded-l-none px-6 bg-brand-green-600 hover:bg-brand-green-700 text-white border-none transition-all duration-300 cursor-pointer relative"
+                                className="h-full rounded-r-2xl rounded-l-none px-3 md:px-6 bg-brand-green-600 hover:bg-brand-green-700 text-white border-none transition-all duration-300 cursor-pointer relative"
                             >
-                                <Search className="h-5 w-5" />
-                                <Sparkles className="h-2.5 w-2.5 absolute top-2 right-2 text-white animate-pulse" />
+                                <Search className="h-4 w-4 md:h-5 md:w-5" />
+                                <Sparkles className="hidden md:block h-2.5 w-2.5 absolute top-2 right-2 text-white animate-pulse" />
                             </Button>
                         </div>
 
@@ -791,9 +793,9 @@ export function Navbar() {
                     </div>
 
                     {/* Wishlist Mobile */}
-                    <Link href="/account/favorites" className="md:hidden flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer justify-center items-center relative">
-                        <Heart className="h-6 w-6 text-white" />
-                        <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
+                    <Link href="/account/favorites" className="md:hidden flex flex-col text-xs leading-tight hover:bg-white/10 p-1 md:p-2 rounded cursor-pointer justify-center items-center relative shrink-0">
+                        <Heart className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                        <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
                     </Link>
 
                     {/* Account & Lists Dropdown */}
@@ -918,8 +920,8 @@ export function Navbar() {
                         </div>
                     </button>
 
-                    {/* Notifications - Visible on Mobile and Desktop */}
-                    <div className="block">
+                    {/* Notifications - Visible only on Desktop as requested */}
+                    <div className="hidden md:block">
                         <NotificationBell />
                     </div>
 
@@ -941,22 +943,19 @@ export function Navbar() {
                 </div>
 
                 {/* Bottom Bar - SubNavbar */}
-                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-4 py-1.5 text-sm text-white overflow-hidden border-t border-white/10">
+                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10">
                     {/* Left: Navigation Links */}
                     <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]">
-                        <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
-                            <Sparkles className="w-3.5 h-3.5" /> Best-Selling
+                        <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
+                            <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Best-Selling
                         </Link>
-                        <Link href="/search?rating=5" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
-                            <TrendingUp className="w-3.5 h-3.5" /> 5-Star Rated
+                        <Link href="/search?rating=5" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
+                            <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" /> 5-Star Rated
                         </Link>
-                        {/* <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-1 hover:bg-white/10 rounded transition-all text-white/90 text-[13px] font-medium">
-                            <Flame className="w-3.5 h-3.5" /> New In
-                        </Link> */}
-                        <span className="flex items-center px-2">
+                        <span className="flex items-center px-2 whitespace-nowrap text-[11px] md:text-[13px]">
                             Free Delivery
                         </span>
-                        <span>
+                        <span className="whitespace-nowrap text-[11px] md:text-[13px]">
                             ₦1,000 refund on late delivery
                         </span>
                     </div>

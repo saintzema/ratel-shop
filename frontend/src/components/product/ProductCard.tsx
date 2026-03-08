@@ -76,7 +76,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
         <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full", className)}>
             <Link href={`/product/${product.id}`} className="flex flex-col flex-1">
                 <div
-                    className="relative aspect-[4/5] object-cover bg-muted"
+                    className="relative aspect-square object-cover bg-muted"
                     onClick={handleDoubleTap}
                 >
                     {/* Sponsored Ad Tag */}
@@ -156,18 +156,14 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     </div>
 
                     {/* Price Section */}
-                    <div className="flex flex-col mt-auto items-start justify-end flex-wrap gap-0.5">
-                        <div className="flex items-center gap-1.5 w-full">
-                            <span className="text-base sm:text-lg font-black text-foreground leading-none">
-                                {formatPrice(product.price)}
+                    <div className="flex flex-row items-baseline flex-wrap gap-1.5 mt-1">
+                        <span className="text-base sm:text-lg font-black text-foreground leading-none">
+                            {formatPrice(product.price)}
+                        </span>
+                        {product.original_price && product.original_price > product.price && (
+                            <span className="text-[10px] text-muted-foreground line-through font-medium leading-none">
+                                {formatPrice(product.original_price)}
                             </span>
-                        </div>
-                        {product.original_price && (
-                            <div className="flex items-center gap-1 w-full -mt-0.5">
-                                <span className="text-[10px] text-muted-foreground line-through font-medium leading-none">
-                                    {formatPrice(product.original_price)}
-                                </span>
-                            </div>
                         )}
                     </div>
                 </div>

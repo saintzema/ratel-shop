@@ -297,7 +297,7 @@ export default function Home() {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: "easeOut" }}
-                className="text-4xl md:text-7xl font-black tracking-tighter mb-4 md:mb-8 text-balance drop-shadow-2xl"
+                className="text-4xl md:text-7xl font-black tracking-tighter mb-4 md:mb-4 md:mt-4 text-balance drop-shadow-2xl"
               >
                 <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-green-400 to-emerald-400">Fair</span>Price.ng
               </motion.h1>
@@ -310,7 +310,7 @@ export default function Home() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-10 py-7 text-xl backdrop-blur-md border-white/30 hover:bg-white transition-all hover:scale-105 shadow-xl text-white hover:text-gray-900 group"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border-white/30 hover:bg-white transition-all hover:scale-105 shadow-xl text-white hover:text-gray-900 group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
                   <span className="group-hover:text-gray-900 transition-colors duration-300">Calculate Fair Price</span> <span className="ml-2">✨</span>
@@ -324,40 +324,40 @@ export default function Home() {
 
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
-              <section className="container mx-auto px-4 mb-6 relative z-40">
+              <section className="container mx-auto px-4 mb-1 relative z-40">
                 <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
               </section>
             )}
 
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
-              <section className="container mx-auto px-4 mb-6 relative z-30">
-                <ProductSlider title="Sponsored Collections" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="right" />
+              <section className="container mx-auto px-4 mb-1 relative z-30">
+                <ProductSlider title="Sponsored" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="right" />
               </section>
             )}
 
             {/* ═══ Horizontal Sliding Products in Categories ═══ */}
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
-            <section className="container mx-auto px-4 mb-6">
-              <ProductSlider title="Today's Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
+            <section className="container mx-auto px-4 mb-1">
+              <ProductSlider title="Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
             </section>
 
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (
-              <section className="container mx-auto px-4 mb-6">
+              <section className="container mx-auto px-4 mb-1">
                 <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
               </section>
             )}
 
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
-              <section className="container mx-auto px-4 space-y-6 mb-6">
+              <section className="container mx-auto px-4 space-y-6 mb-1">
                 <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
                 <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-                <ProductSlider title="Computers & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
+                <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
                 <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
-                <ProductSlider title="Premium Certified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
+                <ProductSlider title="Verified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
                 <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
                 <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
                 <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />

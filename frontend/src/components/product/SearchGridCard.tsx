@@ -135,7 +135,7 @@ export const SearchGridCard = ({
           </span>
         </div>
 
-        <div className="flex items-baseline gap-2 mt-auto mb-4 flex-wrap">
+        <div className="flex items-baseline gap-2 mb-4 flex-wrap">
           <p className="text-2xl font-black tracking-tight text-gray-900">
             ₦{(product.price || product.approxPrice || 0).toLocaleString()}
           </p>
@@ -154,7 +154,7 @@ export const SearchGridCard = ({
 
         <button
           className={cn(
-            "w-full flex items-center justify-center gap-2 text-sm font-black py-3 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
+            "w-full mt-auto flex items-center justify-center gap-2 text-sm font-black py-3 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
             added
               ? "bg-black text-white hover:bg-gray-800 border-black"
               : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",

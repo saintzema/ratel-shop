@@ -1759,38 +1759,51 @@ export default function ProductDetailPage() {
                     priceComparison={priceComparison}
                 />
 
-                {/* Mobile Fixed Action Bar */}
-                <div
-                    className="md:hidden fixed left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] z-[45]"
-                    style={{ bottom: '64px', marginBottom: 'env(safe-area-inset-bottom, 0px)' }}
-                >
-                    <div className="flex gap-3">
-                        <Button
-                            className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-12 shadow-md"
-                            onClick={handleBuyNow}
-                        >
-                            Buy Now
-                        </Button>
-                        <Button
-                            className="flex-1 rounded-full bg-black hover:bg-gray-800 text-white font-bold h-12"
-                            onClick={() => {
-                                setIsAdding(true);
-                                setTimeout(() => {
-                                    for (let i = 0; i < quantity; i++) addToCart(product);
-                                    setIsAdding(false);
-                                    setAddedToCart(true);
-                                }, 600);
-                            }}
-                        >
-                            {isAdding ? "Adding..." : addedToCart ? "Added!" : "Add to Cart"}
-                        </Button>
-                    </div>
-                </div>
-
                 {/* Spacer to prevent Footer from hiding behind fixed bars on mobile */}
-                <div className="md:hidden h-32 w-full" />
+                <div className="md:hidden h-28 w-full" />
             </main>
-            <Footer />
+
+            {/* Mobile Fixed Action Bar (Forced overlay via inline styling) */}
+            <div
+                className="md:hidden w-full px-3 py-3 bg-white/95 backdrop-blur-xl border-t border-gray-200 shadow-[0_-8px_30px_rgba(0,0,0,0.15)]"
+                style={{
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    zIndex: 2147483647,
+                    paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 64px))',
+                    transform: 'translateZ(0)',
+                    willChange: 'transform'
+                }}
+            >
+                <div className="flex gap-3 max-w-lg mx-auto">
+                    <Button
+                        className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
+                        onClick={handleBuyNow}
+                    >
+                        Buy Now
+                    </Button>
+                    <Button
+                        className="flex-1 rounded-full bg-gray-900 hover:bg-black text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
+                        onClick={() => {
+                            setIsAdding(true);
+                            setTimeout(() => {
+                                for (let i = 0; i < quantity; i++) addToCart(product);
+                                setIsAdding(false);
+                                setAddedToCart(true);
+                            }, 500);
+                        }}
+                    >
+                        {isAdding ? "Adding..." : addedToCart ? "Added!" : "Add to Cart"}
+                    </Button>
+                </div>
+            </div>
+
+            {/* Main Desktop Footer */}
+            <div className="pb-[120px] md:pb-0 relative z-[1]">
+                <Footer />
+            </div>
         </div>
     );
 }
