@@ -19,7 +19,7 @@ export function Logo({ className, variant = "light", hideTextMobile = false }: L
                     FairPrice.ng
                 </span>
                 <span className={cn("text-[10px] font-bold text-yellow-900 italic py-1.5 uppercase tracking-widest opacity-75", variant === "light" ? "text-yellow" : "text-yellow")}>
-                    Never overpay again!        </span>
+                    Never overpay again        </span>
             </div>
         </Link>
     );

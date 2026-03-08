@@ -19,11 +19,15 @@ export function middleware(request: NextRequest) {
     // We are checking if the current host is a subdomain
     // If it's localhost or the main domain, subdomain will be empty or www
     const isLocalhost = hostWithoutPort === "localhost" || hostWithoutPort.endsWith(".local");
+    const isIpAddress = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(hostWithoutPort);
 
     // This is a basic example. You'll need to adjust based on your actual production domain
     let subdomain = "";
 
-    if (isLocalhost) {
+    if (isIpAddress) {
+        // Do nothing, IP addresses cannot have subdomains
+        subdomain = "";
+    } else if (isLocalhost) {
         const parts = hostWithoutPort.split('.');
         if (parts.length >= 2 && parts[0] !== 'www') {
             subdomain = parts[0];

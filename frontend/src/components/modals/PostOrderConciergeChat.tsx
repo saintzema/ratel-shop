@@ -307,7 +307,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     } else if (orderStatus === "shipped") {
                         zivaText = `Your order **${trackingId}** is currently **in transit** via **${carrier}**${order?.tracking_id ? ` (tracking: ${order.tracking_id})` : ""}. Estimated delivery is within 3–7 business days. I'll notify you when it arrives!`;
                     } else {
-                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–5 business days**.`;
+                        zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–7 business days**.`;
                     }
                 } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
                     zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 7-day return window after delivery.";
