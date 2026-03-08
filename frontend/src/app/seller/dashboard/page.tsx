@@ -89,7 +89,13 @@ export default function SellerDashboard() {
                 setOrders(allOrders.filter(o => o.seller_id === seller.id));
 
                 const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
-                setProducts(allProducts.filter(p => p.seller_id === seller.id));
+                // Also include AI-generated products that are assigned to this seller
+                const cachedProducts = DemoStore.getAllCachedProducts();
+                const combinedProducts = [...allProducts, ...cachedProducts];
+
+                // deduplicate just in case 
+                const uniqueProducts = Array.from(new Map(combinedProducts.map(p => [p.id, p])).values());
+                setProducts(uniqueProducts.filter(p => p.seller_id === seller.id));
             }
         };
 

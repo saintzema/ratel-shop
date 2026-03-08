@@ -410,7 +410,7 @@ export function Navbar() {
 
     return (
         <>
-            <header className="sticky top-0 left-0 right-0 z-[100] w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
+            <header className="fixed top-0 left-0 right-0 z-[100] w-full flex-col backdrop-blur-2xl backdrop-saturate-150" style={{ background: 'rgba(10, 104, 71, 0.78)' }}>
                 {/* Top Bar — Liquid Glass */}
                 <div className="flex w-full items-center gap-2 md:gap-4 liquid-glass px-3 md:px-4 py-3 text-white relative z-10">
                     {/* Logo */}
@@ -536,7 +536,7 @@ export function Navbar() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     transition={{ duration: 0.1 }}
-                                    className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[480px] overflow-y-auto"
+                                    className="fixed md:absolute top-[64px] md:top-full left-2 right-2 md:left-0 md:right-0 mt-2 md:mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[70vh] md:max-h-[480px] overflow-y-auto"
                                 >
                                     {/* Empty State: Recent & Trending (Temu-style) */}
                                     {searchQuery.trim().length === 0 && (
@@ -697,10 +697,10 @@ export function Navbar() {
                                                         <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             <span className="text-xs font-bold text-blue-600">₦{result.price?.toLocaleString()}</span>
-                                                            <span className="text-[11px] text-blue-500/80">Cached Result</span>
+                                                            <span className="text-[11px] text-blue-500/80">More Results</span>
                                                         </div>
                                                     </div>
-                                                    <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded uppercase shrink-0 border border-blue-100">CACHED</span>
+                                                    <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded uppercase shrink-0 border border-blue-100">FAIR</span>
                                                 </button>
                                             ))}
                                         </div>
@@ -918,8 +918,8 @@ export function Navbar() {
                         </div>
                     </button>
 
-                    {/* Notifications */}
-                    <div className="hidden md:block">
+                    {/* Notifications - Visible on Mobile and Desktop */}
+                    <div className="block">
                         <NotificationBell />
                     </div>
 

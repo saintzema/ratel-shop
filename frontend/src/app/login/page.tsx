@@ -53,6 +53,7 @@ export default function UnifiedAuthPage() {
         const normalizedId = identifier.toLowerCase().trim();
         if (normalizedId === "admin@example.com") return { id: "admin_1", name: "Admin", email: "admin@example.com", role: "admin" as const, created_at: new Date().toISOString() };
         if (normalizedId === "seller@example.com") return { id: "seller_1", name: "Demo Seller", email: "seller@example.com", role: "seller" as const, created_at: new Date().toISOString() };
+        if (normalizedId === "techzema@gmail.com") return { id: "global-partners", name: "Global Stores", email: "techzema@gmail.com", role: "seller" as const, created_at: new Date().toISOString() };
         return null;
     })();
 
@@ -150,7 +151,8 @@ export default function UnifiedAuthPage() {
             const isExisting =
                 checkRegisteredUser(normalizedId) ||
                 normalizedId === "admin@example.com" ||
-                normalizedId === "seller@example.com";
+                normalizedId === "seller@example.com" ||
+                normalizedId === "techzema@gmail.com";
 
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
@@ -167,7 +169,7 @@ export default function UnifiedAuthPage() {
         let determinedRole: "customer" | "seller" | "admin" = "customer";
 
         if (identifier.toLowerCase().includes("admin@")) determinedRole = "admin";
-        else if (identifier.toLowerCase().includes("seller@")) determinedRole = "seller";
+        else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") determinedRole = "seller";
 
         setTimeout(() => {
             const finalRedirect =
@@ -280,7 +282,7 @@ export default function UnifiedAuthPage() {
         let determinedRole: "customer" | "seller" | "admin" = "customer";
 
         if (identifier.toLowerCase().includes("admin@")) determinedRole = "admin";
-        else if (identifier.toLowerCase().includes("seller@")) determinedRole = "seller";
+        else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") determinedRole = "seller";
 
         setTimeout(() => {
             const finalRedirect =

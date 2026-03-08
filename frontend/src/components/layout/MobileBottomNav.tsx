@@ -44,7 +44,7 @@ export function MobileBottomNav() {
     const navItems = [
         { name: "Home", href: "/", icon: Home },
         { name: "Categories", href: "/categories", icon: Search },
-        { name: "Messages", href: "#messages", icon: MessageCircle, count: totalUnread + unreadNotifs, isMessages: true },
+        { name: "Messages", href: "#messages", icon: MessageCircle, count: totalUnread, isMessages: true },
         { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
         { name: profileName, href: "/account", icon: User, isProfile: true },
     ];
