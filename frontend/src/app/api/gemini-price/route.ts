@@ -132,7 +132,7 @@ export async function POST(req: Request) {
             4. **TRANSPARENCY (CRITICAL)**:
                - Explain whether FairPrice is higher or lower than market and WHY.
                - Do NOT mention specific price numbers in the justification text. Instead use relative language like "highly competitive", "significantly below market average", "includes import costs".
-               - Highlight that our transparent 6-10% margin makes us cheaper than the inflated prices often seen on competitors.
+               - Highlight that our transparent 5-10% margin makes us cheaper than the inflated prices often seen on competitors.
             
             ABSOLUTE ANONYMIZATION RULES (CRITICAL — VIOLATION = FAILURE):
             - NEVER mention ANY specific store, website, vendor, or marketplace name ANYWHERE in your response.
@@ -149,7 +149,7 @@ export async function POST(req: Request) {
             Return JSON:
             {
                 "productName": "The actual full specific name with year for vehicles, without store prefixes.",
-                "description": "A very detailed, 2-3 sentence description of the product.",
+                "description": "A very detailed, 4-6 sentence description of the product.",
                 "image_url": "A direct URL to a high-quality image of this exact product. MUST be a direct .jpg/.png retail link. MUST NOT be a vertexaisearch.cloud.google.com or grounding-api-redirect link.",
                 "marketAverage": number,
                 "marketLow": number,
@@ -172,11 +172,11 @@ export async function POST(req: Request) {
             }
             
             SPECS TABLE (CRITICAL):
-            - Return a "specs" object with 6-10 key-value pairs of the most important specifications.
-            - For vehicles: Year, Engine, Horsepower, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating Capacity, Top Speed, Dimensions.
-            - For phones: Screen Size, Processor, RAM, Storage, Battery, Main Camera, Selfie Camera, OS.
-            - For electronics: Relevant technical specs for the product type.
-            - For fashion/general: Material, Size Range, Color Options, Origin, etc.
+            - Return a "specs" object with 8-15 key-value pairs of the most important specifications.
+            - For vehicles: Year, Engine, Horsepower, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating Capacity, Top Speed, Dimensions and every other information a buyer would want to know and is available for that particular searched product.
+            - For phones: Screen Size, Processor, RAM, Storage, Battery, Main Camera, Selfie Camera, OS and every other information a buyer would want to know and is available for that particular searched product.
+            - For electronics: Relevant technical specs for the product type and every other information a buyer would want to know and is available for that particular searched product.
+            - For fashion/general: Material, Size Range, Color Options, Origin, etc and every other information a buyer would want to know and is available for that particular searched product.
             
             CRITICAL:
             - NEVER mention any store, vendor, website name, or vendor country in ANY field including justification, description, and sources.

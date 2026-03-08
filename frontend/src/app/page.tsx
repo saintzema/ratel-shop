@@ -275,7 +275,7 @@ export default function Home() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section ─── */}
-          <section className="relative h-[250px] md:h-[380px] w-full overflow-hidden bg-black">
+          <section className="relative w-full overflow-hidden bg-black pt-[102px] pb-1.5">
             <div className="absolute inset-0">
               <img
 
@@ -292,15 +292,8 @@ export default function Home() {
               />
             </div>
 
-            <div className="relative container mx-auto h-full flex flex-col justify-center px-6 text-center text-white z-10">
-              <motion.h1
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
-                className="text-4xl md:text-7xl font-black tracking-tighter mb-4 md:mb-4 md:mt-4 text-balance drop-shadow-2xl"
-              >
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-brand-green-400 to-emerald-400">Fair</span>Price.ng
-              </motion.h1>
+            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 text-center text-white z-10">
+              {/* Title Hidden Per Request */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -310,48 +303,48 @@ export default function Home() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border-white/30 hover:bg-white transition-all hover:scale-105 shadow-xl text-white hover:text-gray-900 group"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  <span className="group-hover:text-gray-900 transition-colors duration-300">Calculate Fair Price</span> <span className="ml-2">✨</span>
+                  <span className="font-extrabold tracking-wide">Calculate Fair Price</span> <span className="ml-2 animate-bounce">✨</span>
                 </Button>
               </motion.div>
             </div>
           </section>
 
           {/* ─── Content Body ─── */}
-          <div ref={productSectionRef} className="relative z-20 -mt-6 md:-mt-16">
+          <div ref={productSectionRef} className="relative z-20">
 
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
-              <section className="container mx-auto px-4 mb-1 relative z-40">
+              <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
                 <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
               </section>
             )}
 
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
-              <section className="container mx-auto px-4 mb-1 relative z-30">
+              <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
                 <ProductSlider title="Sponsored" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="right" />
               </section>
             )}
 
             {/* ═══ Horizontal Sliding Products in Categories ═══ */}
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
-            <section className="container mx-auto px-4 mb-1">
+            <section className="container mx-auto px-1 md:px-2 mb-1">
               <ProductSlider title="Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
             </section>
 
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (
-              <section className="container mx-auto px-4 mb-1">
+              <section className="container mx-auto px-1 md:px-2 mb-1">
                 <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
               </section>
             )}
 
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
-              <section className="container mx-auto px-4 space-y-6 mb-1">
+              <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
                 <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
                 <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
@@ -368,8 +361,8 @@ export default function Home() {
 
             {/* ═══ Global Recommended Products ═══ */}
             {mounted && (
-              <section className="container mx-auto px-4 mb-12">
-                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id)).slice(0, 30)} title="Recommended For You" subtitle="Based on your browsing history" />
+              <section className="w-full px-1 md:px-2 mb-20">
+                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id))} title="Recommended For You"/>
               </section>
             )}
           </div>
@@ -499,11 +492,11 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 
   return (
     <div
-      className="bg-white rounded-lg p-5 shadow-sm relative group/scroller"
+      className="bg-white rounded-lg py-1.5 px-2 shadow-sm relative group/scroller"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-1.5">
         <h2 className="text-lg font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
@@ -530,7 +523,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
           <ChevronRight className="h-5 w-5 text-gray-700" />
         </button>
 
-        <div ref={scrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-2" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
+        <div ref={scrollRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
           {[...products, ...products, ...products].map((product, idx) => (
             <ScrollerProductCard key={`${product.id}-${idx}`} product={product} />
           ))}
@@ -583,7 +576,7 @@ function ScrollerProductCard({ product }: { product: any }) {
     <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3">
       <Link href={`/product/${product.id}`} className="flex flex-col flex-1 h-full relative">
         <div
-          className="w-full h-[200px] bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
+          className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
           onClick={handleDoubleTap}
         >
           {/* Sponsored Ad Tag */}
@@ -631,7 +624,7 @@ function ScrollerProductCard({ product }: { product: any }) {
         </div>
       </Link>
       {/* Price + Add to Cart row */}
-      <div className="flex flex-col mt-auto gap-1.5 shrink-0">
+      <div className="flex flex-col mt-auto gap-0.5 shrink-0 px-0.5">
         <span className="text-base font-black text-gray-900">{formatPrice(product.price)}</span>
         <Button
           size="sm"

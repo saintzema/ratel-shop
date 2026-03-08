@@ -7,7 +7,7 @@ import { Product } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
 import { useFavorites } from "@/context/FavoritesContext";
 import { ProductCard } from "@/components/product/ProductCard";
-import { Heart, ShoppingBag, ArrowRight, Share2, Check } from "lucide-react";
+import { Heart, ShoppingBag, ArrowRight, Share2, Check, ChevronLeft, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -67,7 +67,21 @@ export default function FavoritesPage() {
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-7xl">
+            <main className="flex-1 container mx-auto mt-20 px-4 py-10 max-w-7xl">
+                {/* Mobile Navigation Pills */}
+                <div className="md:hidden flex items-center gap-3 mb-6">
+                    <Link href="/account">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+                            <ChevronLeft className="h-4 w-4" /> Account
+                        </button>
+                    </Link>
+                    <Link href="/">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+                            <Home className="h-4 w-4" /> Home
+                        </button>
+                    </Link>
+                </div>
+
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                     <div className="flex items-center gap-3">

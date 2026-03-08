@@ -196,9 +196,9 @@ export default function KYCOnboarding() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <div className="min-h-[100dvh] bg-gray-50 py-12 px-4 sm:px-6 pb-32">
             {/* Progress Bar */}
-            <div className="w-full max-w-2xl mb-8">
+            <div className="w-full max-w-2xl mx-auto mb-8">
                 <div className="flex justify-between mb-2">
                     {["Business Info", "Identity", "Bank Details", "Review"].map((label, i) => (
                         <div key={i} className={`text-xs font-bold ${step > i + 1 ? "text-brand-green-600" : step === i + 1 ? "text-black" : "text-gray-400"}`}>
@@ -216,7 +216,7 @@ export default function KYCOnboarding() {
                 </div>
             </div>
 
-            <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl border overflow-hidden">
+            <div className="w-full max-w-2xl mx-auto bg-white rounded-2xl shadow-xl border overflow-hidden">
                 <div className="bg-brand-green-600 p-6 text-white text-center">
                     <h1 className="text-2xl font-bold">Seller Verification</h1>
                     <p className="text-green-100 text-sm">Join Nigeria's most trusted marketplace. Let's get you verified.</p>

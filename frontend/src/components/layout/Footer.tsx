@@ -12,7 +12,7 @@ import { Logo } from "@/components/ui/logo";
 
 export function Footer() {
   return (
-    <footer className="bg-[#1f2937] text-white pt-12 pb-6 border-t border-[#374151] mt-8">
+    <footer className="hidden md:block bg-[#1f2937] text-white pt-12 pb-6 border-t border-[#374151] mt-8">
       <div className="container mx-auto px-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
         {/* Column 1: Company Info */}
         <div>

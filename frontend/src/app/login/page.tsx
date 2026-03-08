@@ -901,8 +901,6 @@ export default function UnifiedAuthPage() {
                             <Link href="#" className="hover:text-[#1d1d1f]">FAQ</Link>
                         </div>
                         <div className="p-4 border border-gray-200 rounded-xl bg-gray-50/50">
-                            <h4 className="font-bold text-[#1d1d1f] mb-1">DOWNLOAD FAIRPRICE FREE APP</h4>
-                            <p className="text-xs mb-4">Get access to exclusive offers!</p>
 
                             <div className="flex justify-between text-left gap-4 mt-4">
                                 <div>

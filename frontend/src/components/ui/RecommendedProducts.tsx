@@ -2,8 +2,8 @@
 
 import { useRef, useState, useEffect } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
-import { ProductCard } from "@/components/product/ProductCard";
+import { ChevronRight, TrendingUp, Loader2 } from "lucide-react";
+import { SearchGridCard } from "@/components/product/SearchGridCard";
 import { Product } from "@/lib/types";
 
 interface RecommendedProductsProps {
@@ -19,65 +19,72 @@ export function RecommendedProducts({
     subtitle = "Based on your activity",
     icon = <TrendingUp className="h-5 w-5 text-brand-green-600" />,
 }: RecommendedProductsProps) {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const [isHovered, setIsHovered] = useState(false);
-    const [canScrollLeft, setCanScrollLeft] = useState(true);
-    const [canScrollRight, setCanScrollRight] = useState(true);
+    const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
+    const [page, setPage] = useState(1);
+    const [isLoading, setIsLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const loaderRef = useRef<HTMLDivElement>(null);
+    const ITEMS_PER_PAGE = 12;
 
-    const checkScroll = () => {
-        if (scrollRef.current) {
-            // with 3 copies, there's always scroll space unless very wide monitor
-            setCanScrollLeft(true);
-            setCanScrollRight(true);
-        }
-    };
-
+    // Initial load
     useEffect(() => {
-        checkScroll();
-        window.addEventListener("resize", checkScroll);
-        return () => window.removeEventListener("resize", checkScroll);
+        if (products.length > 0 && displayedProducts.length === 0) {
+            setDisplayedProducts(products.slice(0, ITEMS_PER_PAGE));
+            setHasMore(products.length > ITEMS_PER_PAGE);
+        }
     }, [products]);
 
+    // Intersection Observer for infinite scrolling
     useEffect(() => {
-        const el = scrollRef.current;
-        if (!el) return;
+        const observer = new IntersectionObserver((entries) => {
+            const target = entries[0];
+            if (target.isIntersecting && hasMore && !isLoading) {
+                loadMore();
+            }
+        }, {
+            root: null,
+            rootMargin: '400px', // Trigger load well before hitting bottom
+            threshold: 0
+        });
 
-        const startAutoScroll = () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            intervalRef.current = setInterval(() => {
-                if (!el) return;
-                if (el.scrollLeft >= el.scrollWidth / 3) {
-                    el.scrollLeft = 0;
-                } else {
-                    el.scrollLeft += 1;
-                }
-            }, 30);
-        };
-
-        if (!isHovered) {
-            startAutoScroll();
-        } else {
-            if (intervalRef.current) clearInterval(intervalRef.current);
+        if (loaderRef.current) {
+            observer.observe(loaderRef.current);
         }
 
         return () => {
-            if (intervalRef.current) clearInterval(intervalRef.current);
-        }
-    }, [isHovered, products]);
+            if (loaderRef.current) {
+                observer.unobserve(loaderRef.current);
+            }
+        };
+    }, [hasMore, isLoading, page, products]);
 
-    const scroll = (direction: "left" | "right") => {
-        if (scrollRef.current) {
-            const scrollAmount = direction === "left" ? -300 : 300;
-            scrollRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
-        }
+    const loadMore = () => {
+        setIsLoading(true);
+        // Simulate network delay for smooth UX loading effect (like Temu)
+        setTimeout(() => {
+            const nextIndex = page * ITEMS_PER_PAGE;
+            // Endless loop mechanism: if we run out of unique products, start pulling from the beginning again
+            // varied by a random sort slice, creating an 'endless' Temu-style hallucination loop
+            const nextBatch = products.slice(nextIndex, nextIndex + ITEMS_PER_PAGE);
+
+            if (nextBatch.length > 0) {
+                setDisplayedProducts(prev => [...prev, ...nextBatch]);
+                setPage(prev => prev + 1);
+                setHasMore(nextIndex + ITEMS_PER_PAGE < products.length);
+            } else {
+                // If we ran out of physical catalog, recycle the catalog endlessly to mimic Temu's bottomless feed
+                const shuffledCatalog = [...products].sort(() => 0.5 - Math.random());
+                setDisplayedProducts(prev => [...prev, ...shuffledCatalog.slice(0, ITEMS_PER_PAGE)]);
+            }
+            setIsLoading(false);
+        }, 800);
     };
 
     if (!products || products.length === 0) return null;
 
     return (
-        <div className="bg-white rounded-2xl p-4 md:p-6 shadow-sm border border-border group/recommender relative">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
+        <div className="w-full">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4 md:mb-6">
                 <div>
                     <h2 className="text-xl md:text-2xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2">
                         {icon && <span className="shrink-0">{icon}</span>}
@@ -97,47 +104,24 @@ export function RecommendedProducts({
                 </Link>
             </div>
 
-            <div className="relative">
-                {/* Left Navigation Arrow */}
-                {canScrollLeft && (
-                    <button
-                        onClick={() => scroll("left")}
-                        className="absolute -left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl rounded-full flex items-center justify-center text-gray-800 hover:text-brand-orange hover:scale-110 transition-all opacity-0 group-hover/recommender:opacity-100"
-                        aria-label="Scroll left"
-                    >
-                        <ChevronLeft className="h-5 w-5" />
-                    </button>
-                )}
+            {/* Vertically Scrolling 2-Column Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-1.5 md:gap-4 w-full">
+                {displayedProducts.map((product, idx) => (
+                    <SearchGridCard
+                        key={`${product.id}-${idx}-${Math.random()}`}
+                        product={product}
+                    />
+                ))}
+            </div>
 
-                {/* Right Navigation Arrow */}
-                {canScrollRight && (
-                    <button
-                        onClick={() => scroll("right")}
-                        className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm border border-gray-200 shadow-xl rounded-full flex items-center justify-center text-gray-800 hover:text-brand-orange hover:scale-110 transition-all opacity-0 group-hover/recommender:opacity-100"
-                        aria-label="Scroll right"
-                    >
-                        <ChevronRight className="h-5 w-5" />
-                    </button>
+            {/* Invisible Loading Trigger */}
+            <div ref={loaderRef} className="w-full py-12 flex justify-center items-center">
+                {isLoading && (
+                    <div className="flex flex-col items-center justify-center gap-3 text-brand-green-600">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                        <span className="text-xs font-bold uppercase tracking-widest text-emerald-700/60">Loading More Deals</span>
+                    </div>
                 )}
-
-                {/* Horizontally Scrolling Container */}
-                <div
-                    ref={scrollRef}
-                    onScroll={checkScroll}
-                    onMouseEnter={() => setIsHovered(true)}
-                    onMouseLeave={() => setIsHovered(false)}
-                    className="flex gap-4 md:gap-5 overflow-x-auto pb-4 pt-2 px-1 scrollbar-hide items-stretch"
-                    style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}
-                >
-                    {[...products, ...products, ...products].map((product, idx) => (
-                        <div
-                            key={`${product.id}-${idx}`}
-                            className="min-w-[160px] md:min-w-[200px] snap-start flex flex-col"
-                        >
-                            <ProductCard product={product} className="h-full w-full" />
-                        </div>
-                    ))}
-                </div>
             </div>
         </div>
     );

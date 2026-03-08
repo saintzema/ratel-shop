@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
-import { Heart, Store, Star, ChevronRight, ShoppingCart, X, Package } from "lucide-react";
+import { Heart, Store, Star, ChevronRight, ChevronLeft, Home, ShoppingCart, X, Package } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -51,7 +51,21 @@ export default function ListsPage() {
         <div className="min-h-screen bg-[#E3E6E6] flex flex-col font-sans text-black">
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-8 max-w-6xl">
+            <main className="flex-1 container mx-auto px-4 pb-8 pt-32 md:pt-12 max-w-6xl">
+                {/* Mobile Navigation Pills */}
+                <div className="md:hidden flex items-center gap-3 mb-6">
+                    <Link href="/account">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+                            <ChevronLeft className="h-4 w-4" /> Account
+                        </button>
+                    </Link>
+                    <Link href="/">
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 shadow-sm rounded-full text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+                            <Home className="h-4 w-4" /> Home
+                        </button>
+                    </Link>
+                </div>
+
                 {/* Header */}
                 <div className="mb-6">
                     <h1 className="text-3xl font-black tracking-tight">Your Favorites</h1>
