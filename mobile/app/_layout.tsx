@@ -2,8 +2,14 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "../src/stores/authStore";
+
+// Web-only: load global CSS to remove focus outlines
+if (Platform.OS === "web") {
+  require("../assets/global.css");
+}
 
 export { ErrorBoundary } from "expo-router";
 

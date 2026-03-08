@@ -1,0 +1,34 @@
+/* Global web styles for Expo web — removes browser defaults */
+
+/* Remove focus outline from all inputs and touchable elements */
+input:focus,
+textarea:focus,
+select:focus,
+button:focus,
+[role="button"]:focus,
+[tabindex]:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Remove tap highlight on mobile browsers */
+* {
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Hide scrollbars on scrollable containers */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+
+/* Prevent text selection on UI elements */
+button,
+[role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+}
