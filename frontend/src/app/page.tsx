@@ -325,50 +325,44 @@ export default function Home() {
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 mb-6 relative z-40">
-                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll />
+                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
               </section>
             )}
 
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
               <section className="container mx-auto px-4 mb-6 relative z-30">
-                <ProductSlider title="Sponsored Collections" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll />
+                <ProductSlider title="Sponsored Collections" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="right" />
               </section>
             )}
 
             {/* ═══ Horizontal Sliding Products in Categories ═══ */}
-            {/* (Replaced 2x2 grids with existing ProductSliders below) */}
-
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
             <section className="container mx-auto px-4 mb-6">
-              <ProductSlider title="Today's Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} />
+              <ProductSlider title="Today's Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
             </section>
-
-            {/* Category Cards Row 2 Removed */}
 
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (
               <section className="container mx-auto px-4 mb-6">
-                <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} />
+                <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
               </section>
             )}
-
-            {/* Category Cards Row 3 Removed */}
 
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
               <section className="container mx-auto px-4 space-y-6 mb-6">
-                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} />
-                <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} />
-                <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} />
-                <ProductSlider title="Computers & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} />
-                <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} />
-                <ProductSlider title="Premium Certified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} />
-                <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} />
-                <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} />
-                <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} />
-                <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} />
-                <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} />
+                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
+                <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                <ProductSlider title="Computers & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
+                <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
+                <ProductSlider title="Premium Certified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
+                <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
+                <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
+                <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
+                <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
+                <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
               </section>
             )}
 
@@ -441,16 +435,18 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
 
 // ─── BestSellersScroller (Full-Width Amazon-Style Horizontal Scroller) ───
 
-function BestSellersScroller({ title, link, products, icon, autoScroll = false }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean }) {
+function BestSellersScroller({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const initOffsetDone = useRef(false);
+
   if (products.length === 0) return null;
 
-  const scroll = (direction: "left" | "right") => {
+  const scroll = (dir: "left" | "right") => {
     if (!scrollRef.current) return;
     const amount = scrollRef.current.clientWidth * 0.75;
-    scrollRef.current.scrollBy({ left: direction === "left" ? -amount : amount, behavior: "smooth" });
+    scrollRef.current.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -459,15 +455,30 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false }
     const el = scrollRef.current;
     if (!el) return;
 
+    // Wait a tick for layout, set initial offset for right-to-left
+    if (!initOffsetDone.current && direction === "right") {
+      setTimeout(() => {
+        if (el) el.scrollLeft = el.scrollWidth / 3;
+      }, 100);
+      initOffsetDone.current = true;
+    }
+
     const startAutoScroll = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        // Infinite loop technique: reset scroll when it reaches 1/3 since we have 3 copies
-        if (el.scrollLeft >= el.scrollWidth / 3) {
-          el.scrollLeft = 0;
+        if (direction === "left") {
+          if (el.scrollLeft >= el.scrollWidth / 3) {
+            el.scrollLeft = 0;
+          } else {
+            el.scrollLeft += 1;
+          }
         } else {
-          el.scrollLeft += 1;
+          if (el.scrollLeft <= 0) {
+            el.scrollLeft = el.scrollWidth / 3;
+          } else {
+            el.scrollLeft -= 1;
+          }
         }
       }, 30);
     };
@@ -484,7 +495,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [autoScroll, isHovered]);
+  }, [autoScroll, isHovered, direction]);
 
   return (
     <div
@@ -634,12 +645,13 @@ function ScrollerProductCard({ product }: { product: any }) {
   );
 }
 
-function ProductSlider({ title, link, products, icon, autoScroll = false }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
+  const initOffsetDone = useRef(false);
 
   const checkScroll = () => {
     if (scrollRef.current && !autoScroll) {
@@ -662,14 +674,30 @@ function ProductSlider({ title, link, products, icon, autoScroll = false }: { ti
     const el = scrollRef.current;
     if (!el) return;
 
+    // Set initial offset for right direction
+    if (!initOffsetDone.current && direction === "right") {
+      setTimeout(() => {
+        if (el) el.scrollLeft = el.scrollWidth / 3;
+      }, 100);
+      initOffsetDone.current = true;
+    }
+
     const startAutoScroll = () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        if (el.scrollLeft >= el.scrollWidth / 3) {
-          el.scrollLeft = 0;
+        if (direction === "left") {
+          if (el.scrollLeft >= el.scrollWidth / 3) {
+            el.scrollLeft = 0;
+          } else {
+            el.scrollLeft += 1;
+          }
         } else {
-          el.scrollLeft += 1;
+          if (el.scrollLeft <= 0) {
+            el.scrollLeft = el.scrollWidth / 3;
+          } else {
+            el.scrollLeft -= 1;
+          }
         }
       }, 30);
     };
@@ -686,7 +714,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false }: { ti
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [autoScroll, isPaused]);
+  }, [autoScroll, isPaused, direction]);
 
   const scroll = (direction: "left" | "right") => {
     if (scrollRef.current) {
@@ -744,8 +772,8 @@ function ProductSlider({ title, link, products, icon, autoScroll = false }: { ti
         <div
           ref={scrollRef}
           onScroll={!autoScroll ? checkScroll : undefined}
-          className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-x items-stretch"
-          style={{ scrollBehavior: isPaused ? "smooth" : "auto" }}
+          className="flex gap-4 md:gap-5 overflow-x-auto pb-4 scrollbar-hide snap-none items-stretch"
+          style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1rem' }}
         >
           {displayProducts.map((product, idx) => (
             <div key={`${product.id}-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
