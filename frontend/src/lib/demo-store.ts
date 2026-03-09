@@ -1073,9 +1073,13 @@ class DemoStoreService {
 
     addRawProduct(product: Product) {
         let products = this.getProducts();
-        if (products.some(p => p.id === product.id)) return product;
 
-        products.unshift(product);
+        const existingIdx = products.findIndex(p => p.id === product.id);
+        if (existingIdx >= 0) {
+            products[existingIdx] = { ...products[existingIdx], ...product };
+        } else {
+            products.unshift(product);
+        }
         if (products.length > 500) products.length = 500; // soft limit
 
         try {

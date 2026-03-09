@@ -290,6 +290,7 @@ export default function ProductDetailPage() {
                         description: sessionMatch.description || generateDescription(sessionMatch.name || namePart.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')),
                         specs: sessionMatch.specs && Object.keys(sessionMatch.specs).length > 0 ? sessionMatch.specs : generateSpecs(sessionMatch.name || namePart),
                         is_active: true,
+                        created_at: sessionMatch.created_at || new Date().toISOString(),
                     } as any;
                 } else {
                     // Last resort: create a rich placeholder from the URL slug

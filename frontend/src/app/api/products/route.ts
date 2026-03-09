@@ -60,6 +60,36 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
+        // Ensure "global-partners" seller exists if saving a globally sourced product
+        if (body.seller_id === 'global-partners') {
+            const globalUser = await db.user.upsert({
+                where: { email: 'global@fairprice.ng' },
+                update: {},
+                create: {
+                    id: 'global-user',
+                    email: 'global@fairprice.ng',
+                    name: 'FairPrice Global',
+                    role: 'admin'
+                }
+            });
+
+            await db.seller.upsert({
+                where: { id: 'global-partners' },
+                update: { status: 'active' },
+                create: {
+                    id: 'global-partners',
+                    userId: globalUser.id,
+                    businessName: 'Global Stores',
+                    description: 'Global Sourcing Partners',
+                    category: 'All',
+                    status: 'active',
+                    verified: true,
+                    rating: 5.0,
+                    trustScore: 100.0
+                }
+            });
+        }
+
         // Enforce Seller Status: Products can only be active if the seller is active
         const seller = await db.seller.findUnique({
             where: { id: body.seller_id },
