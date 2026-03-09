@@ -150,7 +150,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleReset()}>
-            <DialogContent className="sm:max-w-[425px] bg-white text-black border-zinc-200">
+            <DialogContent className="sm:max-w-[425px] w-[95vw] rounded-2xl max-h-[85dvh] sm:max-h-[75vh] h-auto overflow-y-auto bg-white text-black border-zinc-200 p-6 block top-[5%] sm:top-[40%] translate-y-0 sm:-translate-y-1/2 mt-4 sm:mt-20 pb-10 pt-10">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-xl font-bold">
                         <Tag className="h-5 w-5 text-brand-green-600" />
@@ -162,8 +162,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                 </DialogHeader>
 
                 {!submitted ? (
-                    <form onSubmit={handleSubmit} className="space-y-6 py-4">
-                        <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 flex gap-4">
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-6 py-4 pb-12">
+                        <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 flex gap-4 shrink-0">
                             <img src={product.image_url} alt={product.name} className="w-16 h-16 object-contain mix-blend-multiply" />
                             <div>
                                 <p className="font-bold text-sm line-clamp-1">{product.name}</p>
@@ -172,8 +172,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                         </div>
 
                         {/* Market Analysis Button */}
-                        {/* Market Analysis Button */}
-                        <div className="space-y-2">
+                        <div className="space-y-2 shrink-0">
                             {isAnalyzing ? (
                                 <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 space-y-2">
                                     <div className="flex justify-between text-xs font-bold text-blue-700">
@@ -212,7 +211,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             )}
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 shrink-0">
                             <Label htmlFor="price" className="text-sm font-bold">Your Proposed Price (₦)</Label>
                             <div className="relative">
                                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 font-bold">₦</span>
@@ -243,7 +242,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             </p>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-2 shrink-0">
                             <Label htmlFor="message" className="text-sm font-bold">Message for Seller (Optional)</Label>
                             <Textarea
                                 id="message"
@@ -254,12 +253,12 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             />
                         </div>
 
-                        <div className="bg-blue-50 p-3 rounded-lg flex gap-3 text-xs text-blue-700">
+                        <div className="bg-blue-50 p-3 rounded-lg flex gap-3 text-xs text-blue-700 shrink-0">
                             <ShieldCheck className="h-4 w-4 shrink-0" />
                             <p>If accepted, your payment will be held in <strong>Escrow</strong> until you confirm delivery of the item.</p>
                         </div>
 
-                        <DialogFooter>
+                        <DialogFooter className="shrink-0 pt-2 pb-4">
                             <Button
                                 type="submit"
                                 className="w-full bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-full font-bold h-11"
@@ -299,6 +298,6 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                     </div>
                 )}
             </DialogContent>
-        </Dialog>
+        </Dialog >
     );
 }
