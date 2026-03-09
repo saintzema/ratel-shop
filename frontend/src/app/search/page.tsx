@@ -541,13 +541,23 @@ function SearchContent() {
   // Build the combined current view array
   const combinedCurrentResults = useMemo(() => {
     const seenIds = new Set<string>();
-    const uniqueLocalProducts = paginatedProducts.filter(
-      (p) => !navResults.some((n: any) => n.id === p.id),
-    );
-    const combined = [...navResults, ...uniqueLocalProducts];
+    const combined: any[] = [];
 
-    // Track all IDs already in the combined array
-    combined.forEach(p => seenIds.add(p.id));
+    // 1. Process navResults (safeguard against duplicated IDs in sessionStorage)
+    for (const n of navResults) {
+      if (!seenIds.has(n.id)) {
+        seenIds.add(n.id);
+        combined.push(n);
+      }
+    }
+
+    // 2. Process paginatedProducts (filter out anything already provided by nav)
+    for (const p of paginatedProducts) {
+      if (!seenIds.has(p.id)) {
+        seenIds.add(p.id);
+        combined.push(p);
+      }
+    }
 
     // Ensure the clicked NavSearch item is placed at the absolute front of the result queue
     if (navClickedId) {
@@ -560,8 +570,8 @@ function SearchContent() {
 
     if (showGlobalResults) {
       const mappedGlobal = globalResults.map((r, i) => {
-        // Create a stable, URL-safe ID from the product name, appending the index to ensure uniqueness across continuous fetches
-        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')}-${i}`;
+        // Create a stable, URL-safe ID from the product name, matching Navbar logic
+        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
         const descCategories = {
           electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
           phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
@@ -612,7 +622,7 @@ function SearchContent() {
       combined.push(...uniqueGlobal);
     }
     return combined;
-  }, [navResults, paginatedProducts, showGlobalResults, globalResults, query]);
+  }, [navResults, paginatedProducts, showGlobalResults, globalResults, navClickedId]);
 
   // Products are no longer auto-saved here. They get saved to DemoStore only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).

@@ -255,7 +255,7 @@ export function MessageBox() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 60, scale: 0.95 }}
                         transition={{ type: "spring", damping: 30, stiffness: 350 }}
-                        className="relative w-full md:w-[440px] h-[60vh] md:h-[300px] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl shadow-2xl border border-white/10 bg-white"
+                        className="relative w-full md:w-[440px] h-[70dvh] md:h-[600px] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl shadow-2xl border border-white/10 bg-white"
                     >
                         {showChat ? (
                             /* ─── CHAT VIEW ────────────────────────── */
@@ -288,7 +288,7 @@ export function MessageBox() {
                                 {/* Chat Messages — FairPrice branded style */}
                                 <div
                                     ref={scrollRef}
-                                    className="flex-1 overflow-y-auto px-3 py-3 space-y-1"
+                                    className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-3 py-3 space-y-1"
                                     style={{
                                         background: "linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ecfdf5 100%)",
                                     }}
@@ -445,7 +445,7 @@ export function MessageBox() {
                                 </div>
 
                                 {/* Content */}
-                                <div className="flex-1 overflow-y-auto bg-white">
+                                <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain bg-white pb-6">
                                     <AnimatePresence mode="wait">
                                         {activeTab === "chats" ? (
                                             <motion.div
