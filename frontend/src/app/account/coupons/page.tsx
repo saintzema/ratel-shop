@@ -22,7 +22,7 @@ export default function CouponsPage() {
     }, [user]);
 
     const handleCopy = (code: string, id: string) => {
-        navigator.clipboard.writeText(code);
+        import("@/lib/utils").then(m => m.copyToClipboard(code));
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
     };

@@ -38,13 +38,22 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
+        const product = await db.product.findUnique({
+            where: { id: body.product_id },
+            select: { sellerId: true }
+        });
+
+        if (!product) {
+            return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
+        }
+
         const newNeg = await db.negotiationRequest.create({
             data: {
                 productId: body.product_id,
-                customerId: body.buyer_id,
-                customerName: body.buyer_name,
-                sellerId: body.seller_id,
-                proposedPrice: body.target_price,
+                customerId: body.customer_id,
+                customerName: body.customer_name,
+                sellerId: product.sellerId,
+                proposedPrice: body.proposed_price,
                 status: 'pending',
             }
         });

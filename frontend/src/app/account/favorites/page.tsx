@@ -53,14 +53,17 @@ export default function FavoritesPage() {
     const activeFavoritesList = isSharedView ? sharedFavorites : favorites;
     const favoritedProducts = products.filter(p => activeFavoritesList.includes(p.id));
 
-    const handleShare = () => {
+    const handleShare = async () => {
         if (!user) return; // Must be logged in to share own list
         const url = new URL(window.location.href);
         url.searchParams.set("shared_by", user.id);
 
-        navigator.clipboard.writeText(url.toString());
-        setIsCopied(true);
-        setTimeout(() => setIsCopied(false), 2000);
+        const { copyToClipboard } = await import("@/lib/utils");
+        const success = await copyToClipboard(url.toString());
+        if (success) {
+            setIsCopied(true);
+            setTimeout(() => setIsCopied(false), 2000);
+        }
     };
 
     return (

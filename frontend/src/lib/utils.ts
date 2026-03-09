@@ -45,3 +45,29 @@ export function getTrustColor(score: number): string {
     if (score >= 60) return "text-amber-500";
     return "text-red-500";
 }
+
+export async function copyToClipboard(text: string): Promise<boolean> {
+    try {
+        if (navigator?.clipboard?.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } else {
+            // Fallback for insecure contexts (e.g. local IP testing on mobile)
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "absolute";
+            textArea.style.left = "-999999px";
+            document.body.prepend(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+            } finally {
+                textArea.remove();
+            }
+            return true;
+        }
+    } catch (error) {
+        console.error("Copy failed", error);
+        return false;
+    }
+}

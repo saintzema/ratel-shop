@@ -163,10 +163,13 @@ export default function SellerSettingsPage() {
                                                 size="sm"
                                                 variant="outline"
                                                 className="h-8 px-3 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
-                                                    setCopied(true);
-                                                    setTimeout(() => setCopied(false), 2000);
+                                                onClick={async () => {
+                                                    const { copyToClipboard } = await import("@/lib/utils");
+                                                    const success = await copyToClipboard(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
+                                                    if (success) {
+                                                        setCopied(true);
+                                                        setTimeout(() => setCopied(false), 2000);
+                                                    }
                                                 }}
                                             >
                                                 {copied ? <Check className="h-3 w-3 mr-1.5 text-emerald-600" /> : <Copy className="h-3 w-3 mr-1.5" />}
@@ -196,10 +199,13 @@ export default function SellerSettingsPage() {
                                                 size="sm"
                                                 variant="outline"
                                                 className="h-8 px-3 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
-                                                    setCopied(true);
-                                                    setTimeout(() => setCopied(false), 2000);
+                                                onClick={async () => {
+                                                    const { copyToClipboard } = await import("@/lib/utils");
+                                                    const success = await copyToClipboard(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
+                                                    if (success) {
+                                                        setCopied(true);
+                                                        setTimeout(() => setCopied(false), 2000);
+                                                    }
                                                 }}
                                             >
                                                 {copied ? <Check className="h-3 w-3 mr-1.5 text-emerald-600" /> : <Copy className="h-3 w-3 mr-1.5" />}

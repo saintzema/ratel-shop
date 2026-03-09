@@ -16,6 +16,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
 import { Product } from "@/lib/types";
+import { useSearchParams } from "next/navigation";
 
 // ─── Amazon-Style 2×2 Category Grid Card Data ────────────────
 
@@ -182,6 +183,15 @@ export default function Home() {
   // Live products from DemoStore — load only on client to avoid SSR hydration mismatch
   const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
   const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
+
+  // ─── Referral Tracking System ───
+  useEffect(() => {
+    const ref = searchParams?.get("ref");
+    if (ref) {
+      localStorage.setItem("fp_referral", ref);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const refresh = () => setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
@@ -362,7 +372,7 @@ export default function Home() {
             {/* ═══ Global Recommended Products ═══ */}
             {mounted && (
               <section className="w-full px-1 md:px-2 mb-20">
-                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id))} title="Recommended For You"/>
+                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id))} title="Recommended For You" />
               </section>
             )}
           </div>

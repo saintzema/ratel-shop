@@ -71,10 +71,13 @@ export default function DiscountsPage() {
         loadDiscounts();
     }, []);
 
-    const handleCopy = (code: string) => {
-        navigator.clipboard.writeText(code);
-        setCopySuccess(code);
-        setTimeout(() => setCopySuccess(null), 2000);
+    const handleCopy = async (code: string) => {
+        const { copyToClipboard } = await import("@/lib/utils");
+        const success = await copyToClipboard(code);
+        if (success) {
+            setCopySuccess(code);
+            setTimeout(() => setCopySuccess(null), 2000);
+        }
     };
 
     const handleCreate = async () => {

@@ -209,6 +209,15 @@ class DemoStoreService {
                 }
             }
 
+            // Sync Search Cache for Admin
+            const searchCacheRes = await fetch("/api/search-cache");
+            if (searchCacheRes.ok) {
+                const dbSearchCache = await searchCacheRes.json();
+                if (Object.keys(dbSearchCache).length > 0) {
+                    localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(dbSearchCache));
+                }
+            }
+
             // Trigger update events
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
@@ -651,20 +660,28 @@ class DemoStoreService {
                 existing.push({ ...p, cached_at: new Date().toISOString(), cache_query: normalizedQuery });
             }
         });
+
         cache[normalizedQuery] = existing;
+
         // Trim old entries if cache grows too large (keep last 50 queries)
         const keys = Object.keys(cache);
         if (keys.length > 50) {
             keys.slice(0, keys.length - 50).forEach(k => delete cache[k]);
         }
+
         try {
             localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
-        } catch { /* quota exceeded — trim harder */ }
-    }
 
-    getSearchCache(query: string): any[] {
-        const cache = this._getSearchCache();
-        return cache[query.toLowerCase().trim()] || [];
+            // Persist to Postgres database for Admin visibility across devices
+            fetch("/api/search-cache", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: normalizedQuery,
+                    products: existing
+                })
+            }).catch(e => console.error("Failed to sync search cache to DB:", e));
+        } catch { /* quota exceeded — trim harder */ }
     }
 
     // ═══════════ Admin Curation ═══════════
@@ -1097,8 +1114,17 @@ class DemoStoreService {
             );
         }
 
-        const updated = products.map(p => p.id === id ? { ...p, ...updates } : p);
+        const mergedProduct = { ...existingProduct, ...updates } as Product;
+        const updated = products.map(p => p.id === id ? mergedProduct : p);
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+
+        // Persist to Postgres
+        fetch("/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mergedProduct),
+        }).catch(err => console.warn("Failed to persist product update:", err));
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
     }
@@ -1108,7 +1134,19 @@ class DemoStoreService {
     }
 
     setCachedGlobalResults(query: string, products: Product[]) {
-        localStorage.setItem(`fairprice_global_search_${query.toLowerCase().trim()}`, JSON.stringify(products));
+        const normalizedQuery = query.toLowerCase().trim();
+        localStorage.setItem(`fairprice_global_search_${normalizedQuery}`, JSON.stringify(products));
+
+        // Also save to the central SEARCH_CACHE for the Admin portal
+        try {
+            const centralCacheStr = localStorage.getItem(this.STORAGE_KEYS.SEARCH_CACHE) || "{}";
+            const centralCache = JSON.parse(centralCacheStr);
+            centralCache[normalizedQuery] = products;
+            localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(centralCache));
+            window.dispatchEvent(new Event("demo-store-update"));
+        } catch (e) {
+            console.error("Failed to update central search cache for admin", e);
+        }
     }
 
     getCachedGlobalResults(query: string): Product[] | null {

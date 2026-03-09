@@ -1016,10 +1016,13 @@ export default function ProductDetailPage() {
                                     </div>
                                 </a>
                                 <button
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(window.location.href);
-                                        setCopiedLink(true);
-                                        setTimeout(() => setCopiedLink(false), 2000);
+                                    onClick={async () => {
+                                        const { copyToClipboard } = await import("@/lib/utils");
+                                        const success = await copyToClipboard(window.location.href);
+                                        if (success) {
+                                            setCopiedLink(true);
+                                            setTimeout(() => setCopiedLink(false), 2000);
+                                        }
                                     }}
                                     className={`flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border group ${copiedLink ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'}`}
                                 >

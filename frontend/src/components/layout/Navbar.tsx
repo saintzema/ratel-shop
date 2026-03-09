@@ -91,6 +91,11 @@ export function Navbar() {
 
     const [unreadNotifs, setUnreadNotifs] = useState(0);
     const { user, logout } = useAuth();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         const loadNotifs = async () => {
@@ -512,6 +517,10 @@ export function Navbar() {
                             </div>
 
                             <Input
+                                type="text"
+                                name="globalSearch"
+                                autoComplete="off"
+                                suppressHydrationWarning
                                 className="flex-1 border-0 bg-transparent px-2 md:px-5 text-[13px] md:text-sm focus-visible:ring-0 placeholder:text-gray-400 rounded-none h-full text-gray-900 font-medium"
                                 placeholder="Neck massager"
                                 value={searchQuery}
@@ -842,22 +851,23 @@ export function Navbar() {
                                                     "h-10 w-10 min-w-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative",
                                                     user.isPremium ? "bg-gradient-to-br from-amber-400 to-amber-600 ring-2 ring-amber-400 ring-offset-1" : "bg-gradient-to-br from-brand-green-600 to-emerald-400"
                                                 )}>
-                                                    {(() => {
-                                                        const pic = typeof window !== 'undefined' ? localStorage.getItem('fp_profile_pic') : null;
-                                                        return pic ? <img src={pic} alt="" className="w-full h-full object-cover" /> : user.name.charAt(0).toUpperCase();
-                                                    })()}
-                                                    {user.isPremium && (
-                                                        <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
-                                                            <Crown className="h-3 w-3 text-amber-500" />
+                                                    <div className="relative">
+                                                        <div className="h-8 w-8 rounded-full bg-brand-green-100 flex items-center justify-center text-brand-green-700 font-bold overflow-hidden">
+                                                            {mounted && user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
                                                         </div>
-                                                    )}
+                                                        {mounted && user?.isPremium && (
+                                                            <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+                                                                <Crown className="h-3 w-3 text-amber-500" />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-bold text-gray-900 truncate flex items-center gap-1">
-                                                        {user.name}
-                                                        {user.isPremium && <Crown className="h-3 w-3 text-amber-500" />}
+                                                        {mounted ? user?.name || 'Guest' : 'Loading...'}
+                                                        {mounted && user?.isPremium && <Crown className="h-3 w-3 text-amber-500" />}
                                                     </p>
-                                                    <p className="text-xs text-gray-500 truncate">{user.email || 'user@example.com'}</p>
+                                                    <p className="text-xs text-gray-500 truncate">{mounted ? user?.email || 'user@example.com' : '...'}</p>
                                                 </div>
                                             </Link>
                                             <button
@@ -891,11 +901,11 @@ export function Navbar() {
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
                                         <Link href="/account" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Account</Link>
                                         <Link href="/account/orders" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Orders</Link>
-                                        {user?.role === 'seller' ? (
+                                        {mounted && (user?.role === 'seller' ? (
                                             <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
                                         ) : (
                                             <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
-                                        )}
+                                        ))}
                                         <Link href="/account/recommendations" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Recommendations</Link>
                                         <Link href="/account/history" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Browsing History</Link>
                                     </div>
@@ -914,7 +924,7 @@ export function Navbar() {
                     <button onClick={() => openMessageBox()} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
                         <div className="relative">
                             <MessageCircle className="h-6 w-6 text-white" />
-                            {(totalUnread > 0 || unreadNotifs > 0) && (
+                            {mounted && (totalUnread > 0 || unreadNotifs > 0) && (
                                 <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full border border-brand-green-600 animate-pulse"></span>
                             )}
                         </div>
@@ -929,7 +939,7 @@ export function Navbar() {
                     <Link href="/cart" className="hidden md:flex items-end gap-1 hover:bg-white/10 p-2 rounded relative transition-all">
                         <div className="relative">
                             <ShoppingCart className="h-8 w-8 text-white" />
-                            {cartCount > 0 && (
+                            {mounted && cartCount > 0 && (
                                 <Badge
                                     key={`cart-badge-${bounceKey}`}
                                     className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center rounded-full bg-brand-orange text-black font-bold p-0 border-2 border-transparent animate-cart-bounce"
@@ -997,7 +1007,7 @@ export function Navbar() {
                             className="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-xl overflow-y-auto"
                         >
                             <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
-                                {user ? (
+                                {mounted && user ? (
                                     <div className="flex items-center gap-2">
                                         <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
                                     </div>

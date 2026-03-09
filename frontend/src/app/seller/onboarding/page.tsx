@@ -196,7 +196,7 @@ export default function KYCOnboarding() {
     };
 
     return (
-        <div className="min-h-[100dvh] bg-gray-50 py-12 px-4 sm:px-6 pb-32">
+        <div suppressHydrationWarning className="h-[100dvh] overflow-y-auto bg-gray-50 py-12 px-4 sm:px-6 pb-32">
             {/* Progress Bar */}
             <div className="w-full max-w-2xl mx-auto mb-8">
                 <div className="flex justify-between mb-2">

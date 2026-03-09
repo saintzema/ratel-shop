@@ -168,8 +168,13 @@ export default function UnifiedAuthPage() {
         const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
         let determinedRole: "customer" | "seller" | "admin" = "customer";
 
-        if (identifier.toLowerCase().includes("admin@")) determinedRole = "admin";
-        else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") determinedRole = "seller";
+        if (existingUser?.role) {
+            determinedRole = existingUser.role as "customer" | "seller" | "admin";
+        } else if (identifier.toLowerCase().includes("admin@")) {
+            determinedRole = "admin";
+        } else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") {
+            determinedRole = "seller";
+        }
 
         setTimeout(() => {
             const finalRedirect =
@@ -179,15 +184,17 @@ export default function UnifiedAuthPage() {
 
             const userEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
             const userName = displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-            login({
+            const finalUser = existingUser || {
                 id: "user_" + Math.random().toString(36).substr(2, 9),
                 name: userName,
                 email: userEmail,
                 role: determinedRole,
                 created_at: new Date().toISOString()
-            });
+            };
+
+            login(finalUser);
             // Ensure this user is in the registered users list
-            saveRegisteredUser(userEmail, userName, determinedRole);
+            saveRegisteredUser(finalUser.email, finalUser.name, finalUser.role);
 
             // Welcome-back notification
             DemoStore.addNotification({
@@ -281,8 +288,13 @@ export default function UnifiedAuthPage() {
         const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
         let determinedRole: "customer" | "seller" | "admin" = "customer";
 
-        if (identifier.toLowerCase().includes("admin@")) determinedRole = "admin";
-        else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") determinedRole = "seller";
+        if (existingUser?.role) {
+            determinedRole = existingUser.role as "customer" | "seller" | "admin";
+        } else if (identifier.toLowerCase().includes("admin@")) {
+            determinedRole = "admin";
+        } else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") {
+            determinedRole = "seller";
+        }
 
         setTimeout(() => {
             const finalRedirect =
@@ -410,13 +422,13 @@ export default function UnifiedAuthPage() {
                 <div className="flex-1 w-full max-w-[440px] flex flex-col justify-center py-8">
                     {/* Logo Area */}
                     <div className="mb-8 md:hidden">
-                        <Logo className="h-10 w-auto scale-125 origin-left" />
+                        <Logo className="h-10 w-auto text-green-900 scale-125 justify-center" />
                     </div>
                     <div className="mb-8">
                         <h1 className="text-[32px] font-bold text-[#1d1d1f] tracking-tight mt-2 md:mt-8 mb-2">
                             Welcome
                         </h1>
-                        <p className="text-[#86868b] text-[15px]">
+                        <p className="text-green-600 text-[15px]">
                             Log in or create a FairPrice account to continue.
                         </p>
                     </div>
@@ -791,6 +803,18 @@ export default function UnifiedAuthPage() {
                                                         document.getElementById(`otp-${idx - 1}`)?.focus();
                                                     }
                                                 }}
+                                                onPaste={(e) => {
+                                                    e.preventDefault();
+                                                    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                                                    if (text) {
+                                                        text.split("").forEach((char, i) => {
+                                                            const input = document.getElementById(`otp-${i}`) as HTMLInputElement;
+                                                            if (input) input.value = char;
+                                                        });
+                                                        const nextIdx = Math.min(text.length, 5);
+                                                        document.getElementById(`otp-${nextIdx}`)?.focus();
+                                                    }
+                                                }}
                                                 onChange={(e) => {
                                                     const val = e.target.value.replace(/\D/g, "");
                                                     e.target.value = val;
@@ -858,6 +882,18 @@ export default function UnifiedAuthPage() {
                                                 onKeyDown={(e) => {
                                                     if (e.key === "Backspace" && !(e.target as HTMLInputElement).value && idx > 0) {
                                                         document.getElementById(`otp-ex-${idx - 1}`)?.focus();
+                                                    }
+                                                }}
+                                                onPaste={(e) => {
+                                                    e.preventDefault();
+                                                    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                                                    if (text) {
+                                                        text.split("").forEach((char, i) => {
+                                                            const input = document.getElementById(`otp-ex-${i}`) as HTMLInputElement;
+                                                            if (input) input.value = char;
+                                                        });
+                                                        const nextIdx = Math.min(text.length, 5);
+                                                        document.getElementById(`otp-ex-${nextIdx}`)?.focus();
                                                     }
                                                 }}
                                                 onChange={(e) => {

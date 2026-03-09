@@ -8,10 +8,13 @@ import { useState } from "react";
 
 export default function AffiliatePage() {
     const [copied, setCopied] = useState(false);
-    const handleCopy = () => {
-        navigator.clipboard.writeText("https://fairprice.ng/affiliate/apply");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = async () => {
+        const { copyToClipboard } = await import("@/lib/utils");
+        const success = await copyToClipboard("https://fairprice.ng/affiliate/apply");
+        if (success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     return (

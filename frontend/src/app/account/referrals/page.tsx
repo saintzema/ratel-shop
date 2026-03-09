@@ -37,10 +37,13 @@ export default function ReferralsPage() {
         }
     }, [user]);
 
-    const handleCopy = () => {
-        navigator.clipboard.writeText(referralLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+    const handleCopy = async () => {
+        const { copyToClipboard } = await import("@/lib/utils");
+        const success = await copyToClipboard(referralLink);
+        if (success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     if (!user) {

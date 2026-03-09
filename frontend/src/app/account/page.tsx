@@ -20,7 +20,7 @@ export default function AccountPage() {
             desc: "Track, return, or buy things again",
             href: "/account/orders"
         },
-         {
+        {
             icon: Share2,
             title: "Become a Seller",
             desc: "Start selling on FairPrice today",
@@ -38,8 +38,8 @@ export default function AccountPage() {
             desc: "View messages from sellers and FairPrice",
             href: "/account/messages"
         },
-        
-         {
+
+        {
             icon: Lock,
             title: "Login & security",
             desc: "Update profile picture, and login detials",
@@ -84,13 +84,19 @@ export default function AccountPage() {
         }
     }, [user]);
 
-    const handleCopyReferral = () => {
+    const handleCopyReferral = async () => {
         if (!user) return;
-        const refCode = user.id ? btoa(user.id).slice(0, 8).toUpperCase() : "DEMOREF";
+        // Keep full encoded ID so we can decode it later on checkout
+        const refCode = user.id ? btoa(user.id).replace(/=/g, '') : "DEMOREF";
         const link = `${window.location.origin}/?ref=${refCode}`;
-        navigator.clipboard.writeText(link);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+
+        const { copyToClipboard } = await import("@/lib/utils");
+        const success = await copyToClipboard(link);
+
+        if (success) {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
     };
 
     return (
