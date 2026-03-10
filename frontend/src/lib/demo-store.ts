@@ -51,6 +51,9 @@ export const INITIAL_CATEGORIES: Category[] = [
 
 class DemoStoreService {
     private static instance: DemoStoreService;
+    // Track product IDs with local edits not yet confirmed by DB
+    private _pendingEdits: Set<string> = new Set();
+    private readonly _PENDING_KEY = "fp_pending_product_edits";
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -79,6 +82,11 @@ class DemoStoreService {
     private constructor() {
         if (typeof window !== "undefined") {
             this.init();
+            // Restore pending edits from previous session
+            try {
+                const saved = localStorage.getItem(this._PENDING_KEY);
+                if (saved) this._pendingEdits = new Set(JSON.parse(saved));
+            } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
         }
@@ -180,8 +188,35 @@ class DemoStoreService {
             if (productsRes.ok) {
                 const dbProducts = await productsRes.json();
                 if (dbProducts.length > 0) {
-                    console.log(`Synced ${dbProducts.length} products from DB`);
-                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProducts));
+                    // SMART MERGE: preserve locally-edited products that haven't been
+                    // confirmed by the DB yet (pending edits). This prevents syncWithDB
+                    // from overwriting admin edits that are still in-flight.
+                    const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
+                    const dbMap = new Map(dbProducts.map((p: any) => [p.id, p]));
+                    const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
+
+                    // Start with all DB products
+                    const merged = new Map(dbMap);
+
+                    // For any product with pending local edits, keep the LOCAL version
+                    for (const pendingId of this._pendingEdits) {
+                        const localVersion = localMap.get(pendingId);
+                        if (localVersion) {
+                            merged.set(pendingId, localVersion);
+                            console.log(`🔒 Preserved local edit for product: ${pendingId}`);
+                        }
+                    }
+
+                    // Also keep any local-only products not in DB (e.g. newly added)
+                    for (const [id, product] of localMap) {
+                        if (!dbMap.has(id)) {
+                            merged.set(id, product);
+                        }
+                    }
+
+                    const mergedProducts = Array.from(merged.values());
+                    console.log(`Synced ${dbProducts.length} products from DB, ${this._pendingEdits.size} local edits preserved`);
+                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(mergedProducts));
                 }
             }
 
@@ -196,8 +231,6 @@ class DemoStoreService {
                     // different ID than the one the frontend generated.
                     const storedSellerId = this.getCurrentSellerId();
                     if (storedSellerId && !dbSellers.find((s: any) => s.id === storedSellerId)) {
-                        // The stored ID doesn't exist in DB data.
-                        // Try to find the seller by user_id instead.
                         const currentUser = this._getCurrentUserId();
                         if (currentUser) {
                             const match = dbSellers.find((s: any) => s.user_id === currentUser);
@@ -222,8 +255,6 @@ class DemoStoreService {
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
         } catch (error) {
-            // Use warn instead of error to prevent Next.js dev overlay from throwing a red screen
-            // on simple network failures (e.g offline or route missing)
             console.warn("Database sync failed quietly:", (error as Error).message || "Network issue");
         }
     }
@@ -689,23 +720,46 @@ class DemoStoreService {
 
     getTrendingIds(): string[] {
         if (typeof window === "undefined") return [];
-        try {
-            return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.TRENDING_CURATION || "fp_trending_ids") || "[]");
-        } catch { return []; }
+        return this.getProducts().filter(p => p.is_trending).map(p => p.id);
     }
 
-    toggleTrending(productId: string): boolean {
-        const ids = new Set(this.getTrendingIds());
-        let isNowTrending = false;
-        if (ids.has(productId)) {
-            ids.delete(productId);
-        } else {
-            ids.add(productId);
-            isNowTrending = true;
+    async toggleTrending(productId: string): Promise<boolean> {
+        const products = this.getProducts();
+        const product = products.find(p => p.id === productId);
+        let newStatus = false;
+
+        // Optimistic UI Update
+        if (product) {
+            product.is_trending = !product.is_trending;
+            newStatus = product.is_trending;
+            window.dispatchEvent(new Event("demo-store-update"));
         }
-        localStorage.setItem(this.STORAGE_KEYS.TRENDING_CURATION || "fp_trending_ids", JSON.stringify([...ids]));
-        window.dispatchEvent(new Event("demo-store-update"));
-        return isNowTrending;
+
+        // DB Update
+        try {
+            const res = await fetch(`/api/products/${productId}/trending`, { method: "POST" });
+            if (res.ok) {
+                const data = await res.json();
+                if (product) {
+                    product.is_trending = data.isTrending;
+                    newStatus = data.isTrending;
+                    window.dispatchEvent(new Event("demo-store-update"));
+                }
+            } else {
+                // Revert on failure
+                if (product) {
+                    product.is_trending = !newStatus;
+                    window.dispatchEvent(new Event("demo-store-update"));
+                }
+            }
+        } catch (error) {
+            console.error("Failed to toggle trending", error);
+            if (product) {
+                product.is_trending = !newStatus;
+                window.dispatchEvent(new Event("demo-store-update"));
+            }
+        }
+        return newStatus;
     }
 
     /** Fuzzy match: find cached products across ALL queries that match tokens */
@@ -1120,11 +1174,19 @@ class DemoStoreService {
 
         const mergedProduct = { ...existingProduct, ...updates } as Product;
         const updated = products.map(p => p.id === id ? mergedProduct : p);
-        // Write to localStorage FIRST for instant UI feedback
+
+        // Mark as pending BEFORE writing — protects from syncWithDB overwrite
+        this._pendingEdits.add(id);
+        try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
+
+        // Write to localStorage for instant UI feedback
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
 
+        // Dispatch events IMMEDIATELY so UI updates right away
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+
         // Persist to Postgres — AWAIT so the DB has the latest data
-        // before the next syncWithDB() overwrites localStorage
         try {
             const res = await fetch("/api/products", {
                 method: "POST",
@@ -1133,16 +1195,18 @@ class DemoStoreService {
             });
             if (res.ok) {
                 console.log(`✅ Persisted product update to DB: ${id}`);
+                // DB confirmed — safe to remove from pending
+                this._pendingEdits.delete(id);
+                try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
             } else {
                 const errData = await res.json().catch(() => ({}));
                 console.warn(`⚠️ DB write returned ${res.status} for product ${id}:`, errData.error || "Unknown error");
+                // Keep in pendingEdits so syncWithDB doesn't overwrite
             }
         } catch (err) {
             console.warn("⚠️ Failed to persist product update to DB:", err);
+            // Keep in pendingEdits so syncWithDB doesn't overwrite
         }
-
-        window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
     }
 
     promoteProduct(id: string, isSponsored: boolean = true) {
@@ -2253,7 +2317,40 @@ class DemoStoreService {
         const stored = localStorage.getItem(this.STORAGE_KEYS.REVIEWS);
         const all = stored ? JSON.parse(stored) : [];
         if (!productId) return all;
-        return all.filter((r: any) => r.product_id === productId);
+
+        // Exact match
+        const exactMatches = all.filter((r: any) => r.product_id === productId);
+        if (exactMatches.length > 0) return exactMatches;
+
+        // If no explicit reviews exist, let's randomly assign some generic, high-quality
+        // simulated reviews based on a hash of the product ID, to ensure consistency per-product
+        // but diversity across the board.
+        const hash = productId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const productsList = this.getProducts();
+        const product = productsList.find(p => p.id === productId);
+
+        if (!product) return [];
+
+        const categoryMatches = all.filter((r: any) => {
+            const relatedProduct = productsList.find(p => p.id === r.product_id);
+            return relatedProduct && relatedProduct.category === product.category;
+        });
+
+        const pool = categoryMatches.length >= 3 ? categoryMatches : all;
+
+        // Pick 3-6 random reviews from the pool consistently based on product hash
+        const numReviews = 3 + (hash % 4);
+        const assignedReviews = [];
+
+        for (let i = 0; i < numReviews; i++) {
+            const reviewHash = (hash * (i + 1) * 31) % pool.length;
+            const clonedReview = { ...pool[reviewHash] };
+            clonedReview.id = `mock_rev_${productId}_${i}`;
+            clonedReview.product_id = productId;
+            assignedReviews.push(clonedReview);
+        }
+
+        return assignedReviews;
     }
 
     addReview(review: Omit<any, "id" | "created_at">) {

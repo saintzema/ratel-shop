@@ -536,8 +536,8 @@ export default function CatalogControl() {
                                                 <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                     <Button
                                                         variant="ghost" size="icon"
-                                                        onClick={() => {
-                                                            DemoStore.toggleTrending(p.id);
+                                                        onClick={async () => {
+                                                            await DemoStore.toggleTrending(p.id);
                                                             setTrendingIds(new Set(DemoStore.getTrendingIds()));
                                                         }}
                                                         className={cn("h-8 w-8 rounded-xl", trendingIds.has(p.id) ? "text-orange-500 bg-orange-50 hover:bg-orange-100" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50")}

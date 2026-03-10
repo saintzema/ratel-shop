@@ -38,8 +38,8 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
     <div style="background:linear-gradient(135deg,#059669 0%,#10b981 50%,#34d399 100%);padding:24px 20px;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px;">
       <img src="${logoUrl}" alt="FairPrice" width="40" height="auto" style="display:inline-block;margin:0;max-width:40px;border-radius:8px;" />
       <div style="text-align:left;">
-        <h1 style="color:white;font-size:20px;font-weight:900;margin:0;letter-spacing:-0.5px;line-height:1.2;">Welcome to FairPrice</h1>
-        <p style="color:rgba(255,255,255,0.9);font-size:12px;margin:0;font-weight:600;">Africa's First AI-Powered Marketplace</p>
+        <h1 style="color:white;font-size:20px;font-weight:900;margin:0;letter-spacing:-0.5px;line-height:1.2;padding:12px">Welcome to FairPrice</h1>
+        <p style="color:rgba(255,255,255,0.9);font-size:12px;margin:0;font-weight:600;padding:12px">Africa's First AI-Powered Marketplace</p>
       </div>
     </div>
     <div style="padding:24px 32px 32px;">
@@ -48,16 +48,16 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
       </p>
       <h2 style="color:#111827;font-size:16px;font-weight:800;margin:0 0 16px 0;">Here's what you'll get access to:</h2>
       <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="padding:12px;background:#f0fdf4;border-radius:12px;" valign="top"><strong style="color:#059669;font-size:13px;">AI-Regulated Prices</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Our AI ensures every product is fairly priced.</p></td></tr>
+        <tr><td style="padding:12px;background:#f0fdf4;border-radius:12px;" valign="top"><strong style="color:#059669;font-size:14px;">AI-Regulated Prices</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Our AI ensures every product is fairly priced.</p></td></tr>
         <tr><td style="height:8px;"></td></tr>
-        <tr><td style="padding:12px;background:#eff6ff;border-radius:12px;" valign="top"><strong style="color:#2563eb;font-size:13px;">Price Negotiation</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Haggle directly with sellers.</p></td></tr>
+        <tr><td style="padding:12px;background:#eff6ff;border-radius:12px;" valign="top"><strong style="color:#2563eb;font-size:14px;">Price Negotiation</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Haggle directly with sellers.</p></td></tr>
         <tr><td style="height:8px;"></td></tr>
-        <tr><td style="padding:12px;background:#faf5ff;border-radius:12px;" valign="top"><strong style="color:#7c3aed;font-size:13px;">Global Sourcing</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Get any product from anywhere delivered to your doorstep.</p></td></tr>
+        <tr><td style="padding:12px;background:#faf5ff;border-radius:12px;" valign="top"><strong style="color:#7c3aed;font-size:14px;">Global Sourcing</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Get any product from anywhere delivered to your doorstep.</p></td></tr>
         <tr><td style="height:8px;"></td></tr>
         <tr><td style="height:8px;"></td></tr>
-        <tr><td style="padding:12px;background:#fff7ed;border-radius:12px;" valign="top"><strong style="color:#ea580c;font-size:13px;">Free Delivery</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Pay on our platform and enjoy free delivery nationwide.</p></td></tr>
+        <tr><td style="padding:12px;background:#fff7ed;border-radius:12px;" valign="top"><strong style="color:#ea580c;font-size:14px;">Free Delivery</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Pay on our platform and enjoy free delivery nationwide.</p></td></tr>
         <tr><td style="height:8px;"></td></tr>
-        <tr><td style="padding:12px;background:#f0fdfa;border-radius:12px;" valign="top"><strong style="color:#0d9488;font-size:13px;">Start Selling</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Register as a seller, open your store in minutes, and reach millions.</p></td></tr>
+        <tr><td style="padding:12px;background:#f0fdfa;border-radius:12px;" valign="top"><strong style="color:#0d9488;font-size:14px;">Start Selling</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Register as a seller, open your store in minutes, and reach millions.</p></td></tr>
       </table>
       <div style="text-align:center;margin-top:28px;">
         <a href="https://fairprice.ng" style="display:inline-block;background:linear-gradient(135deg,#059669,#10b981);color:white;text-decoration:none;padding:14px 36px;border-radius:14px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(5,150,105,0.3);">Visit FairPrice.ng</a>

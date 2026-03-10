@@ -241,6 +241,7 @@ model Product {
   stock            Int              @default(1)
   priceFlag        PriceFlag        @default(none)
   isSponsored      Boolean          @default(false)
+  isTrending       Boolean          @default(false)
   isActive         Boolean          @default(true)
   avgRating        Float            @default(0.0)
   reviewCount      Int              @default(0)

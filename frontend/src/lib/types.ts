@@ -83,6 +83,7 @@ export interface Product {
     stock: number;
     price_flag: "fair" | "overpriced" | "too_low" | "none" | "great_deal";
     is_sponsored?: boolean;
+    is_trending?: boolean;
     is_active: boolean;
     avg_rating: number;
     review_count: number;
