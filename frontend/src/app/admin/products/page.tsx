@@ -43,6 +43,7 @@ export default function CatalogControl() {
     const [cachedProducts, setCachedProducts] = useState<any[]>([]);
     const [editingCacheProduct, setEditingCacheProduct] = useState<any | null>(null);
     const [cacheEditFields, setCacheEditFields] = useState<{ name: string; price: string; image_url: string; description: string }>({ name: '', price: '', image_url: '', description: '' });
+    const [selectedCacheIds, setSelectedCacheIds] = useState<string[]>([]);
 
     const [scrapedProducts, setScrapedProducts] = useState<any[]>([]);
     const [isScraping, setIsScraping] = useState(false);
@@ -287,102 +288,152 @@ export default function CatalogControl() {
             </div>
 
             {/* ════════ SEARCH CACHE TAB ════════ */}
-            {filter === 'cache' ? (
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50 flex items-center justify-between">
-                        <div>
-                            <h3 className="text-sm font-black text-blue-900">Search Result Cache</h3>
-                            <p className="text-xs text-blue-600/70 mt-0.5">Products found via global search. Edit details and promote to your public catalog.</p>
+            {filter === 'cache' ? (() => {
+                const searchFilteredCache = cachedProducts
+                    .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.cache_query && p.cache_query.toLowerCase().includes(searchTerm.toLowerCase())))
+                    .sort((a, b) => {
+                        if (sort === "date_desc") return (new Date(b.created_at || b.cached_at || 0).getTime()) - (new Date(a.created_at || a.cached_at || 0).getTime());
+                        if (sort === "date_asc") return (new Date(a.created_at || a.cached_at || 0).getTime()) - (new Date(b.created_at || b.cached_at || 0).getTime());
+                        if (sort === "price_desc") return (b.price || 0) - (a.price || 0);
+                        if (sort === "price_asc") return (a.price || 0) - (b.price || 0);
+                        if (sort === "category_asc") return (a.category || "").localeCompare(b.category || "");
+                        return 0;
+                    });
+
+                const allIds = searchFilteredCache.map((p: any) => p.id);
+                const isAllSelected = allIds.length > 0 && selectedCacheIds.length === allIds.length;
+                const isIndeterminate = selectedCacheIds.length > 0 && selectedCacheIds.length < allIds.length;
+
+                return (
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="px-6 py-4 border-b border-gray-100 bg-blue-50/50 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-sm font-black text-blue-900">Search Result Cache</h3>
+                                <p className="text-xs text-blue-600/70 mt-0.5">Products found via global search. Edit details and promote to your public catalog.</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {selectedCacheIds.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            if (confirm(`Are you sure you want to delete ${selectedCacheIds.length} items from the cache?`)) {
+                                                // Re-fetch properly using DemoStore
+                                                for (let id of selectedCacheIds) {
+                                                    DemoStore.removeFromSearchCache(id);
+                                                }
+                                                setCachedProducts(DemoStore.getAllCachedProducts());
+                                                setSelectedCacheIds([]);
+                                            }
+                                        }}
+                                        className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5" /> Delete Selected ({selectedCacheIds.length})
+                                    </button>
+                                )}
+                                <span className="text-xs font-black text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full">{searchFilteredCache.length} cached</span>
+                            </div>
                         </div>
-                        <span className="text-xs font-black text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full">{cachedProducts.length} cached</span>
-                    </div>
-                    {cachedProducts.length === 0 ? (
-                        <div className="px-6 py-16 text-center">
-                            <Globe className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                            <p className="text-sm font-bold text-gray-400">No cached search results yet.</p>
-                            <p className="text-xs text-gray-400 mt-1">Products will appear here when users search via the global search.</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-100">
-                            {[...cachedProducts]
-                                .filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()))
-                                .sort((a, b) => {
-                                    if (sort === "date_desc") return (new Date(b.created_at || b.cached_at || 0).getTime()) - (new Date(a.created_at || a.cached_at || 0).getTime());
-                                    if (sort === "date_asc") return (new Date(a.created_at || a.cached_at || 0).getTime()) - (new Date(b.created_at || b.cached_at || 0).getTime());
-                                    if (sort === "price_desc") return (b.price || 0) - (a.price || 0);
-                                    if (sort === "price_asc") return (a.price || 0) - (b.price || 0);
-                                    if (sort === "category_asc") return (a.category || "").localeCompare(b.category || "");
-                                    return 0;
-                                })
-                                .map((p: any) => (
-                                    <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors group">
-                                        <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
-                                            <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-xs font-bold text-blue-600">₦{p.price?.toLocaleString()}</span>
-                                                <span className="text-[10px] text-gray-400">·</span>
-                                                <span className="text-[10px] text-gray-400 uppercase">{p.category}</span>
-                                                {p.cache_query && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">Query: "{p.cache_query}"</span>}
+                        {searchFilteredCache.length === 0 ? (
+                            <div className="px-6 py-16 text-center">
+                                <Globe className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                                <p className="text-sm font-bold text-gray-400">No cached search results yet.</p>
+                                <p className="text-xs text-gray-400 mt-1">Products will appear here when users search via the global search.</p>
+                            </div>
+                        ) : (
+                            <div className="divide-y divide-gray-100">
+                                <div className="px-6 py-3 bg-gray-50/80 flex items-center gap-4">
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                        checked={isAllSelected}
+                                        ref={input => { if (input) input.indeterminate = isIndeterminate; }}
+                                        onChange={(e) => {
+                                            if (e.target.checked) setSelectedCacheIds(allIds);
+                                            else setSelectedCacheIds([]);
+                                        }}
+                                    />
+                                    <span className="text-[10px] font-black tracking-widest uppercase text-gray-500">Select All</span>
+                                </div>
+
+                                {searchFilteredCache
+                                    .map((p: any) => (
+                                        <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors group">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                                checked={selectedCacheIds.includes(p.id)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) setSelectedCacheIds([...selectedCacheIds, p.id]);
+                                                    else setSelectedCacheIds(selectedCacheIds.filter(id => id !== p.id));
+                                                }}
+                                            />
+                                            <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
+                                                <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="text-xs font-bold text-blue-600">₦{p.price?.toLocaleString()}</span>
+                                                    <span className="text-[10px] text-gray-400">·</span>
+                                                    <span className="text-[10px] text-gray-400 uppercase">{p.category}</span>
+                                                    {p.cache_query && <span className="text-[10px] text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">Query: "{p.cache_query}"</span>}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button
+                                                    onClick={() => { setEditingCacheProduct(p); setCacheEditFields({ name: p.name, price: String(p.price || 0), image_url: p.image_url || '', description: p.description || '' }); }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                                >
+                                                    <Edit2 className="h-3 w-3 inline mr-1" />Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => { DemoStore.promoteFromCache(p.id); DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                                                >
+                                                    <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
+                                                </button>
+                                                <button
+                                                    onClick={() => { if (confirm('Remove from cache?')) { DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); } }}
+                                                    className="px-2 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button
-                                                onClick={() => { setEditingCacheProduct(p); setCacheEditFields({ name: p.name, price: String(p.price || 0), image_url: p.image_url || '', description: p.description || '' }); }}
-                                                className="px-3 py-1.5 text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                                            >
-                                                <Edit2 className="h-3 w-3 inline mr-1" />Edit
-                                            </button>
-                                            <button
-                                                onClick={() => { DemoStore.promoteFromCache(p.id); DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); }}
-                                                className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                                            >
-                                                <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
-                                            </button>
-                                            <button
-                                                onClick={() => { if (confirm('Remove from cache?')) { DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); } }}
-                                                className="px-2 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 className="h-3.5 w-3.5" />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                        </div>
-                    )}
-
-                    {/* Cache Edit Modal */}
-                    <Dialog open={!!editingCacheProduct} onOpenChange={() => setEditingCacheProduct(null)}>
-                        <DialogContent className="max-w-lg">
-                            <DialogHeader>
-                                <DialogTitle className="text-lg font-black">Edit Cached Product</DialogTitle>
-                            </DialogHeader>
-                            <div className="space-y-4 py-2">
-                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Product Name</label><Input value={cacheEditFields.name} onChange={e => setCacheEditFields(p => ({ ...p, name: e.target.value }))} /></div>
-                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="text" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
-                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
-                                {cacheEditFields.image_url && <img src={cacheEditFields.image_url} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
-                                <div><label className="text-xs font-bold text-gray-500 mb-1 block">Description</label><textarea className="w-full border rounded-lg p-2 text-sm min-h-[80px]" value={cacheEditFields.description} onChange={e => setCacheEditFields(p => ({ ...p, description: e.target.value }))} /></div>
+                                    ))}
                             </div>
-                            <DialogFooter className="gap-2">
-                                <Button variant="outline" onClick={() => setEditingCacheProduct(null)}>Cancel</Button>
-                                <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => {
-                                    DemoStore.updateSearchCacheProduct(editingCacheProduct.id, {
-                                        name: cacheEditFields.name,
-                                        price: parseFloat(cacheEditFields.price.replace(/,/g, '')) || 0,
-                                        image_url: cacheEditFields.image_url,
-                                        description: cacheEditFields.description,
-                                    });
-                                    setCachedProducts(DemoStore.getAllCachedProducts());
-                                    setEditingCacheProduct(null);
-                                }}>Save Changes</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            ) : (
+                        )}
+
+                        {/* Cache Edit Modal */}
+                        <Dialog open={!!editingCacheProduct} onOpenChange={() => setEditingCacheProduct(null)}>
+                            <DialogContent className="max-w-lg">
+                                <DialogHeader>
+                                    <DialogTitle className="text-lg font-black">Edit Cached Product</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 py-2">
+                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Product Name</label><Input value={cacheEditFields.name} onChange={e => setCacheEditFields(p => ({ ...p, name: e.target.value }))} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="text" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
+                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
+                                    {cacheEditFields.image_url && <img src={cacheEditFields.image_url} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
+                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Description</label><textarea className="w-full border rounded-lg p-2 text-sm min-h-[80px]" value={cacheEditFields.description} onChange={e => setCacheEditFields(p => ({ ...p, description: e.target.value }))} /></div>
+                                </div>
+                                <DialogFooter className="gap-2">
+                                    <Button variant="outline" onClick={() => setEditingCacheProduct(null)}>Cancel</Button>
+                                    <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => {
+                                        DemoStore.updateSearchCacheProduct(editingCacheProduct.id, {
+                                            name: cacheEditFields.name,
+                                            price: parseFloat(cacheEditFields.price.replace(/,/g, '')) || 0,
+                                            image_url: cacheEditFields.image_url,
+                                            description: cacheEditFields.description,
+                                        });
+                                        setCachedProducts(DemoStore.getAllCachedProducts());
+                                        setEditingCacheProduct(null);
+                                    }}>Save Changes</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                );
+            })() : (
                 <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">

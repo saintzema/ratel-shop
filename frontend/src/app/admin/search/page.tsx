@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,7 +15,7 @@ import { DemoStore } from "@/lib/demo-store";
 import { Product, Seller, Order } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 
-export default function AdminSearchPage() {
+function AdminSearchContent() {
     const searchParams = useSearchParams();
     const query = searchParams?.get("q")?.toLowerCase() || "";
 
@@ -182,3 +182,10 @@ export default function AdminSearchPage() {
     );
 }
 
+export default function AdminSearchPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminSearchContent />
+        </Suspense>
+    );
+}

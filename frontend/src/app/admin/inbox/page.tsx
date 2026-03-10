@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import {
     MessageSquare,
     Send,
@@ -19,7 +19,7 @@ import { useSearchParams } from "next/navigation";
 const ADMIN_ID = "admin";
 const ADMIN_NAME = "FairPrice Admin";
 
-export default function AdminInbox() {
+function AdminInboxContent() {
     const searchParams = useSearchParams();
     const [conversations, setConversations] = useState<any[]>([]);
     const [activeConv, setActiveConv] = useState<any>(null);
@@ -408,5 +408,13 @@ export default function AdminInbox() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function AdminInbox() {
+    return (
+        <Suspense fallback={null}>
+            <AdminInboxContent />
+        </Suspense>
     );
 }

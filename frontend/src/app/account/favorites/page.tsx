@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Product } from "@/lib/types";
@@ -14,7 +14,7 @@ import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 
-export default function FavoritesPage() {
+function FavoritesContent() {
     const { favorites } = useFavorites();
     const { user } = useAuth();
     const searchParams = useSearchParams();
@@ -162,5 +162,13 @@ export default function FavoritesPage() {
 
             <Footer />
         </div>
+    );
+}
+
+export default function FavoritesPage() {
+    return (
+        <Suspense fallback={null}>
+            <FavoritesContent />
+        </Suspense>
     );
 }

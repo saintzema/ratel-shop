@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { DEMO_DEALS } from "@/lib/data";
 import { DemoStore } from "@/lib/demo-store";
@@ -176,7 +176,7 @@ const CATEGORY_CARDS_ROW_3: CategoryCard[] = [
 
 // ─── Component ──────────────────────────────────────────────
 
-export default function Home() {
+function HomeContent() {
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const productSectionRef = useRef<HTMLDivElement>(null);
 
@@ -810,3 +810,11 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
   );
 }
 
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
+  );
+}

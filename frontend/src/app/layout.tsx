@@ -15,6 +15,7 @@ import { MessageBox } from "@/components/messaging/MessageBox";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PwaManager } from "@/components/ui/PwaManager";
 import { ClientImageFallback } from "@/components/ui/ClientImageFallback";
+import { WaitlistModal } from "@/components/modals/WaitlistModal";
 
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
@@ -65,6 +66,7 @@ export default function RootLayout({
               </FavoritesProvider>
               <FloatingCart />
               <PwaManager />
+              <WaitlistModal />
             </CartProvider>
           </AuthProvider>
         </LocationProvider>

@@ -169,14 +169,21 @@ export function Navbar() {
     useEffect(() => {
         if (searchQuery.trim().length > 0) {
             const q = searchQuery.toLowerCase();
-            // Local product matches — only STRONG matches
+            // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
             const storeProducts = DemoStore.getApprovedProducts();
             const allSearchProducts = [...storeProducts, ...DEMO_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
             const scored = allSearchProducts
-                .map(p => ({ product: p, score: scoreProduct(p, q) }))
-                .filter(s => s.score > 45)
+                .map(p => {
+                    let score = scoreProduct(p, q);
+                    // Boost global products added from search
+                    if (p.seller_id === 'global-partners' || p.seller_name?.toLowerCase().includes('global')) {
+                        score += 15;
+                    }
+                    return { product: p, score };
+                })
+                .filter(s => s.score > 40) // slightly lowered threshold to capture more inventory overlaps
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 2);
+                .slice(0, 3); // increased max slice from 2 to 3 to show more matches
             setSuggestions(scored.map(s => s.product));
 
             // Category suggestions
@@ -684,7 +691,7 @@ export function Navbar() {
                                     })}
 
                                     {/* Cached Results from Past Searches (instant) */}
-                                    {cachedResults.length > 0 && !isGlobalSearching && globalResults.length === 0 && (
+                                    {cachedResults.length > 0 && !isGlobalSearching && (
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2 flex items-center gap-2 text-xs font-black text-blue-700 uppercase tracking-wider">
                                                 <History className="h-3.5 w-3.5 text-blue-500" />
