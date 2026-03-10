@@ -53,6 +53,7 @@ export default function UnifiedAuthPage() {
         const normalizedId = identifier.toLowerCase().trim();
         if (normalizedId === "techzema@gmail.com") return { id: "admin_1", name: "Tech Zema", email: "techzema@gmail.com", role: "admin" as const, created_at: new Date().toISOString() };
         if (normalizedId === "seller@example.com") return { id: "seller_1", name: "Demo Seller", email: "seller@example.com", role: "seller" as const, created_at: new Date().toISOString() };
+        if (normalizedId === "apple-review@fairprice.app") return { id: "apple_review_1", name: "Apple Reviewer", email: "apple-review@fairprice.app", role: "customer" as const, created_at: new Date().toISOString() };
         return null;
     })();
 
@@ -150,7 +151,8 @@ export default function UnifiedAuthPage() {
             const isExisting =
                 checkRegisteredUser(normalizedId) ||
                 normalizedId === "techzema@gmail.com" ||
-                normalizedId === "seller@example.com";
+                normalizedId === "seller@example.com" ||
+                normalizedId === "apple-review@fairprice.app";
 
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
