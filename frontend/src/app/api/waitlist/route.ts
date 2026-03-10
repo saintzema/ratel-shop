@@ -20,7 +20,7 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
-    const logoUrl = "https://fairprice.ng/logo.png";
+    const logoUrl = "https://fairprice-ten.vercel.app/logo.png";
 
     const data = await resend.emails.send({
       from: "Ziva from FairPrice <hello@fairprice.zemaai.com>",
@@ -34,13 +34,15 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="margin:0;padding:0;background-color:#f0fdf4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <div style="max-width:520px;margin:40px auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
-    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 50%,#34d399 100%);padding:40px 32px;text-align:center;">
-      <img src="${logoUrl}" alt="FairPrice" width="140" height="auto" style="display:block;margin:0 auto 16px auto;max-width:140px;" />
-      <h1 style="color:white;font-size:28px;font-weight:900;margin:0 0 8px 0;letter-spacing:-0.5px;">Welcome to FairPrice</h1>
-      <p style="color:rgba(255,255,255,0.8);font-size:14px;margin:0;font-weight:500;">Africa's First AI-Powered Fair-Priced Marketplace</p>
+  <div style="max-width:520px;margin:20px auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 50%,#34d399 100%);padding:24px 20px;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px;">
+      <img src="${logoUrl}" alt="FairPrice" width="40" height="auto" style="display:inline-block;margin:0;max-width:40px;border-radius:8px;" />
+      <div style="text-align:left;">
+        <h1 style="color:white;font-size:20px;font-weight:900;margin:0;letter-spacing:-0.5px;line-height:1.2;">Welcome to FairPrice</h1>
+        <p style="color:rgba(255,255,255,0.9);font-size:12px;margin:0;font-weight:600;">Africa's First AI-Powered Marketplace</p>
+      </div>
     </div>
-    <div style="padding:32px;">
+    <div style="padding:24px 32px 32px;">
       <p style="color:#111827;font-size:16px;line-height:1.6;margin:0 0 20px 0;">
         You're <strong style="color:#059669;">#${waitlistPosition}</strong> on the waitlist! We're thrilled to have you join the movement to end unfair pricing in Nigeria.
       </p>
@@ -52,7 +54,10 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
         <tr><td style="height:8px;"></td></tr>
         <tr><td style="padding:12px;background:#faf5ff;border-radius:12px;" valign="top"><strong style="color:#7c3aed;font-size:13px;">Global Sourcing</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Get any product from anywhere delivered to your doorstep.</p></td></tr>
         <tr><td style="height:8px;"></td></tr>
+        <tr><td style="height:8px;"></td></tr>
         <tr><td style="padding:12px;background:#fff7ed;border-radius:12px;" valign="top"><strong style="color:#ea580c;font-size:13px;">Free Delivery</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Pay on our platform and enjoy free delivery nationwide.</p></td></tr>
+        <tr><td style="height:8px;"></td></tr>
+        <tr><td style="padding:12px;background:#f0fdfa;border-radius:12px;" valign="top"><strong style="color:#0d9488;font-size:13px;">Start Selling</strong><p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Register as a seller, open your store in minutes, and reach millions.</p></td></tr>
       </table>
       <div style="text-align:center;margin-top:28px;">
         <a href="https://fairprice.ng" style="display:inline-block;background:linear-gradient(135deg,#059669,#10b981);color:white;text-decoration:none;padding:14px 36px;border-radius:14px;font-weight:800;font-size:14px;box-shadow:0 4px 14px rgba(5,150,105,0.3);">Visit FairPrice.ng</a>

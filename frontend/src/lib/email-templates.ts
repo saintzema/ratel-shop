@@ -87,7 +87,7 @@ function BaseTemplate(title: string, contentHTML: string) {
                         <tr>
                             <td style="padding:48px;">
                                 <div style="text-align:center;margin-bottom:32px;">
-                                    <img src="https://fairprice.ng/logo.png" alt="FairPrice" width="120" height="auto" style="display:block;margin:0 auto 12px auto;max-width:120px;" />
+                                    <img src="https://fairprice-ten.vercel.app/logo.png" alt="FairPrice" width="60" height="auto" style="display:block;margin:0 auto 12px auto;max-width:60px;border-radius:12px;" />
                                     <h1 style="margin:0;font-size:32px;font-weight:900;letter-spacing:-1px;color:${BRAND_COLOR};">FairPrice</h1>
                                     <h2 style="margin:8px 0 0 0;font-size:24px;font-weight:700;color:#1d1d1f;letter-spacing:-0.5px;" class="text-main">${title}</h2>
                                 </div>
