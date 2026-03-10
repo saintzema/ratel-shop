@@ -1106,7 +1106,7 @@ class DemoStoreService {
         return product;
     }
 
-    updateProduct(id: string, updates: Partial<Product>) {
+    async updateProduct(id: string, updates: Partial<Product>) {
         const products = this.getProducts();
         const existingProduct = products.find(p => p.id === id);
 
@@ -1120,14 +1120,26 @@ class DemoStoreService {
 
         const mergedProduct = { ...existingProduct, ...updates } as Product;
         const updated = products.map(p => p.id === id ? mergedProduct : p);
+        // Write to localStorage FIRST for instant UI feedback
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
 
-        // Persist to Postgres
-        fetch("/api/products", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mergedProduct),
-        }).catch(err => console.warn("Failed to persist product update:", err));
+        // Persist to Postgres — AWAIT so the DB has the latest data
+        // before the next syncWithDB() overwrites localStorage
+        try {
+            const res = await fetch("/api/products", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(mergedProduct),
+            });
+            if (res.ok) {
+                console.log(`✅ Persisted product update to DB: ${id}`);
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                console.warn(`⚠️ DB write returned ${res.status} for product ${id}:`, errData.error || "Unknown error");
+            }
+        } catch (err) {
+            console.warn("⚠️ Failed to persist product update to DB:", err);
+        }
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
