@@ -132,9 +132,9 @@ export default function CatalogControl() {
         }
     };
 
-    const handleEditSave = () => {
+    const handleEditSave = async () => {
         if (editingProduct) {
-            DemoStore.updateProduct(editingProduct.id, {
+            await DemoStore.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
                 category: editCategory || editingProduct.category,
                 subcategory: editSubcategory,
@@ -211,15 +211,15 @@ export default function CatalogControl() {
         })));
     };
 
-    const handleApplySync = () => {
-        selectedSyncIds.forEach(id => {
+    const handleApplySync = async () => {
+        for (const id of selectedSyncIds) {
             const item = syncReport.find(r => r.id === id);
             if (item) {
                 // Round to nearest hundred
                 const roundedPrice = Math.ceil(item.suggestedPrice / 100) * 100;
-                DemoStore.updateProduct(id, { price: roundedPrice });
+                await DemoStore.updateProduct(id, { price: roundedPrice });
             }
-        });
+        }
         setIsSyncModalOpen(false);
         setProducts(DemoStore.getProducts());
         alert("Selected global product prices successfully synced and updated.");

@@ -181,13 +181,13 @@ export default function EditProduct() {
         }, 800);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!product) return;
         setIsSaving(true);
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
 
-        DemoStore.updateProduct(product.id, {
+        await DemoStore.updateProduct(product.id, {
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,
@@ -201,11 +201,9 @@ export default function EditProduct() {
             highlights: formData.highlights
         });
 
-        setTimeout(() => {
-            setIsSaving(false);
-            setSaved(true);
-            setTimeout(() => setSaved(false), 3000);
-        }, 600);
+        setIsSaving(false);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
     };
 
     if (!product) {

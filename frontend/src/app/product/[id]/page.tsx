@@ -236,8 +236,25 @@ export default function ProductDetailPage() {
                 if (/humidifier|diffuser|air.*purifier|fan|cooler|heater|dehumidifier/.test(nl)) {
                     return `Create the perfect atmosphere with the ${n}. Combining innovative technology with elegant design, this device quietly regulates your environment for optimal comfort. Features smart auto-shutoff safety, adjustable mist or airflow settings, and ultra-quiet operation that won't disturb your sleep or work. Energy-efficient and easy to maintain, it's the perfect addition to bedrooms, offices, and living spaces for improved air quality and comfort year-round.`;
                 }
-                // Enhanced generic fallback with product-aware details
-                return `Discover the ${n} — a carefully curated product selected for exceptional quality and outstanding value. Built with premium materials and meticulous attention to detail, each unit undergoes rigorous quality inspection to ensure reliability and long-lasting performance.\n\nKey Highlights:\n• Premium build quality with durable, high-grade materials\n• Thoughtful design focused on ease of use and practical everyday functionality\n• Thorough quality testing and inspection before dispatch\n• Comprehensive packaging to ensure safe delivery\n\nYour purchase is protected by FairPrice's buyer protection guarantee and secure escrow payment system, so you can shop with complete confidence. Fast, tracked delivery with real-time updates keeps you informed every step of the way.`;
+                if (/neck.*brace|knee.*brace|back.*support|ankle.*support|wrist.*brace|splint|posture.*correct|orthopedic|compress|bandage|elbow.*sleeve|shoulder.*brace/.test(nl)) {
+                    return `Support your body's natural healing with the ${n}. Ergonomically designed to provide firm yet comfortable support exactly where you need it. The breathable, skin-friendly material allows all-day wear without irritation, while the adjustable straps ensure a secure, customized fit for any body size. Recommended by physiotherapists for pain relief, injury recovery, and daily posture support. Lightweight and discreet enough to wear under clothing at work, during exercise, or while sleeping.`;
+                }
+                if (/pot|pan|cookware|frying|baking|kettle|pressure.*cook|air.*fryer|oven|toaster|grill|induction/.test(nl)) {
+                    return `Elevate your cooking with the ${n}. Crafted from high-quality, food-grade materials for even heat distribution and long-lasting durability. The non-stick coating ensures easy food release and effortless cleanup, while the heat-resistant handles provide a safe, comfortable grip. Compatible with all cooktop types including induction, gas, and electric. Whether you're a beginner or a seasoned chef, this kitchen essential delivers consistent results for every meal.`;
+                }
+                if (/pet|dog|cat|collar|leash|pet.*bed|pet.*bowl|aquarium|fish.*tank|bird/.test(nl)) {
+                    return `Give your pet the care they deserve with the ${n}. Made from safe, non-toxic materials that prioritize your pet's comfort and well-being. The durable construction withstands daily use, while the thoughtful design makes it practical for pet owners. Easy to clean and maintain, it's a reliable addition to any pet-friendly home that both you and your furry friend will love.`;
+                }
+                if (/drill|wrench|hammer|plier|screwdriver|saw|tool.*kit|tool.*set|socket|tape.*measure|level/.test(nl)) {
+                    return `Get the job done right with the ${n}. Engineered for professionals and DIY enthusiasts alike, featuring hardened steel construction for maximum durability and precision. The ergonomic grip reduces hand fatigue during extended use, while the compact design fits easily into any toolbox. Whether you're tackling home repairs, renovations, or professional projects, this tool delivers reliable performance you can count on.`;
+                }
+                // Smart generic fallback — extracts key details from the product name itself
+                {
+                    const words = n.split(/\s+/).filter(w => w.length > 2);
+                    const productType = words.slice(-Math.min(3, words.length)).join(' ');
+                    const descriptors = words.slice(0, Math.max(words.length - 3, 0)).join(' ');
+                    return `Get the ${n} — designed to deliver exactly what you need. ${descriptors ? `The ${descriptors} design ensures` : 'This product ensures'} reliable performance and lasting durability for everyday use.\n\nWhat makes this stand out:\n• Specifically engineered as a ${productType.toLowerCase()} for optimal results\n• Built with quality materials for long-term reliability\n• Practical, user-friendly design that works straight out of the box\n• Compact and well-packaged for safe delivery\n\nBacked by FairPrice's buyer protection guarantee and secure escrow payment, you can purchase with complete confidence. Tracked delivery keeps you updated until it arrives at your doorstep.`;
+                }
             };
 
             const generateSpecs = (n: string): Record<string, string> => {
@@ -255,7 +272,10 @@ export default function ProductDetailPage() {
                 if (/macbook|laptop/.test(nl)) {
                     return { "Display": '14.2" Liquid Retina XDR', "Processor": "Apple M3 Pro / Intel Core i7", "RAM": "16GB", "Storage": "512GB SSD", "Battery": "Up to 18 hours", "Ports": "HDMI, MagSafe, Thunderbolt, SD Card", "Weight": "1.55 kg", "OS": "macOS Sonoma" };
                 }
-                return { "Brand": n.split(' ')[0], "Condition": "Brand New — Factory Sealed", "Warranty": "1 Year Manufacturer Warranty", "Shipping": "Express Delivery (2-5 Business Days)", "Returns": "30-Day Return Policy", "Payment": "Secure Escrow Protection" };
+                // Smart generic specs — extract meaningful details from product name
+                const words = n.split(/\s+/).filter(w => w.length > 2);
+                const guessedType = words.slice(-Math.min(2, words.length)).join(' ');
+                return { "Type": guessedType, "Material": "Premium Quality", "Condition": "Brand New", "Shipping": "Express Delivery (2-5 Business Days)", "Returns": "30-Day Return Policy", "Payment": "Secure Escrow Protection" };
             };
 
             // Check search cache for this product (has real price from global search)
