@@ -793,7 +793,7 @@ export function Navbar() {
                                             </div>
                                             <div className="flex flex-col flex-1 min-w-0 text-left">
                                                 <span className="text-sm font-bold text-emerald-800 flex items-center gap-1.5">
-                                                    <Sparkles className="h-3.5 w-3.5" />
+                                                    <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
                                                     Calculate Fair Price
                                                 </span>
                                                 <span className="text-[11px] text-emerald-600/80 line-clamp-1">

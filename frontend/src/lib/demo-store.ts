@@ -646,8 +646,8 @@ class DemoStoreService {
     getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
-        // Database-first: if no DB sync has happened yet, return empty (not stale hardcoded data)
-        const allProducts: Product[] = stored ? JSON.parse(stored) : [];
+        // Fallback to DEMO_PRODUCTS if DB sync hasn't populated localStorage yet
+        const allProducts: Product[] = stored ? JSON.parse(stored) : DEMO_PRODUCTS;
 
         // Always map seller_name so 'My Store' defaults are overwritten by the true business name
         const allSellers = this.getSellers();
@@ -873,8 +873,8 @@ class DemoStoreService {
     getSellers(): Seller[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
-        // Database-first: if no DB sync has happened yet, return empty (not stale hardcoded data)
-        return stored ? JSON.parse(stored) : [];
+        // Fallback to DEMO_SELLERS if DB sync hasn't populated localStorage yet
+        return stored ? JSON.parse(stored) : DEMO_SELLERS;
     }
 
     addSeller(seller: Seller) {
