@@ -35,14 +35,14 @@ const config: CapacitorConfig = {
     scheme: "FairPrice",
     contentInset: "automatic",
     preferredContentMode: "mobile",
-    backgroundColor: "#059669", // FairPrice emerald — matches splash
+    backgroundColor: "#FFFFFF", // White — prevents green flash while WebView loads
     allowsLinkPreview: true,
     scrollEnabled: false, // Prevents iOS webview overscroll rubber-banding
   },
 
   // ─── Android Configuration ──────────────────────────────
   android: {
-    backgroundColor: "#059669",
+    backgroundColor: "#FFFFFF",
     allowMixedContent: true, // Allow HTTP resources in WebView
     captureInput: true,      // Prevents keyboard issues
     webContentsDebuggingEnabled: IS_DEV, // WebView debug in dev only

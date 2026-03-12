@@ -49,6 +49,52 @@ export default function RootLayout({
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}
         suppressHydrationWarning
       >
+        {/* ─── Branded Instant Loading Shell (shows before React hydrates) ─── */}
+        <div
+          id="fp-splash"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'linear-gradient(135deg, #052e16 0%, #064e3b 50%, #059669 100%)',
+            transition: 'opacity 0.4s ease-out',
+          }}
+        >
+          <img
+            src="/logo.png"
+            alt="FairPrice"
+            width={80}
+            height={80}
+            style={{ borderRadius: 20, marginBottom: 16, animation: 'pulse 2s ease-in-out infinite' }}
+          />
+          <p style={{ color: 'white', fontSize: 16, fontWeight: 600, letterSpacing: 1, opacity: 0.9 }}>FairPrice</p>
+          <div style={{ marginTop: 24, width: 32, height: 32, border: '3px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            @keyframes spin { to { transform: rotate(360deg); } }
+            @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
+          `}} />
+        </div>
+        <script dangerouslySetInnerHTML={{
+          __html: `
+          (function() {
+            var check = setInterval(function() {
+              if (document.querySelector('[data-app-ready]')) {
+                var splash = document.getElementById('fp-splash');
+                if (splash) { splash.style.opacity = '0'; setTimeout(function() { splash.remove(); }, 400); }
+                clearInterval(check);
+              }
+            }, 100);
+            setTimeout(function() {
+              var splash = document.getElementById('fp-splash');
+              if (splash) { splash.style.opacity = '0'; setTimeout(function() { splash.remove(); }, 400); }
+            }, 8000);
+          })();
+        `}} />
         <ClientImageFallback />
         <LocationProvider>
           <AuthProvider>

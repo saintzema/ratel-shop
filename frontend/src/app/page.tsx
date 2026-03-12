@@ -275,7 +275,7 @@ function HomeContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
+    <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
       <Navbar />
 
       <div className="flex-1 flex flex-col relative">
@@ -323,9 +323,9 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20">
 
-            {/* ═══ Apple-Style Loading Skeletons ═══ */}
-            {mounted && allProducts.length === 0 && (
-              <div className="container mx-auto px-1 md:px-2 space-y-6 pt-6">
+            {/* ═══ Apple-Style Loading Skeletons (show while DB is loading or offline) ═══ */}
+            {allProducts.length === 0 && (
+              <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4">
                 <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
                 <ProductSlider title="Hottest Deals" link="#" products={[]} isLoading={true} icon={<Flame className="h-5 w-5 text-gray-300" />} />
                 <ProductSlider title="Verified Fair Prices" link="#" products={[]} isLoading={true} icon={<ShieldCheck className="h-5 w-5 text-gray-300" />} />
