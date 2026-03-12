@@ -328,7 +328,11 @@ function HomeContent() {
                 <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
               </section>
             )}
-
+            {/* ═══ Horizontal Sliding Products in Categories ═══ */}
+            {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
+            <section className="container mx-auto px-1 md:px-2 mb-1">
+              <ProductSlider title="Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
+            </section>
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
               <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
@@ -336,11 +340,7 @@ function HomeContent() {
               </section>
             )}
 
-            {/* ═══ Horizontal Sliding Products in Categories ═══ */}
-            {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
-            <section className="container mx-auto px-1 md:px-2 mb-1">
-              <ProductSlider title="Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
-            </section>
+            
 
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (

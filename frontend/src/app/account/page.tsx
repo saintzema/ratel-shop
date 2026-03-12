@@ -32,12 +32,12 @@ export default function AccountPage() {
             desc: "View benefits and payment settings",
             href: "/account/premium"
         },
-        {
-            icon: MessageSquare,
-            title: "Your Messages",
-            desc: "View messages from sellers and FairPrice",
-            href: "/account/messages"
-        },
+        // {
+        //     icon: MessageSquare,
+        //     title: "Your Messages",
+        //     desc: "View messages from sellers and FairPrice",
+        //     href: "/account/messages"
+        // },
 
         {
             icon: Lock,
@@ -88,7 +88,8 @@ export default function AccountPage() {
         if (!user) return;
         // Keep full encoded ID so we can decode it later on checkout
         const refCode = user.id ? btoa(user.id).replace(/=/g, '') : "DEMOREF";
-        const link = `${window.location.origin}/?ref=${refCode}`;
+        const origin = window.location.origin.includes('localhost') ? 'https://fairprice-ten.vercel.app' : window.location.origin;
+        const link = `${origin}/?ref=${refCode}`;
 
         const { copyToClipboard } = await import("@/lib/utils");
         const success = await copyToClipboard(link);
@@ -171,7 +172,7 @@ export default function AccountPage() {
                 </div>
 
                 {/* Logout Button */}
-                <div className="mt-8 flex justify-center">
+                <div className="mt-8 pb-10 flex justify-center">
                     <Button
                         variant="outline"
                         className="rounded-full px-8 py-3 font-bold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 transition-all gap-2"

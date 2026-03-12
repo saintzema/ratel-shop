@@ -5,14 +5,14 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useRef, useEffect } from "react";
-import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft } from "lucide-react";
+import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { useLocation } from "@/context/LocationContext";
 
 export default function ProfilePage() {
-    const { user, updateUser } = useAuth();
+    const { user, updateUser, logout } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const { showNotification } = useNotification();
     const { location: globalLocation, setLocation } = useLocation();
@@ -298,7 +298,18 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
-                    <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
+                    <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-between gap-3 items-center">
+                        <Button
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                                logout();
+                                window.location.href = '/';
+                            }}
+                        >
+                            <LogOut className="h-4 w-4 mr-2" />
+                            Sign Out
+                        </Button>
                         {editingField && editingField !== "password" && (
                             <Button
                                 className="bg-emerald-600 text-white font-bold hover:bg-emerald-700 min-w-[120px]"

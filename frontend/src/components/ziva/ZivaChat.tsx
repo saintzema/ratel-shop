@@ -19,6 +19,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Keyboard } from "@capacitor/keyboard";
+import { Capacitor } from "@capacitor/core";
 
 // ─── Intent Detection ────────────────────────────────────
 type Intent =
@@ -171,6 +173,24 @@ export function ZivaChat() {
     // Detect current product page for context-aware suggestions
     const pathname = usePathname();
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        if (Capacitor.isNativePlatform()) {
+            Keyboard.addListener('keyboardWillShow', info => {
+                setKeyboardHeight(info.keyboardHeight);
+            });
+            Keyboard.addListener('keyboardWillHide', () => {
+                setKeyboardHeight(0);
+            });
+        }
+        return () => {
+            if (Capacitor.isNativePlatform()) {
+                Keyboard.removeAllListeners();
+            }
+        };
+    }, []);
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const match = pathname.match(/\/product\/(.+)/);
@@ -241,7 +261,7 @@ export function ZivaChat() {
 
     const toggleChat = () => {
         setIsOpen(!isOpen);
-        if (!isOpen) setTimeout(() => inputRef.current?.focus(), 300);
+        // Intentionally NOT auto-focusing here to prevent iOS keyboard from opening on launch
     };
 
     // ─── AI Response Generator ────────────────────────
@@ -1084,11 +1104,28 @@ export function ZivaChat() {
         return lines.length >= 3;
     };
 
+    const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : false;
+    const desktopBottom = 48; // 3rem (bottom-12)
+    const mobileBottom = pathname === "/checkout" ? 280 : 120;
+
+    // When keyboard is open, place container exactly 8px above it
+    const containerBottom = keyboardHeight > 0
+        ? keyboardHeight + 8
+        : (isDesktop ? desktopBottom : mobileBottom);
+
+    // Calculate maximum available height based on the bottom offset so it NEVER goes off screen
+    // Top padding of 20px + container offset + Space for FAB if closed (80px)
+    const availableHeightStr = keyboardHeight > 0
+        ? `calc(100svh - ${containerBottom + 20}px)`
+        : `calc(100svh - ${containerBottom + 100}px)`;
+
     return (
-        <div className={cn(
-            "fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300",
-            pathname === "/checkout" ? "bottom-[280px] lg:bottom-12" : "bottom-[18vh] lg:bottom-12"
-        )}>
+        <div
+            className="fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300 ease-out"
+            style={{
+                bottom: `${containerBottom}px`
+            }}
+        >
             {/* Click-outside overlay to close chat */}
             {isOpen && (
                 <div
@@ -1104,8 +1141,13 @@ export function ZivaChat() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none h-[75vh] max-h-[600px] md:h-[70vh] md:max-h-[600px] flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-left"
-                        style={{ background: "rgba(15, 15, 20, 0.95)", backdropFilter: "blur(40px) saturate(180%)" }}
+                        className="absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-left"
+                        style={{
+                            background: "rgba(15, 15, 20, 0.95)",
+                            backdropFilter: "blur(40px) saturate(180%)",
+                            height: availableHeightStr,
+                            maxHeight: keyboardHeight > 0 ? 'none' : '600px'
+                        }}
                     >
                         {/* Header */}
                         <div className="relative h-28 bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0">
@@ -1341,11 +1383,11 @@ export function ZivaChat() {
                 )}
             </AnimatePresence>
 
-            {/* FAB Button — always visible, acts as toggle */}
+            {/* FAB Button — acts as toggle */}
             <motion.div
                 initial={false}
                 whileHover={{ scale: 1.08 }}
-                className="pointer-events-auto"
+                className="pointer-events-auto transition-opacity duration-200 opacity-100"
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}

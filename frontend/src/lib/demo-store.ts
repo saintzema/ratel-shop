@@ -2301,37 +2301,7 @@ class DemoStoreService {
 
         // Exact match
         const exactMatches = all.filter((r: any) => r.product_id === productId);
-        if (exactMatches.length > 0) return exactMatches;
-
-        // If no explicit reviews exist, let's randomly assign some generic, high-quality
-        // simulated reviews based on a hash of the product ID, to ensure consistency per-product
-        // but diversity across the board.
-        const hash = productId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const productsList = this.getProducts();
-        const product = productsList.find(p => p.id === productId);
-
-        if (!product) return [];
-
-        const categoryMatches = all.filter((r: any) => {
-            const relatedProduct = productsList.find(p => p.id === r.product_id);
-            return relatedProduct && relatedProduct.category === product.category;
-        });
-
-        const pool = categoryMatches.length >= 3 ? categoryMatches : all;
-
-        // Pick 3-6 random reviews from the pool consistently based on product hash
-        const numReviews = 3 + (hash % 4);
-        const assignedReviews = [];
-
-        for (let i = 0; i < numReviews; i++) {
-            const reviewHash = (hash * (i + 1) * 31) % pool.length;
-            const clonedReview = { ...pool[reviewHash] };
-            clonedReview.id = `mock_rev_${productId}_${i}`;
-            clonedReview.product_id = productId;
-            assignedReviews.push(clonedReview);
-        }
-
-        return assignedReviews;
+        return exactMatches;
     }
 
     addReview(review: Omit<any, "id" | "created_at">) {

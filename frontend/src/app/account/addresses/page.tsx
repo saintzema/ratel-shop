@@ -20,7 +20,17 @@ interface Address {
     type: "home" | "work" | "other";
 }
 
-const STORAGE_KEY = "fp_saved_addresses";
+function getAddressKey(): string {
+    if (typeof window === "undefined") return "fp_saved_addresses";
+    try {
+        const raw = localStorage.getItem("fp_user");
+        if (raw) {
+            const user = JSON.parse(raw);
+            if (user?.id) return `fp_saved_addresses_${user.id}`;
+        }
+    } catch { }
+    return "fp_saved_addresses";
+}
 
 export default function AddressesPage() {
     const [addresses, setAddresses] = useState<Address[]>([]);
@@ -29,13 +39,13 @@ export default function AddressesPage() {
     const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" as "home" | "work" | "other" });
 
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = localStorage.getItem(getAddressKey());
         if (saved) setAddresses(JSON.parse(saved));
     }, []);
 
     const save = (updated: Address[]) => {
         setAddresses(updated);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        localStorage.setItem(getAddressKey(), JSON.stringify(updated));
     };
 
     const handleAdd = () => {

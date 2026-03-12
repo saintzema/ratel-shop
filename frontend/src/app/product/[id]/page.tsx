@@ -435,93 +435,97 @@ export default function ProductDetailPage() {
         .sort((a, b) => b.sold_count - a.sold_count)
         .slice(0, 15);
 
-    // Fetch Reviews from DemoStore
-    let productReviews = DemoStore.getReviews(product?.id);
-    if (productReviews.length === 0) {
-        const pName = product?.name || "this item";
-        // Use a display-friendly category for review body text
-        const pCatDisplay = (product?.category) ? product.category : pName;
+    // Fetch Real Reviews from DemoStore
+    const realReviews = DemoStore.getReviews(product?.id);
 
-        const seed = Array.from(product?.id || "default").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    // Always generate deterministic seeded reviews for UI bulk
+    const pName = product?.name || "this item";
+    const pCatDisplay = (product?.category) ? product.category : pName;
 
-        const allNames = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
+    const seed = Array.from(product?.id || "default").reduce((acc, char) => acc + char.charCodeAt(0), 0);
 
-        const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
-        const bodies5 = [
-            `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid deal in Lagos.`,
-            `I was skeptical at first about buying the ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.`,
-            `Bought the ${pName} as a gift and they haven't stopped talking about it. Best deal I could find anywhere online.`,
-            `Works perfectly and the build quality is top notch. FairPrice escrow gave me peace of mind throughout the process.`,
-            `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
-            `Seriously impressed with the delivery service. For the price, you can't get anything better. Tested and trusted.`,
-            `I've been using the ${pName} for a week now and it hasn't given me any headache. Solid purchase all round.`,
-            `My people, if you need a reliable ${pCatDisplay} product, just buy it. You won't regret it. The quality shock me.`,
-            `Omo I no go lie, this ${pName} is sharp. It's exactly as described and works flawlessly. Big ups to FairPrice.`
-        ];
+    const allNames = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
 
-        const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
-        const bodies4 = [
-            `The ${pName} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
-            `It's a very solid ${pCatDisplay} item. Does everything the description says. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
-            `This ${pName} is good, nice features and all. Just wish the accessories were a bit more durable. Still a good buy for the price.`,
-            `Working fine so far. The product is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
-            `The ${pName} performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
-        ];
+    const titles5 = ["Omo, this thing make sense die!", "100% Legit!", "Perfect gift", "Value for money", "Too clean", "Mad o", "Exactly what I ordered", "FairPrice did not disappoint", "I highly recommend", "Very solid", "Authentic and crisp", "Worth every Naira"];
+    const bodies5 = [
+        `I wasn't expecting this level of quality from the ${pName}. Fits perfectly into my daily routine. Would definitely recommend to anybody looking for a solid deal in Lagos.`,
+        `I was skeptical at first about buying the ${pName} online, but it came sealed and brand new. The seller was very communicative on WhatsApp.`,
+        `Bought the ${pName} as a gift and they haven't stopped talking about it. Best deal I could find anywhere online.`,
+        `Works perfectly and the build quality is top notch. FairPrice escrow gave me peace of mind throughout the process.`,
+        `No stories, what I saw is exactly what I got. The ${pName} feels very premium. Delivery guys were also very polite.`,
+        `Seriously impressed with the delivery service. For the price, you can't get anything better. Tested and trusted.`,
+        `I've been using the ${pName} for a week now and it hasn't given me any headache. Solid purchase all round.`,
+        `My people, if you need a reliable ${pCatDisplay} product, just buy it. You won't regret it. The quality shock me.`,
+        `Omo I no go lie, this ${pName} is sharp. It's exactly as described and works flawlessly. Big ups to FairPrice.`
+    ];
 
-        const getPseudoRandom = (index: number, max: number) => {
-            const scatter = Math.abs(Math.sin(seed + index)) * 10000;
-            return Math.floor(scatter) % max;
-        };
+    const titles4 = ["Really good but delivery took a bit", "Nice product, fair price indeed", "Good, but packaging was rough", "Solid product, manageable flaws", "Does the job well", "I like it", "Good value"];
+    const bodies4 = [
+        `The ${pName} itself is exactly as described and works flawlessly. My only issue was the delivery to Abuja took about 5 days instead of the promised 3. Otherwise, FairPrice escrow made me feel safe.`,
+        `It's a very solid ${pCatDisplay} item. Does everything the description says. Deducting one star because the packaging was slightly dented when I went to pick it up at the logistics hub.`,
+        `This ${pName} is good, nice features and all. Just wish the accessories were a bit more durable. Still a good buy for the price.`,
+        `Working fine so far. The product is authentic. Only giving 4 stars because the courier guy was rushing me to come out.`,
+        `The ${pName} performs just as I expected. No complaints about the quality, but the seller took a whole day to ship it out.`
+    ];
 
-        // Shuffle names deterministically based on seed to guarantee uniqueness
-        const shuffledNames = [...allNames].sort((a, b) => {
-            const ha = Math.abs(Math.sin(seed + a.charCodeAt(0)));
-            const hb = Math.abs(Math.sin(seed + b.charCodeAt(0)));
-            return ha - hb;
+    const getPseudoRandom = (index: number, max: number) => {
+        const scatter = Math.abs(Math.sin(seed + index)) * 10000;
+        return Math.floor(scatter) % max;
+    };
+
+    // Shuffle names deterministically based on seed to guarantee uniqueness
+    const shuffledNames = [...allNames].sort((a, b) => {
+        const ha = Math.abs(Math.sin(seed + a.charCodeAt(0)));
+        const hb = Math.abs(Math.sin(seed + b.charCodeAt(0)));
+        return ha - hb;
+    });
+
+    // Generate seeded array
+    const seededReviews = [];
+    const usedBodyIndices5 = new Set<number>();
+    const usedBodyIndices4 = new Set<number>();
+    const usedTitleIndices5 = new Set<number>();
+    const usedTitleIndices4 = new Set<number>();
+
+    for (let i = 0; i < 5; i++) {
+        const isFiveStar = getPseudoRandom(i, 10) > 3; // 70% chance of 5 stars
+        const rating = isFiveStar ? 5 : 4;
+        // Unique name: pick from shuffled array by index (guaranteed unique for 5 reviews)
+        const name = shuffledNames[i % shuffledNames.length];
+
+        const titleList = isFiveStar ? titles5 : titles4;
+        const bodyList = isFiveStar ? bodies5 : bodies4;
+        const usedTitles = isFiveStar ? usedTitleIndices5 : usedTitleIndices4;
+        const usedBodies = isFiveStar ? usedBodyIndices5 : usedBodyIndices4;
+
+        // Pick unique title
+        let titleIdx = getPseudoRandom(i + 20, titleList.length);
+        while (usedTitles.has(titleIdx) && usedTitles.size < titleList.length) { titleIdx = (titleIdx + 1) % titleList.length; }
+        usedTitles.add(titleIdx);
+
+        // Pick unique body
+        let bodyIdx = getPseudoRandom(i + 30, bodyList.length);
+        while (usedBodies.has(bodyIdx) && usedBodies.size < bodyList.length) { bodyIdx = (bodyIdx + 1) % bodyList.length; }
+        usedBodies.add(bodyIdx);
+
+        seededReviews.push({
+            id: `gen_r${seed}_${i}`,
+            product_id: product?.id || "",
+            user_id: `u${getPseudoRandom(i, 1000)}`,
+            user_name: name,
+            rating,
+            title: titleList[titleIdx],
+            body: bodyList[bodyIdx],
+            verified_purchase: true,
+            helpful_count: getPseudoRandom(i + 40, 50),
+            images: [],
+            created_at: new Date(1741700000000 - 86400000 * (getPseudoRandom(i + 50, 30) + 1)).toISOString()
         });
-
-        productReviews = [];
-        const usedBodyIndices5 = new Set<number>();
-        const usedBodyIndices4 = new Set<number>();
-        const usedTitleIndices5 = new Set<number>();
-        const usedTitleIndices4 = new Set<number>();
-
-        for (let i = 0; i < 5; i++) {
-            const isFiveStar = getPseudoRandom(i, 10) > 3; // 70% chance of 5 stars
-            const rating = isFiveStar ? 5 : 4;
-            // Unique name: pick from shuffled array by index (guaranteed unique for 5 reviews)
-            const name = shuffledNames[i % shuffledNames.length];
-
-            const titleList = isFiveStar ? titles5 : titles4;
-            const bodyList = isFiveStar ? bodies5 : bodies4;
-            const usedTitles = isFiveStar ? usedTitleIndices5 : usedTitleIndices4;
-            const usedBodies = isFiveStar ? usedBodyIndices5 : usedBodyIndices4;
-
-            // Pick unique title
-            let titleIdx = getPseudoRandom(i + 20, titleList.length);
-            while (usedTitles.has(titleIdx) && usedTitles.size < titleList.length) { titleIdx = (titleIdx + 1) % titleList.length; }
-            usedTitles.add(titleIdx);
-
-            // Pick unique body
-            let bodyIdx = getPseudoRandom(i + 30, bodyList.length);
-            while (usedBodies.has(bodyIdx) && usedBodies.size < bodyList.length) { bodyIdx = (bodyIdx + 1) % bodyList.length; }
-            usedBodies.add(bodyIdx);
-
-            productReviews.push({
-                id: `gen_r${seed}_${i}`,
-                product_id: product?.id || "",
-                user_id: `u${getPseudoRandom(i, 1000)}`,
-                user_name: name,
-                rating,
-                title: titleList[titleIdx],
-                body: bodyList[bodyIdx],
-                verified_purchase: true,
-                helpful_count: getPseudoRandom(i + 40, 50),
-                images: [],
-                created_at: new Date(Date.now() - 86400000 * (getPseudoRandom(i + 50, 30) + 1)).toISOString()
-            });
-        }
     }
+
+    // Combine real reviews with seeded ones (real ones first)
+    const productReviews = [...realReviews, ...seededReviews];
+
     const canUserReview = useMemo(() => {
         if (!user) return false;
         if (user.role === "seller" && product?.seller_id === user.id) return false;
@@ -1291,7 +1295,12 @@ export default function ProductDetailPage() {
                                             </Badge>
                                         )}
                                         {seller.created_at && (
-                                            <span className="text-xs text-gray-400">Member since {new Date(seller.created_at).toLocaleDateString("en-NG", { month: "long", year: "numeric" })}</span>
+                                            <span className="text-xs text-gray-400">
+                                                Member since {(() => {
+                                                    const d = new Date(seller.created_at);
+                                                    return isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString("en-NG", { month: "long", year: "numeric" });
+                                                })()}
+                                            </span>
                                         )}
                                     </div>
                                     <Link href={`/store/${seller.store_url || seller.id}`} className="inline-flex items-center gap-1 mt-4 text-sm font-bold text-ratel-green-600 hover:text-ratel-green-700 transition-colors">
@@ -1621,10 +1630,10 @@ export default function ProductDetailPage() {
                                         <div key={review.id} className="p-5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
                                             <div className="flex items-center gap-3 mb-2">
                                                 <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600 uppercase">
-                                                    {(review.user_id === user?.id ? user?.name : review.user_name)?.[0] || '?'}
+                                                    {(review.user_id === user?.id ? user?.name : (review.user_name || review.customer_name || 'A'))?.[0] || '?'}
                                                 </div>
                                                 <div>
-                                                    <span className="font-bold text-sm text-gray-900">{review.user_id === user?.id ? user?.name : review.user_name}</span>
+                                                    <span className="font-bold text-sm text-gray-900">{review.user_id === user?.id ? (user?.name || 'You') : (review.user_name || review.customer_name || 'Anonymous User')}</span>
                                                     {review.verified_purchase && (
                                                         <Badge className="ml-2 bg-ratel-green-50 text-ratel-green-700 border-ratel-green-100 text-[10px]">Verified Purchase</Badge>
                                                     )}
@@ -1637,7 +1646,12 @@ export default function ProductDetailPage() {
                                                 <span className="text-sm font-bold text-gray-900 ml-2">{review.title}</span>
                                             </div>
                                             <p className="text-sm text-gray-600 leading-relaxed">{review.body}</p>
-                                            <p className="text-xs text-gray-400 mt-2">{new Date(review.created_at).toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" })}</p>
+                                            <p className="text-xs text-gray-400 mt-2">
+                                                {(() => {
+                                                    const d = new Date(review.created_at);
+                                                    return isNaN(d.getTime()) ? 'Recently' : d.toLocaleDateString("en-NG", { year: "numeric", month: "long", day: "numeric" });
+                                                })()}
+                                            </p>
 
                                             {/* Seller Reply Section */}
                                             {review.seller_reply && (
