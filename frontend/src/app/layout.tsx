@@ -16,6 +16,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PwaManager } from "@/components/ui/PwaManager";
 import { ClientImageFallback } from "@/components/ui/ClientImageFallback";
 import { WaitlistModal } from "@/components/modals/WaitlistModal";
+import { SplashDismiss } from "@/components/ui/SplashDismiss";
 
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
@@ -52,49 +53,20 @@ export default function RootLayout({
         {/* ─── Branded Instant Loading Shell (shows before React hydrates) ─── */}
         <div
           id="fp-splash"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 99999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'linear-gradient(135deg, #052e16 0%, #064e3b 50%, #059669 100%)',
-            transition: 'opacity 0.4s ease-out',
-          }}
+          suppressHydrationWarning
+          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-gradient-to-br from-[#052e16] via-[#064e3b] to-[#059669] transition-opacity duration-300 ease-out"
         >
           <img
             src="/logo.png"
             alt="FairPrice"
             width={80}
             height={80}
-            style={{ borderRadius: 20, marginBottom: 16, animation: 'pulse 2s ease-in-out infinite' }}
+            className="rounded-[20px] mb-4 animate-[pulse_2s_ease-in-out_infinite]"
           />
-          <p style={{ color: 'white', fontSize: 16, fontWeight: 600, letterSpacing: 1, opacity: 0.9 }}>FairPrice</p>
-          <div style={{ marginTop: 24, width: 32, height: 32, border: '3px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-          <style dangerouslySetInnerHTML={{
-            __html: `
-            @keyframes spin { to { transform: rotate(360deg); } }
-            @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(0.95); } }
-          `}} />
+          <p className="text-white text-base font-semibold tracking-[1px] opacity-90">FairPrice</p>
+          <div className="mt-6 w-8 h-8 rounded-full border-[3px] border-white/30 border-t-white animate-[spin_0.8s_linear_infinite]" />
         </div>
-        <script dangerouslySetInnerHTML={{
-          __html: `
-          (function() {
-            var check = setInterval(function() {
-              if (document.querySelector('[data-app-ready]')) {
-                var splash = document.getElementById('fp-splash');
-                if (splash) { splash.style.opacity = '0'; setTimeout(function() { splash.remove(); }, 400); }
-                clearInterval(check);
-              }
-            }, 100);
-            setTimeout(function() {
-              var splash = document.getElementById('fp-splash');
-              if (splash) { splash.style.opacity = '0'; setTimeout(function() { splash.remove(); }, 400); }
-            }, 8000);
-          })();
-        `}} />
+        <SplashDismiss />
         <ClientImageFallback />
         <LocationProvider>
           <AuthProvider>
