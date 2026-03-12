@@ -1,0 +1,11 @@
+{
+    "name": "fairprice",
+    "integrations": {
+        "capacitor": {
+            "name": "FairPrice",
+            "appId": "com.fairprice.app",
+            "capacitor": 8
+        }
+    },
+    "type": "capacitor"
+}
