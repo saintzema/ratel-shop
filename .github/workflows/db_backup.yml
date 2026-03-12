@@ -1,0 +1,49 @@
+name: Daily Neon Postgres Backup
+
+on:
+  schedule:
+    # Runs at 02:00 UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions tab
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install PostgreSQL Client
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+
+    - name: Ensure Backups Directory Exists
+      run: mkdir -p ./backups
+
+    - name: Create Database Dump
+      env:
+        # This securely injects the Neon DB connection string from GitHub Secrets
+        DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      run: |
+        TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
+        FILENAME="backups/ratelshop_backup_$TIMESTAMP.sql"
+        
+        echo "Creating backup: $FILENAME"
+        # Export the database schema and data
+        pg_dump $DATABASE_URL > $FILENAME
+        
+        echo "Backup created successfully."
+        ls -la backups/
+
+    - name: Commit and Push Backup
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        
+        git add backups/
+        git commit -m "Automated Postgres Backup: $(date +%Y-%m-%d)" || echo "No changes to commit"
+        
+        # Pushes specifically to a 'backups' branch to keep 'dev' and 'main' clean
+        git push origin HEAD:db-backups || git push origin HEAD:refs/heads/db-backups

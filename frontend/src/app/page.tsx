@@ -12,6 +12,7 @@ import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldChec
 import { motion } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { formatPrice } from "@/lib/utils";
@@ -322,8 +323,17 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20">
 
+            {/* ═══ Apple-Style Loading Skeletons ═══ */}
+            {mounted && allProducts.length === 0 && (
+              <div className="container mx-auto px-1 md:px-2 space-y-6 pt-6">
+                <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
+                <ProductSlider title="Hottest Deals" link="#" products={[]} isLoading={true} icon={<Flame className="h-5 w-5 text-gray-300" />} />
+                <ProductSlider title="Verified Fair Prices" link="#" products={[]} isLoading={true} icon={<ShieldCheck className="h-5 w-5 text-gray-300" />} />
+              </div>
+            )}
+
             {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
-            {mounted && (
+            {mounted && allProducts.length > 0 && (
               <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
                 <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
               </section>
@@ -340,7 +350,7 @@ function HomeContent() {
               </section>
             )}
 
-            
+
 
             {/* ═══ From Stores You Follow ═══ */}
             {mounted && followedStoreProducts.length > 0 && (
@@ -367,7 +377,7 @@ function HomeContent() {
             )}
 
             {/* ═══ Global Recommended Products ═══ */}
-            {mounted && (
+            {mounted && allProducts.length > 0 && (
               <section className="w-full px-1 md:px-2 mb-20">
                 <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id))} title="Recommended For You" />
               </section>
@@ -666,7 +676,7 @@ function ScrollerProductCard({ product }: { product: any }) {
   );
 }
 
-function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -745,9 +755,9 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
     }
   };
 
-  if (products.length === 0) return null;
+  if (products.length === 0 && !isLoading) return null;
 
-  const displayProducts = autoScroll ? [...products, ...products, ...products] : products;
+  const displayProducts = isLoading ? Array(6).fill(null) : (autoScroll ? [...products, ...products, ...products] : products);
 
   return (
     <div
@@ -797,8 +807,12 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
           style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1rem' }}
         >
           {displayProducts.map((product, idx) => (
-            <div key={`${product.id}-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
-              <ProductCard product={product} className="h-full w-full" />
+            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
+              {isLoading ? (
+                <ProductCardSkeleton />
+              ) : (
+                <ProductCard product={product} layout="grid" />
+              )}
             </div>
           ))}
         </div>

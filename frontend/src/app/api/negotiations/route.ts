@@ -50,11 +50,34 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
         }
 
+        // Ensure customer exists (to satisfy Foreign Key constraint)
+        let resolvedCustomerId = body.customer_id;
+        const existingCustomer = await db.user.findUnique({
+            where: { id: resolvedCustomerId },
+            select: { id: true }
+        });
+
+        if (!existingCustomer) {
+            // If it's a guest or an old local session ID, ensure there's at least a guest record
+            resolvedCustomerId = "guest";
+            const guestStats = await db.user.upsert({
+                where: { email: "guest@fairprice.ng" },
+                update: {},
+                create: {
+                    id: "guest",
+                    email: "guest@fairprice.ng",
+                    name: "Guest Buyer",
+                    role: "customer"
+                }
+            });
+            resolvedCustomerId = guestStats.id;
+        }
+
         const newNeg = await db.negotiationRequest.create({
             data: {
                 productId: body.product_id,
-                customerId: body.customer_id,
-                customerName: body.customer_name,
+                customerId: resolvedCustomerId,
+                customerName: body.customer_name || "Guest Buyer",
                 sellerId: product.sellerId,
                 proposedPrice: body.proposed_price,
                 status: 'pending',

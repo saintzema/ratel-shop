@@ -1,7 +1,7 @@
 "use client";
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest } from "./types";
-import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS, DEMO_PAYOUTS } from "./data";
+// Removed DEMO_ mock imports to ensure Live DB fetching
 import { resilientFetch } from "./offline-queue";
 
 export interface Category {
@@ -103,8 +103,8 @@ class DemoStoreService {
     private init() {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
-        // v9: DATABASE-FIRST — products & sellers come from Neon DB, not hardcoded constants
-        const DATA_VERSION = "9";
+        // v10: LIVE-DB-ONLY — all mock/demo data removed, everything from Neon Postgres
+        const DATA_VERSION = "10";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -114,39 +114,25 @@ class DemoStoreService {
         }
 
         if (!localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS)) {
-            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(DEMO_NEGOTIATIONS));
+            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-            localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(DEMO_ORDERS));
+            localStorage.setItem(this.STORAGE_KEYS.ORDERS, "[]");
         }
         // NOTE: Products & Sellers are NO LONGER seeded from hardcoded constants.
         // They will be populated exclusively by syncWithDB() from the Neon database.
         // This ensures all users see the same prices regardless of browser/session.
         if (!localStorage.getItem(this.STORAGE_KEYS.KYC)) {
-            localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(DEMO_KYC));
+            localStorage.setItem(this.STORAGE_KEYS.KYC, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(DEMO_COMPLAINTS));
+            localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PAYOUTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(DEMO_PAYOUTS));
+            localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.RETURNS)) {
-            const initialReturns: ReturnRequest[] = [
-                {
-                    id: "ret_demo1",
-                    order_id: "FP-RET551O",
-                    customer_id: "u1",
-                    seller_id: "s1",
-                    reason: "Product arrived damaged",
-                    description: "The item box was completely crushed during delivery.",
-                    images: [],
-                    status: "pending",
-                    created_at: "2026-02-13T09:00:00Z",
-                    updated_at: "2026-02-13T09:00:00Z"
-                }
-            ];
-            localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(initialReturns));
+            localStorage.setItem(this.STORAGE_KEYS.RETURNS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.CATEGORIES)) {
             localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
@@ -184,52 +170,42 @@ class DemoStoreService {
         if (typeof window === "undefined") return;
 
         try {
-            // Fetch ALL products (including inactive ones) for Admin visibility
-            const productsRes = await fetch("/api/products?all=true");
-            if (productsRes.ok) {
-                const dbProducts = await productsRes.json();
+            // 🚀 PARALLEL FETCH: Fire all three requests simultaneously for ~3x faster sync
+            const [productsResult, sellersResult, searchCacheResult] = await Promise.allSettled([
+                fetch("/api/products?all=true"),
+                fetch("/api/sellers?all=true"),
+                fetch("/api/search-cache"),
+            ]);
+
+            // ── Process Products ──
+            if (productsResult.status === "fulfilled" && productsResult.value.ok) {
+                const dbProducts = await productsResult.value.json();
                 if (dbProducts.length > 0) {
-                    // SMART MERGE: preserve locally-edited products that haven't been
-                    // confirmed by the DB yet (pending edits). This prevents syncWithDB
-                    // from overwriting admin edits that are still in-flight.
                     const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
                     const dbMap = new Map(dbProducts.map((p: any) => [p.id, p]));
                     const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
-
-                    // Start with all DB products
                     const merged = new Map(dbMap);
 
-                    // For any product with pending local edits, keep the LOCAL version
                     for (const pendingId of this._pendingEdits) {
                         const localVersion = localMap.get(pendingId);
                         if (localVersion) {
                             merged.set(pendingId, localVersion);
-                            console.log(`🔒 Preserved local edit for product: ${pendingId}`);
                         }
                     }
-
-                    // Also keep any local-only products not in DB (e.g. newly added)
                     for (const [id, product] of localMap) {
-                        if (!dbMap.has(id)) {
-                            merged.set(id, product);
-                        }
+                        if (!dbMap.has(id)) merged.set(id, product);
                     }
 
-                    const mergedProducts = Array.from(merged.values());
-                    console.log(`Synced ${dbProducts.length} products from DB, ${this._pendingEdits.size} local edits preserved`);
-                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(mergedProducts));
+                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(Array.from(merged.values())));
                 }
             }
 
-            // Fetch latest sellers from Postgres (including pending for dashboard access)
-            const sellersRes = await fetch("/api/sellers?all=true");
-            if (sellersRes.ok) {
-                const dbSellers = await sellersRes.json();
+            // ── Process Sellers ──
+            if (sellersResult.status === "fulfilled" && sellersResult.value.ok) {
+                const dbSellers = await sellersResult.value.json();
                 if (dbSellers.length > 0) {
                     localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(dbSellers));
 
-                    // Reconcile CURRENT_SELLER key: the DB may have assigned a
-                    // different ID than the one the frontend generated.
                     const storedSellerId = this.getCurrentSellerId();
                     if (storedSellerId && !dbSellers.find((s: any) => s.id === storedSellerId)) {
                         const currentUser = this._getCurrentUserId();
@@ -243,16 +219,15 @@ class DemoStoreService {
                 }
             }
 
-            // Sync Search Cache for Admin
-            const searchCacheRes = await fetch("/api/search-cache");
-            if (searchCacheRes.ok) {
-                const dbSearchCache = await searchCacheRes.json();
+            // ── Process Search Cache ──
+            if (searchCacheResult.status === "fulfilled" && searchCacheResult.value.ok) {
+                const dbSearchCache = await searchCacheResult.value.json();
                 if (Object.keys(dbSearchCache).length > 0) {
                     localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(dbSearchCache));
                 }
             }
 
-            // Trigger update events
+            // Trigger update events so React components re-render with live data
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
         } catch (error) {
@@ -321,7 +296,7 @@ class DemoStoreService {
 
     // --- Negotiations ---
     getNegotiations(sellerId?: string): NegotiationRequest[] {
-        if (typeof window === "undefined") return DEMO_NEGOTIATIONS;
+        if (typeof window === "undefined") return [];
         const all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
         if (!sellerId) return all;
 
@@ -639,8 +614,8 @@ class DemoStoreService {
     getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
-        // Fallback to DEMO_PRODUCTS if DB sync hasn't populated localStorage yet
-        const allProducts: Product[] = stored ? JSON.parse(stored) : DEMO_PRODUCTS;
+        // Fallback to empty array if DB sync hasn't populated localStorage yet
+        const allProducts: Product[] = stored ? JSON.parse(stored) : [];
 
         // Always map seller_name so 'My Store' defaults are overwritten by the true business name
         const allSellers = this.getSellers();
@@ -866,8 +841,8 @@ class DemoStoreService {
     getSellers(): Seller[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
-        // Fallback to DEMO_SELLERS if DB sync hasn't populated localStorage yet
-        return stored ? JSON.parse(stored) : DEMO_SELLERS;
+        // Fallback to empty array if DB sync hasn't populated localStorage yet
+        return stored ? JSON.parse(stored) : [];
     }
 
     addSeller(seller: Seller) {
@@ -900,8 +875,8 @@ class DemoStoreService {
     }
 
     getOrders(): Order[] {
-        if (typeof window === "undefined") return DEMO_ORDERS;
-        const allOrders: Order[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || JSON.stringify(DEMO_ORDERS));
+        if (typeof window === "undefined") return [];
+        const allOrders: Order[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || "[]");
         const allSellers = this.getSellers();
 
         return allOrders.map(order => {
@@ -1780,7 +1755,7 @@ class DemoStoreService {
 
     // --- Admin & Governance ---
     getAdminStats() {
-        if (typeof window === "undefined") return DEMO_ADMIN_STATS;
+        if (typeof window === "undefined") return { total_sales: 0, active_users: 0, dispute_rate: 0, total_revenue: 0 } as any;
 
         const orders = this.getOrders();
         const products = this.getProducts();
@@ -1792,7 +1767,7 @@ class DemoStoreService {
         const processedRevenue = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + (o.amount || 0), 0);
 
         return {
-            ...DEMO_ADMIN_STATS,
+            total_sales: orders.length, active_users: 0, dispute_rate: 0,
             total_revenue: totalRevenue,
             escrow_balance: escrowBalance,
             processed_revenue: processedRevenue,
@@ -1804,13 +1779,13 @@ class DemoStoreService {
     }
 
     getComplaints(): Complaint[] {
-        if (typeof window === "undefined") return DEMO_COMPLAINTS;
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS) || JSON.stringify(DEMO_COMPLAINTS));
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS) || "[]");
     }
 
     getPayouts(): any[] {
-        if (typeof window === "undefined") return DEMO_PAYOUTS;
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PAYOUTS) || JSON.stringify(DEMO_PAYOUTS));
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PAYOUTS) || "[]");
     }
 
     updatePayoutStatus(id: string, status: string) {
@@ -1885,8 +1860,8 @@ class DemoStoreService {
     }
 
     getKYCSubmissions(): KYCSubmission[] {
-        if (typeof window === "undefined") return DEMO_KYC;
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.KYC) || JSON.stringify(DEMO_KYC));
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.KYC) || "[]");
     }
 
     updateKYCStatus(id: string, status: KYCSubmission["status"]) {
