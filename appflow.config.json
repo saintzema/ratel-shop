@@ -1,7 +1,7 @@
 {
     "apps": [
         {
-            "appId": "YOUR_APP_ID",
+            "appId": "2a5eb021",
             "root": "frontend",
             "iosPath": "frontend/ios/App"
         }
