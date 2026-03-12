@@ -4,7 +4,7 @@
             "appId": "2a5eb021",
             "root": "frontend",
             "iosPath": "ios/App",
-            "dependencyInstallCommand": "npm install"
+            "dependencyInstallCommand": "npm install && npx cap sync ios"
         }
     ]
 }
