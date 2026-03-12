@@ -19,6 +19,7 @@ const config: CapacitorConfig = {
     // Production loads from webDir static export. Localhost only manually used for local testing.
     cleartext: IS_DEV, // Allow HTTP in dev (required for localhost)
     // url: "https://fairprice-ten.vercel.app" for always-online mode
+    url: "https://fairprice-ten.vercel.app",
     allowNavigation: [
       "fairprice-ten.vercel.app",
       "*.vercel.app",
