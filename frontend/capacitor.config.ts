@@ -15,13 +15,9 @@ const config: CapacitorConfig = {
   appName: "FairPrice",
   webDir: "out", // Static fallback — used for offline/initial load
 
-  // ─── Server: Live URL Mode ──────────────────────────────
-  // In production, the app loads from Vercel deployment
-  // In development, it loads from localhost for hot reloading
   server: {
-    url: IS_DEV ? "http://172.20.10.3:3000" : undefined,
+    // Production loads from webDir static export. Localhost only manually used for local testing.
     cleartext: IS_DEV, // Allow HTTP in dev (required for localhost)
-    // Production loads from webDir static export OR you can set:
     // url: "https://fairprice-ten.vercel.app" for always-online mode
     allowNavigation: [
       "fairprice-ten.vercel.app",
@@ -40,7 +36,7 @@ const config: CapacitorConfig = {
     preferredContentMode: "mobile",
     backgroundColor: "#059669", // FairPrice emerald — matches splash
     allowsLinkPreview: true,
-    scrollEnabled: true,
+    scrollEnabled: false, // Prevents iOS webview overscroll rubber-banding
   },
 
   // ─── Android Configuration ──────────────────────────────

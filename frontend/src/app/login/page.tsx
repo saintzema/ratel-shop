@@ -372,7 +372,7 @@ export default function UnifiedAuthPage() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col bg-[#F5F5F7] font-sans p-4 md:p-8 overflow-y-auto">
+        <div className="min-h-screen flex flex-col bg-[#F5F5F7] font-sans p-4 md:p-8 overflow-y-auto overflow-x-hidden w-full max-w-[100vw]">
             <div className="w-full max-w-[1000px] m-auto flex flex-col md:flex-row gap-8 md:gap-12 lg:gap-16 items-center lg:items-stretch py-8">
 
                 {/* Left Side: Testimonial Image Carousel (Hidden on Small Screens) */}

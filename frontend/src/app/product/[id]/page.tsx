@@ -807,11 +807,13 @@ export default function ProductDetailPage() {
         pct: productReviews.length > 0 ? Math.round((productReviews.filter(r => r.rating === star).length / productReviews.length) * 100) : 0
     }));
 
-    // Compute actual rating stats from reviews (don't rely on product.avg_rating which may be 0 for global products)
+    // Compute actual rating stats from reviews
     const actualReviewCount = productReviews.length;
-    const actualAvgRating = actualReviewCount > 0
-        ? Math.round((productReviews.reduce((sum, r) => sum + r.rating, 0) / actualReviewCount) * 10) / 10
+    let actualAvgRating = actualReviewCount > 0
+        ? Math.round((productReviews.reduce((sum, r) => sum + (Number(r.rating) || 0), 0) / actualReviewCount) * 10) / 10
         : product?.avg_rating || 0;
+
+    if (Number.isNaN(actualAvgRating)) actualAvgRating = 0;
 
     const specEntries = Object.entries(product?.specs || {});
     const visibleSpecs = showAllSpecs ? specEntries : specEntries.slice(0, 6);
