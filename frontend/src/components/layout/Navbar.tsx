@@ -235,8 +235,9 @@ export function Navbar() {
             setAutocompleteSuggestions(autoSuggs.slice(0, 4));
 
             // Instantly show fuzzy-matched cached results from past searches
+            const scoredIds = new Set(scored.map(s => s.product.id));
             const cached = DemoStore.searchCacheFuzzyMatch(searchQuery);
-            setCachedResults(cached.filter(c => !suggestions.some(s => s.id === c.id)));
+            setCachedResults(cached.filter(c => !scoredIds.has(c.id)));
 
             setShowSuggestions(true);
             setActiveIndex(-1);
@@ -691,7 +692,7 @@ export function Navbar() {
                                     })}
 
                                     {/* Cached Results from Past Searches (instant) */}
-                                    {cachedResults.length > 0 && !isGlobalSearching && (
+                                    {cachedResults.length > 0 && (
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2 flex items-center gap-2 text-xs font-black text-blue-700 uppercase tracking-wider">
                                                 <History className="h-3.5 w-3.5 text-blue-500" />

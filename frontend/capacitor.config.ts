@@ -11,7 +11,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 const config: CapacitorConfig = {
-  appId: "com.fairprice.app",
+  appId: "ai.fairprice.app",
   appName: "FairPrice",
   webDir: "out", // Static fallback — used for offline/initial load
 
