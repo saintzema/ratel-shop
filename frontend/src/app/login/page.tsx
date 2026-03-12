@@ -372,11 +372,11 @@ export default function UnifiedAuthPage() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] font-sans p-4 md:p-8">
+        <div className="min-h-screen flex items-start md:items-center justify-center bg-[#F5F5F7] font-sans p-4 md:p-8 overflow-y-auto">
             <div className="w-full max-w-[1000px] flex flex-col md:flex-row gap-8 md:gap-12 lg:gap-16 items-center lg:items-stretch">
 
                 {/* Left Side: Testimonial Image Carousel (Hidden on Small Screens) */}
-                <div className="hidden md:flex flex-1 relative rounded-[24px] overflow-hidden shadow-2xl min-h-[600px]">
+                <div className="hidden md:flex flex-1 relative rounded-[24px] overflow-hidden shadow-2xl min-h-[520px] max-h-[90vh]">
                     <AnimatePresence mode="wait">
                         <motion.img
                             key={currentBg}
@@ -422,7 +422,7 @@ export default function UnifiedAuthPage() {
                 <div className="flex-1 w-full max-w-[440px] flex flex-col justify-center py-8">
                     {/* Logo Area */}
                     <div className="mb-8 md:hidden">
-                        <Logo className="h-10 w-auto text-green-900 scale-125 justify-center" />
+                        <Logo className="h-10 w-auto scale-125 justify-center" variant="dark" />
                     </div>
                     <div className="mb-8">
                         <h1 className="text-[32px] font-bold text-[#1d1d1f] tracking-tight mt-2 md:mt-8 mb-2">

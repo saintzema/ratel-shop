@@ -18,7 +18,10 @@ export async function GET(req: Request) {
         return NextResponse.json(formattedCache);
     } catch (error) {
         console.error("Database fetch error for Search Cache:", error);
-        return NextResponse.json({ error: "Failed to fetch search cache" }, { status: 500 });
+        return NextResponse.json({}, {
+            status: 200,
+            headers: { "X-DB-Status": "offline" }
+        });
     }
 }
 

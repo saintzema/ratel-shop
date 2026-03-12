@@ -82,6 +82,10 @@ export default function SellerSettingsPage() {
 
         DemoStore.updateSeller(seller.id, formData);
 
+        // Refresh local seller state so logo/cover image preview updates immediately
+        const refreshed = DemoStore.getCurrentSeller();
+        if (refreshed) setSeller(refreshed as Seller);
+
         setSaving(false);
         setSuccess(true);
         setTimeout(() => setSuccess(false), 3000);

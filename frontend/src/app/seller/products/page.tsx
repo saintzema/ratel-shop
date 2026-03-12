@@ -25,7 +25,8 @@ import {
     MoreHorizontal,
     Eye,
     TrendingUp,
-    Star
+    Star,
+    ArrowUpDown
 } from "lucide-react";
 import {
     Dialog,
@@ -42,6 +43,7 @@ export default function SellerProducts() {
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [showFilters, setShowFilters] = useState(false);
+    const [sortBy, setSortBy] = useState<string>("newest");
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [showPaystack, setShowPaystack] = useState(false);
@@ -96,6 +98,23 @@ export default function SellerProducts() {
         const matchesCategory = selectedCategory === "all" || p.category === selectedCategory;
         const matchesStatus = statusFilter === "all" || (statusFilter === "live" && p.is_active) || (statusFilter === "sponsored" && p.is_sponsored);
         return matchesSearch && matchesCategory && matchesStatus;
+    }).sort((a, b) => {
+        switch (sortBy) {
+            case "newest":
+                return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+            case "price-high":
+                return b.price - a.price;
+            case "price-low":
+                return a.price - b.price;
+            case "low-stock":
+                return a.stock - b.stock;
+            case "most-bought":
+                return (b.sold_count || 0) - (a.sold_count || 0);
+            case "name-az":
+                return a.name.localeCompare(b.name);
+            default:
+                return 0;
+        }
     });
 
     const categories = Array.from(new Set(products.map(p => p.category)));
@@ -162,6 +181,21 @@ export default function SellerProducts() {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
+                    </div>
+                    <div className="relative">
+                        <ArrowUpDown className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="h-14 pl-10 pr-4 rounded-2xl bg-white/40 backdrop-blur-sm border border-white/60 text-[10px] font-black uppercase tracking-widest text-gray-600 focus:ring-4 focus:ring-brand-green-500/10 outline-none transition-all shadow-sm cursor-pointer appearance-none min-w-[160px]"
+                        >
+                            <option value="newest">Newest First</option>
+                            <option value="price-high">Price: High → Low</option>
+                            <option value="price-low">Price: Low → High</option>
+                            <option value="low-stock">Low Stock First</option>
+                            <option value="most-bought">Most Bought</option>
+                            <option value="name-az">Name A → Z</option>
+                        </select>
                     </div>
                     <Button
                         variant="ghost"

@@ -299,7 +299,7 @@ function HomeContent() {
               />
             </div>
 
-            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 text-center text-white z-10">
+            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 py-4 text-center text-white z-10">
               {/* Title Hidden Per Request */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}

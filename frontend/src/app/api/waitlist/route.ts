@@ -35,12 +35,18 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
 </head>
 <body style="margin:0;padding:0;background-color:#f0fdf4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <div style="max-width:520px;margin:20px auto;background:white;border-radius:24px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.06);">
-    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 50%,#34d399 100%);padding:24px 20px;text-align:center;display:flex;align-items:center;justify-content:center;gap:12px;">
-      <img src="${logoUrl}" alt="FairPrice" width="40" height="auto" style="display:inline-block;margin:0;max-width:40px;border-radius:8px;" />
-      <div style="text-align:left;">
-        <h1 style="color:white;font-size:20px;font-weight:900;margin:0;letter-spacing:-0.5px;line-height:1.2;padding:12px">Welcome to FairPrice</h1>
-        <p style="color:rgba(255,255,255,0.9);font-size:12px;margin:0;font-weight:600;padding:12px">Africa's First AI-Powered Marketplace</p>
-      </div>
+    <div style="background:linear-gradient(135deg,#059669 0%,#10b981 50%,#34d399 100%);padding:16px 20px;text-align:center;">
+      <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+        <tr>
+          <td style="width:36px;vertical-align:middle;">
+            <img src="${logoUrl}" alt="FP" width="36" height="36" style="display:block;border-radius:8px;" />
+          </td>
+          <td style="text-align:left;padding-left:10px;vertical-align:middle;">
+            <h1 style="color:white;font-size:18px;font-weight:900;margin:0;letter-spacing:-0.5px;line-height:1.2;">FairPrice.ng</h1>
+            <p style="color:rgba(255,255,255,0.85);font-size:11px;margin:2px 0 0 0;font-weight:600;">Africa's First AI-Powered Marketplace</p>
+          </td>
+        </tr>
+      </table>
     </div>
     <div style="padding:24px 32px 32px;">
       <p style="color:#111827;font-size:16px;line-height:1.6;margin:0 0 20px 0;">

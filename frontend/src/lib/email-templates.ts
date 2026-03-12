@@ -182,7 +182,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
             break;
 
         case 'VERIFY_EMAIL':
-            subject = "Verify your FairPrice account code";
+            subject = `Your FairPrice code: ${payload.code || '------'}`;
             html = BaseTemplate("Verify Your Email", `
 <p style="margin:0 0 16px 0;">Hi ${name},</p>
 <p style="margin:0 0 32px 0;">Please use the verification code below to confirm your email address and secure your account.</p>

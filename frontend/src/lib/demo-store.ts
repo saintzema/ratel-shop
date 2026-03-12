@@ -2,6 +2,7 @@
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest } from "./types";
 import { DEMO_NEGOTIATIONS, DEMO_ORDERS, DEMO_PRODUCTS, DEMO_SELLERS, DEMO_KYC, DEMO_COMPLAINTS, DEMO_ADMIN_STATS, DEMO_PAYOUTS } from "./data";
+import { resilientFetch } from "./offline-queue";
 
 export interface Category {
     id: string;
@@ -337,12 +338,8 @@ class DemoStoreService {
         const updated = [request, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
-        // Persist to Postgres
-        fetch("/api/negotiations", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(request),
-        }).catch(err => console.warn("Failed to persist negotiation:", err));
+        // Persist to Postgres (queued if offline)
+        resilientFetch("/api/negotiations", { method: "POST", body: request, type: "general" });
 
         // Notify Seller
         const product = this.getProducts().find(p => p.id === request.product_id);
@@ -605,12 +602,8 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
 
-        // Persist to Postgres
-        fetch("/api/sellers", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(mergedSeller),
-        }).catch(err => console.warn("Failed to persist seller update:", err));
+        // Persist to Postgres (queued if offline)
+        resilientFetch("/api/sellers", { method: "POST", body: mergedSeller, type: "seller_update" });
 
         // Create generic notification for important status changes
         if (updates.status && updates.status !== updatedSeller.status) {
@@ -882,12 +875,8 @@ class DemoStoreService {
         sellers.push(seller);
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
 
-        // Persist to Postgres
-        fetch("/api/sellers", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(seller),
-        }).catch(err => console.warn("Failed to persist seller:", err));
+        // Persist to Postgres (queued if offline)
+        resilientFetch("/api/sellers", { method: "POST", body: seller, type: "registration" });
 
         // Trigger Admin Registration Email
         try {
@@ -994,12 +983,8 @@ class DemoStoreService {
         const updated = [newOrder, ...orders];
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
-        // Persist to Postgres
-        fetch("/api/orders", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(newOrder),
-        }).catch(err => console.warn("Failed to persist order:", err));
+        // Persist to Postgres (queued if offline — CRITICAL: ensures zero order loss)
+        resilientFetch("/api/orders", { method: "POST", body: newOrder, type: "order" });
 
         // Notify Buyer
         this.addNotification({
@@ -1144,12 +1129,8 @@ class DemoStoreService {
             localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         }
 
-        // Persist to Postgres
-        fetch("/api/products", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(product),
-        }).catch(err => console.warn("Failed to persist product:", err));
+        // Persist to Postgres (queued if offline)
+        resilientFetch("/api/products", { method: "POST", body: product, type: "product_update" });
 
         try {
             this.addToHistory(product);
