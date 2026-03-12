@@ -36,7 +36,7 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  interactiveWidget: "resizes-content",
+  interactiveWidget: "resizes-visual",
 };
 
 export default function RootLayout({
@@ -46,8 +46,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="light" suppressHydrationWarning>
+      <head>
+        <link rel="preload" href="/logo.png" as="image" />
+      </head>
       <body
-        className={cn("font-sans antialiased h-[100dvh] max-h-[100dvh] overflow-hidden flex flex-col bg-white text-black overscroll-none")}
+        className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}
         suppressHydrationWarning
       >
         {/* ─── Branded Instant Loading Shell (shows before React hydrates) ─── */}
@@ -61,6 +64,8 @@ export default function RootLayout({
             alt="FairPrice"
             width={80}
             height={80}
+            fetchPriority="high"
+            decoding="sync"
             className="rounded-[20px] mb-4 animate-[pulse_2s_ease-in-out_infinite]"
           />
           <p className="text-white text-base font-semibold tracking-[1px] opacity-90">FairPrice</p>
@@ -74,9 +79,7 @@ export default function RootLayout({
               <FavoritesProvider>
                 <MessageProvider>
                   <NotificationProvider>
-                    <main className="flex-1 overflow-y-auto w-full relative">
-                      {children}
-                    </main>
+                    {children}
                     <ZivaChat />
                     <FloatingNotification />
                     <MessageBox />

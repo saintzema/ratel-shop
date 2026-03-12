@@ -74,6 +74,7 @@ export function WaitlistModal() {
     const [isValidEmail, setIsValidEmail] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [waitlistCount, setWaitlistCount] = useState(2847);
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
 
     const openModal = useCallback(() => {
         setIsOpen(true);
@@ -96,9 +97,26 @@ export function WaitlistModal() {
         const handleCartTrigger = () => openModal();
         window.addEventListener(WAITLIST_EVENT, handleCartTrigger);
 
+        // Handle iOS virtual keyboard resizing
+        const handleResize = () => {
+            if (window.visualViewport) {
+                // If the visual viewport shrinks significantly from the window height, 
+                // it means the keyboard is open.
+                const offset = window.innerHeight - window.visualViewport.height;
+                setKeyboardOffset(offset > 50 ? offset / 2 : 0);
+            }
+        };
+
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener("resize", handleResize);
+        }
+
         return () => {
             if (timer) clearTimeout(timer);
             window.removeEventListener(WAITLIST_EVENT, handleCartTrigger);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener("resize", handleResize);
+            }
         };
     }, [openModal]);
 
@@ -159,16 +177,16 @@ export function WaitlistModal() {
                         className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200]"
                     />
 
-                    {/* Modal — mobile-first bottom sheet on small screens, centered on desktop */}
+                    {/* Modal — floating in the center of the screen on all devices */}
                     <motion.div
-                        initial={{ opacity: 0, y: 40 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 40 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: -keyboardOffset }}
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
                         transition={{ type: "spring", damping: 28, stiffness: 300 }}
-                        className="fixed inset-x-0 bottom-0 sm:inset-0 z-[201] flex items-end sm:items-center justify-center sm:p-4 pointer-events-none"
+                        className="fixed inset-0 z-[201] flex items-center justify-center p-4 pointer-events-none transition-transform duration-300"
                     >
                         <div
-                            className="relative w-full sm:max-w-md pointer-events-auto overflow-y-auto max-h-[92vh] sm:max-h-[90vh] rounded-t-[28px] sm:rounded-[28px] shadow-2xl"
+                            className="relative w-full max-w-[360px] sm:max-w-md pointer-events-auto overflow-y-auto max-h-[85vh] rounded-[28px] shadow-2xl"
                             style={{
                                 background: "linear-gradient(145deg, rgba(240, 253, 244, 0.97) 0%, rgba(226, 252, 235, 0.95) 40%, rgba(220, 252, 231, 0.93) 100%)",
                                 backdropFilter: "blur(40px) saturate(180%)",
@@ -179,11 +197,6 @@ export function WaitlistModal() {
                             {/* Decorative blobs — hidden on mobile for perf */}
                             <div className="hidden sm:block absolute -top-20 -right-20 w-48 h-48 bg-emerald-200/40 rounded-full blur-3xl pointer-events-none" />
                             <div className="hidden sm:block absolute -bottom-16 -left-16 w-40 h-40 bg-teal-200/30 rounded-full blur-3xl pointer-events-none" />
-
-                            {/* Mobile drag handle */}
-                            <div className="sm:hidden flex justify-center pt-2.5 pb-1">
-                                <div className="w-10 h-1 rounded-full bg-gray-300" />
-                            </div>
 
                             {/* Close button */}
                             <button
@@ -245,6 +258,8 @@ export function WaitlistModal() {
                                                         setEmail(e.target.value);
                                                         setIsValidEmail(true);
                                                     }}
+                                                    onFocus={() => setKeyboardOffset(150)}
+                                                    onBlur={() => setKeyboardOffset(0)}
                                                     placeholder="you@email.com"
                                                     className={`w-full h-11 sm:h-13 px-4 pr-[88px] sm:pr-24 rounded-xl sm:rounded-2xl bg-white border-2 ${!isValidEmail ? "border-red-400" : "border-emerald-200 focus:border-emerald-400"} text-gray-900 placeholder:text-gray-400 text-sm font-semibold focus:outline-none focus:ring-4 focus:ring-emerald-100 transition-all shadow-sm`}
                                                     autoComplete="email"

@@ -963,12 +963,12 @@ export function Navbar() {
                         </div>
                         <span className="text-sm font-bold text-white hidden sm:inline mb-1">Cart</span>
                     </Link>
-                </div>
+                </div >
 
                 {/* Bottom Bar - SubNavbar */}
-                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10">
+                < div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10" >
                     {/* Left: Navigation Links */}
-                    <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]">
+                    < div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]" >
                         <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Best-Selling
                         </Link>
@@ -981,109 +981,112 @@ export function Navbar() {
                         <span className="whitespace-nowrap text-[11px] md:text-[13px]">
                             ₦1,000 refund on late delivery
                         </span>
-                    </div>
+                    </div >
                     {/* Right: Trust Badges */}
-                    <div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end">
+                    < div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end" >
                         <span className="flex items-center gap-1 shrink-0"><Lock className="w-3 h-3" /> Secure privacy</span>
                         <span className="flex items-center gap-1 shrink-0"><Shield className="w-3 h-3" /> Purchase protection</span>
                         <Link href="#" className="flex items-center gap-1 font-bold text-white hover:text-brand-orange transition-colors shrink-0">
                             FairPrice keeps you safe <ArrowRight className="w-3 h-3" />
                         </Link>
-                    </div>
-                </div>
-            </header>
+                    </div >
+                </div >
+            </header >
 
             {/* Location Filter Modal */}
-            <LocationModal
+            < LocationModal
                 isOpen={isLocationModalOpen}
-                onClose={() => setIsLocationModalOpen(false)}
+                onClose={() => setIsLocationModalOpen(false)
+                }
                 currentLocation={location}
                 onSelectLocation={setLocation}
             />
 
             {/* Sidebar Overlay */}
             <AnimatePresence>
-                {isSidebarOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.5 }}
-                            exit={{ opacity: 0 }}
-                            onClick={toggleSidebar}
-                            className="fixed inset-0 z-40 bg-black"
-                        />
-                        <motion.div
-                            initial={{ x: "-100%" }}
-                            animate={{ x: 0 }}
-                            exit={{ x: "-100%" }}
-                            transition={{ type: "tween", duration: 0.3 }}
-                            className="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-xl overflow-y-auto"
-                        >
-                            <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
-                                {mounted && user ? (
-                                    <div className="flex items-center gap-2">
-                                        <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
-                                    </div>
-                                ) : (
-                                    <Link href="/login" className="flex items-center gap-2 hover:underline">
-                                        <User className="h-6 w-6" /> Hello, Sign in
-                                    </Link>
-                                )}
-                                <button onClick={toggleSidebar} className="text-white/80 hover:text-white">
-                                    <X className="h-6 w-6" />
-                                </button>
-                            </div>
+                {
+                    isSidebarOpen && (
+                        <>
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.5 }}
+                                exit={{ opacity: 0 }}
+                                onClick={toggleSidebar}
+                                className="fixed inset-0 z-40 bg-black"
+                            />
+                            <motion.div
+                                initial={{ x: "-100%" }}
+                                animate={{ x: 0 }}
+                                exit={{ x: "-100%" }}
+                                transition={{ type: "tween", duration: 0.3 }}
+                                className="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-xl overflow-y-auto"
+                            >
+                                <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
+                                    {mounted && user ? (
+                                        <div className="flex items-center gap-2">
+                                            <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
+                                        </div>
+                                    ) : (
+                                        <Link href="/login" className="flex items-center gap-2 hover:underline">
+                                            <User className="h-6 w-6" /> Hello, Sign in
+                                        </Link>
+                                    )}
+                                    <button onClick={toggleSidebar} className="text-white/80 hover:text-white">
+                                        <X className="h-6 w-6" />
+                                    </button>
+                                </div>
 
-                            <div className="py-2">
-                                <div className="px-6 py-3 font-bold text-lg text-gray-800">Shop By Category</div>
-                                <ul className="space-y-1">
-                                    {/* Mock Categories for Sidebar */}
-                                    {["Electronics", "Computers", "Smart Home", "Arts & Crafts", "Automotive", "Baby", "Beauty and Personal Care", "Women's Fashion", "Men's Fashion", "Girls' Fashion", "Boys' Fashion", "Health and Household", "Home and Kitchen", "Industrial and Scientific", "Luggage", "Movies & Television", "Pet Supplies", "Software", "Sports and Outdoors", "Tools & Home Improvement", "Toys and Games", "Video Games"].map((cat) => (
-                                        <li key={cat}>
-                                            <Link
-                                                href={`/category/${cat.toLowerCase().replace(/ /g, "-").replace(/&/g, "and")}`}
-                                                className="flex items-center justify-between px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                                onClick={() => setIsSidebarOpen(false)}
-                                            >
-                                                <span>{cat}</span>
-                                                <ChevronDown className="h-4 w-4 -rotate-90 text-gray-400" />
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
+                                <div className="py-2">
+                                    <div className="px-6 py-3 font-bold text-lg text-gray-800">Shop By Category</div>
+                                    <ul className="space-y-1">
+                                        {/* Mock Categories for Sidebar */}
+                                        {["Electronics", "Computers", "Smart Home", "Arts & Crafts", "Automotive", "Baby", "Beauty and Personal Care", "Women's Fashion", "Men's Fashion", "Girls' Fashion", "Boys' Fashion", "Health and Household", "Home and Kitchen", "Industrial and Scientific", "Luggage", "Movies & Television", "Pet Supplies", "Software", "Sports and Outdoors", "Tools & Home Improvement", "Toys and Games", "Video Games"].map((cat) => (
+                                            <li key={cat}>
+                                                <Link
+                                                    href={`/category/${cat.toLowerCase().replace(/ /g, "-").replace(/&/g, "and")}`}
+                                                    className="flex items-center justify-between px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                                    onClick={() => setIsSidebarOpen(false)}
+                                                >
+                                                    <span>{cat}</span>
+                                                    <ChevronDown className="h-4 w-4 -rotate-90 text-gray-400" />
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
 
-                                <hr className="my-2 border-gray-200" />
+                                    <hr className="my-2 border-gray-200" />
 
-                                <div className="px-6 py-3 font-bold text-lg text-gray-800">Help & Settings</div>
-                                <ul>
-                                    {["Your Account", "Customer Service", user ? "Sign Out" : "Sign In"].map((item) => (
-                                        <li key={item}>
-                                            <button
-                                                onClick={() => {
-                                                    if (item === "Sign Out") {
-                                                        logout();
-                                                    } else if (item === "Sign In") {
-                                                        router.push("/login");
-                                                    } else {
-                                                        router.push(`/${item.toLowerCase().replace(" ", "-")}`);
-                                                    }
-                                                    setIsSidebarOpen(false);
-                                                }}
-                                                className="w-full text-left px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                            >
-                                                {item}
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                                    <div className="px-6 py-3 font-bold text-lg text-gray-800">Help & Settings</div>
+                                    <ul>
+                                        {["Your Account", "Customer Service", user ? "Sign Out" : "Sign In"].map((item) => (
+                                            <li key={item}>
+                                                <button
+                                                    onClick={() => {
+                                                        if (item === "Sign Out") {
+                                                            logout();
+                                                        } else if (item === "Sign In") {
+                                                            router.push("/login");
+                                                        } else {
+                                                            router.push(`/${item.toLowerCase().replace(" ", "-")}`);
+                                                        }
+                                                        setIsSidebarOpen(false);
+                                                    }}
+                                                    className="w-full text-left px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                                >
+                                                    {item}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </motion.div>
+                        </>
+                    )
+                }
+            </AnimatePresence >
 
             {/* PriceIntel Modal — triggered from search */}
-            <PriceIntelModal
+            < PriceIntelModal
                 isOpen={isPriceIntelOpen}
                 onClose={() => setIsPriceIntelOpen(false)}
                 initialQuery={priceIntelQuery}
