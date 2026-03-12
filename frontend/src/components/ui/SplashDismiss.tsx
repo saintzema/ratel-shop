@@ -13,7 +13,10 @@ export function SplashDismiss() {
             // Small delay to let the first paint settle
             requestAnimationFrame(() => {
                 splash.style.opacity = "0";
-                setTimeout(() => splash.remove(), 400);
+                splash.style.pointerEvents = "none";
+                setTimeout(() => {
+                    splash.style.display = "none";
+                }, 400);
             });
         }
     }, []);

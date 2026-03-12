@@ -730,26 +730,35 @@ class DemoStoreService {
         return newStatus;
     }
 
-    /** Fuzzy match: find cached products across ALL queries that match tokens */
+    /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
     searchCacheFuzzyMatch(query: string): any[] {
         if (typeof window === "undefined") return [];
         const cache = this._getSearchCache();
-        const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 2);
+        const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
+
+        // If query is empty or too short, don't show random cache items
         if (tokens.length === 0) return [];
+
         const results: any[] = [];
         const seenIds = new Set<string>();
         Object.values(cache).forEach((products: any[]) => {
             products.forEach(p => {
                 if (seenIds.has(p.id)) return;
                 const name = (p.name || '').toLowerCase();
-                const matchCount = tokens.filter(t => name.includes(t)).length;
-                if (matchCount >= Math.ceil(tokens.length * 0.5)) {
+                const category = (p.category || '').toLowerCase();
+
+                // Ensure ALL typed words exist in either the product name or category
+                const matchesAll = tokens.every(t => name.includes(t) || category.includes(t));
+
+                if (matchesAll) {
                     results.push(p);
                     seenIds.add(p.id);
                 }
             });
         });
-        return results.slice(0, 10);
+
+        // Return max 4 most relevant (we'll sort them slightly by name length to prefer tighter matches)
+        return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
     }
 
     getAllSearchCache(): Record<string, any[]> {
