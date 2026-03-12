@@ -811,7 +811,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
               {isLoading ? (
                 <ProductCardSkeleton />
               ) : (
-                <ProductCard product={product} layout="grid" />
+                <ProductCard product={product} />
               )}
             </div>
           ))}
