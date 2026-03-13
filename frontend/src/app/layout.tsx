@@ -45,6 +45,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="light" suppressHydrationWarning>
+      <head>
+        <meta name="google-site-verification" content="_BT79N3Ti1Smba1864DQYGqrtDIwFamIygQqu6R9Xxc" />
+      </head>
       <body
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}
         suppressHydrationWarning
