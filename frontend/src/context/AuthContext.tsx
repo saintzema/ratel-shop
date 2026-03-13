@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 email: session.user.email!,
                 name: session.user.name || "User",
                 role: (session.user as any)?.role || "customer",
-                avatarUrl: session.user.image || undefined,
+                avatar_url: session.user.image || undefined,
                 created_at: new Date().toISOString()
             };
 
