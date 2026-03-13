@@ -370,9 +370,9 @@ export default function UnifiedAuthPage() {
                 await Browser.open({ url: res.url, presentationStyle: 'popover' });
                 
                 // Add a listener to detect when they return to the app to fetch the updated session
-                const listener = Browser.addListener('browserFinished', () => {
+                const listener = await Browser.addListener('browserFinished', async () => {
+                    await listener.remove();
                     window.location.href = redirectPath;
-                    listener.remove();
                 });
             } else {
                 // Web fallback: Open the OAuth provider in a popup window
