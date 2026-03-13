@@ -101,6 +101,22 @@ export function Footer() {
                 Report suspicious activity
               </Link>
             </li>
+            <li>
+              <Link
+                href="/privacy"
+                className="hover:underline hover:text-white transition-colors"
+              >
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/terms"
+                className="hover:underline hover:text-white transition-colors"
+              >
+                Terms of Service
+              </Link>
+            </li>
           </ul>
         </div>
 

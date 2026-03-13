@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff, Loader2, ArrowRight, Check, X, AlertCircle } from "lucide-react";
+import { signIn } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DemoStore } from "@/lib/demo-store";
 import { cn } from "@/lib/utils";
@@ -356,19 +357,9 @@ export default function UnifiedAuthPage() {
         }, 1000);
     };
 
-    const handleSocialLogin = (provider: "google" | "facebook" | "x") => {
+    const handleSocialLogin = (provider: "google" | "apple" | "x") => {
         setIsLoading(true);
-        setTimeout(() => {
-            const mockUser = {
-                id: `${provider}_` + Math.random().toString(36).substr(2, 9),
-                name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-                email: `user@${provider}.com`,
-                role: "customer" as const,
-                created_at: new Date().toISOString()
-            };
-            login(mockUser);
-            router.push(redirectPath);
-        }, 1500);
+        signIn(provider, { callbackUrl: redirectPath });
     };
 
     return (
@@ -500,7 +491,7 @@ export default function UnifiedAuthPage() {
                                     <div className="space-y-3">
                                         <Button
                                             type="button"
-                                            onClick={() => window.alert('OAuth requires valid Apple Developer Keys to be configured in your .env / OAuth provider.')}
+                                            onClick={() => handleSocialLogin("apple")}
                                             className="w-full h-[52px] bg-black hover:bg-black/90 text-white font-medium text-[16px] rounded-xl transition-all flex items-center justify-center gap-3"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-[18px] h-[18px] fill-current">
@@ -511,7 +502,7 @@ export default function UnifiedAuthPage() {
 
                                         <Button
                                             type="button"
-                                            onClick={() => window.alert('OAuth requires valid Google Client IDs to be configured in your .env / OAuth provider.')}
+                                            onClick={() => handleSocialLogin("google")}
                                             className="w-full h-[52px] bg-white hover:bg-gray-50 text-[#1d1d1f] font-medium text-[16px] rounded-xl transition-all flex items-center justify-center gap-3 border border-gray-200"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-[18px] h-[18px]">

@@ -19,6 +19,7 @@ import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
+import { SessionProvider } from "@/context/SessionProvider";
 
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
@@ -76,26 +77,28 @@ export default function RootLayout({
         <KeyboardAware />
         <SwipeToBack />
         <ClientImageFallback />
-        <LocationProvider>
-          <AuthProvider>
-            <CartProvider>
-              <FavoritesProvider>
-                <MessageProvider>
-                  <NotificationProvider>
-                    {children}
-                    <ZivaChat />
-                    <FloatingNotification />
-                    <MessageBox />
-                  </NotificationProvider>
-                  <MobileBottomNav />
-                </MessageProvider>
-              </FavoritesProvider>
-              <FloatingCart />
-              <PwaManager />
-              <WaitlistModal />
-            </CartProvider>
-          </AuthProvider>
-        </LocationProvider>
+        <SessionProvider>
+          <LocationProvider>
+            <AuthProvider>
+              <CartProvider>
+                <FavoritesProvider>
+                  <MessageProvider>
+                    <NotificationProvider>
+                      {children}
+                      <ZivaChat />
+                      <FloatingNotification />
+                      <MessageBox />
+                    </NotificationProvider>
+                    <MobileBottomNav />
+                  </MessageProvider>
+                </FavoritesProvider>
+                <FloatingCart />
+                <PwaManager />
+                <WaitlistModal />
+              </CartProvider>
+            </AuthProvider>
+          </LocationProvider>
+        </SessionProvider>
       </body>
     </html>
   );

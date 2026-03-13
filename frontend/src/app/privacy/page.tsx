@@ -1,72 +1,110 @@
 "use client";
-
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { ShieldCheck, Eye, Fingerprint, Activity, Smartphone, Server } from "lucide-react";
 
 export default function PrivacyPage() {
     return (
-        <div className="min-h-screen bg-brand-green-50 flex flex-col font-sans text-gray-900">
+        <div className="min-h-screen bg-white flex flex-col font-sans">
             <Navbar />
-            <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
-                <div className="bg-white p-8 md:p-12 rounded-2xl shadow-sm border border-gray-100">
-                    <h1 className="text-3xl md:text-4xl font-bold text-brand-green-800 mb-6">Privacy Policy</h1>
-                    <p className="text-sm text-gray-500 mb-8">Last Updated: March 2026</p>
+            <main className="flex-1">
+                {/* Header */}
+                <div className="relative bg-gradient-to-br from-emerald-900 to-black text-white py-16 px-6">
+                    <div className="container mx-auto max-w-4xl text-center">
+                        <h1 className="text-4xl font-black tracking-tight mb-3">Privacy Policy</h1>
+                        <p className="text-emerald-100 text-lg">Last updated: {new Date().toLocaleDateString()}</p>
+                    </div>
+                </div>
 
-                    <div className="space-y-8 text-gray-700 leading-relaxed">
-                        <section>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-3">1. Information We Collect</h2>
-                            <p className="mb-3">When you use FairPrice, we collect the following types of information:</p>
-                            <ul className="list-disc pl-5 space-y-2">
-                                <li><strong>Personal Information:</strong> Name, email address, phone number, shipping and billing addresses.</li>
-                                <li><strong>Payment Information:</strong> Credit card details and billing information (processed securely through our payment gateways).</li>
-                                <li><strong>Usage Data:</strong> Information about how you interact with our platform, including browser type, IP address, and pages visited.</li>
-                            </ul>
+                {/* Content */}
+                <div className="container mx-auto max-w-3xl px-6 py-16 space-y-12">
+                    {/* Intro */}
+                    <div className="prose prose-gray max-w-none text-gray-700 leading-relaxed text-sm md:text-base">
+                        <p>
+                            At FairPrice, we take your privacy seriously. This policy describes how we collect, use, and handle your personal information when you use our services.
+                        </p>
+                    </div>
+
+                    <div className="space-y-8">
+                        {/* Section 1 */}
+                        <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
+                            <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-3">
+                                <div className="p-2 bg-blue-50 rounded-xl">
+                                    <Fingerprint className="h-5 w-5 text-blue-600" />
+                                </div>
+                                1. Information We Collect
+                            </h2>
+                            <div className="space-y-3 text-sm text-gray-600 leading-relaxed pl-2">
+                                <p><strong>Personal Information:</strong> Name, email address, phone number, shipping and billing addresses.</p>
+                                <p><strong>Payment Information:</strong> Credit card details and billing information (processed securely through our payment gateways). We do not store raw credit card numbers on our servers.</p>
+                                <p><strong>Usage Data:</strong> Information about how you interact with our platform, including browser type, IP address, device information, and pages visited.</p>
+                            </div>
                         </section>
 
-                        <section>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-3">2. How We Use Your Information</h2>
-                            <p className="mb-3">We use the collected data for various purposes, including:</p>
-                            <ul className="list-disc pl-5 space-y-2">
-                                <li>Processing and fulfilling your orders securely through our escrow system.</li>
-                                <li>Providing customer support and managing dispute resolution.</li>
-                                <li>Improving our platform, AI-driven price comparison, and personalized shopping experiences.</li>
-                                <li>Communicating with you regarding updates, promotions, and security alerts.</li>
-                            </ul>
+                        {/* Section 2 */}
+                        <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
+                            <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-3">
+                                <div className="p-2 bg-emerald-50 rounded-xl">
+                                    <Activity className="h-5 w-5 text-emerald-600" />
+                                </div>
+                                2. How We Use Your Information
+                            </h2>
+                            <div className="space-y-3 text-sm text-gray-600 leading-relaxed pl-2">
+                                <p>Processing and fulfilling your orders securely through our core escrow system.</p>
+                                <p>Providing customer support and managing dispute resolution actively and fairly.</p>
+                                <p>Improving our platform, AI-driven price comparison models, and personalized shopping experiences using aggregated data.</p>
+                                <p>Communicating with you regarding necessary updates, promotional offers, and security alerts.</p>
+                            </div>
                         </section>
 
-                        <section>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-3">3. Data Sharing and Security</h2>
-                            <p className="mb-3">
-                                We do not sell your personal data to third parties. We may share necessary information with verified sellers and logistics partners strictly for the purpose of order fulfillment. FairPrice employs industry-standard security measures to protect your personal and financial data.
-                            </p>
+                        {/* Section 3 */}
+                        <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
+                            <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-3">
+                                <div className="p-2 bg-rose-50 rounded-xl">
+                                    <ShieldCheck className="h-5 w-5 text-rose-600" />
+                                </div>
+                                3. Data Sharing and Security
+                            </h2>
+                            <div className="space-y-3 text-sm text-gray-600 leading-relaxed pl-2">
+                                <p>We do not sell your personal data to third parties. We may share necessary information with verified sellers and logistics partners strictly for the purpose of order fulfillment.</p>
+                                <p>FairPrice employs industry-standard security measures, including SSL encryption, continuous AI monitoring, and strictly scoped database access to protect your personal and financial data.</p>
+                            </div>
                         </section>
 
-                        <section>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-3">4. Cookies and Tracking Technologies</h2>
-                            <p className="mb-3">
-                                We use cookies to enhance your browsing experience, maintain your session context, and analyze site traffic. You can manage your cookie preferences through your browser settings.
-                            </p>
+                        {/* Section 4 */}
+                        <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
+                            <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-3">
+                                <div className="p-2 bg-amber-50 rounded-xl">
+                                    <Eye className="h-5 w-5 text-amber-600" />
+                                </div>
+                                4. Cookies and Tracking Technologies
+                            </h2>
+                            <div className="space-y-3 text-sm text-gray-600 leading-relaxed pl-2">
+                                <p>We use cookies to enhance your browsing experience, maintain your session context, and analyze site traffic securely.</p>
+                                <p>You can manage your cookie preferences through your browser settings. However, disabling all cookies may limit your ability to use certain core features of the FairPrice platform.</p>
+                            </div>
                         </section>
 
-                        <section>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-3">5. Your Rights</h2>
-                            <p className="mb-3">
-                                Depending on your location, you may have the right to access, correct, or delete your personal information. If you wish to exercise these rights or have questions about our data practices, please contact our support team.
-                            </p>
+                        {/* Section 5 */}
+                        <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
+                            <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-3">
+                                <div className="p-2 bg-purple-50 rounded-xl">
+                                    <Smartphone className="h-5 w-5 text-purple-600" />
+                                </div>
+                                5. Third-Party Sign-On (Google & Apple)
+                            </h2>
+                            <div className="space-y-3 text-sm text-gray-600 leading-relaxed pl-2">
+                                <p>If you choose to log in using third-party services like "Sign in with Apple" or "Sign in with Google", we receive basic profile information (such as your name and email address) authorized directly by that provider.</p>
+                                <p>This data is used solely to authenticate your identity securely and create your FairPrice account seamlessly without maintaining separate passwords.</p>
+                            </div>
                         </section>
 
-                        <section>
-                            <h2 className="text-xl font-semibold text-gray-900 mb-3">6. App Store & Single Sign-On</h2>
-                            <p className="mb-3">
-                                If you choose to log in using third-party services like "Sign in with Apple" or "Sign in with Google", we receive basic profile information (such as your name and email address) authorized by that provider. This data is used solely to authenticate your identity and create your FairPrice account seamlessly.
-                            </p>
-                        </section>
+                    </div>
 
-                        <div className="pt-8 mt-8 border-t border-gray-100">
-                            <p className="text-sm text-gray-500">
-                                Contact us regarding this policy: <a href="mailto:support@fairprice.ng" className="text-brand-green-600 hover:underline">support@fairprice.ng</a>
-                            </p>
-                        </div>
+                    <div className="text-center pt-8 border-t border-gray-200">
+                        <p className="text-sm text-gray-500">
+                            Questions regarding this privacy policy? Contact our data protection team at <a href="mailto:privacy@fairprice.ng" className="text-brand-green-600 font-medium hover:underline">privacy@fairprice.ng</a>
+                        </p>
                     </div>
                 </div>
             </main>

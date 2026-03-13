@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 
 import { User } from "@/lib/types";
 
@@ -18,6 +19,36 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const { data: session, status: sessionStatus } = useSession();
+
+    useEffect(() => {
+        // --- NextAuth Sync ---
+        // If there's an active NextAuth session, and the current stored fp_user doesn't match, sync it
+        if (sessionStatus === "authenticated" && session?.user) {
+            const oauthUser: User = {
+                id: (session.user as any)?.id || `user_${session.user.email}`,
+                email: session.user.email!,
+                name: session.user.name || "User",
+                role: (session.user as any)?.role || "customer",
+                avatarUrl: session.user.image || undefined,
+                created_at: new Date().toISOString()
+            };
+
+            const storedUserStr = localStorage.getItem("fp_user");
+            let needsSync = true;
+            if (storedUserStr) {
+                try {
+                    const parsed = JSON.parse(storedUserStr);
+                    if (parsed.email === oauthUser.email) needsSync = false;
+                } catch (e) { }
+            }
+
+            if (needsSync) {
+                login(oauthUser);
+            }
+        }
+    }, [session, sessionStatus]);
 
     useEffect(() => {
         // Initialize from localStorage
@@ -118,6 +149,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setUser(null);
         window.dispatchEvent(new Event("fp-auth-update"));
+
+        // If logged in via NextAuth, also clear NextAuth session
+        if (sessionStatus === "authenticated") {
+            nextAuthSignOut({ redirect: false });
+        }
     };
 
     const register = (userData: User) => {
