@@ -533,9 +533,7 @@ export default function UnifiedAuthPage() {
                                             onClick={() => handleSocialLogin("apple")}
                                             className="w-full h-[52px] bg-black hover:bg-black/90 text-white font-medium text-[16px] rounded-xl transition-all flex items-center justify-center gap-3"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512" className="w-[18px] h-[18px] fill-current">
-                                                <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 24 184.8 8 273.5q-9 59.4 17.1 147.1c5.3 15.1 21.3 42.6 38.6 42.6 15 0 24.3-9.7 42.6-9.7 19 0 27.2 9.7 43.1 9.7 16.4 0 33.7-28.4 33.7-28.4l11.4-23.3c-28.6-11.4-44.1-41.7-43.6-73.4zM245.9 86h-2.1c-1.3-40.3 35.8-80.4 78.4-86-3.7 49-43 85-76.3 86z" />
-                                            </svg>
+                                            <img src="/assets/images/apple-logo.png" alt="Apple logo" className="w-[18px] h-[18px] object-contain shrink-0" />
                                             Sign in with Apple
                                         </Button>
 
