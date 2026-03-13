@@ -21,6 +21,9 @@ import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
 import { SessionProvider } from "@/context/SessionProvider";
 
+// Standalone component to handle popup closing without forcing the whole layout to be client-side
+import { PopupCloser } from "@/components/auth/PopupCloser";
+
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
   description: "Secure, reliable, and premium e-commerce platform for Africa with Escrow protection.",
@@ -50,11 +53,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
+        <meta name="google-site-verification" content="_BT79N3Ti1Smba1864DQYGqrtDIwFamIygQqu6R9Xxc" />
         <link rel="preload" href="/logo.png" as="image" />
         {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
         <style dangerouslySetInnerHTML={{
           __html: `
-          #fp-splash{position:fixed;inset:0;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
+          #fp-splash{position:fixed;top:0;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
+          body { background-color: #ffffff; }
           #fp-splash img{width:80px;height:80px;border-radius:20px;margin-bottom:16px;animation:fp-pulse 2s ease-in-out infinite}
           #fp-splash .fp-name{color:#fff;font-size:16px;font-weight:600;letter-spacing:1px;opacity:.9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
           #fp-splash .fp-spin{margin-top:24px;width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;animation:fp-spin .8s linear infinite}
@@ -77,6 +82,7 @@ export default function RootLayout({
         <KeyboardAware />
         <SwipeToBack />
         <ClientImageFallback />
+        <PopupCloser />
         <SessionProvider>
           <LocationProvider>
             <AuthProvider>

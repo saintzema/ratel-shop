@@ -12,6 +12,8 @@ import { signIn } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DemoStore } from "@/lib/demo-store";
 import { cn } from "@/lib/utils";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new" | "otp_existing";
 
@@ -357,9 +359,46 @@ export default function UnifiedAuthPage() {
         }, 1000);
     };
 
-    const handleSocialLogin = (provider: "google" | "apple" | "x") => {
+    const handleSocialLogin = async (provider: "google" | "apple" | "x") => {
         setIsLoading(true);
-        signIn(provider, { callbackUrl: redirectPath });
+        // Request the OAuth URL instead of redirecting the whole PWA/App
+        const res = await signIn(provider, { redirect: false, callbackUrl: redirectPath });
+        
+        if (res?.url) {
+            if (Capacitor.isNativePlatform()) {
+                // Using Capacitor Browser (Safari View Controller / Chrome Custom Tabs) keeps users "in-app" natively
+                await Browser.open({ url: res.url, presentationStyle: 'popover' });
+                
+                // Add a listener to detect when they return to the app to fetch the updated session
+                const listener = Browser.addListener('browserFinished', () => {
+                    window.location.href = redirectPath;
+                    listener.remove();
+                });
+            } else {
+                // Web fallback: Open the OAuth provider in a popup window
+                const width = 500;
+                const height = 600;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
+                
+                const popup = window.open(
+                    res.url,
+                    "OAuthLogin",
+                    `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
+                );
+
+                // Poll the popup to see when it closes (user finished login)
+                const popupTimer = setInterval(() => {
+                    if (popup?.closed) {
+                        clearInterval(popupTimer);
+                        window.location.href = redirectPath;
+                    }
+                }, 1000);
+            }
+        } else {
+            setIsLoading(false);
+            setError("Could not initiate social login.");
+        }
     };
 
     return (
