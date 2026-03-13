@@ -96,37 +96,23 @@ export const SearchGridCard = ({
         />
       </div>
       <div className="p-4 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
-        <h4 className="font-bold text-base text-gray-900 line-clamp-2 group-hover:text-emerald-700 transition-colors mb-2 min-h-[48px] leading-snug">
+        <h4 className="font-bold text-sm text-gray-900 line-clamp-2 group-hover:text-emerald-700 transition-colors mb-1 min-h-[40px] leading-snug">
           {product.name}
         </h4>
 
-        <div className="flex items-center gap-1.5 mb-2.5">
-          {showGlobalPartner ||
-            product.seller_id === "global-partners" ||
-            product._source === "global" ? (
-            <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100/50 text-emerald-800 px-2 py-0.5 rounded-full shadow-sm">
-              Global Partner
-            </span>
-          ) : (
-            <span className="text-[10px] font-bold bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-full truncate max-w-full">
-              {product.seller_name || "Marketplace Seller"}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 mb-3">
-          <span className="text-sm font-bold text-amber-500">
+        <div className="flex items-center gap-1 mb-2">
+          <span className="text-xs font-bold text-amber-500">
             {(product.avg_rating || 4.5).toFixed(1)}
           </span>
           <div className="flex items-center">
             {[1, 2, 3, 4, 5].map((s: number) => (
               <Star
                 key={s}
-                className={`w-3.5 h-3.5 flex-shrink-0 ${s <= Math.round(product.avg_rating || 4.5) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
+                className={`w-3 h-3 flex-shrink-0 ${s <= Math.round(product.avg_rating || 4.5) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
               />
             ))}
           </div>
-          <span className="text-xs text-blue-600 hover:underline">
+          <span className="text-[10px] text-blue-600 hover:underline">
             (
             {(
               product.review_count || Math.floor(Math.random() * 500) + 50

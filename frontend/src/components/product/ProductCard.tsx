@@ -73,8 +73,8 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     }, [favorited, toggleFavorite, product.id, user, router]);
 
     return (
-        <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full", className)}>
-            <Link href={`/product/${product.id}`} className="flex flex-col flex-1">
+        <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full cursor-pointer", className)}>
+            <div onClick={() => router.push(`/product/${product.id}`)} className="flex flex-col flex-1">
                 <div
                     className="relative aspect-square object-cover bg-muted"
                     onClick={handleDoubleTap}
@@ -167,7 +167,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                         )}
                     </div>
                 </div>
-            </Link>
+            </div>
 
             {/* Action Buttons */}
             <div className="px-3 pb-3 mt-auto">

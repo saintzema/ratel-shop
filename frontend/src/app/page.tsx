@@ -12,6 +12,7 @@ import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldChec
 import { motion } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { useRouter } from "next/navigation";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
@@ -327,7 +328,7 @@ function HomeContent() {
             {allProducts.length === 0 && (
               <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4">
                 <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
-                <ProductSlider title="Hottest Deals" link="#" products={[]} isLoading={true} icon={<Flame className="h-5 w-5 text-gray-300" />} />
+                <ProductSlider title="Hottest Deals (GenZ Favorites)" link="#" products={[]} isLoading={true} icon={<Flame className="h-5 w-5 text-gray-300" />} />
                 <ProductSlider title="Verified Fair Prices" link="#" products={[]} isLoading={true} icon={<ShieldCheck className="h-5 w-5 text-gray-300" />} />
               </div>
             )}
@@ -341,12 +342,12 @@ function HomeContent() {
             {/* ═══ Horizontal Sliding Products in Categories ═══ */}
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
             <section className="container mx-auto px-1 md:px-2 mb-1">
-              <ProductSlider title="Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
+              <ProductSlider title="Hottest Deals (For Gen Z)" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
             </section>
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
               <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
-                <ProductSlider title="Sponsored" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="right" />
+                <ProductSlider title="Sponsored" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
               </section>
             )}
 
@@ -554,6 +555,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 // ─── ScrollerProductCard (Product Tile with Heart for BestSellers) ───
 
 function ScrollerProductCard({ product }: { product: any }) {
+  const router = useRouter();
   const { isFavorite, toggleFavorite } = useFavorites();
   const { addToCart } = useCart();
   const [showHeartBurst, setShowHeartBurst] = useState(false);
@@ -590,8 +592,8 @@ function ScrollerProductCard({ product }: { product: any }) {
   }, [addToCart, product]);
 
   return (
-    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3">
-      <Link href={`/product/${product.id}`} className="flex flex-col flex-1 h-full relative">
+    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3 cursor-pointer">
+      <div onClick={() => router.push(`/product/${product.id}`)} className="flex flex-col flex-1 h-full relative">
         <div
           className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
           onClick={handleDoubleTap}
@@ -639,7 +641,7 @@ function ScrollerProductCard({ product }: { product: any }) {
             )}
           </div>
         </div>
-      </Link>
+      </div>
       {/* Price + Add to Cart row */}
       <div className="flex flex-col mt-auto gap-0.5 shrink-0 px-0.5">
         <span className="text-base font-black text-gray-900">{formatPrice(product.price)}</span>

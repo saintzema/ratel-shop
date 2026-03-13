@@ -174,6 +174,33 @@ export function ZivaChat() {
     const pathname = usePathname();
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const [isWiggling, setIsWiggling] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsWiggling(true);
+            setTimeout(() => setIsWiggling(false), 2000);
+            try {
+                const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                // Increased volume from 0.05 to 0.15
+                gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch (e) { /* ignore autoplay block */ }
+        }, 1000); // Reduced delay from 4s to 1s
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
         if (Capacitor.isNativePlatform()) {
@@ -1152,7 +1179,7 @@ export function ZivaChat() {
                         {/* Header */}
                         <div className="relative h-28 bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0">
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.2),transparent_70%)]" />
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-25" />
 
                             <motion.div
                                 className="relative w-16 h-16 shrink-0"
@@ -1391,6 +1418,8 @@ export function ZivaChat() {
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}
+                    animate={isWiggling ? { rotate: [0, -15, 15, -15, 15, 0], scale: [1, 1.1, 1.1, 1.1, 1.1, 1] } : {}}
+                    transition={{ duration: 0.6 }}
                     onClick={toggleChat}
                     className={cn(
                         "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all",

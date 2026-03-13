@@ -310,7 +310,7 @@ export default function HomeScreen() {
 
         {/* ═══ Today's Deals (Auto-Scroll) ═══ */}
         {dealProducts.length > 0 && (
-          <AutoScrollRow title="Today's Hottest Deals (GenZ Favorites)" products={dealProducts} icon="flame" />
+          <AutoScrollRow title="Today's Hottest Deals" products={dealProducts} icon="flame" />
         )}
 
         {/* ═══ Product Grid ═══ */}

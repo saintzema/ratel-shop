@@ -18,6 +18,7 @@ import { ClientImageFallback } from "@/components/ui/ClientImageFallback";
 import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
+import { SwipeToBack } from "@/components/ui/SwipeToBack";
 
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
@@ -73,6 +74,7 @@ export default function RootLayout({
         </div>
         <SplashDismiss />
         <KeyboardAware />
+        <SwipeToBack />
         <ClientImageFallback />
         <LocationProvider>
           <AuthProvider>

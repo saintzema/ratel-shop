@@ -333,8 +333,8 @@ class DemoStoreService {
                 body: JSON.stringify({
                     to: sellerEmail,
                     subject: `New Negotiation Offer: ${product.name}`,
-                    template: "ORDER_PLACED", // fallback template for MVP
-                    data: {
+                    type: "ORDER_PLACED", // fallback template for MVP
+                    payload: {
                         customerName: request.customer_name,
                         amount: `₦${request.proposed_price.toLocaleString()}`
                     }
@@ -380,10 +380,10 @@ class DemoStoreService {
                     body: JSON.stringify({
                         to: buyerEmail,
                         subject: `Negotiation ${status === 'accepted' ? 'Accepted' : 'Rejected'}: ${product.name}`,
-                        template: "ORDER_PLACED", // fallback 
-                        data: {
-                            customerName: negotiation.customer_name,
-                            amount: status
+                        type: "ORDER_PLACED", // fallback 
+                        payload: {
+                            customerName: "Buyer",
+                            amount: `₦${negotiation.proposed_price.toLocaleString()}` // Assuming newOffer is negotiation.proposed_price or similar
                         }
                     })
                 }).catch(console.error);
@@ -499,8 +499,8 @@ class DemoStoreService {
             body: JSON.stringify({
                 to: buyerEmail,
                 subject: `Counter Offer Received: ${product?.name || 'An Item'}`,
-                template: "ORDER_PLACED",
-                data: {
+                type: "ORDER_PLACED",
+                payload: {
                     customerName: negotiation.customer_name,
                     amount: `₦${price.toLocaleString()}`
                 }
