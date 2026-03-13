@@ -28,6 +28,7 @@ import {
     MessageCircle,
     TrendingUp,
     ChevronLeft,
+    ShoppingBag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -189,6 +190,13 @@ function OrdersContent() {
                         <h1 className="text-2xl font-bold text-gray-900">Your Orders</h1>
                         <p className="text-sm text-gray-500 mt-0.5">Track, return, or buy items again.</p>
                     </div>
+                    <button
+                        onClick={() => router.push('/')}
+                        className="ml-auto px-4 py-2 bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold rounded-full shadow-md transition-all flex items-center gap-1.5"
+                    >
+                        <ShoppingBag className="h-3.5 w-3.5" />
+                        Continue Shopping
+                    </button>
                 </div>
 
                 {/* Two Column Layout */}

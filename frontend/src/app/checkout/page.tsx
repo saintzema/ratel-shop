@@ -306,6 +306,9 @@ function CheckoutContent() {
     const [codThreshold, setCodThreshold] = useState(20000);
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
+    // COD for global products — admin-controlled
+    const [codGlobalEnabled, setCodGlobalEnabled] = useState(false);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState(15000);
 
     const PICKUP_STATIONS: Record<string, Record<string, string[]>> = {
         "Lagos": {
@@ -462,6 +465,9 @@ function CheckoutContent() {
                     if (data.codAllowExpensiveCategories != null) setCodAllowExpensiveCategories(data.codAllowExpensiveCategories);
                     if (data.doorstepFee) setBaseDoorFee(Number(data.doorstepFee));
                     if (data.pickupFee) setBasePickupFee(Number(data.pickupFee));
+                    // Global COD settings
+                    if (data.codGlobalEnabled != null) setCodGlobalEnabled(data.codGlobalEnabled);
+                    if (data.codGlobalThreshold != null) setCodGlobalThreshold(Number(data.codGlobalThreshold));
                 }
             })
             .catch(() => { });
@@ -526,8 +532,11 @@ function CheckoutContent() {
     const hasExpensiveCategoryItem = checkoutItems.some(item =>
         EXPENSIVE_CATEGORIES.some(cat => (item.product.category || "").toLowerCase().includes(cat))
     );
-    const canPayOnDelivery = codEnabled && !hasGlobalProduct && (
-        total <= codThreshold || (codAllowExpensiveCategories && hasExpensiveCategoryItem)
+    const canPayOnDelivery = codEnabled && (
+        // Local products: standard COD rules
+        (!hasGlobalProduct && (total <= codThreshold || (codAllowExpensiveCategories && hasExpensiveCategoryItem))) ||
+        // Global products: only if global COD is enabled & within global threshold
+        (hasGlobalProduct && codGlobalEnabled && total <= codGlobalThreshold)
     );
 
     // Save address to localStorage
@@ -545,8 +554,13 @@ function CheckoutContent() {
             station: pickupDetails.station,
             method: deliveryMethod
         };
-        // Avoid duplicates by matching street + city + method
-        const existing = savedAddresses.filter(a => !(a.method === newAddr.method && a.street === newAddr.street && a.city === newAddr.city && a.station === newAddr.station));
+        // Avoid duplicates by matching street + city + method (case-insensitive and trimmed)
+        const normalize = (str?: string) => (str || "").trim().toLowerCase();
+        const existing = savedAddresses.filter(a => !(
+            a.method === newAddr.method &&
+            normalize(a.street) === normalize(newAddr.street) &&
+            normalize(a.city) === normalize(newAddr.city)
+        ));
         const updated = [newAddr, ...existing].slice(0, 5); // Keep max 5
         setSavedAddresses(updated);
         persistAddresses(updated);

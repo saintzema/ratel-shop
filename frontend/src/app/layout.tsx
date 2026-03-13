@@ -17,6 +17,7 @@ import { PwaManager } from "@/components/ui/PwaManager";
 import { ClientImageFallback } from "@/components/ui/ClientImageFallback";
 import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
+import { KeyboardAware } from "@/components/ui/KeyboardAware";
 
 export const metadata: Metadata = {
   title: "FairPrice | Premium African E-Commerce",
@@ -48,30 +49,30 @@ export default function RootLayout({
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
         <link rel="preload" href="/logo.png" as="image" />
+        {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          #fp-splash{position:fixed;inset:0;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
+          #fp-splash img{width:80px;height:80px;border-radius:20px;margin-bottom:16px;animation:fp-pulse 2s ease-in-out infinite}
+          #fp-splash .fp-name{color:#fff;font-size:16px;font-weight:600;letter-spacing:1px;opacity:.9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+          #fp-splash .fp-spin{margin-top:24px;width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;animation:fp-spin .8s linear infinite}
+          @keyframes fp-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(.97)}}
+          @keyframes fp-spin{to{transform:rotate(360deg)}}
+          #fp-splash.fp-hide{opacity:0;pointer-events:none}
+        `}} />
       </head>
       <body
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}
         suppressHydrationWarning
       >
-        {/* ─── Branded Instant Loading Shell (shows before React hydrates) ─── */}
-        <div
-          id="fp-splash"
-          suppressHydrationWarning
-          className="fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-gradient-to-br from-[#052e16] via-[#064e3b] to-[#059669] transition-opacity duration-300 ease-out"
-        >
-          <img
-            src="/logo.png"
-            alt="FairPrice"
-            width={80}
-            height={80}
-            fetchPriority="high"
-            decoding="sync"
-            className="rounded-[20px] mb-4 animate-[pulse_2s_ease-in-out_infinite]"
-          />
-          <p className="text-white text-base font-semibold tracking-[1px] opacity-90">FairPrice</p>
-          <div className="mt-6 w-8 h-8 rounded-full border-[3px] border-white/30 border-t-white animate-[spin_0.8s_linear_infinite]" />
+        {/* ─── Branded Splash (raw HTML — renders before React/JS) ─── */}
+        <div id="fp-splash" suppressHydrationWarning>
+          <img src="/logo.png" alt="FairPrice" width={80} height={80} fetchPriority="high" decoding="sync" />
+          <p className="fp-name">FairPrice</p>
+          <div className="fp-spin" />
         </div>
         <SplashDismiss />
+        <KeyboardAware />
         <ClientImageFallback />
         <LocationProvider>
           <AuthProvider>

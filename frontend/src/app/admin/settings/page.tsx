@@ -36,6 +36,9 @@ export default function AdminSettings() {
     const [codThreshold, setCodThreshold] = useState("20000");
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
+    // Global COD Settings
+    const [codGlobalEnabled, setCodGlobalEnabled] = useState(false);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState("15000");
 
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
@@ -83,6 +86,8 @@ export default function AdminSettings() {
                     setCodThreshold(data.codThreshold?.toString() || "20000");
                     setCodEnabled(data.codEnabled ?? true);
                     setCodAllowExpensiveCategories(data.codAllowExpensiveCategories ?? true);
+                    setCodGlobalEnabled(data.codGlobalEnabled ?? false);
+                    setCodGlobalThreshold(data.codGlobalThreshold?.toString() || "15000");
 
                     setAiMonitoring(data.aiMonitoring ?? true);
                     setKycVerification(data.kycVerification ?? false);
@@ -151,7 +156,9 @@ export default function AdminSettings() {
         stateShipping,
         codThreshold: parseFloat(codThreshold) || 20000,
         codEnabled,
-        codAllowExpensiveCategories
+        codAllowExpensiveCategories,
+        codGlobalEnabled,
+        codGlobalThreshold: parseFloat(codGlobalThreshold) || 15000
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
@@ -398,6 +405,27 @@ export default function AdminSettings() {
                                             <p className="text-xs text-gray-500 mt-0.5">Cars, automotive, and high-value items can use COD regardless of threshold</p>
                                         </div>
                                         <Switch checked={codAllowExpensiveCategories} onCheckedChange={setCodAllowExpensiveCategories} />
+                                    </div>
+
+                                    {/* Global Products COD */}
+                                    <div className="pt-4 border-t border-gray-100">
+                                        <h5 className="text-xs font-bold text-gray-600 mb-3 flex items-center gap-1.5">
+                                            🌍 Global Products COD
+                                        </h5>
+                                        <div className="flex items-center justify-between py-3 rounded-xl bg-blue-50/50 px-4 border border-blue-100 mb-3">
+                                            <div>
+                                                <h4 className="text-sm font-bold text-gray-900">Enable COD for Global Products</h4>
+                                                <p className="text-xs text-gray-500 mt-0.5">Allow pay-on-delivery for globally sourced items</p>
+                                            </div>
+                                            <Switch checked={codGlobalEnabled} onCheckedChange={setCodGlobalEnabled} />
+                                        </div>
+                                        {codGlobalEnabled && (
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Global COD Threshold (₦)</label>
+                                                <Input value={codGlobalThreshold} onChange={(e) => setCodGlobalThreshold(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
+                                                <p className="text-[10px] text-gray-400 pl-1">Global product orders at or below this amount can use Pay on Delivery</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

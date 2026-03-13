@@ -21,17 +21,18 @@ const DISMISS_KEY = "fairprice_waitlist_dismissed";
 
 const FEATURES = [
     {
-        icon: <ShieldCheck className="h-4 w-4" />,
-        title: "AI-Fair Pricing",
-        desc: "Our AI fights inflation — ensuring every product is priced fairly.",
-        color: "from-emerald-400 to-green-500",
-    },
-    {
         icon: <Search className="h-4 w-4" />,
         title: "Price Checker",
         desc: "Search any product. See the real fair price. Never overpay.",
         color: "from-sky-400 to-blue-500",
     },
+    {
+        icon: <ShieldCheck className="h-4 w-4" />,
+        title: "AI-Fair Pricing",
+        desc: "Our AI fights inflation by ensuring true average prices.",
+        color: "from-emerald-400 to-green-500",
+    },
+    
     {
         icon: <Globe className="h-4 w-4" />,
         title: "Ship From Anywhere",

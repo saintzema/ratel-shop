@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Order, ReturnRequest } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
@@ -31,6 +32,15 @@ export default function SellerOrders() {
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+    const searchParams = useSearchParams();
+
+    // Read ?filter= from URL (e.g. from dashboard Total Revenue card)
+    useEffect(() => {
+        const urlFilter = searchParams?.get("filter");
+        if (urlFilter && ["pending", "processing", "shipped", "delivered", "returns"].includes(urlFilter)) {
+            setStatusFilter(urlFilter);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         const sellerId = DemoStore.getCurrentSellerId();
@@ -44,7 +54,11 @@ export default function SellerOrders() {
 
         loadOrders();
         window.addEventListener("storage", loadOrders);
-        return () => window.removeEventListener("storage", loadOrders);
+        window.addEventListener("demo-store-update", loadOrders);
+        return () => {
+            window.removeEventListener("storage", loadOrders);
+            window.removeEventListener("demo-store-update", loadOrders);
+        };
     }, []);
 
     const handleStatusUpdate = (orderId: string, newStatus: Order["status"]) => {
@@ -54,6 +68,8 @@ export default function SellerOrders() {
         if (sellerId) {
             setOrders(DemoStore.getOrders().filter(o => o.seller_id === sellerId));
         }
+        // Hot update across the app
+        window.dispatchEvent(new Event("demo-store-update"));
     };
 
     const handleRequestPayout = (order: Order) => {
@@ -288,7 +304,14 @@ export default function SellerOrders() {
                                                 {order.status === "processing" && (
                                                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-3">Shipping Details</h5>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                                                        {/* Show buyer destination */}
+                                                        {order.shipping_address && (
+                                                            <div className="mb-3 p-2 bg-blue-50 border border-blue-100 rounded-lg">
+                                                                <p className="text-[10px] font-bold text-blue-600 uppercase">Ship To</p>
+                                                                <p className="text-xs text-blue-800 font-medium">{order.shipping_address}</p>
+                                                            </div>
+                                                        )}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                                             <Input
                                                                 placeholder="Carrier (RT Logistics, DHL...)"
                                                                 className="h-9 text-xs rounded-lg"
@@ -300,10 +323,27 @@ export default function SellerOrders() {
                                                                 id={`tracking-${order.id}`}
                                                             />
                                                             <Input
+                                                                placeholder="Driver Name *"
+                                                                className="h-9 text-xs rounded-lg"
+                                                                id={`driver-name-${order.id}`}
+                                                            />
+                                                            <Input
+                                                                placeholder="Driver Phone *"
+                                                                className="h-9 text-xs rounded-lg"
+                                                                id={`driver-phone-${order.id}`}
+                                                                inputMode="tel"
+                                                            />
+                                                            <Input
                                                                 placeholder="Current Location"
                                                                 className="h-9 text-xs rounded-lg"
                                                                 defaultValue="Lagos Warehouse"
                                                                 id={`location-${order.id}`}
+                                                            />
+                                                            <Input
+                                                                placeholder="Est. Delivery Date"
+                                                                type="date"
+                                                                className="h-9 text-xs rounded-lg"
+                                                                id={`est-delivery-${order.id}`}
                                                             />
                                                         </div>
                                                         <Button
@@ -312,9 +352,33 @@ export default function SellerOrders() {
                                                                 const carrier = (document.getElementById(`carrier-${order.id}`) as HTMLInputElement)?.value;
                                                                 const trackingId = (document.getElementById(`tracking-${order.id}`) as HTMLInputElement)?.value;
                                                                 const location = (document.getElementById(`location-${order.id}`) as HTMLInputElement)?.value || "In transit";
+                                                                const driverName = (document.getElementById(`driver-name-${order.id}`) as HTMLInputElement)?.value;
+                                                                const driverPhone = (document.getElementById(`driver-phone-${order.id}`) as HTMLInputElement)?.value;
+
+                                                                // Enforce required fields
+                                                                if (!carrier || !driverName || !driverPhone) {
+                                                                    alert("Please fill in the Carrier, Driver Name, and Driver Phone before marking as shipped.");
+                                                                    return;
+                                                                }
 
                                                                 DemoStore.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
                                                                 handleStatusUpdate(order.id, "shipped");
+
+                                                                // Send notification to admin with driver details
+                                                                DemoStore.addNotification({
+                                                                    userId: "admin",
+                                                                    type: "order",
+                                                                    message: `📦 Order ${order.id} shipped by ${DemoStore.getCurrentSeller()?.business_name}. Driver: ${driverName} (${driverPhone}). Carrier: ${carrier}. Tracking: ${trackingId || 'N/A'}`,
+                                                                    link: "/admin/orders"
+                                                                });
+
+                                                                // Notify buyer
+                                                                DemoStore.addNotification({
+                                                                    userId: order.customer_id,
+                                                                    type: "order",
+                                                                    message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${driverName}. Tracking: ${trackingId || carrier}.`,
+                                                                    link: "/account/orders"
+                                                                });
                                                             }}
                                                             className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold h-9 w-full sm:w-auto"
                                                         >
@@ -341,8 +405,29 @@ export default function SellerOrders() {
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
+                                                                const confirmed = window.confirm(
+                                                                    "Has the delivery company confirmed delivery to the customer's address?"
+                                                                );
+                                                                if (!confirmed) return;
+
                                                                 DemoStore.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
                                                                 handleStatusUpdate(order.id, "delivered");
+
+                                                                // Notify buyer
+                                                                DemoStore.addNotification({
+                                                                    userId: order.customer_id,
+                                                                    type: "order",
+                                                                    message: `✅ Your order "${order.product?.name}" has been delivered! Please confirm receipt in your orders page.`,
+                                                                    link: "/account/orders"
+                                                                });
+
+                                                                // Notify admin
+                                                                DemoStore.addNotification({
+                                                                    userId: "admin",
+                                                                    type: "order",
+                                                                    message: `✅ Order ${order.id} marked as delivered by seller ${DemoStore.getCurrentSeller()?.business_name}.`,
+                                                                    link: "/admin/orders"
+                                                                });
                                                             }}
                                                             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold h-9"
                                                         >

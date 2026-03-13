@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Ticket, Copy, Check, LogOut } from "lucide-react";
+import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { DemoStore } from "@/lib/demo-store";
 import { useState, useEffect } from "react";
@@ -13,6 +13,38 @@ import { useRouter } from "next/navigation";
 
 export default function AccountPage() {
     const { user, logout } = useAuth();
+    const router = useRouter();
+
+    // Check if user is already a seller
+    const [isSeller, setIsSeller] = useState(false);
+    useEffect(() => {
+        if (user) {
+            fetch('/api/sellers?all=true')
+                .then(res => res.json())
+                .then(data => {
+                    const sellers = Array.isArray(data) ? data : DemoStore.getSellers();
+                    const match = sellers.some((s: any) =>
+                        s.owner_email === user.email ||
+                        s.user_id === user.id ||
+                        s.id === user.id
+                    );
+                    setIsSeller(match);
+                })
+                .catch(() => {
+                    const sellers = DemoStore.getSellers();
+                    const match = sellers.some(s =>
+                        s.owner_email === user.email ||
+                        s.id === user.id
+                    );
+                    setIsSeller(match);
+                });
+        }
+    }, [user]);
+
+    const sellerCard = isSeller
+        ? { icon: Store, title: "Seller Dashboard", desc: "Manage your store, orders & payouts", href: "/seller/dashboard" }
+        : { icon: Store, title: "Become a Seller", desc: "Start selling on FairPrice today", href: "/seller/onboarding" };
+
     const cards = [
         {
             icon: Package,
@@ -20,29 +52,17 @@ export default function AccountPage() {
             desc: "Track, return, or buy things again",
             href: "/account/orders"
         },
-        {
-            icon: Share2,
-            title: "Become a Seller",
-            desc: "Start selling on FairPrice today",
-            href: "/seller/onboarding"
-        },
+        sellerCard,
         {
             icon: User,
             title: "Prime / FairPrice Premium",
             desc: "View benefits and payment settings",
             href: "/account/premium"
         },
-        // {
-        //     icon: MessageSquare,
-        //     title: "Your Messages",
-        //     desc: "View messages from sellers and FairPrice",
-        //     href: "/account/messages"
-        // },
-
         {
             icon: Lock,
             title: "Login & security",
-            desc: "Update profile picture, and login detials",
+            desc: "Update profile picture, and login details",
             href: "/account/profile"
         },
         {

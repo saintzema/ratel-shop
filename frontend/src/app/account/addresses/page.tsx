@@ -50,13 +50,34 @@ export default function AddressesPage() {
 
     const handleAdd = () => {
         if (!form.firstName || !form.phone || !form.street || !form.state) return;
-        const newAddr: Address = {
-            ...form, id: `addr_${Date.now()}`, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other",
-            isDefault: addresses.length === 0
-        };
-        save([...addresses, newAddr]);
+
+        if (editingId) {
+            const updated = addresses.map(a => a.id === editingId ? { ...a, ...form, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other" } : a);
+            save(updated);
+        } else {
+            const newAddr: Address = {
+                ...form, id: `addr_${Date.now()}`, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other",
+                isDefault: addresses.length === 0
+            };
+            save([...addresses, newAddr]);
+        }
         setForm({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" });
         setIsAdding(false);
+        setEditingId(null);
+    };
+
+    const editAddress = (addr: Address) => {
+        setForm({
+            firstName: addr.firstName,
+            lastName: addr.lastName,
+            phone: addr.phone,
+            street: addr.street,
+            city: addr.city,
+            state: addr.state,
+            type: addr.type
+        });
+        setEditingId(addr.id);
+        setIsAdding(true);
     };
 
     const handleDelete = (id: string) => {
@@ -85,7 +106,7 @@ export default function AddressesPage() {
 
                 {isAdding && (
                     <div className="mb-6 p-5 border-2 border-dashed border-emerald-300 rounded-2xl bg-emerald-50/50 space-y-3">
-                        <h3 className="font-bold text-gray-900">New Address</h3>
+                        <h3 className="font-bold text-gray-900">{editingId ? "Edit Address" : "New Address"}</h3>
                         <div className="grid grid-cols-2 gap-3">
                             <Input placeholder="First Name *" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
                             <Input placeholder="Last Name" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
@@ -107,8 +128,8 @@ export default function AddressesPage() {
                             ))}
                         </div>
                         <div className="flex gap-2 pt-2">
-                            <Button onClick={handleAdd} className="bg-emerald-600 text-white rounded-xl font-bold">Save Address</Button>
-                            <Button onClick={() => setIsAdding(false)} variant="outline" className="rounded-xl">Cancel</Button>
+                            <Button onClick={handleAdd} className="bg-emerald-600 text-white rounded-xl font-bold">{editingId ? "Update Address" : "Save Address"}</Button>
+                            <Button onClick={() => { setIsAdding(false); setEditingId(null); setForm({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" }); }} variant="outline" className="rounded-xl">Cancel</Button>
                         </div>
                     </div>
                 )}
@@ -138,6 +159,9 @@ export default function AddressesPage() {
                                         {!addr.isDefault && (
                                             <button onClick={() => setDefault(addr.id)} className="text-xs text-emerald-600 hover:underline px-2 py-1">Set Default</button>
                                         )}
+                                        <button onClick={() => editAddress(addr)} className="p-1 text-gray-400 hover:text-emerald-500 transition-colors">
+                                            <Edit2 className="h-4 w-4" />
+                                        </button>
                                         <button onClick={() => handleDelete(addr.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
                                             <Trash2 className="h-4 w-4" />
                                         </button>

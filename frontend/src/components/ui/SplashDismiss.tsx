@@ -10,10 +10,9 @@ export function SplashDismiss() {
     useEffect(() => {
         const splash = document.getElementById("fp-splash");
         if (splash) {
-            // Small delay to let the first paint settle
+            // Small delay to let the first paint settle, then fade out
             requestAnimationFrame(() => {
-                splash.style.opacity = "0";
-                splash.style.pointerEvents = "none";
+                splash.classList.add("fp-hide");
                 setTimeout(() => {
                     splash.style.display = "none";
                 }, 400);

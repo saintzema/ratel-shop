@@ -138,7 +138,23 @@ export default function SellerDashboard() {
     };
 
     const handleCashout = () => {
+        // Check if seller has payout info set up
+        const payoutInfo = localStorage.getItem(`fp_payout_${currentSeller?.id}`);
+        if (!payoutInfo) {
+            const go = window.confirm("You haven't set up your payout details yet. Would you like to add your bank details now?");
+            if (go) {
+                router.push("/seller/settings/payouts#bank-details");
+            }
+            return;
+        }
         setCashoutSuccess(true);
+        DemoStore.addNotification({
+            userId: currentSeller?.id || "",
+            type: "system",
+            message: `💰 Cashout request of ${formatPrice(availableBalance)} submitted! Funds will be transferred within 24-48 hours.`,
+            link: "/seller/settings/payouts"
+        });
+        window.dispatchEvent(new Event("demo-store-update"));
         setTimeout(() => setCashoutSuccess(false), 3000);
     };
 
@@ -173,7 +189,7 @@ export default function SellerDashboard() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={totalRevenue > 0 ? "+12%" : undefined} color="emerald" />
+                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={totalRevenue > 0 ? "+12%" : undefined} color="emerald" href="/seller/orders?filter=delivered" />
                 <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" />
                 <StatCard icon={<Package />} label="Active Listings" value={products.length.toString()} color="blue" href="/seller/products" />
                 <StatCard icon={<Star />} label="Trust Score" value={`${currentSeller.trust_score || 50}%`} color="purple" />

@@ -840,6 +840,10 @@ export default function UnifiedAuthPage() {
                                                         });
                                                         const nextIdx = Math.min(text.length, 5);
                                                         document.getElementById(`otp-${nextIdx}`)?.focus();
+                                                        // Auto-verify if all 6 digits pasted
+                                                        if (text.length === 6) {
+                                                            setTimeout(() => handleFinalizeRegistration(false), 300);
+                                                        }
                                                     }
                                                 }}
                                                 onChange={(e) => {
@@ -847,6 +851,11 @@ export default function UnifiedAuthPage() {
                                                     e.target.value = val;
                                                     if (val && idx < 5) {
                                                         document.getElementById(`otp-${idx + 1}`)?.focus();
+                                                    }
+                                                    // Auto-verify when last digit typed
+                                                    if (val && idx === 5) {
+                                                        const allFilled = Array.from({ length: 6 }).every((_, i) => (document.getElementById(`otp-${i}`) as HTMLInputElement)?.value);
+                                                        if (allFilled) setTimeout(() => handleFinalizeRegistration(false), 300);
                                                     }
                                                 }}
                                             />
@@ -921,6 +930,10 @@ export default function UnifiedAuthPage() {
                                                         });
                                                         const nextIdx = Math.min(text.length, 5);
                                                         document.getElementById(`otp-ex-${nextIdx}`)?.focus();
+                                                        // Auto-verify if all 6 digits pasted
+                                                        if (text.length === 6) {
+                                                            setTimeout(() => handleFinalizeOtpLogin(), 300);
+                                                        }
                                                     }
                                                 }}
                                                 onChange={(e) => {
@@ -928,6 +941,11 @@ export default function UnifiedAuthPage() {
                                                     e.target.value = val;
                                                     if (val && idx < 5) {
                                                         document.getElementById(`otp-ex-${idx + 1}`)?.focus();
+                                                    }
+                                                    // Auto-verify when last digit typed
+                                                    if (val && idx === 5) {
+                                                        const allFilled = Array.from({ length: 6 }).every((_, i) => (document.getElementById(`otp-ex-${i}`) as HTMLInputElement)?.value);
+                                                        if (allFilled) setTimeout(() => handleFinalizeOtpLogin(), 300);
                                                     }
                                                 }}
                                             />
