@@ -92,10 +92,40 @@ export function Navbar() {
     const [unreadNotifs, setUnreadNotifs] = useState(0);
     const { user, logout } = useAuth();
     const [mounted, setMounted] = useState(false);
+    const [isSeller, setIsSeller] = useState(false);
 
     useEffect(() => {
         setMounted(true);
     }, []);
+
+    useEffect(() => {
+        if (user) {
+            if (user.role === 'seller' || user.role === 'admin') {
+                setIsSeller(true);
+                return;
+            }
+            const sellers = DemoStore.getSellers();
+            const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
+            if (localMatch) {
+                setIsSeller(true);
+            } else {
+                fetch('/api/sellers?all=true')
+                    .then(res => res.json())
+                    .then(data => {
+                        const sers = Array.isArray(data) ? data : [];
+                        const match = sers.some((s: any) =>
+                            s.owner_email === user.email ||
+                            s.user_id === user.id ||
+                            s.id === user.id
+                        );
+                        setIsSeller(match);
+                    })
+                    .catch(() => setIsSeller(false));
+            }
+        } else {
+            setIsSeller(false);
+        }
+    }, [user]);
 
     useEffect(() => {
         const loadNotifs = async () => {
@@ -914,7 +944,7 @@ export function Navbar() {
                                                 <Link href="/admin/dashboard" className="block px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Admin Dashboard</Link>
                                                 <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
                                             </>
-                                        ) : user?.role === 'seller' ? (
+                                        ) : isSeller ? (
                                             <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
                                         ) : (
                                             <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>

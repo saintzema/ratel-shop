@@ -341,9 +341,22 @@ function HomeContent() {
             )}
             {/* ═══ Horizontal Sliding Products in Categories ═══ */}
             {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
-            <section className="container mx-auto px-1 md:px-2 mb-1">
-              <ProductSlider title="Hottest Deals (For Gen Z)" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
-            </section>
+            {mounted && dealProducts.length > 0 && (
+              <section className="container mx-auto px-1 md:px-2 mb-1">
+                <ProductSlider
+                  title={
+                    <>
+                      Hottest Deals <span className="text-green-500">GenZ Favorites</span>
+                    </>
+                  }
+                  link="/deals"
+                  products={dealProducts}
+                  icon={<Flame className="h-5 w-5 text-orange-500" />}
+                  autoScroll
+                  direction="right"
+                />
+              </section>
+            )}
             {/* ═══ Sponsored Products Scroller ═══ */}
             {mounted && sponsoredProducts.length > 0 && (
               <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
@@ -678,7 +691,7 @@ function ScrollerProductCard({ product }: { product: any }) {
   );
 }
 
-function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);

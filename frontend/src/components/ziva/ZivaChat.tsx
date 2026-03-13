@@ -198,7 +198,7 @@ export function ZivaChat() {
                 osc.start();
                 osc.stop(ctx.currentTime + 0.3);
             } catch (e) { /* ignore autoplay block */ }
-        }, 1000); // Reduced delay from 4s to 1s
+        }, 10000); // Delay set to 10 seconds
         return () => clearTimeout(timer);
     }, []);
 

@@ -64,61 +64,63 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         if (!isOpen || !product || !orderId) return;
 
         const orderMsgs = DemoStore.getOrderMessages(orderId);
+        
+        // Track whether we need to inject the context prompt
+        let initialMessages: Message[] = [];
+        
         if (orderMsgs && orderMsgs.length > 0) {
-            if (messages.length === 0) {
-                setMessages(orderMsgs.map(m => ({
-                    id: m.id,
-                    sender: m.sender as any,
-                    text: m.text,
-                    timestamp: new Date(), // using current date for UI compatibility
-                    imageUrl: m.imageUrl
-                })));
-            }
-        } else {
-            // Initialize if empty
-            if (messages.length === 0) {
-                if (mode === "cancel") {
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `I noticed you want to cancel the **${product.name}** (Order **${trackingId}**). Could you tell me why you're cancelling? This helps us improve our service.\n\nPlease select a reason below or type a message.`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                } else if (mode === "review") {
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `Your delivery for **${product.name}** has been confirmed! 🎉\n\nPlease select a star rating below to leave a quick review. This really helps other shoppers!`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                } else if (mode === "return") {
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `I understand you'd like to initiate a return for the **${product.name}** (Order **${trackingId}**). I'm sorry for the inconvenience.\n\nTo process your return quickly, please:\n1. **Tell me the reason** for this return\n2. **Upload photos** of the item showing the issue\n\nThis helps our team resolve your case within 24 hours.`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                } else {
-                    const statusText = orderStatus === "shipped" || orderStatus === "delivered"
-                        ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
-                        : `Your order is currently being **processed**.`;
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                }
-            }
+             initialMessages = orderMsgs.map(m => ({
+                id: m.id,
+                sender: m.sender as any,
+                text: m.text,
+                timestamp: new Date(), 
+                imageUrl: m.imageUrl
+            }));
         }
+
+        if (mode === "cancel" && !initialMessages.some(m => m.text.includes("I noticed you want to cancel the"))) {
+            const zivaMsg: Message = {
+                id: Date.now().toString(),
+                sender: "ziva",
+                text: `I noticed you want to cancel the **${product.name}** (Order **${trackingId}**). Could you tell me why you're cancelling? This helps us improve our service.\n\nPlease select a reason below or type a message.`,
+                timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        } else if (mode === "review" && !initialMessages.some(m => m.text.includes("Your delivery for"))) {
+            const zivaMsg: Message = {
+                 id: Date.now().toString(),
+                 sender: "ziva",
+                 text: `Your delivery for **${product.name}** has been confirmed! 🎉\n\nPlease select a star rating below to leave a quick review. This really helps other shoppers!`,
+                 timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        } else if (mode === "return" && !initialMessages.some(m => m.text.includes("I understand you'd like to initiate a return"))) {
+            const zivaMsg: Message = {
+                 id: Date.now().toString(),
+                 sender: "ziva",
+                 text: `I understand you'd like to initiate a return for the **${product.name}** (Order **${trackingId}**). I'm sorry for the inconvenience.\n\nTo process your return quickly, please:\n1. **Tell me the reason** for this return\n2. **Upload photos** of the item showing the issue\n\nThis helps our team resolve your case within 24 hours.`,
+                 timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        } else if (initialMessages.length === 0) {
+            const statusText = orderStatus === "shipped" || orderStatus === "delivered"
+                ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
+                : `Your order is currently being **processed**.`;
+            
+            const zivaMsg: Message = {
+                id: Date.now().toString(),
+                sender: "ziva",
+                text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`,
+                timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        }
+
+        setMessages(initialMessages);
     }, [isOpen, product, orderId, messages.length, mode]);
 
     // Listen for DemoStore updates (e.g. admin replies)

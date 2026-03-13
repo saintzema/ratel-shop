@@ -128,20 +128,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         localStorage.removeItem("fp_saved_addresses");
 
-        // Clear all guest negotiations so the next guest starts perfectly fresh
+        // Clear ALL negotiations and conversations to ensure no data leaks between accounts or to guest
         try {
-            const stored = localStorage.getItem("fairprice_demo_negotiations");
-            if (stored) {
-                const negs = JSON.parse(stored).filter((n: any) => n.customer_id !== "guest" && n.customer_name !== "Guest Buyer");
-                localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
-            }
-
-            // Clear guest chat messages
-            const convs = localStorage.getItem("fp_conversations");
-            if (convs) {
-                const parsedConvs = JSON.parse(convs).filter((c: any) => !c.participants.includes("guest"));
-                localStorage.setItem("fp_conversations", JSON.stringify(parsedConvs));
-            }
+            localStorage.removeItem("fairprice_demo_negotiations");
+            localStorage.removeItem("fp_conversations");
+            localStorage.removeItem("fp_chat_messages");
+            localStorage.removeItem("fairprice_demo_orders");
+            localStorage.removeItem("fairprice_demo_notifications");
+            localStorage.removeItem("fairprice_demo_returns");
         } catch (e) { /* ignore */ }
 
         // Also clear seller session

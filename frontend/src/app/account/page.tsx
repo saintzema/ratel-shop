@@ -19,25 +19,30 @@ export default function AccountPage() {
     const [isSeller, setIsSeller] = useState(false);
     useEffect(() => {
         if (user) {
-            fetch('/api/sellers?all=true')
-                .then(res => res.json())
-                .then(data => {
-                    const sellers = Array.isArray(data) ? data : DemoStore.getSellers();
-                    const match = sellers.some((s: any) =>
-                        s.owner_email === user.email ||
-                        s.user_id === user.id ||
-                        s.id === user.id
-                    );
-                    setIsSeller(match);
-                })
-                .catch(() => {
-                    const sellers = DemoStore.getSellers();
-                    const match = sellers.some(s =>
-                        s.owner_email === user.email ||
-                        s.id === user.id
-                    );
-                    setIsSeller(match);
-                });
+            if (user.role === 'seller' || user.role === 'admin') {
+                setIsSeller(true);
+                return;
+            }
+            const sellers = DemoStore.getSellers();
+            const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
+            if (localMatch) {
+                setIsSeller(true);
+            } else {
+                fetch('/api/sellers?all=true')
+                    .then(res => res.json())
+                    .then(data => {
+                        const sers = Array.isArray(data) ? data : [];
+                        const match = sers.some((s: any) =>
+                            s.owner_email === user.email ||
+                            s.user_id === user.id ||
+                            s.id === user.id
+                        );
+                        setIsSeller(match);
+                    })
+                    .catch(() => setIsSeller(false));
+            }
+        } else {
+            setIsSeller(false);
         }
     }, [user]);
 

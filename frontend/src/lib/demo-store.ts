@@ -295,17 +295,25 @@ class DemoStoreService {
     }
 
     // --- Negotiations ---
-    getNegotiations(sellerId?: string): NegotiationRequest[] {
+    getNegotiations(sellerId?: string, buyerId?: string): NegotiationRequest[] {
         if (typeof window === "undefined") return [];
         const all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
-        if (!sellerId) return all;
+        
+        let filtered = all;
+        
+        if (sellerId) {
+            const products = this.getProducts();
+            filtered = filtered.filter((n: NegotiationRequest) => {
+                const product = products.find(p => p.id === n.product_id);
+                return product?.seller_id === sellerId || (n as any).seller_id === sellerId;
+            });
+        }
+        
+        if (buyerId) {
+            filtered = filtered.filter((n: NegotiationRequest) => n.customer_id === buyerId || ((n as any).customer_email && (n as any).customer_email === buyerId));
+        }
 
-        // Join with products to filter by seller
-        const products = this.getProducts();
-        return all.filter((n: NegotiationRequest) => {
-            const product = products.find(p => p.id === n.product_id);
-            return product?.seller_id === sellerId;
-        });
+        return filtered;
     }
 
     addNegotiation(request: NegotiationRequest) {

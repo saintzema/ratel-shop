@@ -39,10 +39,8 @@ export default function NegotiationsPage() {
         const userId = user?.id || user?.email || "";
 
         const loadData = () => {
-            const all = DemoStore.getNegotiations();
-            // Show negotiations belonging to the logged-in user (match by id OR email)
-            const myNegotiations = all.filter(n => n.customer_id === userId || n.customer_id === user?.email || n.customer_id === user?.id);
-            setNegotiations(myNegotiations);
+            const all = DemoStore.getNegotiations(undefined, userId);
+            setNegotiations(all);
             setProducts(DemoStore.getProducts());
         };
 
@@ -54,10 +52,9 @@ export default function NegotiationsPage() {
     const handleAction = (id: string, status: "accepted" | "rejected") => {
         DemoStore.updateNegotiationStatus(id, status);
 
-        const userId = user?.id || "u1";
-        const all = DemoStore.getNegotiations();
-        const myNegotiations = all.filter(n => n.customer_id === userId);
-        setNegotiations(myNegotiations);
+        const userId = user?.id || user?.email || "";
+        const all = DemoStore.getNegotiations(undefined, userId);
+        setNegotiations(all);
     };
 
     const handleAddToCart = (neg: NegotiationRequest, product: Product) => {
