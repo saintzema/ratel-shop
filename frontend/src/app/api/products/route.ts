@@ -12,7 +12,9 @@ export async function GET(req: Request) {
             : {
                 isActive: true,
                 seller: {
-                    status: "active"
+                    is: {
+                        status: "active"
+                    }
                 }
             };
 
