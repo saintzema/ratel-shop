@@ -21,12 +21,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
         }
 
+        // Hash password securely before storing
+        let hashedPassword = null;
+        if (password) {
+            const bcrypt = await import("bcryptjs");
+            hashedPassword = await bcrypt.hash(password, 10);
+        }
+
         // Create new user
         const user = await db.user.create({
             data: {
                 email: normalizedEmail,
                 name: name.trim(),
-                password: password || null,
+                password: hashedPassword,
                 role: "customer",
             },
         });

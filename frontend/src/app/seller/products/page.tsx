@@ -26,7 +26,8 @@ import {
     Eye,
     TrendingUp,
     Star,
-    ArrowUpDown
+    ArrowUpDown,
+    Timer
 } from "lucide-react";
 import {
     Dialog,
@@ -46,6 +47,9 @@ export default function SellerProducts() {
     const [sortBy, setSortBy] = useState<string>("newest");
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
+    const [dealModalOpen, setDealModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
+    const [dealDiscount, setDealDiscount] = useState("15");
+    const [dealDurationHours, setDealDurationHours] = useState("24");
     const [showPaystack, setShowPaystack] = useState(false);
     const [selectedAdPlan, setSelectedAdPlan] = useState<"3_day" | "10_day" | "30_day">("3_day");
     const [saveSuccess, setSaveSuccess] = useState(false);
@@ -137,6 +141,26 @@ export default function SellerProducts() {
 
         setShowPaystack(false);
         setPromoteModalOpen({ isOpen: false, product: null });
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 3000);
+    };
+
+    const handlePromoteToDeal = () => {
+        if (!dealModalOpen.product) return;
+        const discountPct = parseInt(dealDiscount) || 15;
+        const hours = parseInt(dealDurationHours) || 24;
+        const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+        const startAt = new Date().toISOString();
+        
+        DemoStore.addDeal({
+            product_id: dealModalOpen.product.id,
+            product: dealModalOpen.product,
+            discount_pct: discountPct,
+            start_at: startAt,
+            end_at: endAt,
+            is_active: true
+        });
+        setDealModalOpen({ isOpen: false, product: null });
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
     };
@@ -324,7 +348,7 @@ export default function SellerProducts() {
                                     <Button size="sm" variant="destructive" onClick={() => handleDelete(product.id)} className="h-12 px-6 font-black uppercase text-[10px] rounded-2xl shadow-lg shadow-rose-200">Delete</Button>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-4 gap-2 mt-6">
+                                <div className="grid grid-cols-5 gap-2 mt-6">
                                     <Link href={`/product/${product.id}`} className="col-span-1">
                                         <Button size="sm" variant="ghost" className="w-full h-12 rounded-2xl bg-white border border-gray-100 shadow-sm hover:bg-gray-50 flex items-center justify-center p-0">
                                             <Eye className="h-5 w-5 text-gray-400" />
@@ -335,6 +359,14 @@ export default function SellerProducts() {
                                             <Edit3 className="h-5 w-5 text-blue-500" />
                                         </Button>
                                     </Link>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="col-span-1 h-12 rounded-2xl bg-purple-50 border border-purple-200 text-purple-600 shadow-sm hover:bg-purple-100 flex items-center justify-center p-0"
+                                        onClick={() => setDealModalOpen({ isOpen: true, product })}
+                                    >
+                                        <Timer className="h-5 w-5" />
+                                    </Button>
                                     {!product.is_sponsored ? (
                                         <Button
                                             size="sm"
@@ -453,6 +485,14 @@ export default function SellerProducts() {
                                                         <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> Sponsored
                                                     </Badge>
                                                 )}
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-8 px-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 hover:text-purple-700 rounded-lg gap-1.5 transition-colors"
+                                                    onClick={() => setDealModalOpen({ isOpen: true, product })}
+                                                >
+                                                    <Timer className="h-3.5 w-3.5" /> Deal
+                                                </Button>
                                                 <Link href={`/seller/products/${product.id}/edit`}>
                                                     <Button size="sm" variant="ghost" className="h-8 px-2.5 text-xs font-semibold hover:bg-blue-50 hover:text-blue-600 rounded-lg gap-1.5 transition-colors">
                                                         <Edit3 className="h-3.5 w-3.5" /> Edit
@@ -543,6 +583,40 @@ export default function SellerProducts() {
                     autoStart={true}
                 />
             )}
+
+            {/* Promote to Deal Modal */}
+            <Dialog open={dealModalOpen.isOpen} onOpenChange={(open) => !open && setDealModalOpen({ isOpen: false, product: null })}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black flex items-center gap-2"><Timer className="text-purple-600" /> Promote to Deals</DialogTitle>
+                    </DialogHeader>
+                    {dealModalOpen.product && (
+                        <div className="py-4 space-y-4">
+                            <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <img src={dealModalOpen.product.image_url || '/assets/images/placeholder.png'} alt="" className="w-12 h-12 rounded object-contain" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                <div>
+                                    <p className="font-bold text-sm text-gray-900 line-clamp-1">{dealModalOpen.product.name}</p>
+                                    <p className="text-xs text-gray-500">Current: ₦{dealModalOpen.product.price.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Discount (%)</label>
+                                    <Input type="number" value={dealDiscount} onChange={(e) => setDealDiscount(e.target.value)} min="1" max="99" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Duration (Hours)</label>
+                                    <Input type="number" value={dealDurationHours} onChange={(e) => setDealDurationHours(e.target.value)} min="1" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setDealModalOpen({ isOpen: false, product: null })}>Cancel</Button>
+                        <Button onClick={handlePromoteToDeal} className="bg-purple-600 hover:bg-purple-700 text-white">Create Deal</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

@@ -25,15 +25,32 @@ export function MobileBottomNav() {
 
     const [unreadNotifs, setUnreadNotifs] = useState(0);
 
+    const fetchUnreadCount = async () => {
+        if (!user) return;
+        try {
+            const res = await fetch('/api/notifications?unread_only=true&count_only=true');
+            if (res.ok) {
+                const data = await res.json();
+                setUnreadNotifs(data.count || 0);
+            }
+        } catch (error) {
+            console.error("Failed to fetch mobile bottom nav unread count", error);
+        }
+    };
+
     useEffect(() => {
-        const loadCounts = () => {
-            const userId = user?.email;
-            const notifs = DemoStore.getNotifications(userId);
-            setUnreadNotifs(notifs.filter(n => !n.read).length);
+        fetchUnreadCount();
+        
+        // Listen for global notification refresh events (dispatched by MessageBox/NotificationBell when marking as read)
+        window.addEventListener("refresh-notifications", fetchUnreadCount);
+        
+        // Poll every 30 seconds to stay perfectly in sync
+        const interval = setInterval(fetchUnreadCount, 30000);
+
+        return () => {
+            window.removeEventListener("refresh-notifications", fetchUnreadCount);
+            clearInterval(interval);
         };
-        loadCounts();
-        window.addEventListener("storage", loadCounts);
-        return () => window.removeEventListener("storage", loadCounts);
     }, [user]);
 
     // Always show the mobile nav bar on all pages
@@ -41,10 +58,12 @@ export function MobileBottomNav() {
 
     const profileName = user ? user.name.split(" ")[0] : "Profile";
 
+    const combinedUnread = totalUnread + unreadNotifs;
+
     const navItems = [
         { name: "Home", href: "/", icon: Home },
         { name: "Categories", href: "/categories", icon: Search },
-        { name: "Messages", href: "#messages", icon: MessageCircle, count: totalUnread, isMessages: true },
+        { name: "Messages", href: "#messages", icon: MessageCircle, count: combinedUnread, isMessages: true },
         { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
         { name: profileName, href: "/account", icon: User, isProfile: true },
     ];
@@ -90,7 +109,7 @@ export function MobileBottomNav() {
                         return (
                             <button
                                 key={item.name}
-                                onClick={() => openMessageBox()}
+                                onClick={() => user ? openMessageBox() : window.location.href = "/login?from=/account"}
                                 className={cn(
                                     "flex flex-col items-center justify-center w-full h-full space-y-1 relative transition-colors",
                                     "text-gray-500 hover:text-gray-900"

@@ -412,15 +412,16 @@ export function ZivaChat() {
                 }).catch(console.error);
 
                 // Also persist to admin inbox (DemoStore)
+                const currentUserId = user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session";
                 const conv = DemoStore.getOrCreateConversation(
                     "admin",
-                    user?.id || user?.email || "guest",
-                    { admin: "FairPrice Admin", [user?.id || user?.email || "guest"]: user?.name || "Guest" },
+                    currentUserId,
+                    { admin: "FairPrice Admin", [currentUserId]: user?.name || "Guest" },
                     { type: "ziva_escalation" }
                 );
                 DemoStore.sendChatMessage(
                     conv.id,
-                    user?.id || user?.email || "guest",
+                    currentUserId,
                     user?.name || "Guest",
                     `[ZIVA ESCALATION: ${data.escalationReason || "Customer Requested Support"}]\n\nTranscript:\n${messages.map(m => `${m.role}: ${m.content}`).join("\n")}`
                 );
@@ -743,7 +744,7 @@ export function ZivaChat() {
                         DemoStore.addNegotiation({
                             id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                             product_id: matchProduct.id,
-                            customer_id: user?.id || user?.email || "guest",
+                            customer_id: user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session",
                             customer_name: user?.name || "Guest Customer",
                             proposed_price: amount,
                             message: `Offer submitted via Ziva AI`,
@@ -829,11 +830,11 @@ export function ZivaChat() {
                             id: `negotiate_${Date.now()}`,
                             role: "assistant",
                             content: hasSpecificProduct
-                                ? `💰 **Let's Negotiate!**\n\nGreat choice! How much would you like to offer for the **${exampleProduct.name}**?\n\nThe listed price is **${formatPrice(exampleProduct.price)}**. Please state your offer — I recommend staying within the fair market range for the best chance of acceptance.\n\nFor example: *"I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name.split(' ').slice(0, 4).join(' ')}"*`
+                                ? `Great choice! How much would you like to offer for the **${exampleProduct.name}**?\n\nThe listed price is **${formatPrice(exampleProduct.price)}**. Please state your offer — I recommend staying within the fair market range for the best chance of acceptance.\n\nFor example: *"I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name.split(' ').slice(0, 4).join(' ')}"*`
                                 : matchedProducts.length > 0
                                     ? `💰 **Let's Negotiate!**\n\nI found these products you might want to negotiate on. Tell me which one and your desired price, and I'll send the offer to the seller.\n\nFor example: *"I want to offer ₦150,000 for the iPhone"*`
                                     : "🤔 I couldn't find a specific product to negotiate. Could you tell me which product you'd like to make an offer on?",
-                            products: matchedProducts,
+                            products: hasSpecificProduct ? undefined : matchedProducts,
                             quickActions: hasSpecificProduct
                                 ? [{ label: `💰 Offer ${formatPrice(Math.round(exampleProduct.price * 0.96))}`, query: `I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name}`, icon: "" }]
                                 : currentProduct
@@ -914,7 +915,7 @@ export function ZivaChat() {
                     DemoStore.addNegotiation({
                         id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         product_id: matchProduct.id,
-                        customer_id: user?.id || user?.email || "guest",
+                        customer_id: user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session",
                         customer_name: user?.name || "Guest Customer",
                         proposed_price: offerAmount,
                         message: `Offer submitted via Ziva AI`,

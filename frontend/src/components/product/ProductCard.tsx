@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useCallback } from "react";
-import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, getTrustColor, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,12 @@ import { useAuth } from "@/context/AuthContext";
 
 interface ProductCardProps {
     product: Product;
-    showDealTimer?: boolean;
+    dealEndTime?: string | null;
+    dealDiscountText?: string | null;
     className?: string;
 }
 
-export function ProductCard({ product, showDealTimer, className }: ProductCardProps) {
+export function ProductCard({ product, dealEndTime, dealDiscountText, className }: ProductCardProps) {
     const { user } = useAuth();
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
@@ -27,6 +28,31 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     const [addedToCart, setAddedToCart] = useState(false);
     const lastTapRef = useRef<number>(0);
     const favorited = isFavorite(product.id);
+    const [timeLeft, setTimeLeft] = useState<string>("");
+
+    // Real ticking countdown timer
+    useEffect(() => {
+        if (!dealEndTime) return;
+        
+        const updateTimer = () => {
+            const diff = new Date(dealEndTime).getTime() - Date.now();
+            if (diff <= 0) {
+                setTimeLeft("Expired");
+                return;
+            }
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            if (days > 0) setTimeLeft(`${days}d ${hours}h left`);
+            else setTimeLeft(`${hours}h ${mins}m ${secs}s left`);
+        };
+        
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [dealEndTime]);
 
     // Mock savings calculation
     const savings = product.original_price ? product.original_price - product.price : 0;
@@ -114,6 +140,21 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                         />
                     </button>
 
+                    {/* Left Deal/Discount Tag UNDER Fair Price tag */}
+                    {dealDiscountText && (
+                        <div className="absolute top-[48px] left-3 z-20 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-md flex items-center gap-1 group-hover:scale-105 transition-transform duration-300">
+                            {dealDiscountText.includes("%") ? <Percent className="h-3 w-3" /> : <Tag className="h-3 w-3" />} 
+                            {dealDiscountText}
+                        </div>
+                    )}
+
+                    {/* Right Countdown Tag UNDER Heart icon -> Now BOTTOM Right */}
+                    {dealEndTime && (
+                        <div className="absolute bottom-3 right-3 z-30 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1 group-hover:scale-105 transition-transform duration-300">
+                            <Clock className="h-3 w-3 text-brand-orange animate-pulse" /> {timeLeft}
+                        </div>
+                    )}
+
                     {/* Instagram Heart Burst Overlay */}
                     {showHeartBurst && (
                         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
@@ -122,11 +163,15 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     )}
 
                     <img
-                        src={product.image_url || "/assets/images/placeholder.png"}
+                        src={(product.image_url && product.image_url.trim() !== "" && !product.image_url.toLowerCase().includes("no photo") && !product.image_url.toLowerCase().includes("no image") && product.image_url.toLowerCase() !== "n/a") ? product.image_url : "/assets/images/placeholder.png"}
                         alt={product.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={(e) => {
-                            e.currentTarget.src = "/assets/images/placeholder.png";
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (target.src.includes('placeholder.png')) return; // Prevent infinite loops
+                            target.onerror = null;
+                            target.src = "/assets/images/placeholder.png";
+                            target.className = target.className + " object-contain p-4 opacity-50"; // Make placeholder look distinct
                         }}
                     />
                 </div>

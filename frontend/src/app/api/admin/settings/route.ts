@@ -17,6 +17,12 @@ const DEFAULT_SETTINGS = {
     escrowRelease: 7,
     strictSeller: true,
     categoryMargins: {},
+    stateShipping: {},
+    codEnabled: true,
+    codThreshold: 20000,
+    codAllowExpensiveCategories: true,
+    codGlobalEnabled: true,
+    codGlobalThreshold: 15000,
     updatedAt: new Date()
 };
 

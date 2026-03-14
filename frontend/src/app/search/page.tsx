@@ -584,6 +584,13 @@ function SearchContent() {
         else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
         else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
 
+        const rawImg = r.image_url || "";
+        const fallback = "/assets/images/placeholder.png";
+        const hasValidPhoto = rawImg && 
+                              !rawImg.toLowerCase().includes('no photo') && 
+                              !rawImg.toLowerCase().includes('no image') && 
+                              !rawImg.toLowerCase().includes('n/a');
+
         const product = {
           id: stableId,
           name: r.name,
@@ -591,7 +598,7 @@ function SearchContent() {
           original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
           category: r.category || "electronics",
           description: descBase,
-          image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('no image') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : "/assets/images/placeholder.png",
+          image_url: hasValidPhoto ? rawImg : fallback,
           seller_id: "global-partners",
           seller_name: "Global Stores",
           price_flag: "fair" as const,

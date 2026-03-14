@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { DEMO_PRODUCTS, DEMO_SELLERS, DEMO_REVIEWS, DEMO_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DemoStore } from "@/lib/demo-store";
 import { formatPrice } from "@/lib/utils";
@@ -115,6 +115,8 @@ function generateZivaAnswers(product: typeof DEMO_PRODUCTS[0]): { question: stri
 export default function ProductDetailPage() {
     const params = useParams();
     const id = params?.id as string;
+    const searchParams = useSearchParams();
+    const reviewParam = searchParams?.get("review");
     const { location } = useLocation();
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
@@ -139,6 +141,17 @@ export default function ProductDetailPage() {
     // Seller Reply States
     const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
+
+    // Auto-open review form if coming from PostOrder review link
+    useEffect(() => {
+        if (reviewParam === "true") {
+            setIsWritingReview(true);
+            setTimeout(() => {
+                const reviewSec = document.getElementById("reviews-section");
+                if (reviewSec) reviewSec.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 500);
+        }
+    }, [reviewParam]);
 
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
@@ -248,6 +261,15 @@ export default function ProductDetailPage() {
                 if (/drill|wrench|hammer|plier|screwdriver|saw|tool.*kit|tool.*set|socket|tape.*measure|level/.test(nl)) {
                     return `Get the job done right with the ${n}. Engineered for professionals and DIY enthusiasts alike, featuring hardened steel construction for maximum durability and precision. The ergonomic grip reduces hand fatigue during extended use, while the compact design fits easily into any toolbox. Whether you're tackling home repairs, renovations, or professional projects, this tool delivers reliable performance you can count on.`;
                 }
+                if (/game.*disc|ps5|ps4|xbox|nintendo|playstation|switch|video.*game/.test(nl)) {
+                    return `Immerse yourself in epic worlds with the ${n}. Dive into stunning graphics, gripping storylines, and seamless gameplay that pushes the boundaries of entertainment. Whether you are exploring massive open worlds, engaging in intense multiplayer battles, or enjoying a captivating single-player campaign, this game delivers hours of unforgettable fun. Fully optimized for smooth performance and quick loading times.`;
+                }
+                if (/book|novel|paperback|hardcover|comic|manga/.test(nl)) {
+                    return `Expand your mind and escape reality with the ${n}. Delve into captivating narratives, rich world-building, and profound insights. Printed on high-quality paper with excellent binding, making it a perfect addition to any collection or a thoughtful gift for the avid reader. Discover your next great adventure within these pages.`;
+                }
+                if (/toy|lego|puzzle|action.*figure|doll|board.*game/.test(nl)) {
+                    return `Spark joy and creativity with the ${n}. Designed with child-safe, durable materials that guarantee hours of engaging playtime. Perfect for developing fine motor skills, encouraging imaginative storytelling, or simply bringing the family together for wholesome fun. A wonderful gift that guarantees smiles and lasting memories.`;
+                }
                 // Smart generic fallback — extracts key details from the product name itself
                 {
                     const words = n.split(/\s+/).filter(w => w.length > 2);
@@ -271,6 +293,18 @@ export default function ProductDetailPage() {
                 }
                 if (/macbook|laptop/.test(nl)) {
                     return { "Display": '14.2" Liquid Retina XDR', "Processor": "Apple M3 Pro / Intel Core i7", "RAM": "16GB", "Storage": "512GB SSD", "Battery": "Up to 18 hours", "Ports": "HDMI, MagSafe, Thunderbolt, SD Card", "Weight": "1.55 kg", "OS": "macOS Sonoma" };
+                }
+                if (/game.*disc|ps5|ps4|xbox|nintendo|playstation|switch|video.*game/.test(nl)) {
+                    return { "Platform": "Multiple Platforms", "Genre": "Action / Adventure", "ESRB Rating": "Varies", "Developer": "Top Tier Studios", "Condition": "Brand New / Sealed", "Multiplayer": "Supported" };
+                }
+                if (/book|novel|paperback|hardcover|comic|manga/.test(nl)) {
+                    return { "Format": nl.includes('hardcover') ? "Hardcover" : "Paperback", "Language": "English", "Pages": "300+ Pages", "Condition": "Brand New", "Publisher": "Major Publishing House", "Genre": "Fiction / Non-Fiction" };
+                }
+                if (/toy|lego|puzzle|action.*figure|doll|board.*game/.test(nl)) {
+                    return { "Material": "High-Quality, BPA-Free", "Age Range": "3+ and Up", "Educational Focus": "Creativity & Motor Skills", "Assembly Required": "Varies by Item", "Battery Details": "Batteries Not Included (if applicable)" };
+                }
+                if (/projector/.test(nl)) {
+                    return { "Native Resolution": "1080p Full HD (4K Supported)", "Brightness": "8,500 Lumens", "Contrast Ratio": "10,000:1", "Lamp Life": "Up to 50,000 Hours", "Connectivity": "HDMI, USB, WiFi, Bluetooth", "Built-in Speaker": "Dual 5W Hi-Fi Speakers" };
                 }
                 // Smart generic specs — extract meaningful details from product name
                 const words = n.split(/\s+/).filter(w => w.length > 2);
@@ -421,6 +455,9 @@ export default function ProductDetailPage() {
                 if (/projector/.test(nl)) return `Transform any room into a cinema with the ${n}. Delivers bright, crisp visuals with full HD support, built-in speakers, and multiple connectivity options including HDMI, USB, and Wi-Fi. Portable design perfect for movie nights, presentations, and gaming.`;
                 if (/power.*bank|charger|cable|adapter/.test(nl)) return `Stay powered up with the ${n}. Fast-charging technology ensures your devices are ready when you need them. Compact, portable design with intelligent safety circuitry to protect your devices from overcharging.`;
                 if (/nail|press.*on|manicure|pedicure/.test(nl)) return `Get salon-quality nails at home with the ${n}. Premium designs with easy application and long-lasting wear. No salon appointment needed — achieve beautiful, Instagram-worthy nails in minutes.`;
+                if (/game.*disc|ps5|ps4|xbox|nintendo|playstation|switch|video.*game/.test(nl)) return `Immerse yourself in epic worlds with the ${n}. Dive into stunning graphics, gripping storylines, and seamless gameplay. Fully optimized for smooth performance and quick loading times to deliver hours of unforgettable fun.`;
+                if (/book|novel|paperback|hardcover|comic|manga/.test(nl)) return `Expand your mind and escape reality with the ${n}. Delve into captivating narratives, rich world-building, and profound insights. Printed on high-quality paper, making it a perfect addition to any collection.`;
+                if (/toy|lego|puzzle|action.*figure|doll|board.*game/.test(nl)) return `Spark joy and creativity with the ${n}. Designed with child-safe, durable materials that guarantee hours of engaging playtime. Perfect for encouraging imaginative storytelling and wholesome fun.`;
                 return `Discover the ${n} — carefully selected for exceptional quality and outstanding value. Built with premium materials and meticulous attention to detail. Every unit undergoes rigorous quality inspection to ensure reliability and long-lasting performance. Protected by FairPrice buyer guarantee and secure escrow payment.`;
             };
             (product as any).description = generateEnhancedDescription(product.name);

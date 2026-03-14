@@ -55,6 +55,7 @@ export default function SellerLayout({
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
     const [allUserStores, setAllUserStores] = useState<Seller[]>([]);
     const [pendingNegotiations, setPendingNegotiations] = useState(0);
+    const [unreadMessages, setUnreadMessages] = useState(0);
     const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
@@ -71,6 +72,10 @@ export default function SellerLayout({
                 setCurrentSeller(seller);
                 const negs = DemoStore.getNegotiations(seller.id);
                 setPendingNegotiations(negs.filter(n => n.status === "pending").length);
+
+                const convs = DemoStore.getConversations(seller.id);
+                const unreadCount = convs.reduce((acc, c) => acc + (c.unread_count[seller.id] || 0), 0);
+                setUnreadMessages(unreadCount);
 
                 // Load all stores owned by this user
                 const allSellers = DemoStore.getSellers();
@@ -107,7 +112,7 @@ export default function SellerLayout({
         { label: "Overview", href: "/seller/dashboard", icon: LayoutDashboard },
         { label: "Products", href: "/seller/products", icon: Package },
         { label: "Orders", href: "/seller/orders", icon: ShoppingBag },
-        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: pendingNegotiations > 0 ? pendingNegotiations.toString() : undefined },
+        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: (pendingNegotiations + unreadMessages) > 0 ? (pendingNegotiations + unreadMessages).toString() : undefined },
         { label: "Customers", href: "/seller/customers", icon: Users },
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },

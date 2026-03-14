@@ -110,11 +110,13 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         // Logic to simulate API call
         await new Promise(resolve => setTimeout(resolve, 800));
 
+        const currentUserId = user?.id || DemoStore.getCurrentUserId() || "guest_session";
+
         // Create new negotiation
         const newNegotiation = {
             id: `neg_${Date.now()}`,
             product_id: product.id,
-            customer_id: user?.id || "guest",
+            customer_id: currentUserId,
             customer_name: user?.name || "Guest Buyer",
             proposed_price: Number(proposedPrice),
             message: message,
@@ -162,7 +164,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                 </DialogHeader>
 
                 {!submitted ? (
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-6 py-4 pb-12">
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-3 pb-6">
                         <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 flex gap-4 shrink-0">
                             <img src={product.image_url} alt={product.name} className="w-16 h-16 object-contain mix-blend-multiply" />
                             <div>
@@ -247,7 +249,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             <Textarea
                                 id="message"
                                 placeholder="Explain why you are suggesting this price..."
-                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[100px] focus:ring-brand-green-600 focus:border-brand-green-600"
+                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[60px] focus:ring-brand-green-600 focus:border-brand-green-600"
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                             />

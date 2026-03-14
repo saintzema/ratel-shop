@@ -130,7 +130,18 @@ export default function ProfilePage() {
                     >
                         <ChevronLeft className="h-5 w-5 text-gray-700" />
                     </Button>
-                    <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-700 to-emerald-500 bg-clip-text text-transparent">Login & Security</h1>
+                    <h1 className="flex-1 text-2xl font-bold bg-gradient-to-r from-emerald-700 to-emerald-500 bg-clip-text text-transparent">Login & Security</h1>
+                    <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold flex items-center bg-red-50/50"
+                        onClick={() => {
+                            logout();
+                            window.location.href = '/';
+                        }}
+                    >
+                        <LogOut className="w-4 h-4 mr-2" /> Sign Out
+                    </Button>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">

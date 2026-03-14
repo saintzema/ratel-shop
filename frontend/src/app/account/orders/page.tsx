@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, NegotiationRequest, Product } from "@/lib/types";
@@ -67,6 +67,8 @@ function OrdersContent() {
     const searchParams = useSearchParams();
     const { user } = useAuth();
 
+    const successHandledRef = useRef(false);
+
     const loadData = () => {
         if (!user) return;
         const allOrders = DemoStore.getOrders();
@@ -85,18 +87,27 @@ function OrdersContent() {
         ));
 
         setProducts(DemoStore.getProducts());
-
-        // Auto-show concierge chat for the most recent order if coming from checkout success
-        if (searchParams.get("success") === "true" && sortedOrders.length > 0) {
-            setConciergeOrder(sortedOrders[0]);
-            setConciergeMode("post_order");
-            setShowConcierge(true);
-            // Optional: clean up the URL to prevent re-triggering on refresh
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
     };
 
-    useEffect(() => { loadData(); }, [user, searchParams]);
+    useEffect(() => { loadData(); }, [user]);
+
+    // Handle checkout success redirect — runs ONCE only
+    useEffect(() => {
+        if (successHandledRef.current) return;
+        if (searchParams.get("success") === "true" && user) {
+            successHandledRef.current = true;
+            const allOrders = DemoStore.getOrders();
+            const userOrders = allOrders
+                .filter(o => o.customer_id === user.email || o.customer_id === user.id)
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            if (userOrders.length > 0) {
+                setConciergeOrder(userOrders[0]);
+                setConciergeMode("post_order");
+                setShowConcierge(true);
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [searchParams, user]);
 
     useEffect(() => {
         loadData();
@@ -736,7 +747,7 @@ function OrdersContent() {
                         isOpen={showConcierge}
                         onClose={() => setShowConcierge(false)}
                         product={conciergeOrder.product || null}
-                        orderId={conciergeOrder.id?.split('_')[1]?.substring(0, 8) || conciergeOrder.id?.substring(0, 8) || "NEW"}
+                        orderId={conciergeOrder.id || "NEW"}
                         order={conciergeOrder}
                         mode={conciergeMode}
                     />

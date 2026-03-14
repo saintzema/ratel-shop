@@ -88,6 +88,7 @@ export function MessageBox() {
                 });
                 // Refresh to update local state
                 await loadNotifications();
+                window.dispatchEvent(new Event("refresh-notifications"));
             } catch (err) {
                 console.error("Failed to mark notifications as read:", err);
             }
@@ -100,6 +101,7 @@ export function MessageBox() {
             try {
                 await fetch(`/api/notifications?id=${notif.id}`, { method: "PATCH" });
                 await loadNotifications();
+                window.dispatchEvent(new Event("refresh-notifications"));
             } catch (err) {
                 console.error("Failed to mark notification as read:", err);
             }

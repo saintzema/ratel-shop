@@ -1,6 +1,6 @@
 "use client";
 
-import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest } from "./types";
+import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
 // Removed DEMO_ mock imports to ensure Live DB fetching
 import { resilientFetch } from "./offline-queue";
 
@@ -78,6 +78,7 @@ class DemoStoreService {
         CHAT_MESSAGES: "fp_chat_messages",
         CATEGORIES: "fairprice_demo_categories",
         TRENDING_CURATION: "fp_trending_ids",
+        DEALS: "fairprice_demo_deals",
     };
 
     private constructor() {
@@ -136,6 +137,14 @@ class DemoStoreService {
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.CATEGORIES)) {
             localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
+            // Lazy load DEMO_DEALS to avoid circular dependencies during initialization
+            import("@/lib/data").then(m => {
+                if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
+                    localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(m.DEMO_DEALS || []));
+                }
+            }).catch(console.error);
         }
     }
 
@@ -341,9 +350,10 @@ class DemoStoreService {
                 body: JSON.stringify({
                     to: sellerEmail,
                     subject: `New Negotiation Offer: ${product.name}`,
-                    type: "ORDER_PLACED", // fallback template for MVP
+                    type: "NEGOTIATION_REQUEST", 
                     payload: {
                         customerName: request.customer_name,
+                        productName: product.name,
                         amount: `₦${request.proposed_price.toLocaleString()}`
                     }
                 })
@@ -388,10 +398,11 @@ class DemoStoreService {
                     body: JSON.stringify({
                         to: buyerEmail,
                         subject: `Negotiation ${status === 'accepted' ? 'Accepted' : 'Rejected'}: ${product.name}`,
-                        type: "ORDER_PLACED", // fallback 
+                        type: status === 'accepted' ? "NEGOTIATION_ACCEPTED" : "NEGOTIATION_REJECTED", 
                         payload: {
                             customerName: "Buyer",
-                            amount: `₦${negotiation.proposed_price.toLocaleString()}` // Assuming newOffer is negotiation.proposed_price or similar
+                            productName: product.name,
+                            amount: `₦${negotiation.proposed_price.toLocaleString()}`
                         }
                     })
                 }).catch(console.error);
@@ -507,9 +518,10 @@ class DemoStoreService {
             body: JSON.stringify({
                 to: buyerEmail,
                 subject: `Counter Offer Received: ${product?.name || 'An Item'}`,
-                type: "ORDER_PLACED",
+                type: "NEGOTIATION_REQUEST", 
                 payload: {
                     customerName: negotiation.customer_name,
+                    productName: product?.name || 'An Item',
                     amount: `₦${price.toLocaleString()}`
                 }
             })
@@ -571,6 +583,12 @@ class DemoStoreService {
 
     logout() {
         localStorage.removeItem(this.STORAGE_KEYS.CURRENT_SELLER);
+        localStorage.removeItem(this.STORAGE_KEYS.NEGOTIATIONS);
+        localStorage.removeItem(this.STORAGE_KEYS.SUPPORT_MESSAGES);
+        localStorage.removeItem(this.STORAGE_KEYS.ORDERS);
+        localStorage.removeItem(this.STORAGE_KEYS.NOTIFICATIONS);
+        localStorage.removeItem("fp_conversations");
+        localStorage.removeItem("fp_chat_messages");
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -616,6 +634,45 @@ class DemoStoreService {
 
     updateSellerCoverImage(id: string, url: string) {
         this.updateSeller(id, { cover_image_url: url });
+    }
+
+    // --- Deals Management ---
+    getDeals(): Deal[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DEALS) || "[]");
+    }
+
+    addDeal(deal: Omit<Deal, "id">) {
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
+        const current: Deal[] = stored ? JSON.parse(stored) : [];
+        const newDeal: Deal = {
+            ...deal,
+            id: `deal_${Math.random().toString(36).substr(2, 9)}`,
+        };
+        const updated = [newDeal, ...current];
+        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    removeDeal(dealId: string) {
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
+        if (!stored) return;
+        const current: Deal[] = JSON.parse(stored);
+        const updated = current.filter(d => d.id !== dealId);
+        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+    }
+    
+    updateDeal(dealId: string, updates: Partial<Deal>) {
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
+        if (!stored) return;
+        const current: Deal[] = JSON.parse(stored);
+        const updated = current.map(d => d.id === dealId ? { ...d, ...updates } : d);
+        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
     }
 
     // --- Getters ---
@@ -986,6 +1043,30 @@ class DemoStoreService {
             link: `/account/orders`
         });
 
+        // Email Buyer
+        const customerEmail = `user_${order.customer_id}@fairprice.ng`;
+        let resolvedCustomerEmail = customerEmail;
+        if (typeof window !== "undefined") {
+            const customerUser = this.getAllUsers().find(u => u.id === order.customer_id);
+            if (customerUser?.email) resolvedCustomerEmail = customerUser.email;
+        }
+
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: resolvedCustomerEmail,
+                type: "ORDER_PLACED",
+                payload: {
+                    name: "Valued Customer",
+                    orderId: orderId,
+                    productName: product.name,
+                    amount: order.amount,
+                    trackingUrl: `https://fairprice.ng/account/orders`
+                }
+            })
+        }).catch(console.error);
+
         // Notify Seller
         const seller = this.getSellers().find(s => s.id === product.seller_id);
         if (seller) {
@@ -995,6 +1076,24 @@ class DemoStoreService {
                 message: `New order #${orderId.substring(0, 8)} for ${product.name}. Please process for shipment.`,
                 link: `/seller/orders`
             });
+
+            if (seller.owner_email) {
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: seller.owner_email,
+                        type: "SELLER_NEW_ORDER",
+                        payload: {
+                            orderId: orderId,
+                            productName: product.name,
+                            businessName: seller.business_name || "Seller",
+                            amount: order.amount,
+                            dashboardUrl: `https://fairprice.ng/seller/orders`
+                        }
+                    })
+                }).catch(console.error);
+            }
         }
 
         window.dispatchEvent(new Event("storage"));
@@ -1060,6 +1159,29 @@ class DemoStoreService {
                 message: `New message regarding order #${orderId.substring(0, 8)}`,
                 link: notifiedUrl
             });
+
+            // If user sent a message to the seller, dispatch email to Seller instantly
+            if (sender === 'user' && notifiedUser !== 'admin') {
+                const sellers = this.getSellers();
+                const seller = sellers.find(s => s.id === notifiedUser);
+                if (seller?.owner_email) {
+                    const orderItem = orders.find(o => o.id === orderId);
+                    fetch("/api/email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: seller.owner_email,
+                            type: "ORDER_INQUIRY",
+                            payload: {
+                                sellerName: seller.business_name || "Seller",
+                                orderId: orderId,
+                                message: text,
+                                dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                            }
+                        })
+                    }).catch(console.error);
+                }
+            }
         }
 
         window.dispatchEvent(new Event("storage"));
@@ -1251,26 +1373,87 @@ class DemoStoreService {
     updateOrderStatus(id: string, status: Order["status"]) {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === id);
+        if (!order) return;
+
         const updated = orders.map(o => o.id === id ? { ...o, status } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
-        // Trigger Email on Delivery
-        if (status === 'delivered' && order && order.status !== 'delivered') {
+        // Trigger Emails & Notifications based on status change
+        if (order.status !== status) {
             const customerEmail = `user_${order.customer_id}@fairprice.ng`;
+            let resolvedCustomerEmail = customerEmail;
+            
+            // Try to resolve a real email if possible
+            if (typeof window !== "undefined") {
+                 const customerUser = this.getAllUsers().find(u => u.id === order.customer_id);
+                 if (customerUser?.email) resolvedCustomerEmail = customerUser.email;
+            }
 
-            fetch("/api/email", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    to: customerEmail,
-                    type: "ORDER_DELIVERED",
-                    payload: {
-                        name: order.customer_name || "Valued Customer",
-                        orderId: order.id,
-                        trackingUrl: `https://fairprice.ng/account/orders`
-                    }
-                })
-            }).catch(console.error); // Silently catch email errors
+            const sellers = this.getSellers();
+            const seller = sellers.find(s => s.id === order.seller_id);
+            const sellerEmail = seller?.owner_email || `seller_${order.seller_id}@fairprice.ng`;
+
+            const dispatchEmail = (to: string, type: any, payload: any) => {
+                 fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ to, type, payload })
+                 }).catch(console.error); // Silently catch email errors
+            };
+
+            // 1. Delivered
+            if (status === 'delivered') {
+                dispatchEmail(resolvedCustomerEmail, "ORDER_DELIVERED", {
+                    name: order.customer_name || "Valued Customer",
+                    orderId: order.id,
+                    trackingUrl: `https://fairprice.ng/account/orders`
+                });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id.substring(0,8)} has been delivered.`, link: "/account/orders" });
+            }
+
+            // 2. Cancelled
+            if (status === 'cancelled') {
+                // Notify Buyer
+                dispatchEmail(resolvedCustomerEmail, "ORDER_CANCELLED", {
+                    name: order.customer_name || "Valued Customer",
+                    orderId: order.id,
+                });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id.substring(0,8)} has been cancelled successfully.`, link: "/account/orders" });
+                
+                // Notify Seller
+                dispatchEmail(sellerEmail, "ORDER_CANCELLED", {
+                    sellerName: seller?.business_name || "Seller",
+                    orderId: order.id,
+                });
+                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${order.id.substring(0,8)} was cancelled by the buyer.`, link: "/seller/orders" });
+            }
+
+            // 3. Shipped
+            if (status === 'shipped') {
+                dispatchEmail(resolvedCustomerEmail, "ORDER_SHIPPED", {
+                    name: order.customer_name || "Valued Customer",
+                    orderId: order.id,
+                });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id.substring(0,8)} has shipped!`, link: "/account/orders" });
+            }
+
+            // 4. Return workflows
+            if (status === 'return_requested') {
+                 dispatchEmail(sellerEmail, "RETURN_REQUESTED", {
+                    sellerName: seller?.business_name || "Seller",
+                    orderId: order.id,
+                 });
+                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${order.id.substring(0,8)}.`, link: "/seller/orders" });
+            }
+            if (status === 'return_approved' || status === 'return_rejected') {
+                 const newStatusStr = status === 'return_approved' ? 'approved' : 'rejected';
+                 dispatchEmail(resolvedCustomerEmail, "RETURN_UPDATED", {
+                    name: order.customer_name || "Valued Customer",
+                    orderId: order.id,
+                    newStatus: newStatusStr
+                 });
+                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${order.id.substring(0,8)} was ${newStatusStr}.`, link: "/account/orders" });
+            }
         }
 
         window.dispatchEvent(new Event("storage"));
@@ -1330,6 +1513,22 @@ class DemoStoreService {
             message: `Update for Order #${id.substring(0, 8)}: ${status} in ${location}.`,
             link: "/account/orders"
         });
+
+        const customerUser = this.getUser(order.customer_id);
+        const buyerEmail = customerUser?.email || `user_${order.customer_id}@fairprice.ng`;
+        
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: buyerEmail,
+                type: "ORDER_SHIPPED", // Reuse shipped template for tracking updates
+                payload: {
+                    name: order.customer_name || "Customer",
+                    orderId: order.id
+                }
+            })
+        }).catch(console.error);
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
@@ -1574,6 +1773,63 @@ class DemoStoreService {
         if (idx === -1) return;
         if (!negs[idx].chat_messages) negs[idx].chat_messages = [];
         negs[idx].chat_messages.push({ sender, text, timestamp: new Date().toISOString() });
+
+        const negotiation = negs[idx];
+        const product = this.getProducts().find(p => p.id === negotiation.product_id);
+
+        if (product) {
+            if (sender === "buyer") {
+                this.addNotification({
+                    userId: product.seller_id,
+                    type: "negotiation",
+                    message: `New message from buyer for ${product.name}`,
+                    link: "/seller/dashboard/messages"
+                });
+                
+                const sellerUser = this.getUser(product.seller_id);
+                const sellerEmail = sellerUser?.email || `seller_${product.seller_id}@fairprice.ng`;
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: sellerEmail,
+                        type: "ORDER_INQUIRY",
+                        payload: {
+                            sellerName: "Seller",
+                            orderId: `Neg: ${product.name}`,
+                            message: text,
+                            dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                        }
+                    })
+                }).catch(console.error);
+
+            } else if (sender === "seller") {
+                this.addNotification({
+                    userId: negotiation.customer_id,
+                    type: "negotiation",
+                    message: `Seller sent a message regarding ${product.name}`,
+                    link: "/account/negotiations"
+                });
+                
+                const buyerUser = this.getUser(negotiation.customer_id);
+                const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: buyerEmail,
+                        type: "ORDER_INQUIRY", 
+                        payload: {
+                            sellerName: negotiation.customer_name || "Customer",
+                            orderId: `Neg: ${product.name}`,
+                            message: text,
+                            dashboardUrl: `https://fairprice.ng/account/negotiations`
+                        }
+                    })
+                }).catch(console.error);
+            }
+        }
+
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
         window.dispatchEvent(new Event("storage"));
     }

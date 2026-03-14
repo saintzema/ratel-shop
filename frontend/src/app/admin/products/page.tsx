@@ -25,6 +25,7 @@ import {
     X,
     Plus,
     Flame, // Added Flame icon
+    Timer, // Added Timer icon
     ArrowLeft, Upload, Star, Image as ImageIcon, Shield, AlertTriangle, Sparkles, Wand2, FileOutput // Added other icons from instruction
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
@@ -75,6 +76,12 @@ export default function CatalogControl() {
     const [syncReport, setSyncReport] = useState<any[]>([]);
     const [profitMargin, setProfitMargin] = useState("25");
     const [selectedSyncIds, setSelectedSyncIds] = useState<string[]>([]);
+    
+    // Deal Modal State
+    const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+    const [dealProduct, setDealProduct] = useState<any | null>(null);
+    const [dealDiscount, setDealDiscount] = useState("15");
+    const [dealDurationHours, setDealDurationHours] = useState("24");
 
     useEffect(() => {
         const load = () => {
@@ -223,6 +230,26 @@ export default function CatalogControl() {
         setIsSyncModalOpen(false);
         setProducts(DemoStore.getProducts());
         alert("Selected global product prices successfully synced and updated.");
+    };
+
+    const handlePromoteToDeal = () => {
+        if (!dealProduct) return;
+        const discountPct = parseInt(dealDiscount) || 15;
+        const hours = parseInt(dealDurationHours) || 24;
+        const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+        const startAt = new Date().toISOString();
+        
+        DemoStore.addDeal({
+            product_id: dealProduct.id,
+            product: dealProduct,
+            discount_pct: discountPct,
+            start_at: startAt,
+            end_at: endAt,
+            is_active: true
+        });
+        setIsDealModalOpen(false);
+        setDealProduct(null);
+        alert(`Successfully promoted ${dealProduct.name} to Deals with ${discountPct}% off for ${hours} hours!`);
     };
 
     return (
@@ -545,6 +572,17 @@ export default function CatalogControl() {
                                                     >
                                                         <Flame className="h-4 w-4" />
                                                     </Button>
+                                                    <Button
+                                                        variant="ghost" size="icon"
+                                                        onClick={() => {
+                                                            setDealProduct(p);
+                                                            setIsDealModalOpen(true);
+                                                        }}
+                                                        className="h-8 w-8 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                                                        title="Promote to Daily Deals"
+                                                    >
+                                                        <Timer className="h-4 w-4" />
+                                                    </Button>
                                                     <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
                                                         <Link href={`/product/${p.id}`} target="_blank">
                                                             <Eye className="h-4 w-4" />
@@ -707,6 +745,40 @@ export default function CatalogControl() {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Promote to Deal Modal */}
+            <Dialog open={isDealModalOpen} onOpenChange={setIsDealModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black flex items-center gap-2"><Timer className="text-purple-600" /> Promote to Deals</DialogTitle>
+                    </DialogHeader>
+                    {dealProduct && (
+                        <div className="py-4 space-y-4">
+                            <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                <img src={dealProduct.image_url || '/assets/images/placeholder.png'} alt="" className="w-12 h-12 rounded object-contain" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                <div>
+                                    <p className="font-bold text-sm text-gray-900 line-clamp-1">{dealProduct.name}</p>
+                                    <p className="text-xs text-gray-500">Current: ₦{dealProduct.price.toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Discount Percentage (%)</label>
+                                    <Input type="number" value={dealDiscount} onChange={(e) => setDealDiscount(e.target.value)} min="1" max="99" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Duration (Hours)</label>
+                                    <Input type="number" value={dealDurationHours} onChange={(e) => setDealDurationHours(e.target.value)} min="1" />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsDealModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handlePromoteToDeal} className="bg-purple-600 hover:bg-purple-700 text-white">Create Flash Deal</Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 

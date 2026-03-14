@@ -964,11 +964,14 @@ export function Navbar() {
                     </Link>
 
                     {/* Messages */}
-                    <button onClick={() => openMessageBox()} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
-                        <div className="relative">
-                            <MessageCircle className="h-6 w-6 text-white" />
-                            {mounted && (totalUnread > 0 || unreadNotifs > 0) && (
-                                <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full border border-brand-green-600 animate-pulse"></span>
+                    <button onClick={() => user ? openMessageBox() : router.push("/login?from=/account")} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
+                        <div className="flex items-center gap-1.5 text-white">
+                            <MessageCircle className="h-4 w-4" />
+                            Messages
+                            {totalUnread > 0 && (
+                                <Badge className="ml-auto bg-brand-orange text-white hover:bg-brand-orange border-0 rounded-full h-5 w-5 flex items-center justify-center p-0 text-[10px]">
+                                    {totalUnread}
+                                </Badge>
                             )}
                         </div>
                     </button>

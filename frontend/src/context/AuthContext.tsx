@@ -94,20 +94,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const login = (userData: User) => {
         // Transfer any guest negotiations to the logged-in user
         try {
-            const stored = localStorage.getItem("fairprice_demo_negotiations");
-            if (stored) {
-                const negs = JSON.parse(stored);
-                let changed = false;
-                negs.forEach((n: any) => {
-                    if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
-                        n.customer_id = userData.id || userData.email;
-                        n.customer_name = userData.name || userData.email;
-                        changed = true;
+            const transferData = (key: string, mapper: (item: any) => any) => {
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    const updated = data.map(mapper);
+                    if (JSON.stringify(data) !== JSON.stringify(updated)) {
+                        localStorage.setItem(key, JSON.stringify(updated));
                     }
-                });
-                if (changed) localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
-            }
-        } catch (e) { /* ignore */ }
+                }
+            };
+
+            const targetId = userData.id || userData.email;
+            const targetName = userData.name || userData.email;
+
+            // 1. Negotiations
+            transferData("fairprice_demo_negotiations", (n: any) => {
+                if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
+                    return { ...n, customer_id: targetId, customer_name: targetName };
+                }
+                return n;
+            });
+
+            // 2. Notifications
+            transferData("fairprice_demo_notifications", (n: any) => {
+                if (n.userId === "guest" || n.userId === "Guest Buyer") {
+                    return { ...n, userId: targetId };
+                }
+                return n;
+            });
+
+            // 3. Conversations
+            transferData("fp_conversations", (c: any) => {
+                if (c.participants?.includes("guest")) {
+                    const newParts = c.participants.map((p: string) => p === "guest" ? targetId : p);
+                    const newNames = { ...c.participant_names };
+                    if (newNames["guest"]) {
+                        newNames[targetId] = targetName;
+                        delete newNames["guest"];
+                    }
+                    const newUnread = { ...c.unread_count };
+                    if (newUnread["guest"] !== undefined) {
+                        newUnread[targetId] = newUnread["guest"];
+                        delete newUnread["guest"];
+                    }
+                    return { ...c, participants: newParts, participant_names: newNames, unread_count: newUnread };
+                }
+                return c;
+            });
+
+            // 4. Chat Messages
+            transferData("fp_chat_messages", (m: any) => {
+                let updated = { ...m };
+                if (updated.sender === "guest") {
+                    updated.sender = targetId;
+                    updated.sender_name = targetName;
+                }
+                return updated;
+            });
+
+        } catch (e) { console.error("Data transfer failed", e); }
 
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
@@ -136,6 +182,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem("fairprice_demo_orders");
             localStorage.removeItem("fairprice_demo_notifications");
             localStorage.removeItem("fairprice_demo_returns");
+            localStorage.removeItem("fairprice_demo_order_messages");
+            localStorage.removeItem("fairprice_demo_support_messages");
         } catch (e) { /* ignore */ }
 
         // Also clear seller session
@@ -153,20 +201,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const register = (userData: User) => {
         // Transfer any guest negotiations to the newly registered user
         try {
-            const stored = localStorage.getItem("fairprice_demo_negotiations");
-            if (stored) {
-                const negs = JSON.parse(stored);
-                let changed = false;
-                negs.forEach((n: any) => {
-                    if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
-                        n.customer_id = userData.id || userData.email;
-                        n.customer_name = userData.name || userData.email;
-                        changed = true;
+            const transferData = (key: string, mapper: (item: any) => any) => {
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    const updated = data.map(mapper);
+                    if (JSON.stringify(data) !== JSON.stringify(updated)) {
+                        localStorage.setItem(key, JSON.stringify(updated));
                     }
-                });
-                if (changed) localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
-            }
-        } catch (e) { /* ignore */ }
+                }
+            };
+
+            const targetId = userData.id || userData.email;
+            const targetName = userData.name || userData.email;
+
+            // 1. Negotiations
+            transferData("fairprice_demo_negotiations", (n: any) => {
+                if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
+                    return { ...n, customer_id: targetId, customer_name: targetName };
+                }
+                return n;
+            });
+
+            // 2. Notifications
+            transferData("fairprice_demo_notifications", (n: any) => {
+                if (n.userId === "guest" || n.userId === "Guest Buyer") {
+                    return { ...n, userId: targetId };
+                }
+                return n;
+            });
+
+            // 3. Conversations
+            transferData("fp_conversations", (c: any) => {
+                if (c.participants?.includes("guest")) {
+                    const newParts = c.participants.map((p: string) => p === "guest" ? targetId : p);
+                    const newNames = { ...c.participant_names };
+                    if (newNames["guest"]) {
+                        newNames[targetId] = targetName;
+                        delete newNames["guest"];
+                    }
+                    const newUnread = { ...c.unread_count };
+                    if (newUnread["guest"] !== undefined) {
+                        newUnread[targetId] = newUnread["guest"];
+                        delete newUnread["guest"];
+                    }
+                    return { ...c, participants: newParts, participant_names: newNames, unread_count: newUnread };
+                }
+                return c;
+            });
+
+            // 4. Chat Messages
+            transferData("fp_chat_messages", (m: any) => {
+                let updated = { ...m };
+                if (updated.sender === "guest") {
+                    updated.sender = targetId;
+                    updated.sender_name = targetName;
+                }
+                return updated;
+            });
+
+        } catch (e) { console.error("Data transfer failed", e); }
 
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);

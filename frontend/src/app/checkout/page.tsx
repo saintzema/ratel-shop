@@ -233,6 +233,7 @@ function CheckoutContent() {
     const [paymentMethod, setPaymentMethod] = useState<"paystack" | "cod">("paystack");
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
+    const [conciergeOrderId, setConciergeOrderId] = useState<string | null>(null);
 
     // Coupon System
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
@@ -306,9 +307,9 @@ function CheckoutContent() {
     const [codThreshold, setCodThreshold] = useState(20000);
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
-    // COD for global products — admin-controlled
-    const [codGlobalEnabled, setCodGlobalEnabled] = useState(false);
-    const [codGlobalThreshold, setCodGlobalThreshold] = useState(15000);
+    // COD for global products — admin-controlled (default enabled for seamless UX)
+    const [codGlobalEnabled, setCodGlobalEnabled] = useState(true);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState(1500000);
 
     const PICKUP_STATIONS: Record<string, Record<string, string[]>> = {
         "Lagos": {
@@ -717,6 +718,9 @@ function CheckoutContent() {
             // Set up concierge for the first item
             if (checkoutItems.length > 0) {
                 setConciergeProduct(checkoutItems[0].product);
+                if (createdOrders.length > 0) {
+                    setConciergeOrderId(createdOrders[0].order.id);
+                }
             }
 
             if (!user) {
@@ -754,18 +758,32 @@ function CheckoutContent() {
                 }).catch(console.error);
             }
 
-            // Fire off Order Alert Email to SELLER(s)
+            // Fire off Order Alert Email & Notification to SELLER(s)
             const sellerGroups = new Map<string, { sellerEmail: string, sellerName: string, orders: typeof createdOrders }>();
             createdOrders.forEach(co => {
                 const sellers = DemoStore.getSellers();
                 const seller = sellers.find(s => s.id === co.product.seller_id);
-                if (seller?.owner_email) {
-                    if (!sellerGroups.has(seller.id)) {
-                        sellerGroups.set(seller.id, { sellerEmail: seller.owner_email, sellerName: seller.business_name, orders: [] });
+                
+                if (seller) {
+                    // Send In-App Dashboard Notification to Seller
+                    DemoStore.addNotification({
+                        userId: seller.user_id || seller.id, // Notification targets the seller's user ID
+                        type: "order",
+                        message: `New Order Received! A customer just purchased ${co.product.name}.`,
+                        link: "/seller/orders"
+                    });
+
+                    // Queue email for Seller
+                    const sellerEmail = seller.owner_email || seller.user_id;
+                    if (sellerEmail && sellerEmail.includes("@")) {
+                        if (!sellerGroups.has(seller.id)) {
+                            sellerGroups.set(seller.id, { sellerEmail: sellerEmail, sellerName: seller.business_name || "Seller", orders: [] });
+                        }
+                        sellerGroups.get(seller.id)!.orders.push(co);
                     }
-                    sellerGroups.get(seller.id)!.orders.push(co);
                 }
             });
+            
             sellerGroups.forEach(({ sellerEmail, sellerName, orders: sellerOrders }) => {
                 const firstSellerOrder = sellerOrders[0];
                 const productNames = sellerOrders.map(o => o.product.name).join(", ");
@@ -1589,10 +1607,16 @@ function CheckoutContent() {
                                 return totalSavings > 0 ? (
                                     <div className="flex justify-between items-center bg-emerald-50 -mx-4 px-4 py-2.5 rounded-xl border border-emerald-100">
                                         <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
-                                            🎉 You Save:
+                                            🎉 You Saved:
                                         </span>
                                         <span className="font-black text-emerald-600 text-sm">{formatPrice(totalSavings)}</span>
+                                    
+                                        <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
+                                        </span>
+                                        <span className="font-black text-emerald-600 text-sm">From discounts & delivery</span>
+                                    
                                     </div>
+                                    
                                 ) : null;
                             })()}
 
@@ -1767,6 +1791,8 @@ function CheckoutContent() {
                 isOpen={showConcierge}
                 onClose={() => setShowConcierge(false)}
                 product={conciergeProduct}
+                orderId={conciergeOrderId || undefined}
+                mode="post_order"
             />
         </div >
     );

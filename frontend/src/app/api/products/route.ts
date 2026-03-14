@@ -70,11 +70,11 @@ export async function POST(req: Request) {
         // Ensure "global-partners" seller exists if saving a globally sourced product
         if (body.seller_id === 'global-partners') {
             const globalUser = await db.user.upsert({
-                where: { email: 'global@fairprice.ng' },
+                where: { id: 'global-user' },
                 update: {},
                 create: {
                     id: 'global-user',
-                    email: 'global@fairprice.ng',
+                    email: 'techzema@gmail.com',
                     name: 'FairPrice Global',
                     role: 'admin'
                 }
@@ -87,6 +87,7 @@ export async function POST(req: Request) {
                     id: 'global-partners',
                     userId: globalUser.id,
                     businessName: 'Global Stores',
+                    ownerEmail: 'techzema@gmail.com',
                     description: 'Global Sourcing Partners',
                     category: 'All',
                     status: 'active',

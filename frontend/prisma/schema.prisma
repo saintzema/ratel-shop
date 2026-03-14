@@ -513,8 +513,18 @@ model SystemSetting {
   escrowRelease      Boolean  @default(true)
   strictSeller       Boolean  @default(true)
 
+  // COD Settings
+  codEnabled                Boolean  @default(true)
+  codThreshold              Float    @default(20000)
+  codAllowExpensiveCategories Boolean @default(true)
+
+  // Global COD Settings
+  codGlobalEnabled          Boolean  @default(false)
+  codGlobalThreshold        Float    @default(15000)
+
   // JSON for complex data like category margins
   categoryMargins    Json?    // e.g. {"electronics": "10", "fashion": "15"}
+  stateShipping      Json?    // e.g. {"Lagos": "1500", "Abuja": "3000"}
 
   updatedAt          DateTime @updatedAt
 }

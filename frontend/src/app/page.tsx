@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { DEMO_DEALS } from "@/lib/data";
 import { DemoStore } from "@/lib/demo-store";
@@ -241,8 +241,37 @@ function HomeContent() {
   const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
   // Don't add sponsored to usedIds — they're allowed to also appear in category sections
 
-  // 3. Deals
-  const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 30);
+  // 3. Deals (Flash deals from DB/Demo + General Price Drops)
+  const dealProducts = useMemo(() => {
+    const now = new Date();
+    const allDeals = typeof window !== "undefined" ? DemoStore.getDeals() : DEMO_DEALS;
+    const active = allDeals
+      .filter(d => d.is_active && new Date(d.end_at) > now)
+      .map(deal => {
+        const product = allProducts.find(p => p.id === deal.product_id);
+        if (!product) return null;
+        const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
+        return {
+          ...product,
+          price: discountedPrice,
+          original_price: product.price,
+          dealEndTime: deal.end_at,
+          dealDiscountText: `${deal.discount_pct}% OFF`
+        };
+      })
+      .filter(Boolean);
+
+    const dealProductIds = new Set(active.map(a => a?.id));
+    const priceDrop = allProducts
+        .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
+        .map(p => ({
+            ...p,
+            dealDiscountText: `Save ${formatPrice(p.original_price! - p.price)}`
+        }))
+        .sort((a,b) => ((b.original_price! - b.price) / b.original_price!) - ((a.original_price! - a.price) / a.original_price!));
+
+    return [...active, ...priceDrop].slice(0, 30);
+  }, [allProducts]);
 
   // 4. Category sections — each draws from its own filtered pool, de-duplicated
   const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
@@ -826,7 +855,11 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
               {isLoading ? (
                 <ProductCardSkeleton />
               ) : (
-                <ProductCard product={product} />
+                <ProductCard 
+                  product={product} 
+                  dealEndTime={product.dealEndTime} 
+                  dealDiscountText={product.dealDiscountText} 
+                />
               )}
             </div>
           ))}

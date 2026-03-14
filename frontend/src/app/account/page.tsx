@@ -15,36 +15,30 @@ export default function AccountPage() {
     const { user, logout } = useAuth();
     const router = useRouter();
 
-    // Check if user is already a seller
-    const [isSeller, setIsSeller] = useState(false);
+    const [isSeller, setIsSeller] = useState(() => {
+        if (!user) return false;
+        if (user.role === 'seller' || user.role === 'admin') return true;
+        const sellers = DemoStore.getSellers();
+        return sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
+    });
+
     useEffect(() => {
-        if (user) {
-            if (user.role === 'seller' || user.role === 'admin') {
-                setIsSeller(true);
-                return;
-            }
-            const sellers = DemoStore.getSellers();
-            const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
-            if (localMatch) {
-                setIsSeller(true);
-            } else {
-                fetch('/api/sellers?all=true')
-                    .then(res => res.json())
-                    .then(data => {
-                        const sers = Array.isArray(data) ? data : [];
-                        const match = sers.some((s: any) =>
-                            s.owner_email === user.email ||
-                            s.user_id === user.id ||
-                            s.id === user.id
-                        );
-                        setIsSeller(match);
-                    })
-                    .catch(() => setIsSeller(false));
-            }
-        } else {
-            setIsSeller(false);
+        // Only run the fallback network check if local check fails to detect seller
+        if (user && !isSeller) {
+            fetch('/api/sellers?all=true')
+                .then(res => res.json())
+                .then(data => {
+                    const sers = Array.isArray(data) ? data : [];
+                    const match = sers.some((s: any) =>
+                        s.owner_email === user.email ||
+                        s.user_id === user.id ||
+                        s.id === user.id
+                    );
+                    if (match) setIsSeller(true);
+                })
+                .catch(() => {});
         }
-    }, [user]);
+    }, [user, isSeller]);
 
     const sellerCard = isSeller
         ? { icon: Store, title: "Seller Dashboard", desc: "Manage your store, orders & payouts", href: "/seller/dashboard" }
@@ -98,7 +92,11 @@ export default function AccountPage() {
 
 
 
-    const [couponBalance, setCouponBalance] = useState(0);
+    const [couponBalance, setCouponBalance] = useState(() => {
+        if (!user) return 0;
+        const coupons = DemoStore.getActiveCoupons(user.id || user.email || "");
+        return coupons.reduce((sum, c) => sum + c.amount, 0);
+    });
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
@@ -130,7 +128,20 @@ export default function AccountPage() {
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-8 max-w-5xl">
-                <h1 className="text-3xl font-normal mb-8 text-gray-900">Your Account</h1>
+                <div className="flex items-center justify-between mb-8">
+                    <h1 className="text-3xl font-normal text-gray-900">Your Account</h1>
+                    <Button 
+                        variant="ghost" 
+                        size="sm"
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 font-bold flex items-center bg-red-50/50"
+                        onClick={() => {
+                            logout();
+                            window.location.href = '/';
+                        }}
+                    >
+                        <LogOut className="w-4 h-4 mr-2" /> Sign Out
+                    </Button>
+                </div>
 
                 {/* Prominent Coupon & Referral Banner */}
                 <div className="mb-8 rounded-2xl p-6 md:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6" style={{ background: 'linear-gradient(135deg, #065f46 0%, #047857 40%, #b8860b 100%)' }}>
