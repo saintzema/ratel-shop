@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS = {
     codEnabled: true,
     codThreshold: 20000,
     codAllowExpensiveCategories: true,
-    codGlobalEnabled: true,
+    codGlobalEnabled: false,
     codGlobalThreshold: 15000,
     updatedAt: new Date()
 };

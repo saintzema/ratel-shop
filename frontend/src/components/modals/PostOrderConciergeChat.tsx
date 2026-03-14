@@ -299,17 +299,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
                         // Initiate or continue DM conversation with seller
                         const sellerDisplayName = seller?.business_name || product.seller_name || "Seller";
-                        const currentUserId = currentUser?.id || DemoStore.getCurrentUserId() || "guest_session";
                         const conv = DemoStore.getOrCreateConversation(
-                            currentUserId,
+                            currentUser?.id || "guest",
                             sellerId,
-                            { [currentUserId]: buyerName, [sellerId]: sellerDisplayName },
+                            { [currentUser?.id || "guest"]: buyerName, [sellerId]: sellerDisplayName },
                             { type: "buyer_seller", product_id: product.id }
                         );
                         if (conv) {
                             DemoStore.sendChatMessage(
                                 conv.id,
-                                currentUserId,
+                                currentUser?.id || "guest",
                                 buyerName,
                                 `📸 Hi, I'd like to request real-time photos of the "${product.name}" before it ships. Can you upload images of the actual unit from your warehouse? (Order: ${trackingId})`
                             );
@@ -369,7 +368,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         const currentUser = DemoStore.getCurrentUser();
         DemoStore.addReview({
             product_id: product.id,
-            user_id: currentUser?.id || DemoStore.getCurrentUserId() || "guest_session",
+            user_id: currentUser?.id || "guest",
             user_name: currentUser?.name || "Guest User",
             rating: stars,
             comment: ""
@@ -470,9 +469,9 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
 
-                            {messages.map((msg, index) => (
+                            {messages.map((msg) => (
                                 <motion.div
-                                    key={`${msg.id}-${index}`}
+                                    key={msg.id}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
@@ -508,7 +507,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 })}
                                                 {msg.sender === "ziva" && msg.text.includes("Thanks for the") && msg.text.includes("star rating!") && (
                                                     <div className="mt-3">
-                                                        <a href={`/product/${product?.id}?review=true#reviews-section`} onClick={onClose} className="block w-full">
+                                                        <a href={`/product/${product?.id}#reviews-section`} onClick={onClose} className="block w-full">
                                                             <Button className="w-full h-8 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
                                                                 Write a Detailed Review
                                                                 <RotateCcw className="w-3 h-3 rotate-180" />

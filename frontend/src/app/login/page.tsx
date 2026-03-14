@@ -39,6 +39,11 @@ export default function UnifiedAuthPage() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isExistingUser, setIsExistingUser] = useState(false);
     const [fetchedUser, setFetchedUser] = useState<any>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Get redirect path
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -501,7 +506,7 @@ export default function UnifiedAuthPage() {
                                                 onChange={(e) => setIdentifier(e.target.value)}
                                                 list="email-domains"
                                             />
-                                            {identifier && !identifier.includes('@') && isNaN(Number(identifier.replace(/\D/g, ''))) && (
+                                            {mounted && identifier && !identifier.includes('@') && isNaN(Number(identifier.replace(/\D/g, ''))) && (
                                                 <datalist id="email-domains">
                                                     <option value={`${identifier}@gmail.com`} />
                                                     <option value={`${identifier}@yahoo.com`} />
@@ -511,7 +516,7 @@ export default function UnifiedAuthPage() {
                                                     <option value={`${identifier}@hotmail.com`} />
                                                 </datalist>
                                             )}
-                                            {identifier.includes('@') && (
+                                            {mounted && identifier.includes('@') && (
                                                 <datalist id="email-domains">
                                                     <option value={`${identifier.split('@')[0]}@gmail.com`} />
                                                     <option value={`${identifier.split('@')[0]}@yahoo.com`} />

@@ -25,32 +25,15 @@ export function MobileBottomNav() {
 
     const [unreadNotifs, setUnreadNotifs] = useState(0);
 
-    const fetchUnreadCount = async () => {
-        if (!user) return;
-        try {
-            const res = await fetch('/api/notifications?unread_only=true&count_only=true');
-            if (res.ok) {
-                const data = await res.json();
-                setUnreadNotifs(data.count || 0);
-            }
-        } catch (error) {
-            console.error("Failed to fetch mobile bottom nav unread count", error);
-        }
-    };
-
     useEffect(() => {
-        fetchUnreadCount();
-        
-        // Listen for global notification refresh events (dispatched by MessageBox/NotificationBell when marking as read)
-        window.addEventListener("refresh-notifications", fetchUnreadCount);
-        
-        // Poll every 30 seconds to stay perfectly in sync
-        const interval = setInterval(fetchUnreadCount, 30000);
-
-        return () => {
-            window.removeEventListener("refresh-notifications", fetchUnreadCount);
-            clearInterval(interval);
+        const loadCounts = () => {
+            const userId = user?.email;
+            const notifs = DemoStore.getNotifications(userId);
+            setUnreadNotifs(notifs.filter(n => !n.read).length);
         };
+        loadCounts();
+        window.addEventListener("storage", loadCounts);
+        return () => window.removeEventListener("storage", loadCounts);
     }, [user]);
 
     // Always show the mobile nav bar on all pages

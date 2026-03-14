@@ -830,11 +830,11 @@ export function ZivaChat() {
                             id: `negotiate_${Date.now()}`,
                             role: "assistant",
                             content: hasSpecificProduct
-                                ? `Great choice! How much would you like to offer for the **${exampleProduct.name}**?\n\nThe listed price is **${formatPrice(exampleProduct.price)}**. Please state your offer — I recommend staying within the fair market range for the best chance of acceptance.\n\nFor example: *"I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name.split(' ').slice(0, 4).join(' ')}"*`
+                                ? `💰 **Let's Negotiate!**\n\nGreat choice! How much would you like to offer for the **${exampleProduct.name}**?\n\nThe listed price is **${formatPrice(exampleProduct.price)}**. Please state your offer — I recommend staying within the fair market range for the best chance of acceptance.\n\nFor example: *"I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name.split(' ').slice(0, 4).join(' ')}"*`
                                 : matchedProducts.length > 0
                                     ? `💰 **Let's Negotiate!**\n\nI found these products you might want to negotiate on. Tell me which one and your desired price, and I'll send the offer to the seller.\n\nFor example: *"I want to offer ₦150,000 for the iPhone"*`
                                     : "🤔 I couldn't find a specific product to negotiate. Could you tell me which product you'd like to make an offer on?",
-                            products: hasSpecificProduct ? undefined : matchedProducts,
+                            products: matchedProducts,
                             quickActions: hasSpecificProduct
                                 ? [{ label: `💰 Offer ${formatPrice(Math.round(exampleProduct.price * 0.96))}`, query: `I want to offer ${formatPrice(Math.round(exampleProduct.price * 0.96))} for the ${exampleProduct.name}`, icon: "" }]
                                 : currentProduct

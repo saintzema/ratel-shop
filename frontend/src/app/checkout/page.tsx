@@ -309,7 +309,7 @@ function CheckoutContent() {
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
     // COD for global products — admin-controlled (default enabled for seamless UX)
     const [codGlobalEnabled, setCodGlobalEnabled] = useState(true);
-    const [codGlobalThreshold, setCodGlobalThreshold] = useState(1500000);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState(20000);
 
     const PICKUP_STATIONS: Record<string, Record<string, string[]>> = {
         "Lagos": {
@@ -1378,7 +1378,7 @@ function CheckoutContent() {
                                                 {!codEnabled
                                                     ? "Pay on Delivery is currently disabled"
                                                     : hasGlobalProduct
-                                                        ? "Not available for imported global products"
+                                                        ? "Your order doesnt't qualify for this payment method"
                                                         : `Not available for orders above ₦${codThreshold.toLocaleString()}`}
                                             </p>
                                         </div>

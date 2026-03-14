@@ -660,14 +660,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                             <div className="flex items-center gap-4">
                                                                 <div className="w-12 h-12 bg-gray-100 rounded-lg p-1.5 shrink-0 flex items-center justify-center overflow-hidden">
                                                                     {product.image_url ? (
-                                                                        <img
-                                        src={(product.image_url && !product.image_url.toLowerCase().includes("no photo") && !product.image_url.toLowerCase().includes("no image") && product.image_url.toLowerCase() !== "n/a") ? product.image_url : "/assets/images/placeholder.png"}
-                                        alt={product.name}
-                                        className="h-full w-full object-cover"
-                                        onError={(e) => {
-                                            (e.target as HTMLImageElement).src = "/assets/images/placeholder.png";
-                                        }}
-                                    />
+                                                                        <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling && ((e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex'); }} />
                                                                     ) : null}
                                                                     <div className={`w-full h-full rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${product.image_url ? 'hidden' : 'flex'} items-center justify-center`}>
                                                                         <span className="text-white font-black text-sm">{product.name.charAt(0)}</span>

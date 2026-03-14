@@ -148,9 +148,9 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         </div>
                     )}
 
-                    {/* Right Countdown Tag UNDER Heart icon -> Now BOTTOM Right */}
+                    {/* Right Countdown Tag UNDER Heart icon */}
                     {dealEndTime && (
-                        <div className="absolute bottom-3 right-3 z-30 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1 group-hover:scale-105 transition-transform duration-300">
+                        <div className="absolute top-[48px] right-3 z-20 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1">
                             <Clock className="h-3 w-3 text-brand-orange animate-pulse" /> {timeLeft}
                         </div>
                     )}
@@ -163,7 +163,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     )}
 
                     <img
-                        src={(product.image_url && product.image_url.trim() !== "" && !product.image_url.toLowerCase().includes("no photo") && !product.image_url.toLowerCase().includes("no image") && product.image_url.toLowerCase() !== "n/a") ? product.image_url : "/assets/images/placeholder.png"}
+                        src={product.image_url && product.image_url.trim() !== "" ? product.image_url : "/assets/images/placeholder.png"}
                         alt={product.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={(e) => {

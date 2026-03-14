@@ -68,6 +68,9 @@
   /* Light theme only */
 }
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer utilities {
   .glass {
