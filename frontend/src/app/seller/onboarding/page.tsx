@@ -88,7 +88,8 @@ export default function KYCOnboarding() {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         const currentSeller = DemoStore.getCurrentSeller();
-        const sellerId = currentSeller?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
+        // Force the seller ID to match the user ID for 1:1 linking if creating a new one
+        const sellerId = currentSeller?.id || user?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
 
         const sellerUpdates: Partial<Seller> = {
             business_name: businessName || (user ? `${user.name}'s Shop` : "New Seller"),
@@ -120,11 +121,13 @@ export default function KYCOnboarding() {
         if (currentSeller) {
             DemoStore.updateSeller(sellerId, sellerUpdates);
         } else {
-            // Fallback just in case onboarding was reached directly
+            // New seller onboarding
             DemoStore.addSeller({
                 ...sellerUpdates,
                 id: sellerId,
-                user_id: user?.id || "",
+                user_id: user?.id || sellerId,
+                owner_email: user?.email || (businessName + "@fairprice.ng").replace(/\s+/g, '').toLowerCase(),
+                owner_name: user?.name || businessName,
                 created_at: new Date().toISOString()
             } as Seller);
             DemoStore.loginSeller(sellerId);

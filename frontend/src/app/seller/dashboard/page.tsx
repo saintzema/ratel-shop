@@ -378,7 +378,7 @@ export default function SellerDashboard() {
                             <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No pending negotiations</div>
                         ) : (
                             pendingNegs.slice(0, 3).map((neg) => {
-                                const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts().find(p => p.id === neg.product_id);
+                                const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                                 if (!product) return null;
 
                                 return (
@@ -475,7 +475,7 @@ export default function SellerDashboard() {
                                                 // Reload products
                                                 const sellerId = DemoStore.getCurrentSellerId();
                                                 if (sellerId) {
-                                                    setProducts(DemoStore.getProducts().filter(p => p.seller_id === sellerId));
+                                                    setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId));
                                                 }
                                             }}
                                         >

@@ -469,9 +469,9 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
 
-                            {messages.map((msg) => (
+                            {messages.map((msg, idx) => (
                                 <motion.div
-                                    key={msg.id}
+                                    key={`${msg.id}-${idx}`}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}

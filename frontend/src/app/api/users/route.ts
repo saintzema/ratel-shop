@@ -6,20 +6,42 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
-        const userData = {
-            id: body.id,
+        const updateData: any = {};
+        
+        if (body.id !== undefined) updateData.id = body.id;
+        if (body.email !== undefined) updateData.email = body.email;
+        if (body.name !== undefined) updateData.name = body.name;
+        if (body.role !== undefined) updateData.role = body.role;
+        if (body.avatar_url !== undefined) updateData.avatarUrl = body.avatar_url;
+        if (body.location !== undefined) updateData.location = body.location;
+        if (body.birthday !== undefined) updateData.birthday = body.birthday;
+        if (body.phone !== undefined) updateData.phone = body.phone;
+        if (body.address !== undefined) updateData.address = body.address;
+
+        if (body.password) {
+            const bcryptStr = await import("bcryptjs");
+            // Workaround for module loading in edge/node
+            const bcrypt = 'default' in bcryptStr ? bcryptStr.default : bcryptStr;
+            updateData.password = await bcrypt.hash(body.password, 12);
+        }
+
+        const createData = {
+            id: body.id || `user_${body.email}`,
             email: body.email,
-            name: body.name,
-            role: (body.role as any) || "customer",
+            name: body.name || "User",
+            role: body.role || "customer",
             avatarUrl: body.avatar_url,
             location: body.location,
             birthday: body.birthday,
+            phone: body.phone,
+            address: body.address,
+            password: updateData.password, // already hashed above if provided
         };
 
         const user = await db.user.upsert({
-            where: { email: userData.email },
-            update: userData,
-            create: userData,
+            where: { email: body.email },
+            update: updateData,
+            create: createData,
         });
 
         // Broadcast update for real-time sync

@@ -23,7 +23,14 @@ import {
     Package,
     Edit,
     Save,
-    X
+    X,
+    FileText,
+    Building2,
+    Users,
+    Globe,
+    Landmark,
+    Hash,
+    Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -219,7 +226,7 @@ export default function AdminUserDetailPage() {
                 <div className="flex flex-wrap items-center gap-3">
                     {/* View Store if seller */}
                     {isSeller && (
-                        <Button onClick={() => router.push(`/store/${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                        <Button onClick={() => router.push(`/store/${userEntity.store_url || userEntity.business_name?.toLowerCase().replace(/\s+/g, '-') || id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                             <Store className="h-4 w-4 mr-2" /> View Store
                         </Button>
                     )}
@@ -443,7 +450,7 @@ export default function AdminUserDetailPage() {
                                 Compliance & Plan
                             </h3>
 
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <div className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
                                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Subscription</span>
                                     <span className="text-sm font-black text-indigo-700">{(userEntity.subscription_plan || 'Starter').toUpperCase()}</span>
@@ -461,6 +468,85 @@ export default function AdminUserDetailPage() {
                                         {userEntity.kyc_status || 'Not Submitted'}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Seller Onboarding Details ── */}
+                    {isSeller && (
+                        <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="h-2 w-2 rounded-full bg-violet-500" />
+                                Onboarding Details
+                            </h3>
+                            <div className="space-y-3">
+                                {([
+                                    { icon: Building2, label: "Business Name", value: userEntity.business_name },
+                                    { icon: Users, label: "Owner Name", value: userEntity.owner_name },
+                                    { icon: Mail, label: "Owner Email", value: userEntity.owner_email },
+                                    { icon: Phone, label: "Phone", value: userEntity.phone },
+                                    { icon: Globe, label: "Store URL", value: userEntity.store_url },
+                                    { icon: MapPin, label: "Street Address", value: userEntity.street_address },
+                                    { icon: MapPin, label: "City", value: userEntity.city },
+                                    { icon: MapPin, label: "State", value: userEntity.state },
+                                    { icon: MapPin, label: "Location", value: userEntity.location },
+                                    { icon: ShoppingBag, label: "Category", value: userEntity.category },
+                                    { icon: Hash, label: "Weekly Orders", value: userEntity.weekly_orders },
+                                    { icon: Users, label: "Staff Count", value: userEntity.staff_count },
+                                    { icon: Store, label: "Physical Stores", value: userEntity.physical_stores },
+                                    { icon: Globe, label: "Currencies", value: Array.isArray(userEntity.currencies) ? userEntity.currencies.join(', ') : userEntity.currencies },
+                                    { icon: Landmark, label: "Bank", value: userEntity.bank_name },
+                                    { icon: Hash, label: "Account Number", value: userEntity.account_number },
+                                    { icon: Users, label: "Account Name", value: userEntity.account_name },
+                                    { icon: FileText, label: "CAC RC Number", value: userEntity.cac_rc_number },
+                                    { icon: CheckCircle2, label: "Business Registered", value: userEntity.business_registered != null ? (userEntity.business_registered ? 'Yes' : 'No') : undefined },
+                                ]).filter(item => item.value != null && item.value !== '' && item.value !== undefined).map((item, i) => (
+                                    <div key={i} className="flex items-center gap-3 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                                        <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center border border-gray-100 shrink-0">
+                                            <item.icon className="h-3.5 w-3.5 text-gray-400" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{item.label}</p>
+                                            <p className="text-xs font-bold text-gray-800 truncate">{String(item.value)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Uploaded Documents ── */}
+                    {isSeller && (userEntity.cac_document_url || userEntity.id_document_url || userEntity.document_url) && (
+                        <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="h-2 w-2 rounded-full bg-rose-500" />
+                                Uploaded Documents
+                            </h3>
+                            <div className="space-y-4">
+                                {userEntity.cac_document_url && (
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">CAC Certificate</p>
+                                        {userEntity.cac_document_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                            <img src={userEntity.cac_document_url} alt="CAC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
+                                        ) : (
+                                            <a href={userEntity.cac_document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
+                                                <FileText className="h-4 w-4" /> View Document <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                                {(userEntity.id_document_url || userEntity.document_url) && (
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Government ID ({userEntity.id_type || 'Document'})</p>
+                                        {(userEntity.id_document_url || userEntity.document_url || '').match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                            <img src={userEntity.id_document_url || userEntity.document_url} alt="ID Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
+                                        ) : (
+                                            <a href={userEntity.id_document_url || userEntity.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
+                                                <FileText className="h-4 w-4" /> View Document <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

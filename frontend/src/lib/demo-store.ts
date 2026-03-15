@@ -79,7 +79,13 @@ class DemoStoreService {
         CATEGORIES: "fairprice_demo_categories",
         TRENDING_CURATION: "fp_trending_ids",
         DEALS: "fairprice_demo_deals",
+        PROMOTIONS: "fairprice_demo_promotions",
+        AD_CREDITS: "fairprice_demo_ad_credits",
     };
+
+    private get PROMO_KEY() {
+        return this.STORAGE_KEYS.PROMOTIONS;
+    }
 
     private constructor() {
         if (typeof window !== "undefined") {
@@ -145,6 +151,12 @@ class DemoStoreService {
                     localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(m.DEMO_DEALS || []));
                 }
             }).catch(console.error);
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.PROMOTIONS)) {
+            localStorage.setItem(this.STORAGE_KEYS.PROMOTIONS, "[]");
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS)) {
+            localStorage.setItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
         }
     }
 
@@ -1556,9 +1568,30 @@ class DemoStoreService {
         }
 
         const all: AppNotification[] = JSON.parse(stored);
-        if (!userId) return []; // If no user, show nothing (or strictly public/system promos)
+        if (!userId) return []; // If no user, show nothing
 
-        return all.filter(n => n.userId === "all" || n.userId === userId);
+        // Build set of all identities this user has (buyer ID, seller ID, email, etc.)
+        const matchIds = new Set<string>(["all", userId]);
+
+        // If user is also a seller, match their seller ID and email too
+        const seller = this.getSellers().find(s =>
+            s.user_id === userId || s.id === userId || s.owner_email === userId
+        );
+        if (seller) {
+            matchIds.add(seller.id);
+            if (seller.user_id) matchIds.add(seller.user_id);
+            if (seller.owner_email) matchIds.add(seller.owner_email);
+        }
+
+        // Also match by user email
+        const user = this.getCurrentUser();
+        if (user?.email) matchIds.add(user.email);
+        if (user?.id) matchIds.add(user.id);
+
+        // Admin users see admin-targeted notifications too
+        if (user?.role === 'admin') matchIds.add('admin');
+
+        return all.filter(n => n.userId && matchIds.has(n.userId));
     }
 
     addNotification(notification: Omit<AppNotification, "id" | "timestamp" | "read">) {
@@ -1835,7 +1868,6 @@ class DemoStoreService {
     }
 
     // --- Promotions ---
-    private PROMO_KEY = "fp_promotions";
     private PROMO_PLANS: Record<string, { days: number; price: number; label: string }> = {
         "3_day": { days: 3, price: 5000, label: "3 Days" },
         "10_day": { days: 10, price: 9999, label: "10 Days" },
@@ -1935,6 +1967,28 @@ class DemoStoreService {
             localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
             window.dispatchEvent(new Event("storage"));
         }
+    }
+
+    // --- Ad Credits ---
+    getAdCredits(sellerId: string): number {
+        const stored = localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS);
+        const all = stored ? JSON.parse(stored) : {};
+        return all[sellerId] || 0;
+    }
+
+    updateAdCredits(sellerId: string, amount: number): boolean {
+        const stored = localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS);
+        const all = stored ? JSON.parse(stored) : {};
+        const current = all[sellerId] || 0;
+        const newTotal = current + amount;
+        
+        // Don't allow negative balances
+        if (newTotal < 0) return false;
+        
+        all[sellerId] = newTotal;
+        localStorage.setItem(this.STORAGE_KEYS.AD_CREDITS, JSON.stringify(all));
+        window.dispatchEvent(new Event("storage"));
+        return true;
     }
 
     async checkPlanExpiry(sellerId: string) {

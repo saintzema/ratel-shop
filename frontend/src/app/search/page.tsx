@@ -519,6 +519,13 @@ function SearchContent() {
     attributeFilters,
   ]);
 
+  // Auto-show global results when local catalog is empty but global search found products
+  useEffect(() => {
+    if (!isGlobalSearching && globalResults.length > 0 && filteredProducts.length === 0 && !showGlobalResults) {
+      setShowGlobalResults(true);
+    }
+  }, [isGlobalSearching, globalResults.length, filteredProducts.length, showGlobalResults]);
+
   useEffect(() => {
     setPage(1);
   }, [
@@ -863,7 +870,32 @@ function SearchContent() {
               </div>
             )}
 
-            {combinedCurrentResults.length === 0 && (
+            {combinedCurrentResults.length === 0 && isGlobalSearching && query && (
+              <div className="mb-10">
+                <div className="flex items-center justify-center gap-3 mb-8">
+                  <div className="relative">
+                    <div className="h-10 w-10 border-[3px] border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
+                    <Sparkles className="h-4 w-4 text-emerald-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-gray-900 tracking-tight">Finding best prices worldwide</p>
+                    <p className="text-[11px] text-gray-400 font-medium">Searching global suppliers for &quot;{query}&quot;…</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {[1,2,3,4,5,6,7,8].map((i) => (
+                    <div key={`ghost-${i}`} className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm" style={{ animationDelay: `${i * 80}ms` }}>
+                      <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl mb-3" />
+                      <div className="h-3 bg-gray-100 rounded-full w-4/5 mb-2" />
+                      <div className="h-3 bg-gray-100 rounded-full w-3/5 mb-3" />
+                      <div className="h-5 bg-gray-100 rounded-full w-2/5" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {combinedCurrentResults.length === 0 && !isGlobalSearching && (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                 <SearchIcon className="h-10 w-10 text-gray-300 mb-4" />
                 <h2 className="text-xl font-bold mb-2 text-black">

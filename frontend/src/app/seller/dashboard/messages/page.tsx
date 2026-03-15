@@ -63,7 +63,7 @@ export default function UniversalMessagesPage() {
         if (!sellerId) return;
 
         const loadData = () => {
-            const allProds = DemoStore.getProducts();
+            const allProds = DemoStore.getProducts({ includeInactiveSellers: true });
             setProducts(allProds);
 
             const negs = DemoStore.getNegotiations(sellerId);

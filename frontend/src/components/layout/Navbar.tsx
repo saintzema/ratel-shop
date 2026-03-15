@@ -129,18 +129,33 @@ export function Navbar() {
 
     useEffect(() => {
         const loadNotifs = async () => {
-            if (!user?.email) { setUnreadNotifs(0); return; }
+            if (!user?.email && !user?.id) { setUnreadNotifs(0); return; }
+
+            // Always include local DemoStore notification unread count
+            const localNotifs = DemoStore.getNotifications(user.id || user.email);
+            const localUnread = localNotifs.filter(n => !n.read).length;
+
             try {
                 const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}&count_only=true`);
                 if (res.ok) {
                     const data = await res.json();
-                    setUnreadNotifs(data.unread_count ?? 0);
+                    // Use the higher of API count and local count (avoid double-counting)
+                    setUnreadNotifs(Math.max(data.unread_count ?? 0, localUnread));
+                } else {
+                    // API failed — use local count
+                    setUnreadNotifs(localUnread);
                 }
-            } catch { /* silently fail */ }
+            } catch {
+                // Offline — use local count
+                setUnreadNotifs(localUnread);
+            }
         };
         loadNotifs();
         const poll = setInterval(loadNotifs, 30000);
-        return () => clearInterval(poll);
+        // Also listen for DemoStore changes
+        const onStorageChange = () => loadNotifs();
+        window.addEventListener("demo-store-update", onStorageChange);
+        return () => { clearInterval(poll); window.removeEventListener("demo-store-update", onStorageChange); };
     }, [user]);
 
     // Trigger bounce when cart count increases
@@ -967,8 +982,10 @@ export function Navbar() {
                     <button onClick={() => user ? openMessageBox() : router.push("/login?from=/account")} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
                         <div className="relative">
                             <MessageCircle className="h-6 w-6 text-white" />
-                            {mounted && (totalUnread > 0 || unreadNotifs > 0) && (
-                                <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full border border-brand-green-600 animate-pulse"></span>
+                            {mounted && (totalUnread + unreadNotifs) > 0 && (
+                                <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 rounded-full border-2 border-brand-green-600 text-[10px] font-black text-white px-1 leading-none">
+                                    {(totalUnread + unreadNotifs) > 99 ? '99+' : (totalUnread + unreadNotifs)}
+                                </span>
                             )}
                         </div>
                     </button>

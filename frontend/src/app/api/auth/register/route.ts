@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signToken } from "@/lib/jwt";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
     try {
@@ -8,6 +9,10 @@ export async function POST(request: Request) {
 
         if (!email || !name) {
             return NextResponse.json({ error: "Name and email are required" }, { status: 400 });
+        }
+
+        if (!password || password.length < 6) {
+            return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
         }
 
         const normalizedEmail = email.toLowerCase().trim();
@@ -21,12 +26,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
         }
 
-        // Create new user
+        // Hash the password with bcrypt (12 salt rounds — industry standard)
+        const hashedPassword = await bcrypt.hash(password, 12);
+
+        // Create new user with hashed password
         const user = await db.user.create({
             data: {
                 email: normalizedEmail,
                 name: name.trim(),
-                password: password || null,
+                password: hashedPassword,
                 role: "customer",
             },
         });

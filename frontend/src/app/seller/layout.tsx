@@ -87,10 +87,28 @@ export default function SellerLayout({
             }
         };
 
-        // If no seller session at all, redirect to login
+        // If no seller session at all, check for auto-login or redirect
         const sellerId = DemoStore.getCurrentSellerId();
         if (!sellerId) {
-            router.push("/seller/login");
+            const userStr = localStorage.getItem("fp_user");
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const allSellers = DemoStore.getSellers();
+                    const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
+                    if (myStore) {
+                        // User owns a store, auto-login to seller session
+                        DemoStore.loginSeller(myStore.id);
+                        loadData();
+                        return;
+                    }
+                } catch(e) {}
+                // Logged in but no store -> Onboarding
+                router.push("/seller/onboarding");
+                return;
+            }
+            // Not logged in at all -> Send to main login
+            router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);
             return;
         }
 

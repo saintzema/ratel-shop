@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { DemoStore } from "@/lib/demo-store";
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -11,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
-    const { user, isLoading } = useAuth();
+    const { user, isLoading, updateUser } = useAuth();
     const router = useRouter();
     const pathname = usePathname();
     const [isAuthorized, setIsAuthorized] = useState(false);
@@ -24,16 +25,31 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                 // Redirect to login with return URL
                 const returnUrl = encodeURIComponent(pathname);
                 router.push(`/login?returnUrl=${returnUrl}`);
-            } else if (allowedRoles && !allowedRoles.includes(user.role)) {
-                console.log(`ProtectedRoute: Role mismatch. User role: ${user.role}, Allowed: ${allowedRoles}. Redirecting to /`);
-                // User logged in but not authorized
-                router.push("/");
             } else {
-                console.log("ProtectedRoute: Authorized");
-                setIsAuthorized(true);
+                let isRoleAllowed = !allowedRoles || allowedRoles.includes(user.role);
+
+                // Self-healing check for legacy customers who already own a store but the DB missed their role upgrade
+                if (!isRoleAllowed && allowedRoles?.includes("seller") && user.role === "customer") {
+                    const allSellers = DemoStore.getSellers();
+                    const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
+                    if (myStore) {
+                        console.log("ProtectedRoute: Auto-healing legacy customer to seller role");
+                        updateUser({ role: "seller" });
+                        isRoleAllowed = true;
+                    }
+                }
+
+                if (!isRoleAllowed) {
+                    console.log(`ProtectedRoute: Role mismatch. User role: ${user.role}, Allowed: ${allowedRoles}. Redirecting to /`);
+                    // User logged in but not authorized
+                    router.push("/");
+                } else {
+                    console.log("ProtectedRoute: Authorized");
+                    setIsAuthorized(true);
+                }
             }
         }
-    }, [user, isLoading, router, pathname, allowedRoles]);
+    }, [user, isLoading, router, pathname, allowedRoles]); // Deliberately omit updateUser to prevent infinite loops
 
     if (isLoading || !isAuthorized) {
         return (

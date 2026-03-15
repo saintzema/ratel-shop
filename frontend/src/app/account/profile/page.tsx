@@ -103,6 +103,17 @@ export default function ProfilePage() {
         }
         setIsLoading(true);
         updateUser({ password: newPassword } as any);
+        
+        if (user?.id) {
+            DemoStore.addNotification({
+                userId: user.id,
+                type: "system",
+                title: "Security Alert: Password Changed",
+                message: "Your account password was just successfully updated. If you did not make this change, please contact support immediately.",
+                link: "/account/profile",
+            });
+        }
+
         setTimeout(() => {
             setIsLoading(false);
             setNewPassword("");

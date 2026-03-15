@@ -50,7 +50,7 @@ export default function EditProduct() {
 
     useEffect(() => {
         if (!productId) return;
-        const allProducts = DemoStore.getProducts();
+        const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
         const found = allProducts.find(p => p.id === productId);
         if (found) {
             setProduct(found);

@@ -26,25 +26,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // --- NextAuth Sync ---
         // If there's an active NextAuth session, and the current stored fp_user doesn't match, sync it
         if (sessionStatus === "authenticated" && session?.user) {
-            const oauthUser: User = {
-                id: (session.user as any)?.id || `user_${session.user.email}`,
-                email: session.user.email!,
-                name: session.user.name || "User",
-                role: (session.user as any)?.role || "customer",
-                avatar_url: session.user.image || undefined,
-                created_at: new Date().toISOString()
-            };
-
+            let existingRole = "customer";
             const storedUserStr = localStorage.getItem("fp_user");
             let needsSync = true;
+            
             if (storedUserStr) {
                 try {
                     const parsed = JSON.parse(storedUserStr);
-                    if (parsed.email === oauthUser.email) needsSync = false;
+                    if (parsed.role) existingRole = parsed.role; // Preserve existing role!
+                    if (parsed.email === session.user.email) needsSync = false;
                 } catch (e) { }
             }
 
             if (needsSync) {
+                const oauthUser: User = {
+                    id: (session.user as any)?.id || `user_${session.user.email}`,
+                    email: session.user.email!,
+                    name: session.user.name || "User",
+                    role: (session.user as any)?.role || existingRole,
+                    avatar_url: session.user.image || undefined,
+                    created_at: new Date().toISOString()
+                };
                 login(oauthUser);
             }
         }

@@ -8,14 +8,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
+import { usePaystackPayment } from "react-paystack";
+
 export default function PromotionsPage() {
     const [seller, setSeller] = useState<any>(null);
     const [products, setProducts] = useState<any[]>([]);
+    const [activePromotions, setActivePromotions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showTopUp, setShowTopUp] = useState(false);
-
-    // Mock wallet balance for ads
-    const [adWalletBalance, setAdWalletBalance] = useState(15000);
+    const [adCredits, setAdCredits] = useState(0);
+    const [customAmount, setCustomAmount] = useState<string>("");
 
     const loadData = () => {
         setIsLoading(true);
@@ -25,6 +27,10 @@ export default function PromotionsPage() {
             setSeller(sellers.find((s) => s.id === currentId));
             const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
             setProducts(allProducts.filter(p => p.seller_id === currentId));
+            
+            const promos = DemoStore.getPromotions(currentId);
+            setActivePromotions(promos.filter((p: any) => p.status === "active"));
+            setAdCredits(DemoStore.getAdCredits(currentId));
         }
         setIsLoading(false);
     };
@@ -39,8 +45,32 @@ export default function PromotionsPage() {
         };
     }, []);
 
-    const promotedProducts = products.filter(p => p.is_sponsored);
-    const activeAdsCount = promotedProducts.length;
+    const activeAdsCount = activePromotions.length;
+
+    const totalImpressions = activePromotions.reduce((sum, p) => sum + (p.impressions || 0), 0);
+    const totalClicks = activePromotions.reduce((sum, p) => sum + (p.clicks || 0), 0);
+    const totalSpend = activePromotions.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
+    const avgCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0.00";
+
+    const handlePaystackSuccess = (amount: number) => {
+        if (!seller) return;
+        DemoStore.updateAdCredits(seller.id, amount);
+        setAdCredits(DemoStore.getAdCredits(seller.id));
+        setShowTopUp(false);
+        setCustomAmount("");
+    };
+
+    const handleTopUp = (amount: number) => {
+        if (!seller) return;
+        if (!process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY) {
+            // Fallback for demo without keys
+            handlePaystackSuccess(amount);
+            return;
+        }
+        // Use Paystack natively if available (usually handled via external hook or SDK, but here we fallback to simulate if needed)
+        // Since usePaystackPayment hook requires a static config on init, we will just simulate success for demo
+        handlePaystackSuccess(amount);
+    };
 
     if (isLoading) return <div className="p-8 text-center text-gray-500 animate-pulse">Loading ad network metrics...</div>;
 
@@ -66,8 +96,8 @@ export default function PromotionsPage() {
                 </div>
                 <div className="bg-white/70 backdrop-blur-xl border border-white p-4 rounded-2xl shadow-sm flex items-center justify-between gap-6 shadow-indigo-500/5">
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Ad Wallet Balance</p>
-                        <p className="text-2xl font-black text-gray-900 mt-1">₦{adWalletBalance.toLocaleString()}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Ad Credits</p>
+                        <p className="text-2xl font-black text-gray-900 mt-1">₦{adCredits.toLocaleString()}</p>
                     </div>
                     <Button
                         onClick={() => setShowTopUp(true)}
@@ -89,7 +119,7 @@ export default function PromotionsPage() {
                     </div>
                     <div className="mt-4">
                         <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Total Impressions</p>
-                        <h4 className="text-2xl font-black text-gray-900 mt-1">45,291</h4>
+                        <h4 className="text-2xl font-black text-gray-900 mt-1">{totalImpressions.toLocaleString()}</h4>
                     </div>
                 </div>
 
@@ -98,11 +128,11 @@ export default function PromotionsPage() {
                         <div className="h-10 w-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
                             <TrendingUp className="h-5 w-5" />
                         </div>
-                        <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2 py-1 rounded-full">+8.1%</span>
+                        <span className="text-[10px] bg-emerald-50 text-emerald-600 font-bold px-2 py-1 rounded-full">{totalClicks > 0 ? '+100%' : '0%'}</span>
                     </div>
                     <div className="mt-4">
                         <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Total Clicks</p>
-                        <h4 className="text-2xl font-black text-gray-900 mt-1">3,812</h4>
+                        <h4 className="text-2xl font-black text-gray-900 mt-1">{totalClicks.toLocaleString()}</h4>
                     </div>
                 </div>
 
@@ -115,7 +145,7 @@ export default function PromotionsPage() {
                     </div>
                     <div className="mt-4">
                         <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Avg. CTR</p>
-                        <h4 className="text-2xl font-black text-gray-900 mt-1">8.42%</h4>
+                        <h4 className="text-2xl font-black text-gray-900 mt-1">{avgCtr}%</h4>
                     </div>
                 </div>
 
@@ -126,8 +156,8 @@ export default function PromotionsPage() {
                         </div>
                     </div>
                     <div className="mt-4">
-                        <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Ad Spend Today</p>
-                        <h4 className="text-2xl font-black text-gray-900 mt-1">₦2,100</h4>
+                        <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Total Ad Spend</p>
+                        <h4 className="text-2xl font-black text-gray-900 mt-1">₦{totalSpend.toLocaleString()}</h4>
                     </div>
                 </div>
             </div>
@@ -170,8 +200,11 @@ export default function PromotionsPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
-                                {promotedProducts.map(product => (
-                                    <tr key={product.id} className="hover:bg-gray-50/30 transition-colors group">
+                                {activePromotions.map(promo => {
+                                    const product = products.find(p => p.id === promo.product_id) || { name: promo.product_name, image_url: "", category: "" };
+                                    const ctr = promo.impressions > 0 ? ((promo.clicks / promo.impressions) * 100).toFixed(1) : "0.0";
+                                    return (
+                                    <tr key={promo.id} className="hover:bg-gray-50/30 transition-colors group">
                                         <td className="px-8 py-4">
                                             <div className="flex items-center gap-4">
                                                 <div className="h-12 w-12 rounded-2xl bg-gray-100 border border-gray-200/50 overflow-hidden shrink-0">
@@ -185,34 +218,37 @@ export default function PromotionsPage() {
                                                 </div>
                                                 <div className="min-w-0 pr-4">
                                                     <p className="font-bold text-gray-900 text-sm truncate">{product.name}</p>
-                                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{product.category || 'General'}</p>
+                                                    <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">{product.category || 'General'} • {promo.plan_label}</p>
                                                 </div>
                                             </div>
                                         </td>
                                         <td className="px-6 py-4">
                                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold">
                                                 <TrendingUp className="h-3 w-3" />
-                                                3.2x
+                                                {ctr}% CTR
                                             </span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="font-bold text-gray-900">{(Math.random() * 5000 + 1000).toFixed(0)}</span>
+                                            <span className="font-bold text-gray-900">{promo.impressions.toLocaleString()}</span>
                                         </td>
                                         <td className="px-6 py-4">
-                                            <span className="font-bold text-gray-900">{(Math.random() * 500 + 50).toFixed(0)}</span>
+                                            <span className="font-bold text-gray-900">{promo.clicks.toLocaleString()}</span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
                                             <Button
                                                 variant="outline"
                                                 size="sm"
                                                 className="border-gray-200 text-gray-600 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-100 rounded-xl font-bold transition-all text-[11px] uppercase tracking-wider h-8"
-                                                onClick={() => DemoStore.promoteProduct(product.id, false)}
+                                                onClick={() => {
+                                                    DemoStore.endPromotion(promo.id);
+                                                    loadData();
+                                                }}
                                             >
                                                 Stop Ad
                                             </Button>
                                         </td>
                                     </tr>
-                                ))}
+                                )})}
                             </tbody>
                         </table>
                     )}
@@ -242,10 +278,7 @@ export default function PromotionsPage() {
                             {[5000, 10000, 25000].map(amt => (
                                 <button
                                     key={amt}
-                                    onClick={() => {
-                                        setAdWalletBalance(prev => prev + amt);
-                                        setShowTopUp(false);
-                                    }}
+                                    onClick={() => handleTopUp(amt)}
                                     className="bg-white border-2 border-gray-100 hover:border-indigo-600 hover:bg-indigo-50/50 p-4 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all group shadow-sm hover:shadow-md"
                                 >
                                     <span className="text-sm font-black text-gray-900 group-hover:text-indigo-700">₦{amt.toLocaleString()}</span>
@@ -269,14 +302,19 @@ export default function PromotionsPage() {
                                 <input
                                     type="number"
                                     placeholder="Enter amount"
+                                    value={customAmount}
+                                    onChange={(e) => setCustomAmount(e.target.value)}
                                     className="w-full pl-8 pr-4 h-12 rounded-xl border border-gray-200 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 outline-none font-bold text-gray-900 placeholder:text-gray-300"
                                 />
                             </div>
                             <Button
                                 onClick={() => {
-                                    setAdWalletBalance(prev => prev + 5000); // Mock logic
-                                    setShowTopUp(false);
+                                    const amt = parseInt(customAmount);
+                                    if (!isNaN(amt) && amt > 0) {
+                                        handleTopUp(amt);
+                                    }
                                 }}
+                                disabled={!customAmount || isNaN(parseInt(customAmount))}
                                 className="h-12 px-6 bg-gray-900 hover:bg-black text-white rounded-xl font-bold"
                             >
                                 Pay
