@@ -112,10 +112,37 @@ export default function BillingPage() {
 
     const handlePaystackSuccess = (reference: string) => {
         const sellerId = DemoStore.getCurrentSellerId();
+        const seller = DemoStore.getCurrentSeller();
         if (sellerId) {
             DemoStore.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
             setCurrentPlan(paystackPlan);
             window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("demo-store-update")); // Ensure global sync
+            
+            // Send Notification
+            if (seller) {
+                DemoStore.addNotification({
+                     userId: seller.owner_email || seller.id,
+                     type: "order", // Using order icon for billing/admin messages
+                     message: `🚀 Congratulations! Your store has been upgraded to the ${paystackPlan} plan. Enjoy your new premium features!`,
+                     link: "/seller/dashboard"
+                });
+                
+                // Fire and forget email attempt
+                fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: seller.owner_email || 'demo@fairprice.store',
+                        subject: `Store Upgraded to ${paystackPlan}`,
+                        type: 'security_alert', // Using generic template
+                        data: {
+                            storeName: seller.business_name,
+                            message: `Your store has been successfully upgraded to the ${paystackPlan} plan.`
+                        }
+                    })
+                }).catch(() => {});
+            }
         }
         setShowPaystack(false);
     };

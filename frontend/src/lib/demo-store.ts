@@ -661,10 +661,12 @@ class DemoStoreService {
         const newDeal: Deal = {
             ...deal,
             id: `deal_${Math.random().toString(36).substr(2, 9)}`,
+            deal_priority: deal.deal_priority || 999 // Default to low priority
         };
         const updated = [newDeal, ...current];
         localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update")); // Ensure global sync
     }
 
     removeDeal(dealId: string) {
@@ -697,7 +699,7 @@ class DemoStoreService {
         // Always map seller_name so 'My Store' defaults are overwritten by the true business name
         const allSellers = this.getSellers();
         const derivedProducts = allProducts.map((p: Product) => {
-            const seller = allSellers.find(s => s.id === p.seller_id);
+            const seller = allSellers.find(s => s.id === p.seller_id || s.user_id === p.seller_id);
             if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
                 return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
             }
@@ -708,7 +710,12 @@ class DemoStoreService {
 
         // By default, filter out products belonging to inactive/unverified sellers 
         // to prevent unapproved sellers from showing up in global search or catalogs.
-        const activeSellerIds = new Set(allSellers.filter(s => s.status === "active" || s.verified || s.kyc_status === "approved").map(s => s.id));
+        // Match against both seller.id AND seller.user_id to catch ghost-account mismatches.
+        const activeSellerIds = new Set<string>();
+        allSellers.filter(s => s.status === "active" || s.verified || s.kyc_status === "approved").forEach(s => {
+            if (s.id) activeSellerIds.add(s.id);
+            if (s.user_id) activeSellerIds.add(s.user_id);
+        });
 
         return derivedProducts.filter((p: Product) => activeSellerIds.has(p.seller_id));
     }
@@ -912,16 +919,19 @@ class DemoStoreService {
     getApprovedProducts(): Product[] {
         const products = this.getProducts();
         const sellers = this.getSellers();
-        const approvedSellerIds = new Set(
-            sellers.filter(s =>
-                s.status === "active" ||
-                s.verified === true ||
-                s.kyc_status === "approved"
-            ).map(s => s.id)
-        );
-        // Global products are always approved
-        approvedSellerIds.add("global-partners");
-        return products.filter(p => p.is_active !== false && approvedSellerIds.has(p.seller_id));
+        
+        // Build a broad Set of approved IDs to catch both seller.id and seller.user_id
+        const approvedIds = new Set<string>();
+        approvedIds.add("global-partners"); // Always include global
+
+        sellers.forEach(s => {
+            if (s.status === "active" || s.verified === true || s.kyc_status === "approved") {
+                if (s.id) approvedIds.add(s.id);
+                if (s.user_id) approvedIds.add(s.user_id);
+            }
+        });
+
+        return products.filter(p => p.is_active !== false && approvedIds.has(p.seller_id));
     }
 
     getSellers(): Seller[] {
@@ -1634,6 +1644,46 @@ class DemoStoreService {
         }
     }
 
+    markNotificationRead(notifId: string) {
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
+        if (!stored) return;
+        const all: AppNotification[] = JSON.parse(stored);
+        const updated = all.map(n => n.id === notifId ? { ...n, read: true } : n);
+        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    markAllNotificationsRead(userId: string) {
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
+        if (!stored) return;
+        const all: AppNotification[] = JSON.parse(stored);
+
+        // Build the same identity set used in getNotifications
+        const matchIds = new Set<string>(["all", userId]);
+        const seller = this.getSellers().find(s =>
+            s.user_id === userId || s.id === userId || s.owner_email === userId
+        );
+        if (seller) {
+            matchIds.add(seller.id);
+            if (seller.user_id) matchIds.add(seller.user_id);
+            if (seller.owner_email) matchIds.add(seller.owner_email);
+        }
+        const user = this.getCurrentUser();
+        if (user?.email) matchIds.add(user.email);
+        if (user?.id) matchIds.add(user.id);
+        if (user?.role === 'admin') matchIds.add('admin');
+
+        const updated = all.map(n =>
+            n.userId && matchIds.has(n.userId) ? { ...n, read: true } : n
+        );
+        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
     getAllUsers(): any[] {
         if (typeof window === "undefined") return [];
         // Users aren't stored in a collection — extract unique buyers from orders
@@ -1902,11 +1952,12 @@ class DemoStoreService {
         this.addNotification({
             type: "promo", // fixed from 'promotion'
             title: "Sponsored Ad is Live! 🚀",
-            message: `Your ad for "${product?.name || "Product"}" is now live for ${planInfo.label}. It will appear across the platform.`,
+            message: `Your ad for "${product?.name || "Product"}" is now live for ${planInfo?.label || plan}. It will appear across the platform.`,
             userId: sellerId,
             link: "/seller/dashboard/promotions",
         });
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update")); // Ensure global sync
         return promo;
     }
 
@@ -1920,9 +1971,8 @@ class DemoStoreService {
             if (p.status === "active" && new Date(p.expires_at).getTime() < now) {
                 p.status = "ended";
                 this.updateProduct(p.product_id, { is_sponsored: false });
-                // Notification on ad expiry
                 this.addNotification({
-                    type: "promo", // fixed from 'promotion'
+                    type: "promo",
                     title: "Ad Campaign Ended",
                     message: `Your sponsored ad for "${p.product_name || "Product"}" has expired. Renew to keep boosting your sales.`,
                     userId: p.seller_id,
@@ -1932,7 +1982,11 @@ class DemoStoreService {
             }
         }
         if (changed) localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
-        return sellerId ? all.filter((p: any) => p.seller_id === sellerId) : all;
+
+        if (!sellerId) return all;
+        const sellerInfo = this.getSellers().find((s) => s.id === sellerId || s.user_id === sellerId);
+        const validIds = sellerInfo ? [sellerInfo.id, sellerInfo.user_id].filter(Boolean) : [sellerId];
+        return all.filter((p: any) => validIds.includes(p.seller_id));
     }
 
     getActivePromotions(): any[] {

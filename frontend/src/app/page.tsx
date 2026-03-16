@@ -247,6 +247,7 @@ function HomeContent() {
     const allDeals = typeof window !== "undefined" ? DemoStore.getDeals() : DEMO_DEALS;
     const active = allDeals
       .filter(d => d.is_active && new Date(d.end_at) > now)
+      .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
       .map(deal => {
         const product = allProducts.find(p => p.id === deal.product_id);
         if (!product) return null;
@@ -647,10 +648,11 @@ function ScrollerProductCard({ product }: { product: any }) {
             </div>
           )}
           <img
-            src={product.image_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E"}
+            src={product.image_url || "/assets/images/placeholder.png"}
             alt={product.name}
             className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110"
             loading="lazy"
+            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
           />
           {/* Heart burst animation */}
           {showHeartBurst && (

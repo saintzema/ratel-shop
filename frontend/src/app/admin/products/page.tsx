@@ -232,10 +232,13 @@ export default function CatalogControl() {
         alert("Selected global product prices successfully synced and updated.");
     };
 
+    const [dealPriority, setDealPriority] = useState("1"); // 1 is highest priority
+
     const handlePromoteToDeal = () => {
         if (!dealProduct) return;
         const discountPct = parseInt(dealDiscount) || 15;
         const hours = parseInt(dealDurationHours) || 24;
+        const priority = parseInt(dealPriority) || 1;
         const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
         const startAt = new Date().toISOString();
         
@@ -245,11 +248,41 @@ export default function CatalogControl() {
             discount_pct: discountPct,
             start_at: startAt,
             end_at: endAt,
-            is_active: true
+            is_active: true,
+            deal_priority: priority
         });
+
+        // Notify the product's seller about the deal
+        const sellers = DemoStore.getSellers();
+        const productSeller = sellers.find(s => s.id === dealProduct.seller_id || s.user_id === dealProduct.seller_id);
+        if (productSeller) {
+            DemoStore.addNotification({
+                userId: productSeller.owner_email || productSeller.id,
+                type: "promo",
+                message: `🔥 Your product "${dealProduct.name}" has been promoted to Hottest Deals by the Admin! ${discountPct}% off for ${hours} hours.`,
+                link: "/deals"
+            });
+            
+            fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: productSeller.owner_email || 'demo@fairprice.store',
+                    subject: `Product Promoted to Hot Deals`,
+                    type: 'security_alert',
+                    data: {
+                        storeName: productSeller.business_name,
+                        message: `Congratulations! Your product "${dealProduct.name}" has been selected and promoted to Hottest Deals by the platform administrators! ${discountPct}% off for ${hours} hours.`
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        // Dispatch event so homepage picks up the new deal immediately
+        window.dispatchEvent(new Event("demo-store-update"));
+
         setIsDealModalOpen(false);
         setDealProduct(null);
-        alert(`Successfully promoted ${dealProduct.name} to Deals with ${discountPct}% off for ${hours} hours!`);
     };
 
     return (
@@ -763,14 +796,18 @@ export default function CatalogControl() {
                                     <p className="text-xs text-gray-500">Current: ₦{dealProduct.price.toLocaleString()}</p>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                                 <div>
-                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Discount Percentage (%)</label>
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Discount (%)</label>
                                     <Input type="number" value={dealDiscount} onChange={(e) => setDealDiscount(e.target.value)} min="1" max="99" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-500 mb-1 block">Duration (Hours)</label>
                                     <Input type="number" value={dealDurationHours} onChange={(e) => setDealDurationHours(e.target.value)} min="1" />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Priority (1-5)</label>
+                                    <Input type="number" value={dealPriority} onChange={(e) => setDealPriority(e.target.value)} min="1" max="5" title="1 is highest priority. Pins deal to the top of the homepage." />
                                 </div>
                             </div>
                         </div>

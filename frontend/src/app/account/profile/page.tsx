@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { useLocation } from "@/context/LocationContext";
+import { DemoStore } from "@/lib/demo-store";
 
 export default function ProfilePage() {
     const { user, updateUser, logout } = useAuth();

@@ -2,8 +2,8 @@
 
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { MessageSquare, Send, ArrowLeft, CheckCheck, Package, AlertCircle, CheckCircle } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { MessageSquare, Send, ArrowLeft, CheckCheck } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { DemoStore } from "@/lib/demo-store";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
@@ -17,25 +17,16 @@ export default function MessagesPage() {
     const [inputText, setInputText] = useState("");
     const [mobileShowChat, setMobileShowChat] = useState(false);
 
-    // Also load legacy system messages
-    const [systemMessages, setSystemMessages] = useState<any[]>([]);
-
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const userId = user?.id || user?.email || "";
     const userName = user?.name || user?.email?.split("@")[0] || "You";
 
-    const loadConversations = () => {
+    const loadConversations = useCallback(() => {
         if (!userId) return;
         const convs = DemoStore.getConversations(userId);
         convs.sort((a: any, b: any) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
         setConversations(convs);
-
-        // Load legacy system messages that aren't part of conversations
-        const saved = localStorage.getItem("fp_user_messages");
-        if (saved) {
-            try { setSystemMessages(JSON.parse(saved)); } catch { }
-        }
-    };
+    }, [userId]);
 
     const loadMessages = (convId: string) => {
         const msgs = DemoStore.getChatMessages(convId);
@@ -46,14 +37,16 @@ export default function MessagesPage() {
 
     useEffect(() => {
         loadConversations();
-        const handleUpdate = () => loadConversations();
+        const handleUpdate = () => { loadConversations(); };
         window.addEventListener("storage", handleUpdate);
         window.addEventListener("demo-store-update", handleUpdate);
+        const poll = setInterval(handleUpdate, 10000);
         return () => {
             window.removeEventListener("storage", handleUpdate);
             window.removeEventListener("demo-store-update", handleUpdate);
+            clearInterval(poll);
         };
-    }, [userId]);
+    }, [loadConversations]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -90,18 +83,11 @@ export default function MessagesPage() {
         const d = new Date(ts);
         const now = new Date();
         const diffMs = now.getTime() - d.getTime();
-        if (diffMs < 60000) return "now";
-        if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m`;
-        if (diffMs < 86400000) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        if (diffMs < 60000) return "Just now";
+        if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m ago`;
+        if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}h ago`;
+        if (diffMs < 604800000) return `${Math.floor(diffMs / 86400000)}d ago`;
         return d.toLocaleDateString([], { month: "short", day: "numeric" });
-    };
-
-    const getIcon = (type: string) => {
-        switch (type) {
-            case "order_update": return <Package className="h-4 w-4 text-blue-500" />;
-            case "promo": return <AlertCircle className="h-4 w-4 text-orange-500" />;
-            default: return <CheckCircle className="h-4 w-4 text-emerald-500" />;
-        }
     };
 
     return (
@@ -113,7 +99,7 @@ export default function MessagesPage() {
                         <MessageSquare className="h-5 w-5 text-indigo-600" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold text-gray-900">Messages</h1>
+                        <h1 className="text-xl font-bold text-gray-900">Direct Messages</h1>
                         <p className="text-xs text-gray-500">
                             {totalUnread > 0 ? `${totalUnread} unread` : "All caught up!"}
                         </p>
@@ -121,96 +107,62 @@ export default function MessagesPage() {
                 </div>
 
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex" style={{ height: "calc(100vh - 260px)", minHeight: "420px" }}>
-                    {/* Left: Conversation List + System Messages */}
+                    {/* Left: Lists */}
                     <div className={cn(
-                        "w-full md:w-[300px] md:min-w-[300px] border-r border-gray-100 flex flex-col",
+                        "w-full md:w-[320px] md:min-w-[320px] border-r border-gray-100 flex flex-col",
                         mobileShowChat ? "hidden md:flex" : "flex"
                     )}>
+                        <div className="flex border-b border-gray-100 bg-gray-50/50">
+                            <div className="flex-1 py-3 text-xs font-bold uppercase tracking-widest text-indigo-600 bg-white text-center">
+                                Conversations
+                            </div>
+                        </div>
+
                         <div className="flex-1 overflow-y-auto">
-                            {/* DM Conversations */}
-                            {conversations.length > 0 && (
-                                <div>
-                                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Direct Messages</span>
-                                    </div>
-                                    {conversations.map(conv => {
-                                        const other = getOtherParticipant(conv);
-                                        const unread = conv.unread_count?.[userId] || 0;
-                                        const isActive = activeConv?.id === conv.id;
+                            {conversations.length > 0 ? conversations.map(conv => {
+                                const other = getOtherParticipant(conv);
+                                const unread = conv.unread_count?.[userId] || 0;
+                                const isActive = activeConv?.id === conv.id;
 
-                                        return (
-                                            <button
-                                                key={conv.id}
-                                                onClick={() => openConversation(conv)}
-                                                className={cn(
-                                                    "w-full text-left px-4 py-3 flex items-center gap-3 transition-all border-l-2",
-                                                    isActive ? "bg-indigo-50/70 border-l-indigo-600" : "border-l-transparent hover:bg-gray-50"
-                                                )}
-                                            >
-                                                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
-                                                    {other.name.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-700")}>
-                                                            {other.name}
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 shrink-0">
-                                                            {conv.last_message_at ? formatTime(conv.last_message_at) : ""}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                                                        <p className={cn("text-xs truncate", unread > 0 ? "text-gray-600 font-medium" : "text-gray-400")}>
-                                                            {conv.last_message?.replace(/\*\*/g, "").substring(0, 40) || "Start chatting"}
-                                                        </p>
-                                                        {unread > 0 && (
-                                                            <span className="h-4.5 min-w-[18px] px-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center shrink-0">
-                                                                {unread}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            )}
-
-                            {/* System Messages (legacy) */}
-                            {systemMessages.length > 0 && (
-                                <div>
-                                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 border-t">
-                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Notifications</span>
-                                    </div>
-                                    {systemMessages.map(msg => (
-                                        <button
-                                            key={msg.id}
-                                            onClick={() => {
-                                                setActiveConv(null);
-                                                setMessages([]);
-                                                // Just select this system message for display
-                                                setActiveConv({ _system: true, _msg: msg });
-                                                setMobileShowChat(true);
-                                            }}
-                                            className={cn(
-                                                "w-full text-left px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-all border-l-2 border-l-transparent",
-                                                activeConv?._msg?.id === msg.id && "bg-indigo-50/50 border-l-indigo-600"
-                                            )}
-                                        >
-                                            <div className="shrink-0">{getIcon(msg.type)}</div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className={cn("text-sm truncate", msg.read ? "text-gray-600" : "font-bold text-gray-900")}>{msg.subject}</p>
-                                                <p className="text-[10px] text-gray-400 mt-0.5">{msg.from} · {new Date(msg.date).toLocaleDateString()}</p>
+                                return (
+                                    <button
+                                        key={conv.id}
+                                        onClick={() => openConversation(conv)}
+                                        className={cn(
+                                            "w-full text-left px-4 py-3 flex items-center gap-3 transition-all border-l-2",
+                                            isActive ? "bg-indigo-50/70 border-l-indigo-600" : "border-l-transparent hover:bg-gray-50"
+                                        )}
+                                    >
+                                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-xs shrink-0">
+                                            {other.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span className={cn("text-sm truncate", unread > 0 ? "font-bold text-gray-900" : "font-medium text-gray-700")}>
+                                                    {other.name}
+                                                </span>
+                                                <span className="text-[10px] text-gray-400 shrink-0">
+                                                    {conv.last_message_at ? formatTime(conv.last_message_at) : ""}
+                                                </span>
                                             </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {conversations.length === 0 && systemMessages.length === 0 && (
+                                            <div className="flex items-center justify-between gap-2 mt-0.5">
+                                                <p className={cn("text-xs truncate", unread > 0 ? "text-gray-600 font-medium" : "text-gray-400")}>
+                                                    {conv.last_message?.replace(/\*\*/g, "").substring(0, 40) || "Start chatting"}
+                                                </p>
+                                                {unread > 0 && (
+                                                    <span className="h-4.5 min-w-[18px] px-1 bg-indigo-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center shrink-0">
+                                                        {unread}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+                                );
+                            }) : (
                                 <div className="flex flex-col items-center justify-center h-full p-8 text-center">
                                     <MessageSquare className="h-8 w-8 text-gray-200 mb-2" />
                                     <p className="text-sm text-gray-400">No messages yet</p>
+                                    <p className="text-xs text-gray-300 mt-1">Conversations with sellers and support will appear here.</p>
                                 </div>
                             )}
                         </div>
@@ -221,7 +173,7 @@ export default function MessagesPage() {
                         "flex-1 flex flex-col",
                         !mobileShowChat ? "hidden md:flex" : "flex"
                     )}>
-                        {activeConv && !activeConv._system ? (
+                        {activeConv ? (
                             <>
                                 {/* Chat Header */}
                                 <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
@@ -290,24 +242,6 @@ export default function MessagesPage() {
                                     </div>
                                 </div>
                             </>
-                        ) : activeConv?._system ? (
-                            /* System Message Detail */
-                            <div className="flex-1 flex flex-col">
-                                <div className="px-5 py-3 border-b border-gray-100 bg-white flex items-center gap-3">
-                                    <button
-                                        onClick={() => { setMobileShowChat(false); setActiveConv(null); }}
-                                        className="md:hidden h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center"
-                                    >
-                                        <ArrowLeft className="h-4 w-4 text-gray-600" />
-                                    </button>
-                                    {getIcon(activeConv._msg.type)}
-                                    <h3 className="text-sm font-bold text-gray-900">{activeConv._msg.subject}</h3>
-                                </div>
-                                <div className="flex-1 p-6 overflow-y-auto">
-                                    <p className="text-xs text-gray-400 mb-3">From {activeConv._msg.from} · {new Date(activeConv._msg.date).toLocaleString()}</p>
-                                    <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{activeConv._msg.body}</p>
-                                </div>
-                            </div>
                         ) : (
                             <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
                                 <MessageSquare className="h-10 w-10 text-gray-200 mb-3" />

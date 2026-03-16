@@ -155,7 +155,8 @@ export function Navbar() {
         // Also listen for DemoStore changes
         const onStorageChange = () => loadNotifs();
         window.addEventListener("demo-store-update", onStorageChange);
-        return () => { clearInterval(poll); window.removeEventListener("demo-store-update", onStorageChange); };
+        window.addEventListener("storage", onStorageChange);
+        return () => { clearInterval(poll); window.removeEventListener("demo-store-update", onStorageChange); window.removeEventListener("storage", onStorageChange); };
     }, [user]);
 
     // Trigger bounce when cart count increases
@@ -982,16 +983,16 @@ export function Navbar() {
                     <button onClick={() => user ? openMessageBox() : router.push("/login?from=/account")} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
                         <div className="relative">
                             <MessageCircle className="h-6 w-6 text-white" />
-                            {mounted && (totalUnread + unreadNotifs) > 0 && (
+                            {mounted && totalUnread > 0 && (
                                 <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 rounded-full border-2 border-brand-green-600 text-[10px] font-black text-white px-1 leading-none">
-                                    {(totalUnread + unreadNotifs) > 99 ? '99+' : (totalUnread + unreadNotifs)}
+                                    {totalUnread > 99 ? '99+' : totalUnread}
                                 </span>
                             )}
                         </div>
                     </button>
 
-                    {/* Notifications - Visible only on Desktop as requested */}
-                    <div className="hidden md:block">
+                    {/* Notifications Bell — Visible on all screen sizes */}
+                    <div>
                         <NotificationBell />
                     </div>
 

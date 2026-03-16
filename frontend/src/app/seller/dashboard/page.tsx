@@ -284,7 +284,7 @@ export default function SellerDashboard() {
                     <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
-                            style={{ width: `${escrowAmount > 0 ? Math.min((escrowAmount / DEMO_SELLER_STATS.total_revenue) * 100, 100) : 0}%` }}
+                            style={{ width: `${escrowAmount > 0 ? Math.min((escrowAmount / (totalRevenue || 1)) * 100, 100) : 0}%` }}
                         />
                     </div>
                     <p className="text-[10px] text-gray-500 mt-2 font-medium">{orders.filter(o => o.escrow_status === "held").length} orders in escrow</p>
@@ -303,7 +303,7 @@ export default function SellerDashboard() {
                     <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                         <div
                             className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
-                            style={{ width: `${releasedAmount > 0 ? Math.min((releasedAmount / DEMO_SELLER_STATS.total_revenue) * 100, 100) : 0}%` }}
+                            style={{ width: `${releasedAmount > 0 ? Math.min((releasedAmount / (totalRevenue || 1)) * 100, 100) : 0}%` }}
                         />
                     </div>
                     <p className="text-[10px] text-gray-500 mt-2 font-medium">{orders.filter(o => o.escrow_status === "released").length} orders released</p>

@@ -26,7 +26,7 @@ export default function PromotionsPage() {
             const sellers = DemoStore.getSellers();
             setSeller(sellers.find((s) => s.id === currentId));
             const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
-            setProducts(allProducts.filter(p => p.seller_id === currentId));
+            setProducts(allProducts.filter(p => p.seller_id === currentId || (seller && p.seller_id === seller.user_id)));
             
             const promos = DemoStore.getPromotions(currentId);
             setActivePromotions(promos.filter((p: any) => p.status === "active"));

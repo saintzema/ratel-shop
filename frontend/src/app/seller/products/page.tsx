@@ -40,6 +40,7 @@ import {
 
 export default function SellerProducts() {
     const [products, setProducts] = useState<Product[]>([]);
+    const [activeDeals, setActiveDeals] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string>("all");
     const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -59,21 +60,29 @@ export default function SellerProducts() {
 
     const loadProducts = async () => {
         const sellerId = DemoStore.getCurrentSellerId();
+        const sellerInfo = DemoStore.getCurrentSeller();
         if (!sellerId) {
             router.push("/seller/login");
             return;
         }
 
+        setActiveDeals(DemoStore.getDeals());
         setLoading(true);
         try {
             // Fetch products for this specific seller
             const res = await fetch(`/api/products?all=true`);
+            let all = [];
             if (res.ok) {
-                const all = await res.json();
-                setProducts(all.filter((p: any) => p.seller_id === sellerId));
+                all = await res.json();
             }
+            if (!all || all.length === 0) {
+                all = DemoStore.getProducts({ includeInactiveSellers: true });
+            }
+            setProducts(all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
         } catch (error) {
             console.error("Failed to load products:", error);
+            const fallback = DemoStore.getProducts({ includeInactiveSellers: true });
+            setProducts(fallback.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
         } finally {
             setLoading(false);
         }
@@ -130,23 +139,98 @@ export default function SellerProducts() {
     };
 
     const handlePromoteSuccess = (reference: string) => {
-        if (!promoteModalOpen.product) return;
-
         const sellerId = DemoStore.getCurrentSellerId();
+        const sellerInfo = DemoStore.getCurrentSeller();
+        
         if (sellerId) {
-            // Create a promotion in DemoStore with the selected plan
-            DemoStore.createPromotion(promoteModalOpen.product.id, sellerId, selectedAdPlan);
-            setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId));
+            // Check which flow triggered the payment
+            if (dealModalOpen.isOpen && dealModalOpen.product) {
+                // It was a Paid Deal promotion
+                const hours = parseInt(dealDurationHours) || 24;
+                const discountPct = parseInt(dealDiscount) || 15;
+                const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+                const startAt = new Date().toISOString();
+                
+                DemoStore.addDeal({
+                    product_id: dealModalOpen.product.id,
+                    product: dealModalOpen.product,
+                    discount_pct: discountPct,
+                    start_at: startAt,
+                    end_at: endAt,
+                    is_active: true
+                });
+
+                if (sellerInfo) {
+                    DemoStore.addNotification({
+                        userId: sellerInfo.owner_email || sellerInfo.id,
+                        type: "promo",
+                        message: `🔥 Your paid deal for "${dealModalOpen.product.name}" is now live! ${discountPct}% off for ${hours} hours.`,
+                        link: "/deals"
+                    });
+                    
+                    fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            to: sellerInfo.owner_email || 'demo@fairprice.store',
+                            subject: `Paid Deal Promoted`,
+                            type: 'security_alert',
+                            data: {
+                                storeName: sellerInfo.business_name,
+                                message: `Your product "${dealModalOpen.product.name}" has been promoted to Deals! ${discountPct}% off for ${hours} hours.`
+                            }
+                        })
+                    }).catch(() => {});
+                }
+                
+                window.dispatchEvent(new Event("demo-store-update"));
+                setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
+                
+                setDealModalOpen({ isOpen: false, product: null });
+            } else if (promoteModalOpen.isOpen && promoteModalOpen.product) {
+                // It was a Paid Sponsored promotion
+                DemoStore.createPromotion(promoteModalOpen.product.id, sellerId, selectedAdPlan);
+                
+                if (sellerInfo) {
+                    DemoStore.addNotification({
+                        userId: sellerInfo.owner_email || sellerInfo.id,
+                        type: "promo",
+                        message: `🚀 Your product "${promoteModalOpen.product.name}" is now sponsored! Delivery expected within minutes to the homepage.`,
+                        link: "/seller/dashboard"
+                    });
+                    
+                    fetch('/api/send-email', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            to: sellerInfo.owner_email || 'demo@fairprice.store',
+                            subject: `Product Sponsored`,
+                            type: 'security_alert',
+                            data: {
+                                storeName: sellerInfo.business_name,
+                                message: `Your product "${promoteModalOpen.product.name}" is now sponsored and live on the platform.`
+                            }
+                        })
+                    }).catch(() => {});
+                }
+
+                window.dispatchEvent(new Event("demo-store-update"));
+                setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
+                
+                setPromoteModalOpen({ isOpen: false, product: null });
+            }
         }
 
         setShowPaystack(false);
-        setPromoteModalOpen({ isOpen: false, product: null });
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
     };
 
     const handlePromoteToDeal = () => {
+        // This function now only handles FREE deal creation (from plan slots)
         if (!dealModalOpen.product) return;
+
+        const seller = DemoStore.getCurrentSeller();
         const discountPct = parseInt(dealDiscount) || 15;
         const hours = parseInt(dealDurationHours) || 24;
         const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
@@ -160,6 +244,34 @@ export default function SellerProducts() {
             end_at: endAt,
             is_active: true
         });
+
+        // Notify seller that the deal is live
+        if (seller) {
+            DemoStore.addNotification({
+                userId: seller.owner_email || seller.id,
+                type: "promo",
+                message: `🔥 Your free deal slot for "${dealModalOpen.product.name}" has been activated! ${discountPct}% off for ${hours} hours.`,
+                link: "/deals"
+            });
+            
+            fetch('/api/send-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: seller.owner_email || 'demo@fairprice.store',
+                    subject: `Free Deal Slot Activated`,
+                    type: 'security_alert',
+                    data: {
+                        storeName: seller.business_name,
+                        message: `Your free deal slot for "${dealModalOpen.product.name}" has been activated! ${discountPct}% off for ${hours} hours.`
+                    }
+                })
+            }).catch(() => {});
+        }
+
+        // Dispatch event so homepage picks up the new deal immediately
+        window.dispatchEvent(new Event("demo-store-update"));
+
         setDealModalOpen({ isOpen: false, product: null });
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 3000);
@@ -323,6 +435,11 @@ export default function SellerProducts() {
                                         {product.is_sponsored && (
                                             <span className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 flex items-center gap-1">
                                                 <Star className="h-2.5 w-2.5 fill-amber-500" /> PROMOTED
+                                            </span>
+                                        )}
+                                        {activeDeals.some(d => d.product_id === product.id) && (
+                                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100 flex items-center gap-1">
+                                                <Timer className="h-2.5 w-2.5 text-purple-600" /> HOTTEST DEAL
                                             </span>
                                         )}
                                     </div>
@@ -590,30 +707,101 @@ export default function SellerProducts() {
                     <DialogHeader>
                         <DialogTitle className="text-xl font-black flex items-center gap-2"><Timer className="text-purple-600" /> Promote to Deals</DialogTitle>
                     </DialogHeader>
-                    {dealModalOpen.product && (
-                        <div className="py-4 space-y-4">
-                            <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                <img src={dealModalOpen.product.image_url || '/assets/images/placeholder.png'} alt="" className="w-12 h-12 rounded object-contain" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
-                                <div>
-                                    <p className="font-bold text-sm text-gray-900 line-clamp-1">{dealModalOpen.product.name}</p>
-                                    <p className="text-xs text-gray-500">Current: ₦{dealModalOpen.product.price.toLocaleString()}</p>
+                    {dealModalOpen.product && (() => {
+                        const currentSeller = DemoStore.getCurrentSeller();
+                        const currentPlan = currentSeller?.subscription_plan || "Starter";
+                        
+                        // Calculate free deal slots based on plan
+                        const maxFreeDeals = currentPlan === "Scale" ? 2 : currentPlan === "Growth" ? 2 : currentPlan === "Pro" ? 1 : 0;
+                        const activeDealsCount = (DemoStore.getDeals() || []).filter(d => 
+                            d.is_active && 
+                            new Date(d.end_at) > new Date() &&
+                            DemoStore.getProducts().find(p => p.id === d.product_id)?.seller_id === currentSeller?.id
+                        ).length;
+
+                        const availableFreeDeals = Math.max(0, maxFreeDeals - activeDealsCount);
+
+                        const dealPackages = [
+                            { id: "flash", name: "Flash Deal", hours: 6, price: 2000, desc: "Quick boost" },
+                            { id: "day", name: "Day Deal", hours: 24, price: 5000, desc: "Full day visibility" },
+                            { id: "weekend", name: "Weekend Deal", hours: 72, price: 12000, desc: "Max exposure" }
+                        ];
+
+                        return (
+                            <div className="py-2 space-y-4">
+                                <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100 mb-2">
+                                    <img src={dealModalOpen.product.image_url || '/assets/images/placeholder.png'} alt="" className="w-12 h-12 rounded object-contain" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                    <div>
+                                        <p className="font-bold text-sm text-gray-900 line-clamp-1">{dealModalOpen.product.name}</p>
+                                        <p className="text-xs text-gray-500">Current: ₦{dealModalOpen.product.price.toLocaleString()}</p>
+                                    </div>
                                 </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 mb-1 block">Discount (%)</label>
+                                        <Input type="number" value={dealDiscount} onChange={(e) => setDealDiscount(e.target.value)} min="1" max="99" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-500 mb-1 block">Package</label>
+                                        <select 
+                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+                                            value={dealDurationHours}
+                                            onChange={(e) => setDealDurationHours(e.target.value)}
+                                        >
+                                            {dealPackages.map(pkg => (
+                                                <option key={pkg.id} value={pkg.hours}>
+                                                    {pkg.name} ({pkg.hours}h) - ₦{pkg.price.toLocaleString()}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {maxFreeDeals > 0 && (
+                                     <div className={`mt-4 p-3 rounded-lg border text-sm ${availableFreeDeals > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-bold">Plan Perks ({currentPlan})</span>
+                                            <span className="font-mono bg-white px-2 py-0.5 rounded text-xs">{activeDealsCount}/{maxFreeDeals} Used</span>
+                                        </div>
+                                        <p className="text-xs mt-1">
+                                            {availableFreeDeals > 0 
+                                                ? `You have ${availableFreeDeals} free Hot Deal promotion${availableFreeDeals > 1 ? 's' : ''} remaining.` 
+                                                : "You've used all your free Hot Deal promotions. Standard rates apply."}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Discount (%)</label>
-                                    <Input type="number" value={dealDiscount} onChange={(e) => setDealDiscount(e.target.value)} min="1" max="99" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-gray-500 mb-1 block">Duration (Hours)</label>
-                                    <Input type="number" value={dealDurationHours} onChange={(e) => setDealDurationHours(e.target.value)} min="1" />
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                        );
+                    })()}
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setDealModalOpen({ isOpen: false, product: null })}>Cancel</Button>
-                        <Button onClick={handlePromoteToDeal} className="bg-purple-600 hover:bg-purple-700 text-white">Create Deal</Button>
+                        <Button 
+                            onClick={() => {
+                                const currentSeller = DemoStore.getCurrentSeller();
+                                const currentPlan = currentSeller?.subscription_plan || "Starter";
+                                const maxFreeDeals = currentPlan === "Scale" ? 2 : currentPlan === "Growth" ? 2 : currentPlan === "Pro" ? 1 : 0;
+                                const activeDealsCount = (DemoStore.getDeals() || []).filter(d => 
+                                    d.is_active && 
+                                    new Date(d.end_at) > new Date() &&
+                                    DemoStore.getProducts().find(p => p.id === d.product_id)?.seller_id === currentSeller?.id
+                                ).length;
+                                
+                                const availableFreeDeals = Math.max(0, maxFreeDeals - activeDealsCount);
+                                
+                                if (availableFreeDeals > 0) {
+                                    handlePromoteToDeal(); // Free checkout
+                                } else {
+                                    // Trigger Paystack
+                                    setDealModalOpen({ ...dealModalOpen, isOpen: false });
+                                    setSelectedAdPlan(`Hot Deal (${dealDurationHours}h)`);
+                                    setShowPaystack(true);
+                                }
+                            }} 
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                            Promote to Deals <ChevronRight className="w-4 h-4 ml-1" />
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

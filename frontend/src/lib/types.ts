@@ -202,6 +202,7 @@ export interface Deal {
     start_at: string;
     end_at: string;
     is_active: boolean;
+    deal_priority?: number;
 }
 
 export interface KYCSubmission {
