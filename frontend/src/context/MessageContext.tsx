@@ -138,19 +138,20 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                     return {
                         ...c,
                         messages: [...c.messages, newMsg],
-                        unreadCount: c.unreadCount + 1,
+                        unreadCount: activeConversationId === c.id && isMessageBoxOpen ? 0 : c.unreadCount + 1,
                         lastUpdated: new Date().toISOString()
                     };
                 });
             }
             // Create a new conversation
+            const newConvId = `conv_${Date.now()}`;
             const newConv: Conversation = {
-                id: `conv_${Date.now()}`,
+                id: newConvId,
                 orderId,
                 productName: productName || "Order Update",
                 productImage,
                 messages: [newMsg],
-                unreadCount: 1,
+                unreadCount: activeConversationId === newConvId && isMessageBoxOpen ? 0 : 1,
                 lastUpdated: new Date().toISOString()
             };
             return [newConv, ...prev];
@@ -203,7 +204,19 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         if (conversationId) setActiveConversationId(conversationId);
         setIsMessageBoxOpen(true);
         setPendingNotification(null);
-    }, []);
+        
+        // Also mark as read manually if we know the ID
+        if (conversationId) {
+            setConversations(prev => prev.map(c => c.id === conversationId ? { ...c, unreadCount: 0 } : c));
+        } else {
+            // Also mark as read for current active if applicable
+            setConversations(prev => prev.map(c => {
+                if (activeConversationId && c.id === activeConversationId) return { ...c, unreadCount: 0 };
+                // If we opened with no args, just clear all unread stats since user saw the box
+                return { ...c, unreadCount: 0 };
+            }));
+        }
+    }, [activeConversationId]);
 
     const closeMessageBox = useCallback(() => {
         setIsMessageBoxOpen(false);

@@ -1669,6 +1669,15 @@ export const DEMO_PRODUCTS: Product[] = [
 
     // ─── NEW: Home & Living ──────────────────────────────────
     {
+        id: "p143", seller_id: "global-partners", seller_name: "Global Stores",
+        name: "Rolls Royce Umbrella — Genuine Teflon Waterproof",
+        description: "Official Teflon coated Rolls Royce style umbrella. Windproof luxury edition with authentic detailing.",
+        price: 155000, original_price: 250000, recommended_price: 150000,
+        category: "fashion", image_url: "https://images.unsplash.com/photo-1559825481-12a05cc00344?w=400&h=400&fit=crop",
+        images: [], stock: 4, price_flag: "fair", is_active: true,
+        avg_rating: 4.8, review_count: 56, sold_count: 120, created_at: "2025-08-20T10:00:00Z",
+    },
+    {
         id: "p90", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Philips Smart Wi-Fi LED Bulb — 16 Million Colors",
         description: "Dimmable, app-controlled, voice compatible with Alexa & Google. Set schedules, scenes, and timers.",

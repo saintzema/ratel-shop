@@ -213,9 +213,15 @@ export default function NewProduct() {
         const sellerId = DemoStore.getCurrentSellerId();
         if (!sellerId || !formData.name || !formData.price) return;
 
+        const generateSlug = (name: string) => {
+            const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+            const randomSuffix = Math.random().toString(36).substring(2, 8);
+            return `${baseSlug}-${randomSuffix}`;
+        };
+
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
         const newProduct = {
-            id: `seller-${Date.now()}`,
+            id: generateSlug(formData.name),
             seller_id: sellerId,
             seller_name: DemoStore.getCurrentSeller()?.business_name || "New Store",
             name: formData.name,

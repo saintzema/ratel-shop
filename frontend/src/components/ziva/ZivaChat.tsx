@@ -613,6 +613,14 @@ export function ZivaChat() {
                     `[ZIVA ESCALATION: Customer Requested Human Support]\n\nCustomer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`
                 );
 
+                // Add notification for admin
+                DemoStore.addNotification({
+                    userId: "admin",
+                    type: "system",
+                    message: "Ziva Escalation: Customer requested human support",
+                    link: `/admin/inbox?user_id=${encodeURIComponent(userIdLog)}`
+                });
+
                 setTimeout(() => {
                     setMessages(prev => [
                         ...prev.filter(m => m.id !== typingId),

@@ -113,13 +113,20 @@ export default function UnifiedAuthPage() {
         } catch { return false; }
     };
 
-    const saveRegisteredUser = (email: string, name: string, role: string, birthday?: string) => {
+    const saveRegisteredUser = (email: string, name: string, role: string, birthday?: string, passwordHash?: string) => {
         try {
             const registered = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
-            if (!registered.some((u: { email: string }) => u.email.toLowerCase() === email.toLowerCase())) {
-                registered.push({ email, name, role, birthday, created_at: new Date().toISOString() });
-                localStorage.setItem("fairprice_registered_users", JSON.stringify(registered));
+            const existingIndex = registered.findIndex((u: { email: string }) => u.email.toLowerCase() === email.toLowerCase());
+            
+            if (existingIndex > -1) {
+                // Update existing user with new details (like password)
+                registered[existingIndex] = { ...registered[existingIndex], name, role, birthday, password: passwordHash || registered[existingIndex].password };
+            } else {
+                // Add new user
+                registered.push({ email, name, role, birthday, password: passwordHash, created_at: new Date().toISOString() });
             }
+            
+            localStorage.setItem("fairprice_registered_users", JSON.stringify(registered));
         } catch { /* ignore */ }
     };
 
@@ -185,14 +192,21 @@ export default function UnifiedAuthPage() {
         }
 
         if (determinedRole === "admin" && password !== "admin123") {
-            setError("Incorrect password. Hint: admin123");
+            setError("Incorrect password.");
             setIsLoading(false);
             return;
         }
         if (identifier.toLowerCase() === "seller@example.com" && password !== "seller123") {
-            setError("Incorrect password. Hint: seller123");
+            setError("Incorrect password.");
             setIsLoading(false);
             return;
+        }
+        
+        // For actual registered users, check against stored passwords if there is one
+        if (existingUser && existingUser.password && existingUser.password !== password && determinedRole !== "admin" && identifier.toLowerCase() !== "seller@example.com") {
+             setError("Incorrect password.");
+             setIsLoading(false);
+             return;
         }
 
         setTimeout(() => {
@@ -341,8 +355,8 @@ export default function UnifiedAuthPage() {
                 created_at: new Date().toISOString(),
                 birthday: birthday || undefined
             });
-            // Persist this user as registered
-            saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined);
+            // Persist this user as registered with password
+            saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined, password);
 
             // Send Welcome Email
             fetch("/api/email", {
@@ -379,8 +393,22 @@ export default function UnifiedAuthPage() {
         setIsLoading(true);
         setTimeout(() => {
             if (existingUser) {
+                let determinedRole: "customer" | "seller" | "admin" = "customer";
+                if (existingUser?.role) {
+                    determinedRole = existingUser.role as "customer" | "seller" | "admin";
+                } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
+                    determinedRole = "admin";
+                } else if (identifier.toLowerCase().includes("seller@")) {
+                    determinedRole = "seller";
+                }
+
+                const finalRedirect =
+                    determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                        determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                            redirectPath;
+
                 login(existingUser);
-                router.push(redirectPath);
+                router.push(finalRedirect);
             }
         }, 1000);
     };
@@ -582,9 +610,12 @@ export default function UnifiedAuthPage() {
                                                     ref={passwordInputRef}
                                                     type={showPassword ? "text" : "password"}
                                                     required
-                                                    className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4 pr-12"
+                                                    className={`w-full h-12 bg-white border ${error ? 'border-red-500 focus:ring-red-500/10' : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-brand-green-500/10'} text-[15px] text-[#1d1d1f] rounded-xl focus:ring-4 transition-all px-4 pr-12`}
                                                     value={password}
-                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setPassword(e.target.value);
+                                                        setError(""); // Clear error when typing
+                                                    }}
                                                 />
                                                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                                                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}

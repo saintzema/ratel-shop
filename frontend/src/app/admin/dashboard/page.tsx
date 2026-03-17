@@ -76,6 +76,23 @@ export default function AdminDashboard() {
         setRecentOrders(dSort(allOrders).slice(0, 5));
     };
 
+    const handleKycAction = (kycId: string, sellerId: string, status: "approved" | "rejected") => {
+        // 1. If it's a real KYC submission (starts with kyc_), update it
+        if (!kycId.startsWith("kyc_auto_")) {
+            DemoStore.updateKYCStatus(kycId, status);
+        }
+        
+        // 2. Always update the underlying seller
+        const realStatus = status === "approved" ? "verified" : "rejected";
+        DemoStore.updateSeller(sellerId, {
+            kyc_status: status,
+            verified: status === "approved",
+            status: realStatus as any
+        });
+        
+        loadData(); // refresh UI
+    };
+
     useEffect(() => {
         loadData();
         window.addEventListener("storage", loadData);
@@ -221,7 +238,7 @@ export default function AdminDashboard() {
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => DemoStore.updateKYCStatus(kyc.id, "approved")}
+                                                    onClick={() => handleKycAction(kyc.id, kyc.seller_id, "approved")}
                                                     className="h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold text-[10px] uppercase"
                                                 >
                                                     Approve
@@ -229,7 +246,7 @@ export default function AdminDashboard() {
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => DemoStore.updateKYCStatus(kyc.id, "rejected")}
+                                                    onClick={() => handleKycAction(kyc.id, kyc.seller_id, "rejected")}
                                                     className="h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-[10px] uppercase"
                                                 >
                                                     Reject

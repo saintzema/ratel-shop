@@ -47,12 +47,12 @@ export default function AdminLayout({
 
     const navItems = [
         { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
-        { label: "Concierge Ops", href: "/admin/orders", icon: MessageSquare },
+        { label: "Platform Orders", href: "/admin/orders", icon: Package },
+        { label: "Concierge Ops", href: "/admin/inbox", icon: MessageSquare },
         { label: "User Directory", href: "/admin/users", icon: Users },
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
-        { label: "Support Inbox", href: "/admin/inbox", icon: Inbox },
         { label: "Sponsored Ads", href: "/admin/ads", icon: Megaphone },
         { label: "Settings", href: "/admin/settings", icon: Settings },
     ];
