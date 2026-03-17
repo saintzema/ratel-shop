@@ -27,7 +27,8 @@ import {
     TrendingUp,
     Star,
     ArrowUpDown,
-    Timer
+    Timer,
+    ChevronRight
 } from "lucide-react";
 import {
     Dialog,
@@ -792,9 +793,8 @@ export default function SellerProducts() {
                                 if (availableFreeDeals > 0) {
                                     handlePromoteToDeal(); // Free checkout
                                 } else {
-                                    // Trigger Paystack
-                                    setDealModalOpen({ ...dealModalOpen, isOpen: false });
-                                    setSelectedAdPlan(`Hot Deal (${dealDurationHours}h)`);
+                                    // Trigger Paystack — keep dealModalOpen intact so handlePromoteSuccess knows it's a deal flow
+                                    setSelectedAdPlan("3_day");
                                     setShowPaystack(true);
                                 }
                             }} 

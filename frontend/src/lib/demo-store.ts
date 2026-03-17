@@ -345,17 +345,29 @@ class DemoStoreService {
         // Persist to Postgres (queued if offline)
         resilientFetch("/api/negotiations", { method: "POST", body: request, type: "general" });
 
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === request.product_id);
+
+        // Notify Buyer — confirmation that negotiation was sent
+        this.addNotification({
+            userId: request.customer_id,
+            type: "negotiation",
+            message: `✅ Your negotiation for "${product?.name || 'Product'}" at ₦${request.proposed_price.toLocaleString()} has been sent! You'll be notified when the seller responds.`,
+            link: "/account/negotiations"
+        });
+
         // Notify Seller
-        const product = this.getProducts().find(p => p.id === request.product_id);
         if (product && product.seller_id) {
+            const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
+            const sellerEmail = seller?.owner_email || this.getUser(product.seller_id)?.email || `seller_${product.seller_id}@fairprice.ng`;
+
             this.addNotification({
-                userId: product.seller_id,
+                userId: seller?.owner_email || product.seller_id,
                 type: "negotiation",
-                message: `New negotiation offer for ${product.name} from ${request.customer_name}: ₦${request.proposed_price.toLocaleString()}`,
+                message: `💰 New negotiation offer for ${product.name} from ${request.customer_name}: ₦${request.proposed_price.toLocaleString()}`,
                 link: "/seller/dashboard/messages"
             });
-            const sellerUser = this.getUser(product.seller_id);
-            const sellerEmail = sellerUser?.email || `seller_${product.seller_id}@fairprice.ng`;
+
+            // Email seller
             fetch("/api/email", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -370,6 +382,24 @@ class DemoStoreService {
                     }
                 })
             }).catch(console.error);
+
+            // Notify & email Admin
+            this.addNotification({
+                userId: "admin",
+                type: "negotiation",
+                message: `Negotiation: ${request.customer_name} offered ₦${request.proposed_price.toLocaleString()} for "${product.name}" (${seller?.business_name || 'Unknown Store'})`,
+                link: "/admin/governance"
+            });
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: "techzema@gmail.com",
+                    subject: `New Negotiation: ${product.name}`,
+                    type: "security_alert",
+                    data: { storeName: "FairPrice Admin", message: `${request.customer_name} offered ₦${request.proposed_price.toLocaleString()} for "${product.name}" from ${seller?.business_name || 'Unknown Store'}.` }
+                })
+            }).catch(() => {});
         }
 
         // Also trigger storage event for other tabs
@@ -1047,7 +1077,8 @@ class DemoStoreService {
             product: product,
             tracking_id: orderId,
             tracking_status: "pending",
-            tracking_steps: trackingSteps
+            tracking_steps: trackingSteps,
+            escrow_status: "held" as const
         };
 
         const orders = this.getOrders();
@@ -1090,12 +1121,12 @@ class DemoStoreService {
         }).catch(console.error);
 
         // Notify Seller
-        const seller = this.getSellers().find(s => s.id === product.seller_id);
+        const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
         if (seller) {
             this.addNotification({
-                userId: seller.owner_email,
+                userId: seller.owner_email || seller.id,
                 type: "order",
-                message: `New order #${orderId.substring(0, 8)} for ${product.name}. Please process for shipment.`,
+                message: `🛒 New order #${orderId.substring(0, 8)} for ${product.name}. Please process for shipment.`,
                 link: `/seller/orders`
             });
 
@@ -1117,6 +1148,24 @@ class DemoStoreService {
                 }).catch(console.error);
             }
         }
+
+        // Notify Admin
+        this.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `📦 New order #${orderId.substring(0, 8)}: ${product.name} — ₦${order.amount.toLocaleString()} (${seller?.business_name || 'Unknown Store'})`,
+            link: "/admin/orders"
+        });
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: "techzema@gmail.com",
+                subject: `New Order: ${product.name} — ₦${order.amount.toLocaleString()}`,
+                type: "security_alert",
+                data: { storeName: "FairPrice Admin", message: `New order #${orderId.substring(0, 8)} for "${product.name}" — ₦${order.amount.toLocaleString()} from ${seller?.business_name || 'Unknown Store'}.` }
+            })
+        }).catch(() => {});
 
         window.dispatchEvent(new Event("storage"));
         // Custom event so we can listen specifically for this
@@ -2144,7 +2193,7 @@ class DemoStoreService {
         const complaints = this.getComplaints();
 
         const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
-        const escrowBalance = orders.filter(o => o.escrow_status === "held").reduce((sum, o) => sum + (o.amount || 0), 0);
+        const escrowBalance = orders.filter(o => !o.escrow_status || o.escrow_status === "held" || o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed").reduce((sum, o) => sum + (o.amount || 0), 0);
         const processedRevenue = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + (o.amount || 0), 0);
 
         return {

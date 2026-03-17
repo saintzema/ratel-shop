@@ -38,11 +38,42 @@ export default function AdminDashboard() {
             arr.sort((a, b) => new Date(b[dateField] || 0).getTime() - new Date(a[dateField] || 0).getTime());
 
         setStats(DemoStore.getAdminStats());
-        setComplaints(dSort(DemoStore.getComplaints()).slice(0, 3));
-        setKycs(dSort(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending"), "submitted_at").slice(0, 3));
-        setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
+
+        // Governance: merge complaints + disputed/cancelled orders
+        const rawComplaints = DemoStore.getComplaints();
+        const allOrders = DemoStore.getOrders();
+        const disputedOrders = allOrders
+            .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
+            .map(o => ({
+                id: `dispute_${o.id}`,
+                user_name: o.customer_name || o.customer_id,
+                seller_name: o.product?.seller_name || "Unknown Seller",
+                description: o.escrow_status === "disputed" ? `Dispute on order #${o.id.substring(0, 8)} — ${o.product?.name}` : `Cancelled order #${o.id.substring(0, 8)} — ${o.product?.name}`,
+                status: "open",
+                created_at: o.updated_at || o.created_at
+            }));
+        const mergedComplaints = [...rawComplaints, ...disputedOrders.filter(d => !rawComplaints.some(c => c.id === d.id))];
+        setComplaints(dSort(mergedComplaints).slice(0, 5));
+
+        // Trust & Verify: merge explicit KYC submissions + sellers with pending/unverified kyc_status
+        const kycSubmissions = DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending");
+        const allSellers = DemoStore.getSellers();
+        const pendingSellers = allSellers
+            .filter(s => (!s.kyc_status || (s.kyc_status as string) === "pending" || (s.kyc_status as string) === "submitted") && !kycSubmissions.some((k: any) => k.seller_id === s.id))
+            .map(s => ({
+                id: `kyc_auto_${s.id}`,
+                seller_id: s.id,
+                seller_name: s.business_name || s.owner_name || s.id,
+                id_type: "Auto-detected",
+                status: "pending" as const,
+                submitted_at: s.created_at || new Date().toISOString(),
+                created_at: s.created_at || new Date().toISOString()
+            }));
+        setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
+
+        setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length + disputedOrders.length);
         setRecentReviews(dSort(DemoStore.getReviews()).slice(0, 5));
-        setRecentOrders(dSort(DemoStore.getOrders()).slice(0, 5));
+        setRecentOrders(dSort(allOrders).slice(0, 5));
     };
 
     useEffect(() => {

@@ -184,6 +184,17 @@ export default function UnifiedAuthPage() {
             determinedRole = "seller";
         }
 
+        if (determinedRole === "admin" && password !== "admin123") {
+            setError("Incorrect password. Hint: admin123");
+            setIsLoading(false);
+            return;
+        }
+        if (identifier.toLowerCase() === "seller@example.com" && password !== "seller123") {
+            setError("Incorrect password. Hint: seller123");
+            setIsLoading(false);
+            return;
+        }
+
         setTimeout(() => {
             const finalRedirect =
                 determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :

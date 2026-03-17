@@ -216,7 +216,7 @@ export function Navbar() {
         if (searchQuery.trim().length > 0) {
             const q = searchQuery.toLowerCase();
             // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
-            const storeProducts = DemoStore.getApprovedProducts();
+            const storeProducts = DemoStore.getProducts({ includeInactiveSellers: true });
             const allSearchProducts = [...storeProducts, ...DEMO_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
             const scored = allSearchProducts
                 .map(p => {
@@ -490,7 +490,7 @@ export function Navbar() {
                     </div>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center w-full md:max-w-2xl mx-0.5 md:mx-4 relative" ref={searchRef}>
+                    <div className="flex flex-1 items-center w-full md:max-w-3xl mx-0.5 md:mx-4 relative" ref={searchRef}>
                         <div className="flex h-[44px] md:h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
@@ -855,11 +855,6 @@ export function Navbar() {
                         </AnimatePresence>
                     </div>
 
-                    {/* Wishlist Mobile */}
-                    <Link href="/account/favorites" className="md:hidden flex flex-col text-xs leading-tight hover:bg-white/10 p-1 md:p-2 rounded cursor-pointer justify-center items-center relative shrink-0">
-                        <Heart className="h-5 w-5 md:h-6 md:w-6 text-white" />
-                        <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
-                    </Link>
 
                     {/* Account & Lists Dropdown */}
                     <div
@@ -990,6 +985,12 @@ export function Navbar() {
                             )}
                         </div>
                     </button>
+
+                    {/* Wishlist */}
+                    <Link href="/account/favorites" className="flex flex-col text-xs leading-tight hover:bg-white/10 p-1 md:p-2 rounded cursor-pointer justify-center items-center relative shrink-0">
+                        <Heart className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                        <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
+                    </Link>
 
                     {/* Notifications Bell — Visible on all screen sizes */}
                     <div>

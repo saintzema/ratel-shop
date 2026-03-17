@@ -356,12 +356,28 @@ body {
 }
 
 /* Remove default focus rings from inputs that appear on mobile taps */
-input:focus,
 textarea:focus,
 select:focus {
   outline: none !important;
   box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Default input focus — subtle */
+input:focus {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Green glow for email and password inputs */
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[name="email"]:focus,
+input[name="password"]:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 0 16px 4px rgba(16, 185, 129, 0.1) !important;
+  border-color: #10b981 !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 /* Custom Scrollbar */

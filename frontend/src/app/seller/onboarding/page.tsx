@@ -88,8 +88,8 @@ export default function KYCOnboarding() {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         const currentSeller = DemoStore.getCurrentSeller();
-        // Force the seller ID to match the user ID for 1:1 linking if creating a new one
-        const sellerId = currentSeller?.id || user?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
+        // Force the seller ID to match the user's custom store URL input for aesthetic links, falling back to user ID or random
+        const sellerId = currentSeller?.id || storeUrl || user?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
 
         const sellerUpdates: Partial<Seller> = {
             business_name: businessName || (user ? `${user.name}'s Shop` : "New Seller"),
