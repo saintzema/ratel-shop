@@ -182,7 +182,7 @@ export default function BillingPage() {
                     return (
                         <div
                             key={plan.name}
-                            className={`relative bg-white rounded-[32px] border flex flex-col transition-all duration-300 ${plan.popular ? 'border-brand-green-500 shadow-[0_8px_40px_rgba(22,163,74,0.12)] scale-105 z-10' : 'border-gray-200 hover:border-gray-300 hover:shadow-xl'}`}
+                            className={`relative bg-white rounded-[32px] border flex flex-col transition-all duration-300 ${plan.popular ? 'border-brand-green-500 shadow-[0_8px_40px_rgba(22,163,74,0.12)] md:scale-105 z-10' : 'border-gray-200 hover:border-gray-300 hover:shadow-xl'}`}
                         >
                             {plan.popular && (
                                 <div className="absolute -top-4 left-0 right-0 flex justify-center">
@@ -213,7 +213,7 @@ export default function BillingPage() {
                             <div className="p-8 pt-6 flex-1 flex flex-col">
                                 <ul className="space-y-4 mb-8 flex-1">
                                     {plan.features.map((feature, i) => (
-                                        <li key={i} className="flex flex-items gap-3">
+                                        <li key={i} className="flex items-center gap-3">
                                             <CheckCircle2 className={`h-5 w-5 shrink-0 ${plan.popular ? 'text-brand-green-500' : 'text-gray-400'}`} />
                                             <span className="text-[13px] font-medium text-gray-700">{feature}</span>
                                         </li>
@@ -223,7 +223,7 @@ export default function BillingPage() {
                                 <Button
                                     onClick={() => handleUpgrade(plan.name, plan.price)}
                                     disabled={isCurrent || isProcessing}
-                                    className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-items gap-2 items-center justify-center ${isCurrent
+                                    className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2 ${isCurrent
                                         ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
                                         : plan.popular
                                             ? 'bg-brand-green-600 hover:bg-brand-green-700 text-white shadow-brand-green-600/20 hover:shadow-lg'

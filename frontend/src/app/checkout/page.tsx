@@ -668,7 +668,10 @@ function CheckoutContent() {
                 const newOrder = DemoStore.addOrder({
                     product_id: item.product.id,
                     customer_id: orderUserId,
+                    customer_name: fullName || address.firstName || "Customer",
+                    customer_email: user?.email || address.email,
                     seller_id: item.product.seller_id,
+                    seller_name: item.product.seller_name,
                     amount: item.price * item.quantity,
                     status: "pending",
                     escrow_status: "held",
@@ -725,13 +728,32 @@ function CheckoutContent() {
 
             if (!user) {
                 // Auto-create an account for the guest and log them in
-                login({
-                    id: "usr_" + Date.now(),
+                const guestId = "usr_" + Date.now();
+                const guestUser = {
+                    id: guestId,
                     email: address.email,
                     name: fullName || "Guest User",
-                    role: "customer",
+                    role: "customer" as const,
                     created_at: new Date().toISOString()
-                });
+                };
+                login(guestUser);
+
+                // Sync guest user to DB with a default password so they can log in later
+                fetch("/api/users", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: guestId,
+                        email: address.email,
+                        name: fullName || "Guest User",
+                        role: "customer",
+                        password: "fairprice123", // Default password — user will be prompted to change
+                        phone: address.phone,
+                        address: deliveryMethod === "doorstep"
+                            ? `${address.street}, ${address.city}`
+                            : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
+                    })
+                }).catch(console.error);
             }
             // Show concierge before redirect
             setShowConcierge(true);
@@ -885,18 +907,20 @@ function CheckoutContent() {
                                 {isEditingAddress ? (
                                     <div className="space-y-6">
                                         {/* Delivery Method Toggle */}
-                                        <div className="flex bg-gray-100 p-1 rounded-xl">
+                                        <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
                                             <button
                                                 onClick={() => setDeliveryMethod("doorstep")}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${deliveryMethod === "doorstep" ? 'bg-white shadow-sm text-brand-green-600' : 'text-gray-500 hover:text-gray-900'}`}
+                                                className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-2 text-[11px] sm:text-sm font-bold rounded-lg transition-all ${deliveryMethod === "doorstep" ? 'bg-white shadow-sm text-brand-green-600' : 'text-gray-500 hover:text-gray-900'}`}
                                             >
-                                                <Truck className="h-4 w-4" /> Door Delivery ({formatPrice(Math.round(baseDoorFee * shippingMultiplier))})
+                                                <div className="flex items-center gap-1"><Truck className="h-4 w-4 shrink-0" /> <span>Door Delivery</span></div>
+                                                <span className="font-medium opacity-80 whitespace-nowrap">({formatPrice(Math.round(baseDoorFee * shippingMultiplier))})</span>
                                             </button>
                                             <button
                                                 onClick={() => setDeliveryMethod("pickup")}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${deliveryMethod === "pickup" ? 'bg-white shadow-sm text-brand-green-600' : 'text-gray-500 hover:text-gray-900'}`}
+                                                className={`flex-1 flex flex-col sm:flex-row items-center justify-center gap-0.5 sm:gap-1.5 py-2 text-[11px] sm:text-sm font-bold rounded-lg transition-all ${deliveryMethod === "pickup" ? 'bg-white shadow-sm text-brand-green-600' : 'text-gray-500 hover:text-gray-900'}`}
                                             >
-                                                <MapPin className="h-4 w-4" /> Pickup Station ({formatPrice(Math.round(basePickupFee * shippingMultiplier))})
+                                                <div className="flex items-center gap-1"><MapPin className="h-4 w-4 shrink-0" /> <span>Pickup Station</span></div>
+                                                <span className="font-medium opacity-80 whitespace-nowrap">({formatPrice(Math.round(basePickupFee * shippingMultiplier))})</span>
                                             </button>
                                         </div>
 
@@ -1535,7 +1559,7 @@ function CheckoutContent() {
                 </div>
 
                 {/* Right Column: Summary */}
-                <div className={`w-full lg:w-96 ${checkoutStep !== 3 ? 'hidden lg:block' : ''}`}>
+                <div className="w-full lg:w-96">
                     <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 lg:sticky top-24 relative mb-24 lg:mb-0">
                         <div className="hidden lg:block">
                             <Button
@@ -1605,18 +1629,15 @@ function CheckoutContent() {
                                 const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * (hasGlobalProduct ? 1.5 : 1)) : Math.round(baseDoorFee * (hasGlobalProduct ? 1.5 : 1))) : 0;
                                 const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
                                 return totalSavings > 0 ? (
-                                    <div className="flex justify-between items-center bg-emerald-50 -mx-4 px-4 py-2.5 rounded-xl border border-emerald-100">
-                                        <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
-                                            🎉 You Saved:
-                                        </span>
-                                        <span className="font-black text-emerald-600 text-sm">{formatPrice(totalSavings)}</span>
-                                    
-                                        <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
-                                        </span>
-                                        <span className="font-black text-emerald-600 text-sm">From discounts & delivery</span>
-                                    
+                                    <div className="flex flex-col bg-emerald-50 -mx-4 px-4 py-2.5 rounded-xl border border-emerald-100 gap-0.5">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
+                                                🎉 You Saved:
+                                            </span>
+                                            <span className="font-black text-emerald-600 text-sm">{formatPrice(totalSavings)}</span>
+                                        </div>
+                                        <span className="text-emerald-600/70 text-xs font-medium">From discounts & delivery</span>
                                     </div>
-                                    
                                 ) : null;
                             })()}
 
@@ -1723,7 +1744,7 @@ function CheckoutContent() {
                         email={user?.email || address.email || "guest@example.com"}
                         onSuccess={(ref) => finalizeOrder(ref)}
                         onClose={() => setShowPaystack(false)}
-                        autoStart={true}
+                        autoStart={false}
                     />
                 )}
             </AnimatePresence>

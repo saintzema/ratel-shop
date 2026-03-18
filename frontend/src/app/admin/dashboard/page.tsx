@@ -27,6 +27,8 @@ import { cn, formatDateExact } from "@/lib/utils";
 
 export default function AdminDashboard() {
     const [stats, setStats] = useState<any>(null);
+    const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    const [broadcastMessage, setBroadcastMessage] = useState("");
     const [complaints, setComplaints] = useState<any[]>([]);
     const [kycs, setKycs] = useState<any[]>([]);
     const [openDisputeCount, setOpenDisputeCount] = useState(0);
@@ -83,7 +85,8 @@ export default function AdminDashboard() {
         }
         
         // 2. Always update the underlying seller
-        const realStatus = status === "approved" ? "verified" : "rejected";
+        // SellerStatus enum: pending | active | frozen | banned
+        const realStatus = status === "approved" ? "active" : "frozen";
         DemoStore.updateSeller(sellerId, {
             kyc_status: status,
             verified: status === "approved",
@@ -483,14 +486,70 @@ export default function AdminDashboard() {
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">Configure system-wide trust protocols and fee structures.</p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-3">
-                    <Button className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6">
-                        System Configuration
+                    <Button 
+                        onClick={() => {
+                            const sent = DemoStore.simulateWhatsAppFollowups();
+                            alert(`Simulated WhatsApp follow-up SMS triggered for ${sent} abandoned negotiations.`);
+                        }}
+                        className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6"
+                    >
+                        Trigger WhatsApp Hook
                     </Button>
-                    <Button variant="outline" className="bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 hover:text-white font-black rounded-2xl h-12 px-6 transition-all">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => setShowBroadcastModal(true)}
+                        className="bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 hover:text-white font-black rounded-2xl h-12 px-6 transition-all"
+                    >
                         Broadcast Update
                     </Button>
                 </div>
             </div>
+
+            {/* Broadcast Modal */}
+            {showBroadcastModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <h3 className="text-lg font-black text-gray-900">System Broadcast</h3>
+                            <button onClick={() => setShowBroadcastModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                                <XCircle className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-xs font-bold uppercase text-gray-400">Message</label>
+                                <textarea
+                                    className="w-full mt-1.5 p-3 rounded-xl border border-gray-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium resize-none min-h-[100px]"
+                                    placeholder="Enter update message to broadcast to all sellers..."
+                                    value={broadcastMessage}
+                                    onChange={e => setBroadcastMessage(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <Button
+                                onClick={() => {
+                                    if (!broadcastMessage.trim()) return;
+                                    const sellers = DemoStore.getSellers();
+                                    sellers.forEach(s => {
+                                        DemoStore.addNotification({
+                                            userId: s.user_id || s.id,
+                                            type: "system",
+                                            message: `📢 System Update: ${broadcastMessage}`,
+                                            link: "/seller/dashboard"
+                                        });
+                                    });
+                                    alert(`Broadcast sent to ${sellers.length} sellers successfully.`);
+                                    setShowBroadcastModal(false);
+                                    setBroadcastMessage("");
+                                }}
+                                className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm"
+                            >
+                                Send Broadcast 🚀
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

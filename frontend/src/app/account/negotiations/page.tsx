@@ -76,27 +76,50 @@ export default function NegotiationsPage() {
     };
 
     const filteredNegs = filter === "all" ? negotiations : negotiations.filter(n => n.status === filter);
+    const userTier = DemoStore.getUserTier(user?.id || user?.email || "");
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900">
             <Navbar />
             <div className="container mx-auto px-4 py-8 max-w-5xl">
-                <div className="mb-8 flex items-center gap-3">
-                    <button
-                        onClick={() => router.push('/')}
-                        className="h-10 w-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors shrink-0"
-                    >
-                        <ChevronLeft className="h-5 w-5 text-gray-600" />
-                    </button>
-                    <div>
-                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">
-                            Your Negotiations
-                        </h1>
-                        <p className="text-gray-500 mt-2">
-                            Track your offers and responses from sellers.
-                        </p>
+                <div className="mb-8 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="h-10 w-10 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors shrink-0"
+                        >
+                            <ChevronLeft className="h-5 w-5 text-gray-600" />
+                        </button>
+                        <div>
+                            <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+                                Your Negotiations
+                            </h1>
+                            <p className="text-gray-500 mt-2">
+                                Track your offers and responses from sellers.
+                            </p>
+                        </div>
+                    </div>
+                    {/* Gamification Badge */}
+                    <div className={`hidden md:flex flex-col items-end px-4 py-2 rounded-2xl border ${userTier.color}`}>
+                        <span className="text-[10px] font-black uppercase tracking-widest opacity-80">Your Negotiator Status</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <TrendingUp className="h-4 w-4" />
+                            <span className="font-bold">{userTier.name}</span>
+                        </div>
                     </div>
                 </div>
+
+                {userTier.discount > 0 && (
+                    <div className={`mb-6 p-4 rounded-xl border ${userTier.color} flex items-center gap-3`}>
+                        <div className="p-2 bg-white/50 rounded-full">
+                            <CheckCircle className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-sm">{userTier.name} Perks Unlocked!</h4>
+                            <p className="text-xs opacity-90 mt-0.5">Enjoy {userTier.discount}% off platform service fees on all your accepted deals.</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Filter chips */}
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2">

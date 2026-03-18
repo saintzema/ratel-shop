@@ -66,7 +66,12 @@ async function main() {
     for (const p of DEMO_PRODUCTS) {
         await prisma.product.upsert({
             where: { id: p.id },
-            update: {},
+            update: {
+                isSponsored: p.is_sponsored || false,
+                isTrending: p.is_trending || false,
+                priceFlag: (p.price_flag as any) || "none",
+                isActive: p.is_active !== false,
+            },
             create: {
                 id: p.id,
                 sellerId: p.seller_id,

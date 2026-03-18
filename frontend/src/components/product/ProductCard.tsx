@@ -163,7 +163,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     )}
 
                     <img
-                        src={product.image_url && product.image_url.trim() !== "" ? product.image_url : "/assets/images/placeholder.png"}
+                        src={product.images?.[0] || (product.image_url && product.image_url.trim() !== "" ? product.image_url : "/assets/images/placeholder.png")}
                         alt={product.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         onError={(e) => {

@@ -129,13 +129,19 @@ export function SearchResultCard({
                 <Link href={`/product/${product.id}`} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
                     {!imgError ? (
                         <img
-                            src={
-                                product.image_url && !product.image_url.toLowerCase().includes('no photo') && !product.image_url.toLowerCase().includes('no image') && !product.image_url.toLowerCase().includes('n/a')
-                                  ? product.image_url
-                                  : product.images?.[0] && !product.images[0].toLowerCase().includes('no photo') && !product.images[0].toLowerCase().includes('no image') && !product.images[0].toLowerCase().includes('n/a')
-                                    ? product.images[0]
-                                    : "/assets/images/placeholder.png"
-                            }
+                            src={(() => {
+                                const isValid = (url: string | undefined | null) =>
+                                  url && url.trim().length > 4 &&
+                                  !url.toLowerCase().includes('no photo') &&
+                                  !url.toLowerCase().includes('no image') &&
+                                  !url.toLowerCase().includes('n/a') &&
+                                  !url.toLowerCase().includes('undefined') &&
+                                  !url.includes('vertexaisearch.cloud.google.com') &&
+                                  !url.includes('grounding-api-redirect');
+                                if (isValid(product.image_url)) return product.image_url;
+                                if (isValid(product.images?.[0])) return product.images[0];
+                                return "/assets/images/placeholder.png";
+                            })()}
                             alt={product.name}
                             className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
                             onError={() => setImgError(true)}

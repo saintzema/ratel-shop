@@ -11,10 +11,13 @@ export async function GET(request: Request) {
         const { searchParams } = new URL(request.url);
         const customerId = searchParams.get("customerId");
         const sellerId = searchParams.get("sellerId");
+        const fetchAll = searchParams.get("all") === "true";
 
         const whereClause: any = {};
-        if (customerId) whereClause.customerId = customerId;
-        if (sellerId) whereClause.sellerId = sellerId;
+        if (!fetchAll) {
+            if (customerId) whereClause.customerId = customerId;
+            if (sellerId) whereClause.sellerId = sellerId;
+        }
 
         const orders = await db.order.findMany({
             where: whereClause,
@@ -23,13 +26,14 @@ export async function GET(request: Request) {
             },
             orderBy: {
                 createdAt: 'desc',
-            }
+            },
+            ...(fetchAll ? { take: 200 } : {}), // Limit for admin sync to prevent overload
         });
 
         return NextResponse.json({ success: true, orders });
     } catch (error: any) {
         console.error("Orders API Error:", error);
-        // Return empty array so client falls back to DEMO_ORDERS
+        // Return empty array so client falls back to local orders
         return NextResponse.json({ success: true, orders: [] }, {
             status: 200,
             headers: { "X-DB-Status": "offline" }
@@ -43,11 +47,39 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
 
+        // Ensure user exists first (prevents FK constraint violation)
+        const userId = body.customer_id;
+        const userEmail = body.customer_email || `${userId}@fairprice.ng`;
+        const userName = body.customer_name || "Customer";
+
+        await db.user.upsert({
+            where: { id: userId },
+            update: { name: userName },
+            create: {
+                id: userId,
+                email: userEmail,
+                name: userName,
+                role: "customer",
+            }
+        }).catch(async () => {
+            // If upsert by ID fails (e.g. email conflict), try by email
+            await db.user.upsert({
+                where: { email: userEmail },
+                update: { name: userName },
+                create: {
+                    id: userId,
+                    email: userEmail,
+                    name: userName,
+                    role: "customer",
+                }
+            }).catch(() => { /* ignore — order will save locally */ });
+        });
+
         const newOrder = await db.order.create({
             data: {
                 id: body.tracking_id || `FP-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-                customerId: body.customer_id,
-                customerName: body.customer_name,
+                customerId: userId,
+                customerName: userName,
                 productId: body.product_id,
                 sellerId: body.seller_id,
                 sellerName: body.seller_name,

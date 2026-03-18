@@ -75,6 +75,23 @@ export async function POST(req: Request) {
         });
 
         // Map snake_case to camelCase
+        // Sanitize status to valid Prisma SellerStatus enum: pending | active | frozen | banned
+        const validSellerStatuses = ['pending', 'active', 'frozen', 'banned'];
+        let safeStatus = body.status || 'active';
+        if (!validSellerStatuses.includes(safeStatus)) {
+            // Map non-enum values: verified → active, rejected → frozen, etc.
+            if (safeStatus === 'verified') safeStatus = 'active';
+            else if (safeStatus === 'rejected') safeStatus = 'frozen';
+            else safeStatus = 'active';
+        }
+
+        // Sanitize kycStatus to valid KYCStatus enum: not_submitted | pending | approved | rejected
+        const validKycStatuses = ['not_submitted', 'pending', 'approved', 'rejected'];
+        let safeKycStatus = body.kyc_status || 'not_submitted';
+        if (!validKycStatuses.includes(safeKycStatus)) {
+            safeKycStatus = 'not_submitted';
+        }
+
         const sellerData = {
             id: body.id,
             userId: user.id,
@@ -86,8 +103,8 @@ export async function POST(req: Request) {
             verified: body.verified || false,
             rating: body.rating || 0,
             trustScore: body.trust_score || 50,
-            status: body.status || "active",
-            kycStatus: body.kyc_status || "not_submitted",
+            status: safeStatus,
+            kycStatus: safeKycStatus,
             bankName: body.bank_name,
             accountNumber: body.account_number,
             accountName: body.account_name,

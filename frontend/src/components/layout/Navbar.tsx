@@ -753,7 +753,7 @@ export function Navbar() {
                                                 >
                                                     <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
                                                         <img
-                                                            src={result.image_url || '/assets/images/placeholder.png'}
+                                                            src={result.images?.[0] || result.image_url || '/assets/images/placeholder.png'}
                                                             alt={result.name}
                                                             className="w-full h-full object-contain"
                                                             onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}

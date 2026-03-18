@@ -133,6 +133,7 @@ export interface Order {
     product?: Product;
     customer_name?: string;
     customer_email?: string;
+    source?: string;
     seller_name?: string;
 }
 
@@ -163,6 +164,7 @@ export interface NegotiationRequest {
     counter_message?: string;
     counter_status?: "pending" | "accepted" | "rejected";
     chat_messages?: { sender: "seller" | "buyer"; text: string; timestamp: string }[];
+    purchased?: boolean;
     created_at: string;
 }
 

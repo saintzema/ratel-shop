@@ -4,6 +4,7 @@
     "description": "AI-Regulated Marketplace with Escrow Protection",
     "start_url": "/",
     "display": "standalone",
+    "orientation": "portrait",
     "background_color": "#ffffff",
     "theme_color": "#052e16",
     "icons": [

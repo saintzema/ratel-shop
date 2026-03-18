@@ -1,7 +1,19 @@
 "use client";
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
-// Removed DEMO_ mock imports to ensure Live DB fetching
+// Lazy-import DEMO data as fallback when DB is offline
+let _demoFallbackLoaded = false;
+let _DEMO_PRODUCTS: any[] = [];
+let _DEMO_SELLERS: any[] = [];
+async function loadDemoFallbacks() {
+    if (_demoFallbackLoaded) return;
+    try {
+        const m = await import("@/lib/data");
+        _DEMO_PRODUCTS = m.DEMO_PRODUCTS || [];
+        _DEMO_SELLERS = m.DEMO_SELLERS || [];
+        _demoFallbackLoaded = true;
+    } catch { /* ignore */ }
+}
 import { resilientFetch } from "./offline-queue";
 
 export interface Category {
@@ -55,6 +67,9 @@ class DemoStoreService {
     // Track product IDs with local edits not yet confirmed by DB
     private _pendingEdits: Set<string> = new Set();
     private readonly _PENDING_KEY = "fp_pending_product_edits";
+    // Track seller IDs with local edits (KYC approve/reject) not yet confirmed by DB
+    private _pendingSellerEdits: Set<string> = new Set();
+    private readonly _PENDING_SELLER_KEY = "fp_pending_seller_edits";
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -94,6 +109,8 @@ class DemoStoreService {
             try {
                 const saved = localStorage.getItem(this._PENDING_KEY);
                 if (saved) this._pendingEdits = new Set(JSON.parse(saved));
+                const savedSellers = localStorage.getItem(this._PENDING_SELLER_KEY);
+                if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
             } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
@@ -111,7 +128,7 @@ class DemoStoreService {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
         // v10: LIVE-DB-ONLY — all mock/demo data removed, everything from Neon Postgres
-        const DATA_VERSION = "10";
+        const DATA_VERSION = "11";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -191,11 +208,12 @@ class DemoStoreService {
         if (typeof window === "undefined") return;
 
         try {
-            // 🚀 PARALLEL FETCH: Fire all three requests simultaneously for ~3x faster sync
-            const [productsResult, sellersResult, searchCacheResult] = await Promise.allSettled([
+            // 🚀 PARALLEL FETCH: Fire all four requests simultaneously for fast sync
+            const [productsResult, sellersResult, searchCacheResult, ordersResult] = await Promise.allSettled([
                 fetch("/api/products?all=true"),
                 fetch("/api/sellers?all=true"),
                 fetch("/api/search-cache"),
+                fetch("/api/orders?all=true"),
             ]);
 
             // ── Process Products ──
@@ -221,14 +239,31 @@ class DemoStoreService {
                 }
             }
 
-            // ── Process Sellers ──
+            // ── Process Sellers (merge with pending local edits like KYC approvals) ──
             if (sellersResult.status === "fulfilled" && sellersResult.value.ok) {
                 const dbSellers = await sellersResult.value.json();
                 if (dbSellers.length > 0) {
-                    localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(dbSellers));
+                    const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
+                    const dbMap = new Map(dbSellers.map((s: any) => [s.id, s]));
+                    const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
+                    const merged = new Map(dbMap);
+
+                    // Preserve local versions of sellers with pending edits (e.g. KYC approvals)
+                    for (const pendingSellerId of this._pendingSellerEdits) {
+                        const localVersion = localMap.get(pendingSellerId);
+                        if (localVersion) {
+                            merged.set(pendingSellerId, localVersion);
+                        }
+                    }
+                    // Keep locally-added sellers that don't exist in DB yet
+                    for (const [id, seller] of localMap) {
+                        if (!dbMap.has(id)) merged.set(id, seller);
+                    }
+
+                    localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(Array.from(merged.values())));
 
                     const storedSellerId = this.getCurrentSellerId();
-                    if (storedSellerId && !dbSellers.find((s: any) => s.id === storedSellerId)) {
+                    if (storedSellerId && !merged.has(storedSellerId)) {
                         const currentUser = this._getCurrentUserId();
                         if (currentUser) {
                             const match = dbSellers.find((s: any) => s.user_id === currentUser);
@@ -237,6 +272,47 @@ class DemoStoreService {
                             }
                         }
                     }
+                }
+            }
+
+            // ── Process Orders (merge DB orders with local orders) ──
+            if (ordersResult.status === "fulfilled" && ordersResult.value.ok) {
+                const ordersData = await ordersResult.value.json();
+                const dbOrders: any[] = ordersData.orders || ordersData || [];
+                if (dbOrders.length > 0) {
+                    const localOrders: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || '[]');
+                    const localMap = new Map(localOrders.map((o: any) => [o.id, o]));
+
+                    // Add DB orders that don't exist locally
+                    for (const dbOrder of dbOrders) {
+                        const mapped = {
+                            id: dbOrder.id,
+                            customer_id: dbOrder.customerId || dbOrder.customer_id,
+                            product_id: dbOrder.productId || dbOrder.product_id,
+                            seller_id: dbOrder.sellerId || dbOrder.seller_id,
+                            amount: dbOrder.amount,
+                            status: dbOrder.status || 'pending',
+                            escrow_status: dbOrder.escrowStatus || dbOrder.escrow_status || 'held',
+                            shipping_address: dbOrder.shippingAddress || dbOrder.shipping_address || '',
+                            created_at: dbOrder.createdAt || dbOrder.created_at || new Date().toISOString(),
+                            updated_at: dbOrder.updatedAt || dbOrder.updated_at || new Date().toISOString(),
+                            customer_name: dbOrder.customerName || dbOrder.customer_name,
+                            seller_name: dbOrder.sellerName || dbOrder.seller_name,
+                            product: dbOrder.product ? {
+                                id: dbOrder.product.id,
+                                name: dbOrder.product.name,
+                                price: dbOrder.product.price,
+                                image_url: dbOrder.product.imageUrl || dbOrder.product.image_url,
+                                seller_id: dbOrder.product.sellerId || dbOrder.product.seller_id,
+                                seller_name: dbOrder.product.sellerName || dbOrder.product.seller_name,
+                                category: dbOrder.product.category,
+                            } : undefined,
+                        };
+                        if (!localMap.has(mapped.id)) {
+                            localMap.set(mapped.id, mapped);
+                        }
+                    }
+                    localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(Array.from(localMap.values())));
                 }
             }
 
@@ -254,6 +330,63 @@ class DemoStoreService {
         } catch (error) {
             console.warn("Database sync failed quietly:", (error as Error).message || "Network issue");
         }
+
+        // ── Fallback: if localStorage is still empty after sync, seed with DEMO data ──
+        const hasProducts = (localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]') !== '[]';
+        const hasSellers = (localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]') !== '[]';
+        if (!hasProducts || !hasSellers) {
+            await loadDemoFallbacks();
+            if (!hasProducts && _DEMO_PRODUCTS.length > 0) {
+                localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(_DEMO_PRODUCTS));
+            }
+            if (!hasSellers && _DEMO_SELLERS.length > 0) {
+                localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(_DEMO_SELLERS));
+            }
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("demo-store-update"));
+        }
+    }
+
+    // --- Gamification Support ---
+    getUserTier(userId: string): { name: string, color: string, discount: number } {
+        const negotiations = this.getNegotiations(undefined, userId);
+        const wins = negotiations.filter(n => n.status === "accepted").length;
+        
+        if (wins >= 5) return { name: "Gold Negotiator", color: "text-amber-500 bg-amber-50 border-amber-200", discount: 50 };
+        if (wins >= 2) return { name: "Silver Deal-Maker", color: "text-gray-500 bg-gray-50 border-gray-200", discount: 20 };
+        return { name: "Bronze Haggler", color: "text-amber-700 bg-amber-50 border-amber-200/50", discount: 0 };
+    }
+
+    // Missed Deal Follow-up
+    simulateWhatsAppFollowups() {
+        const negotiations = this.getNegotiations();
+        const products = this.getProducts();
+        let followupsSent = 0;
+        
+        negotiations.forEach(neg => {
+            // Find an open or pending negotiation that hasn't resulted in a purchase
+            if ((neg.status === "pending" || (neg.status === "accepted" && !neg.purchased)) && neg.customer_name) {
+                const product = products.find(p => p.id === neg.product_id);
+                if (product) {
+                    const discountPercent = 5; // The script mentions a 5% drop
+                    
+                    fetch("/api/marketing/whatsapp", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            name: neg.customer_name,
+                            productName: product.name,
+                            discountPercent,
+                            link: `https://fairprice.ng/account/negotiations`
+                        })
+                    }).catch(() => {});
+                    
+                    followupsSent++;
+                }
+            }
+        });
+        
+        return followupsSent;
     }
 
     // --- Categories ---
@@ -642,11 +775,27 @@ class DemoStoreService {
         const mergedSeller = { ...updatedSeller, ...updates };
         const updated = sellers.map(s => s.id === id ? mergedSeller : s);
 
+        // Mark as pending BEFORE writing — protects from syncWithDB overwrite
+        this._pendingSellerEdits.add(id);
+        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
 
-        // Persist to Postgres (queued if offline)
-        resilientFetch("/api/sellers", { method: "POST", body: mergedSeller, type: "seller_update" });
+        // Persist to Postgres and clear pending on success
+        fetch("/api/sellers", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mergedSeller),
+        }).then(res => {
+            if (res.ok) {
+                this._pendingSellerEdits.delete(id);
+                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+            }
+        }).catch(() => {
+            // Keep in pendingSellerEdits so syncWithDB doesn't overwrite
+        });
 
         // Create generic notification for important status changes
         if (updates.status && updates.status !== updatedSeller.status) {
@@ -1069,9 +1218,18 @@ class DemoStoreService {
             },
         ];
 
+        // Resolve customer name from local users if not provided
+        let customerName = (order as any).customer_name || "";
+        if (!customerName && typeof window !== "undefined") {
+            const customerUser = this.getAllUsers().find(u => u.id === order.customer_id || u.email === order.customer_id);
+            if (customerUser?.name) customerName = customerUser.name;
+        }
+        if (!customerName) customerName = order.customer_id; // Last fallback: use email/id
+
         const newOrder: Order = {
             ...order,
             id: orderId,
+            customer_name: customerName,
             created_at: now.toISOString(),
             updated_at: now.toISOString(),
             product: product,
@@ -1084,6 +1242,46 @@ class DemoStoreService {
         const orders = this.getOrders();
         const updated = [newOrder, ...orders];
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Gamification: Post-Purchase Delight
+        if (order.source && order.source.startsWith("negotiation_")) {
+            const negId = order.source.replace("negotiation_", "");
+            const negotiations = this.getNegotiations();
+            const neg = negotiations.find(n => n.id === negId);
+            if (neg && (product.price > order.amount)) {
+                const amountSaved = product.price - order.amount;
+                this.addNotification({
+                    userId: order.customer_id,
+                    type: "promo",
+                    message: `🎉 You saved ₦${amountSaved.toLocaleString()} today using FairPrice!`,
+                    link: `/account/orders/${orderId}`
+                });
+                
+                // Simulated Email Follow-up
+                const customerEmail = `user_${order.customer_id}@fairprice.ng`;
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: customerEmail,
+                        type: "ORDER_PLACED",
+                        payload: {
+                            name: customerName,
+                            orderId: orderId,
+                            productName: `${product.name} (Negotiated Savings: ₦${amountSaved.toLocaleString()})`,
+                            amount: order.amount,
+                            trackingUrl: `https://fairprice.ng/account/orders`
+                        }
+                    })
+                }).catch(console.error);
+            }
+            
+            // Mark negotiation as purchased
+            if (neg) {
+                const updatedNegs = negotiations.map(n => n.id === negId ? { ...n, purchased: true } : n);
+                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updatedNegs));
+            }
+        }
 
         // Persist to Postgres (queued if offline — CRITICAL: ensures zero order loss)
         resilientFetch("/api/orders", { method: "POST", body: newOrder, type: "order" });
@@ -1111,7 +1309,7 @@ class DemoStoreService {
                 to: resolvedCustomerEmail,
                 type: "ORDER_PLACED",
                 payload: {
-                    name: "Valued Customer",
+                    name: customerName,
                     orderId: orderId,
                     productName: product.name,
                     amount: order.amount,
@@ -1348,6 +1546,12 @@ class DemoStoreService {
         // Write to localStorage for instant UI feedback
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
 
+        // Clear stale NavSearch sessionStorage cache so thumbnails update immediately
+        try {
+            sessionStorage.removeItem('nav_search_results');
+            sessionStorage.removeItem('nav_search_clicked_id');
+        } catch { /* ignore */ }
+
         // Dispatch events IMMEDIATELY so UI updates right away
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
@@ -1454,11 +1658,17 @@ class DemoStoreService {
             const customerEmail = `user_${order.customer_id}@fairprice.ng`;
             let resolvedCustomerEmail = customerEmail;
             
-            // Try to resolve a real email if possible
+            // Resolve customer name from user record
+            let resolvedName = order.customer_name || "";
             if (typeof window !== "undefined") {
-                 const customerUser = this.getAllUsers().find(u => u.id === order.customer_id);
+                 const customerUser = this.getAllUsers().find(u => u.id === order.customer_id || u.email === order.customer_id);
                  if (customerUser?.email) resolvedCustomerEmail = customerUser.email;
+                 if (customerUser?.name && !resolvedName) resolvedName = customerUser.name;
             }
+            if (!resolvedName) resolvedName = order.customer_id; // Final fallback
+
+            const productName = order.product?.name || "your item";
+            const orderShortId = order.id.substring(0, 8);
 
             const sellers = this.getSellers();
             const seller = sellers.find(s => s.id === order.seller_id);
@@ -1469,43 +1679,48 @@ class DemoStoreService {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ to, type, payload })
-                 }).catch(console.error); // Silently catch email errors
+                 }).catch(console.error);
             };
 
             // 1. Delivered
             if (status === 'delivered') {
                 dispatchEmail(resolvedCustomerEmail, "ORDER_DELIVERED", {
-                    name: order.customer_name || "Valued Customer",
+                    name: resolvedName,
                     orderId: order.id,
+                    productName,
                     trackingUrl: `https://fairprice.ng/account/orders`
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id.substring(0,8)} has been delivered.`, link: "/account/orders" });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} has been delivered.`, link: "/account/orders" });
             }
 
             // 2. Cancelled
             if (status === 'cancelled') {
                 // Notify Buyer
                 dispatchEmail(resolvedCustomerEmail, "ORDER_CANCELLED", {
-                    name: order.customer_name || "Valued Customer",
+                    name: resolvedName,
                     orderId: order.id,
+                    productName,
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id.substring(0,8)} has been cancelled successfully.`, link: "/account/orders" });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has been cancelled successfully.`, link: "/account/orders" });
                 
                 // Notify Seller
                 dispatchEmail(sellerEmail, "ORDER_CANCELLED", {
+                    name: seller?.business_name || "Seller",
                     sellerName: seller?.business_name || "Seller",
                     orderId: order.id,
+                    productName,
                 });
-                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${order.id.substring(0,8)} was cancelled by the buyer.`, link: "/seller/orders" });
+                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${orderShortId} for ${productName} was cancelled by the buyer.`, link: "/seller/orders" });
             }
 
             // 3. Shipped
             if (status === 'shipped') {
                 dispatchEmail(resolvedCustomerEmail, "ORDER_SHIPPED", {
-                    name: order.customer_name || "Valued Customer",
+                    name: resolvedName,
                     orderId: order.id,
+                    productName,
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id.substring(0,8)} has shipped!`, link: "/account/orders" });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has shipped!`, link: "/account/orders" });
             }
 
             // 4. Return workflows
@@ -1513,17 +1728,19 @@ class DemoStoreService {
                  dispatchEmail(sellerEmail, "RETURN_REQUESTED", {
                     sellerName: seller?.business_name || "Seller",
                     orderId: order.id,
+                    productName,
                  });
-                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${order.id.substring(0,8)}.`, link: "/seller/orders" });
+                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${orderShortId} (${productName}).`, link: "/seller/orders" });
             }
             if (status === 'return_approved' || status === 'return_rejected') {
                  const newStatusStr = status === 'return_approved' ? 'approved' : 'rejected';
                  dispatchEmail(resolvedCustomerEmail, "RETURN_UPDATED", {
-                    name: order.customer_name || "Valued Customer",
+                    name: resolvedName,
                     orderId: order.id,
+                    productName,
                     newStatus: newStatusStr
                  });
-                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${order.id.substring(0,8)} was ${newStatusStr}.`, link: "/account/orders" });
+                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${orderShortId} (${productName}) was ${newStatusStr}.`, link: "/account/orders" });
             }
         }
 

@@ -552,12 +552,12 @@ ${payload.daysRemaining === 0 ? `
             break;
 
         case 'ORDER_CANCELLED':
-            subject = 'Order Cancelled: FairPrice';
+            subject = `Order Cancelled — #${(payload.orderId || '').substring(0,8)}`;
             html = BaseTemplate(subject, `
                 <div style="padding: 20px;">
                     <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Order Cancelled</h2>
                     <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.name || payload.sellerName || 'User'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong> has been successfully cancelled.</p>
+                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` for <strong>${payload.productName}</strong>` : ''} has been successfully cancelled.</p>
                     <p class="text-muted" style="font-size: 14px; line-height: 20px;">If a payment was made, your funds are safely returning from escrow to your original payment method immediately.</p>
                     
                     <div style="text-align: center; margin-top: 32px;">
@@ -600,12 +600,12 @@ ${payload.daysRemaining === 0 ? `
             break;
 
         case 'ORDER_SHIPPED':
-            subject = 'Great news! Your order has shipped';
+            subject = `Your order has shipped — #${(payload.orderId || '').substring(0,8)}`;
             html = BaseTemplate(subject, `
                 <div style="padding: 20px;">
                     <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Your Order is on the Way 🚚</h2>
                     <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.name || 'Customer'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong> has left the merchant's warehouse and is currently in transit.</p>
+                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` — <strong>${payload.productName}</strong>` : ''} has left the merchant's warehouse and is currently in transit.</p>
                     <p class="text-muted" style="font-size: 14px; line-height: 20px;">You can track its live status below. Remember, your funds remain safe in escrow until delivery is confirmed.</p>
                     
                     <div style="text-align: center; margin-top: 32px;">
