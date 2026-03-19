@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ShieldAlert, CheckCircle, Package, Send, AlertTriangle, MessageSquare, Bot, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,22 +13,62 @@ import { Order } from "@/lib/types";
 import { formatDateExact } from "@/lib/utils";
 
 export default function AdminOrdersTakeoverPage() {
+    const searchParams = useSearchParams();
+    const orderIdFromUrl = searchParams.get("order");
+
     const [activeTab, setActiveTab] = useState<"all" | "active_chats" | "flagged">("active_chats");
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [chatInput, setChatInput] = useState("");
     const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+    const [hasAutoSelected, setHasAutoSelected] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { showNotification } = useNotification();
 
     useEffect(() => {
         const load = () => {
             const all = DemoStore.getOrders();
-            // Filter to orders that have chats, or just show all for demo purposes
-            setActiveOrders(all.filter(o => o.chat_messages && o.chat_messages.length > 0));
+
+            // Build list: all orders with chat messages
+            let chatOrders = all.filter(o => o.chat_messages && o.chat_messages.length > 0);
+
+            // If we have an order ID from URL, ensure that order is in the list
+            if (orderIdFromUrl) {
+                const targetOrder = all.find(o => o.id === orderIdFromUrl);
+                if (targetOrder) {
+                    // Initialize chat if this order has no messages yet
+                    if (!targetOrder.chat_messages || targetOrder.chat_messages.length === 0) {
+                        DemoStore.addOrderMessage(
+                            targetOrder.id,
+                            "system",
+                            "Concierge session started by Admin."
+                        );
+                        // Re-fetch after initializing
+                        const refreshed = DemoStore.getOrders();
+                        chatOrders = refreshed.filter(o => o.chat_messages && o.chat_messages.length > 0);
+                    }
+
+                    // Ensure it's in the list (deduplicate)
+                    if (!chatOrders.find(o => o.id === targetOrder.id)) {
+                        const freshTarget = DemoStore.getOrders().find(o => o.id === orderIdFromUrl);
+                        if (freshTarget) chatOrders.unshift(freshTarget);
+                    }
+
+                    // Auto-select it on first load
+                    if (!hasAutoSelected) {
+                        const freshTarget = DemoStore.getOrders().find(o => o.id === orderIdFromUrl);
+                        if (freshTarget) {
+                            setSelectedOrder(freshTarget);
+                            setHasAutoSelected(true);
+                        }
+                    }
+                }
+            }
+
+            setActiveOrders(chatOrders);
 
             // Update selected order if it exists
             if (selectedOrder) {
-                const updated = all.find(o => o.id === selectedOrder.id);
+                const updated = DemoStore.getOrders().find(o => o.id === selectedOrder.id);
                 if (updated) setSelectedOrder(updated);
             }
         };
@@ -38,7 +79,7 @@ export default function AdminOrdersTakeoverPage() {
             window.removeEventListener("demo-store-update", load);
             window.removeEventListener("storage", load);
         };
-    }, [selectedOrder?.id]);
+    }, [selectedOrder?.id, orderIdFromUrl, hasAutoSelected]);
 
     const handleTakeover = () => {
         if (!selectedOrder) return;

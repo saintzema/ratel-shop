@@ -412,7 +412,7 @@ export function ZivaChat() {
                 }).catch(console.error);
 
                 // Also persist to admin inbox (DemoStore)
-                const currentUserId = user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session";
+                const currentUserId = user?.id || DemoStore.getCurrentUserId() || "guest_session";
                 const conv = DemoStore.getOrCreateConversation(
                     "admin",
                     currentUserId,
@@ -425,6 +425,14 @@ export function ZivaChat() {
                     user?.name || "Guest",
                     `[ZIVA ESCALATION: ${data.escalationReason || "Customer Requested Support"}]\n\nTranscript:\n${messages.map(m => `${m.role}: ${m.content}`).join("\n")}`
                 );
+
+                // Add notification for admin
+                DemoStore.addNotification({
+                    userId: "admin",
+                    type: "system",
+                    message: `Ziva Escalation: ${user?.name || "Guest"} requested human support`,
+                    link: `/admin/inbox?user_id=${encodeURIComponent(currentUserId)}`
+                });
 
                 return {
                     content: data.message + "\n\n🛡️ **Your message has been forwarded to our support team.** A human agent will review your case and respond shortly.",

@@ -1383,8 +1383,6 @@ class DemoStoreService {
 
     addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string) {
         const orders = this.getOrders();
-        let notifiedUser = "";
-        let notifiedUrl = "";
 
         const updated = orders.map(o => {
             if (o.id === orderId) {
@@ -1395,19 +1393,6 @@ class DemoStoreService {
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     imageUrl
                 };
-
-                // If a human sends a message (admin or seller to buyer, or buyer to admin/seller),
-                // Ziva should probably be deactivated or contextually aware. We just mark active.
-                if (sender !== 'ziva') {
-                    // Who to notify? 
-                    if (sender === 'admin' || sender === 'seller') {
-                        notifiedUser = o.customer_id;
-                        notifiedUrl = `/account/orders/${orderId}`;
-                    } else {
-                        notifiedUser = 'admin'; // For our notification system demo
-                        notifiedUrl = `/admin/orders`;
-                    }
-                }
 
                 return {
                     ...o,
@@ -1421,20 +1406,71 @@ class DemoStoreService {
 
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
-        if (notifiedUser) {
-            this.addNotification({
-                userId: notifiedUser === 'admin' ? "all" : notifiedUser,
-                type: "order",
-                message: `New message regarding order #${orderId.substring(0, 8)}`,
-                link: notifiedUrl
-            });
+        // Notifications: route messages to the right participants
+        if (sender !== 'system') {
+            const order = orders.find(o => o.id === orderId);
+            const orderShortId = orderId.substring(0, 8);
+            const msgPreview = text.length > 50 ? text.substring(0, 47) + '...' : text;
 
-            // If user sent a message to the seller, dispatch email to Seller instantly
-            if (sender === 'user' && notifiedUser !== 'admin') {
+            if (sender === 'user') {
+                // Customer sent: notify both admin and seller
+                this.addNotification({
+                    userId: 'admin',
+                    type: 'order',
+                    message: `💬 Customer message on order #${orderShortId}: "${msgPreview}"`,
+                    link: `/admin/inbox/orders?order=${orderId}`
+                });
+                if (order?.seller_id) {
+                    this.addNotification({
+                        userId: order.seller_id,
+                        type: 'order',
+                        message: `💬 Customer message on order #${orderShortId}: "${msgPreview}"`,
+                        link: `/seller/orders`
+                    });
+                }
+            } else if (sender === 'admin') {
+                // Admin sent: notify customer and seller
+                if (order?.customer_id) {
+                    this.addNotification({
+                        userId: order.customer_id,
+                        type: 'order',
+                        message: `💬 Admin replied to your order #${orderShortId}`,
+                        link: `/account/orders`
+                    });
+                }
+                if (order?.seller_id) {
+                    this.addNotification({
+                        userId: order.seller_id,
+                        type: 'order',
+                        message: `💬 Admin message on order #${orderShortId}: "${msgPreview}"`,
+                        link: `/seller/orders`
+                    });
+                }
+            } else if (sender === 'seller') {
+                // Seller sent: notify customer and admin
+                if (order?.customer_id) {
+                    this.addNotification({
+                        userId: order.customer_id,
+                        type: 'order',
+                        message: `💬 Seller replied to your order #${orderShortId}`,
+                        link: `/account/orders`
+                    });
+                }
+                this.addNotification({
+                    userId: 'admin',
+                    type: 'order',
+                    message: `💬 Seller replied on order #${orderShortId}: "${msgPreview}"`,
+                    link: `/admin/inbox/orders?order=${orderId}`
+                });
+            } else if (sender === 'ziva') {
+                // Ziva sent: no extra notifications needed (AI auto-response)
+            }
+
+            // Email seller if customer sent a message
+            if (sender === 'user' && order?.seller_id) {
                 const sellers = this.getSellers();
-                const seller = sellers.find(s => s.id === notifiedUser);
+                const seller = sellers.find(s => s.id === order.seller_id);
                 if (seller?.owner_email) {
-                    const orderItem = orders.find(o => o.id === orderId);
                     fetch("/api/email", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -1690,7 +1726,7 @@ class DemoStoreService {
                     productName,
                     trackingUrl: `https://fairprice.ng/account/orders`
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} has been delivered.`, link: "/account/orders" });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} has been delivered.`, link: `/account/orders?id=${order.id}` });
             }
 
             // 2. Cancelled
@@ -1701,7 +1737,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has been cancelled successfully.`, link: "/account/orders" });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has been cancelled successfully.`, link: `/account/orders?id=${order.id}` });
                 
                 // Notify Seller
                 dispatchEmail(sellerEmail, "ORDER_CANCELLED", {
@@ -1710,7 +1746,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                 });
-                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${orderShortId} for ${productName} was cancelled by the buyer.`, link: "/seller/orders" });
+                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${orderShortId} for ${productName} was cancelled by the buyer.`, link: `/seller/orders?id=${order.id}` });
             }
 
             // 3. Shipped
@@ -1720,7 +1756,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has shipped!`, link: "/account/orders" });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has shipped!`, link: `/account/orders?id=${order.id}` });
             }
 
             // 4. Return workflows
@@ -1730,7 +1766,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                  });
-                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${orderShortId} (${productName}).`, link: "/seller/orders" });
+                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${orderShortId} (${productName}).`, link: `/seller/orders?id=${order.id}` });
             }
             if (status === 'return_approved' || status === 'return_rejected') {
                  const newStatusStr = status === 'return_approved' ? 'approved' : 'rejected';
@@ -1740,7 +1776,7 @@ class DemoStoreService {
                     productName,
                     newStatus: newStatusStr
                  });
-                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${orderShortId} (${productName}) was ${newStatusStr}.`, link: "/account/orders" });
+                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${orderShortId} (${productName}) was ${newStatusStr}.`, link: `/account/orders?id=${order.id}` });
             }
         }
 
@@ -2132,7 +2168,7 @@ class DemoStoreService {
                     userId: product.seller_id,
                     type: "negotiation",
                     message: `New message from buyer for ${product.name}`,
-                    link: "/seller/dashboard/messages"
+                    link: `/seller/dashboard/messages?customer=${negotiation.customer_id}`
                 });
                 
                 const sellerUser = this.getUser(product.seller_id);
@@ -2690,6 +2726,25 @@ class DemoStoreService {
         });
 
         window.dispatchEvent(new Event("storage"));
+
+        // Dispatch email to seller
+        const sellerEmail = seller?.owner_email || this.getUser(order.seller_id)?.email || `seller_${order.seller_id}@fairprice.ng`;
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: sellerEmail,
+                subject: `Dispute Filed: Order #${(orderId).substring(0,8)}`,
+                type: "NEW_DISPUTE",
+                payload: {
+                    sellerName: seller?.business_name || "Seller",
+                    orderId: orderId,
+                    message: reason.replace(/_/g, " "),
+                    dashboardUrl: `https://fairprice.ng/seller/orders?id=${orderId}`
+                }
+            })
+        }).catch(console.error);
+
         return dispute;
     }
 

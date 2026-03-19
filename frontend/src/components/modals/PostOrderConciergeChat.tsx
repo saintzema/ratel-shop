@@ -244,7 +244,34 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
             const isCancelIntent = mode === "cancel" || lowerText.includes("cancel order") || lowerText === "cancel" || lowerText === "cancel it" || lowerText.includes("yes cancel");
 
-            if (isCancelIntent) {
+            const isHumanRequest = /\b(human|person|agent|support|manager|escalate|real|live)\b/i.test(lowerText);
+
+            if (isHumanRequest) {
+                // Save escalation to admin inbox
+                const currentUser = DemoStore.getCurrentUser();
+                const userIdLog = currentUser?.id || "guest_session";
+                const conv = DemoStore.getOrCreateConversation(
+                    "admin", userIdLog,
+                    { admin: "FairPrice Admin", [userIdLog]: currentUser?.name || "Customer" },
+                    { type: "ziva_escalation", order_id: trackingId }
+                );
+                DemoStore.sendChatMessage(
+                    conv.id,
+                    userIdLog,
+                    currentUser?.name || "Customer",
+                    `[ORDER ESCALATION: Customer Requested Human Support for Order ${trackingId}]\n\nCustomer said: "${text}"`
+                );
+
+                // Add notification for admin
+                DemoStore.addNotification({
+                    userId: "admin",
+                    type: "system",
+                    message: "Order Escalation: Customer requested human support",
+                    link: `/admin/inbox/orders?order=${trackingId}`
+                });
+
+                zivaText = `🛡️ **Connecting you to a human agent...**\n\nI understand you'd like to speak with our support team regarding order **${trackingId}**. I've escalated your request. A human agent will review your case and respond to this chat shortly.`;
+            } else if (isCancelIntent) {
                 if (orderStatus === "pending" || orderStatus === "processing") {
                     if (orderId) {
                         try {
@@ -300,7 +327,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         // Initiate or continue DM conversation with seller
                         const sellerDisplayName = seller?.business_name || product.seller_name || "Seller";
                         const conv = DemoStore.getOrCreateConversation(
-                            currentUser?.id || "guest",
+                            currentUser?.id || "guest_session",
                             sellerId,
                             { [currentUser?.id || "guest"]: buyerName, [sellerId]: sellerDisplayName },
                             { type: "buyer_seller", product_id: product.id }

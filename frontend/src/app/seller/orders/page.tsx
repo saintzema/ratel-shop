@@ -61,6 +61,14 @@ export default function SellerOrders() {
         };
     }, []);
 
+    // Auto-expand order from notifications
+    useEffect(() => {
+        const urlId = searchParams?.get("id");
+        if (urlId && orders.length > 0 && !expandedOrder) {
+            setExpandedOrder(urlId);
+        }
+    }, [searchParams, orders]);
+
     const handleStatusUpdate = (orderId: string, newStatus: Order["status"]) => {
         DemoStore.updateOrderStatus(orderId, newStatus);
         // Reload

@@ -58,8 +58,10 @@ function AdminInboxContent() {
             const seller = sellers.find((s: any) => s.id === userId || s.user_id === userId || s.owner_email === userId);
             const allUsers = DemoStore.getAllUsers();
             const dsUser = allUsers.find((u: any) => u.id === userId || u.email === userId);
-            const targetId = seller?.id || dsUser?.id || userId;
-            const targetName = seller?.business_name || seller?.owner_name || dsUser?.name || userId;
+            
+            // Crucial fix: prioritize the proper store ID, fallback to given ID
+            const targetId = dsUser?.id || seller?.id || userId;
+            const targetName = dsUser?.name || seller?.business_name || seller?.owner_name || userId;
 
             const conv = DemoStore.getOrCreateConversation(
                 ADMIN_ID, targetId,
@@ -110,8 +112,10 @@ function AdminInboxContent() {
         const seller = sellers.find((s: any) => s.id === composeTo || s.user_id === composeTo || s.owner_email === composeTo);
         const allUsers = DemoStore.getAllUsers();
         const dsUser = allUsers.find((u: any) => u.id === composeTo || u.email === composeTo);
-        const targetId = seller?.id || dsUser?.id || composeTo;
-        const targetName = seller?.business_name || seller?.owner_name || dsUser?.name || composeTo;
+        
+        // Ensure consistent ID usage across the platform to avoid duplicates
+        const targetId = dsUser?.id || seller?.id || composeTo;
+        const targetName = dsUser?.name || seller?.business_name || seller?.owner_name || composeTo;
 
         const conv = DemoStore.getOrCreateConversation(
             ADMIN_ID, targetId,

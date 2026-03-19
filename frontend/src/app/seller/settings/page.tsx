@@ -33,6 +33,7 @@ export default function SellerSettingsPage() {
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
 
     const logoInputRef = useRef<HTMLInputElement>(null);
     const coverInputRef = useRef<HTMLInputElement>(null);
@@ -124,14 +125,23 @@ export default function SellerSettingsPage() {
                     <h1 className="text-3xl font-black text-gray-900 tracking-tight">Store Profile</h1>
                     <p className="text-sm text-gray-500 font-medium mt-1">Manage your public storefront and business details</p>
                 </div>
-                <Link href="/seller/dashboard">
-                    <Button variant="ghost" className="rounded-xl text-gray-500 hover:text-gray-900 bg-white border shadow-sm h-10 px-4">
-                        <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dashboard
+                <div className="flex items-center gap-3">
+                    <Button 
+                        onClick={() => setIsEditing(!isEditing)}
+                        variant="outline" 
+                        className={`rounded-xl border shadow-sm h-10 px-4 ${isEditing ? 'text-gray-500 hover:bg-gray-100 bg-white' : 'text-brand-green-700 hover:bg-brand-green-50 bg-brand-green-50/50 border-brand-green-200 font-bold'}`}
+                    >
+                        {isEditing ? "Cancel Edit" : "Edit Profile"}
                     </Button>
-                </Link>
+                    <Link href="/seller/dashboard">
+                        <Button variant="ghost" className="rounded-xl text-gray-500 hover:text-gray-900 bg-white border shadow-sm h-10 px-4">
+                            <ArrowLeft className="h-4 w-4 mr-2" /> Back
+                        </Button>
+                    </Link>
+                </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className={`space-y-6 ${!isEditing ? 'opacity-90 pointer-events-none' : ''}`}>
 
                 {/* Branding Section */}
                 <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">
@@ -388,35 +398,44 @@ export default function SellerSettingsPage() {
                 </div >
 
                 {/* Save Button */}
-                < div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-[24px] border border-gray-200 p-4 sm:p-6 shadow-xl sticky bottom-6 z-10 transition-all" >
-                    <div className="flex items-center gap-3">
-                        <AnimatePresence>
-                            {success && (
-                                <motion.div
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -10 }}
-                                    className="flex items-center gap-2 text-brand-green-700 bg-brand-green-50 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[11px] border border-brand-green-200"
-                                >
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    <span>Store Settings Saved Successfully!</span>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                    <Button
-                        disabled={saving}
-                        className="w-full sm:w-auto bg-brand-green-600 hover:bg-brand-green-700 text-white font-black uppercase tracking-widest h-14 px-10 rounded-[16px] shadow-lg shadow-brand-green-600/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
-                    >
-                        {saving ? (
-                            <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />
-                        ) : (
-                            <Save className="h-5 w-5" />
-                        )}
-                        {saving ? "Saving Changes" : "Save Changes"}
-                    </Button>
-                </div >
-            </form >
+                <AnimatePresence>
+                    {isEditing && (
+                        <motion.div 
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 20 }}
+                            className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white rounded-[24px] border border-gray-200 p-4 sm:p-6 shadow-xl sticky bottom-6 z-10 transition-all pointer-events-auto" 
+                        >
+                            <div className="flex items-center gap-3">
+                                <AnimatePresence>
+                                    {success && (
+                                        <motion.div
+                                            initial={{ opacity: 0, x: -10 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: -10 }}
+                                            className="flex items-center gap-2 text-brand-green-700 bg-brand-green-50 px-4 py-2.5 rounded-xl font-bold uppercase tracking-wider text-[11px] border border-brand-green-200"
+                                        >
+                                            <CheckCircle2 className="h-4 w-4" />
+                                            <span>Store Settings Saved Successfully!</span>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
+                            <Button
+                                disabled={saving}
+                                className="w-full sm:w-auto bg-brand-green-600 hover:bg-brand-green-700 text-white font-black uppercase tracking-widest h-14 px-10 rounded-[16px] shadow-lg shadow-brand-green-600/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+                            >
+                                {saving ? (
+                                    <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />
+                                ) : (
+                                    <Save className="h-5 w-5" />
+                                )}
+                                {saving ? "Saving Changes" : "Save Changes"}
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </form>
         </div >
     );
 }

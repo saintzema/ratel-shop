@@ -19,13 +19,15 @@ import {
     MessageSquare,
     Inbox,
     Vault,
-    Megaphone
+    Megaphone,
+    Wallet
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useAuth } from "@/context/AuthContext";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -37,6 +39,7 @@ export default function AdminLayout({
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
+    const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
 
     const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -53,6 +56,7 @@ export default function AdminLayout({
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
+        { label: "Payouts", href: "/admin/payouts", icon: Wallet },
         { label: "Sponsored Ads", href: "/admin/ads", icon: Megaphone },
         { label: "Settings", href: "/admin/settings", icon: Settings },
     ];
@@ -171,13 +175,13 @@ export default function AdminLayout({
                             <DropdownMenu>
                                 <DropdownMenuTrigger className="outline-none">
                                     <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black flex items-center justify-center shadow-lg shadow-indigo-500/20 cursor-pointer hover:scale-105 transition-transform">
-                                        AD
+                                        {user?.name?.slice(0, 2).toUpperCase() || "AD"}
                                     </div>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 border-gray-100 shadow-xl mt-2 z-50 bg-white">
                                     <DropdownMenuLabel className="font-black text-gray-900 text-sm py-2 px-3">
-                                        Superadmin
-                                        <p className="text-xs font-bold text-gray-500 mt-0.5">admin@globalstores.shop</p>
+                                        {user?.name || "Superadmin"}
+                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{user?.email || "admin@globalstores.shop"}</p>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 my-1" />
                                     <Link href="/admin/settings">

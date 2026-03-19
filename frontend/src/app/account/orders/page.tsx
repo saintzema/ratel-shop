@@ -139,6 +139,17 @@ function OrdersContent() {
         }
     };
 
+    // Auto-open tracking/details modal from notifications
+    useEffect(() => {
+        const idToOpen = searchParams?.get("id");
+        if (idToOpen && orders.length > 0 && !selectedOrderForTracking) {
+            const order = orders.find(o => o.id === idToOpen);
+            if (order) {
+                setSelectedOrderForTracking(order);
+            }
+        }
+    }, [searchParams, orders, selectedOrderForTracking]);
+
     const handleCancelOrder = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;

@@ -175,48 +175,87 @@ export default function UnifiedAuthPage() {
         }, 600);
     };
 
-    const handleExistingLogin = (e: React.FormEvent) => {
+    const handleExistingLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setIsLoading(true);
 
-        const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
-        let determinedRole: "customer" | "seller" | "admin" = "customer";
+        try {
+            // 1. Try server-side password verification first (bcrypt against DB)
+            const res = await fetch("/api/auth/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: identifier.trim(), password })
+            });
+            const data = await res.json();
 
-        if (existingUser?.role) {
-            determinedRole = existingUser.role as "customer" | "seller" | "admin";
-        } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
-            determinedRole = "admin";
-        } else if (identifier.toLowerCase().includes("seller@")) {
-            determinedRole = "seller";
-        }
+            if (data.success && data.user) {
+                // DB verified — use the DB user data (has correct role)
+                const dbUser = data.user;
+                login(dbUser);
+                saveRegisteredUser(dbUser.email, dbUser.name, dbUser.role);
 
-        if (determinedRole === "admin" && password !== "admin123") {
-            setError("Incorrect password.");
-            setIsLoading(false);
-            return;
-        }
-        if (identifier.toLowerCase() === "seller@example.com" && password !== "seller123") {
-            setError("Incorrect password.");
-            setIsLoading(false);
-            return;
-        }
-        
-        // For actual registered users, check against stored passwords if there is one
-        if (existingUser && existingUser.password && existingUser.password !== password && determinedRole !== "admin" && identifier.toLowerCase() !== "seller@example.com") {
-             setError("Incorrect password.");
-             setIsLoading(false);
-             return;
-        }
+                DemoStore.addNotification({
+                    userId: dbUser.email,
+                    type: "system",
+                    message: `Welcome back, ${dbUser.name}! 👋 Happy shopping.`,
+                    link: "/"
+                });
 
-        setTimeout(() => {
-            const finalRedirect =
-                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
-                        redirectPath;
+                const finalRedirect =
+                    dbUser.role === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                        dbUser.role === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                            redirectPath;
+                router.push(finalRedirect);
+                return;
+            }
+
+            if (data.error && !data.offline) {
+                // DB responded but password wrong or user not found
+                setError(data.error === "Incorrect password" ? "Incorrect password." : data.error);
+                setIsLoading(false);
+                return;
+            }
+
+            // 2. DB offline — fallback to local registered users
+            const registered = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
+            const localUser = registered.find((u: any) => u.email?.toLowerCase() === identifier.toLowerCase().trim());
+
+            // Build user from local data or existingUser (demo fallback)
+            const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
+            let determinedRole: "customer" | "seller" | "admin" = "customer";
+
+            if (existingUser?.role) {
+                determinedRole = existingUser.role as "customer" | "seller" | "admin";
+            } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
+                determinedRole = "admin";
+            } else if (identifier.toLowerCase().includes("seller@")) {
+                determinedRole = "seller";
+            }
+
+            // CRITICAL SECURITY: If DB is offline, elevated roles MUST have a valid local password match to login.
+            // They cannot bypass just because `localUser.password` is undefined.
+            if (determinedRole === "admin" && password !== "admin123" && (!localUser?.password || localUser.password !== password)) {
+                 setError("Incorrect password.");
+                 setIsLoading(false);
+                 return;
+            }
+
+            if (determinedRole === "seller" && password !== "seller123" && (!localUser?.password || localUser.password !== password)) {
+                 setError("Incorrect password.");
+                 setIsLoading(false);
+                 return;
+            }
+
+            // For regular customers, if they have a local password, it must match.
+            if (localUser && localUser.password && localUser.password !== password) {
+                setError("Incorrect password.");
+                setIsLoading(false);
+                return;
+            }
 
             const userEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
-            const userName = displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+            const userName = existingUser?.name || displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
             const finalUser = existingUser || {
                 id: "user_" + Math.random().toString(36).substr(2, 9),
                 name: userName,
@@ -226,10 +265,8 @@ export default function UnifiedAuthPage() {
             };
 
             login(finalUser);
-            // Ensure this user is in the registered users list
             saveRegisteredUser(finalUser.email, finalUser.name, finalUser.role);
 
-            // Welcome-back notification
             DemoStore.addNotification({
                 userId: userEmail,
                 type: "system",
@@ -237,8 +274,16 @@ export default function UnifiedAuthPage() {
                 link: "/"
             });
 
+            const finalRedirect =
+                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                        redirectPath;
             router.push(finalRedirect);
-        }, 1000);
+        } catch (err) {
+            console.error("Login error:", err);
+            setError("Login failed. Please try again.");
+            setIsLoading(false);
+        }
     };
 
     const handleNewPasswordSubmit = (e: React.FormEvent) => {
@@ -540,7 +585,7 @@ export default function UnifiedAuthPage() {
                                                 type="text"
                                                 required
                                                 placeholder="you@email.com"
-                                                className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
+                                                className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4"
                                                 value={identifier}
                                                 onChange={(e) => setIdentifier(e.target.value)}
                                                 list="email-domains"
@@ -610,7 +655,7 @@ export default function UnifiedAuthPage() {
                                                     ref={passwordInputRef}
                                                     type={showPassword ? "text" : "password"}
                                                     required
-                                                    className={`w-full h-12 bg-white border ${error ? 'border-red-500 focus:ring-red-500/10' : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-brand-green-500/10'} text-[15px] text-[#1d1d1f] rounded-xl focus:ring-4 transition-all px-4 pr-12`}
+                                                    className={`w-full h-12 bg-white border ${error ? 'border-red-500 focus:ring-red-500/10' : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]'} text-[15px] text-[#1d1d1f] rounded-xl transition-all duration-300 px-4 pr-12`}
                                                     value={password}
                                                     onChange={(e) => {
                                                         setPassword(e.target.value);
@@ -699,7 +744,7 @@ export default function UnifiedAuthPage() {
                                                 type={showPassword ? "text" : "password"}
                                                 required
                                                 placeholder="Create New Password"
-                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4 pr-12"
+                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4 pr-12"
                                                 value={password}
                                                 onChange={(e) => setPassword(e.target.value)}
                                             />
@@ -713,7 +758,7 @@ export default function UnifiedAuthPage() {
                                                 type={showConfirmPassword ? "text" : "password"}
                                                 required
                                                 placeholder="Confirm Password"
-                                                className={`w-full h-14 bg-white text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl transition-all px-4 pr-12 border ${confirmPassword.length > 0 ? (passwordsMatch ? 'border-emerald-500 focus:ring-4 focus:ring-emerald-500/10' : 'border-red-500 focus:ring-4 focus:ring-red-500/10') : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10'}`}
+                                                className={`w-full h-14 bg-white text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl transition-all duration-300 px-4 pr-12 border ${confirmPassword.length > 0 ? (passwordsMatch ? 'border-emerald-500 focus:ring-4 focus:ring-emerald-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]' : 'border-red-500 focus:ring-4 focus:ring-red-500/10') : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]'}`}
                                                 value={confirmPassword}
                                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                             />
@@ -764,7 +809,7 @@ export default function UnifiedAuthPage() {
                                             type="text"
                                             required
                                             placeholder="First Name"
-                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
+                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4"
                                             value={firstName}
                                             onChange={(e) => setFirstName(e.target.value)}
                                         />
@@ -772,7 +817,7 @@ export default function UnifiedAuthPage() {
                                             type="text"
                                             required
                                             placeholder="Last Name"
-                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
+                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4"
                                             value={lastName}
                                             onChange={(e) => setLastName(e.target.value)}
                                         />

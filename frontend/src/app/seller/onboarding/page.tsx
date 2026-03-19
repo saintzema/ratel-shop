@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +34,13 @@ export default function KYCOnboarding() {
     const [bankName, setBankName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [accountName, setAccountName] = useState("");
-    const { user, updateUser } = useAuth();
+    const { user, isLoading: isAuthLoading, updateUser } = useAuth();
+    
+    useEffect(() => {
+        if (!isAuthLoading && !user) {
+            router.push("/login?returnUrl=/seller/onboarding");
+        }
+    }, [user, isAuthLoading, router]);
 
     const toggleCurrency = (currency: string) => {
         setCurrencies(prev =>

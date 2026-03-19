@@ -40,9 +40,23 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                 }
 
                 if (!isRoleAllowed) {
-                    console.log(`ProtectedRoute: Role mismatch. User role: ${user.role}, Allowed: ${allowedRoles}. Redirecting to /`);
-                    // User logged in but not authorized
-                    router.push("/");
+                    // Self-healing: check if the DB has upgraded their role since their local session was created
+                    fetch(`/api/users?email=${encodeURIComponent(user.email)}`)
+                        .then(res => res.json())
+                        .then(dbUser => {
+                            if (dbUser && dbUser.role && allowedRoles && allowedRoles.includes(dbUser.role)) {
+                                console.log(`ProtectedRoute: Auto-healing session to match DB role [${dbUser.role}]`);
+                                updateUser({ role: dbUser.role });
+                                setIsAuthorized(true);
+                            } else {
+                                console.log(`ProtectedRoute: Role mismatch. User role: ${user.role}, Allowed: ${allowedRoles}. Redirecting to /`);
+                                router.push("/");
+                            }
+                        })
+                        .catch(() => {
+                            console.log("ProtectedRoute: Failed to verify DB role. Redirecting.");
+                            router.push("/");
+                        });
                 } else {
                     console.log("ProtectedRoute: Authorized");
                     setIsAuthorized(true);

@@ -116,7 +116,7 @@ export default function UserDirectory() {
                         display_name: u.name || u.full_name || u.email?.split("@")[0] || "Buyer",
                         owner_email: u.email,
                         avatar_url: u.avatarUrl || u.avatar_url || null,
-                        role: "buyer",
+                        role: u.role && u.role !== "customer" ? u.role : "buyer",
                         is_buyer: true,
                         status: u.status || (u.is_active === false ? "suspended" : "active"),
                         created_at: u.created_at || new Date().toISOString(),
@@ -255,9 +255,10 @@ export default function UserDirectory() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5">
                                                 <span className={cn(
                                                     "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
+                                                    p.role === "admin" ? "bg-purple-100 text-purple-700" :
                                                     p.role === "seller" ? "bg-indigo-100 text-indigo-700" : "bg-zinc-100 text-zinc-700"
                                                 )}>
                                                     {p.role}
@@ -265,10 +266,10 @@ export default function UserDirectory() {
                                                 {p.verified && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
                                                 <span className={cn(
                                                     "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
-                                                    p.status === "active" ? "bg-emerald-50 text-emerald-600" :
-                                                        p.status === "pending" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
+                                                    (p.status === "active" && p.kyc_status !== "pending") ? "bg-emerald-50 text-emerald-600" :
+                                                        (p.status === "pending" || p.kyc_status === "pending") ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
                                                 )}>
-                                                    {p.status || "active"}
+                                                    {p.status === "pending" || p.kyc_status === "pending" ? "pending" : p.status || "active"}
                                                 </span>
                                             </div>
                                         </div>

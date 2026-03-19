@@ -1389,7 +1389,10 @@ function CheckoutContent() {
                                             </div>
                                             <p className="text-xs text-gray-500">Pay cash when your order arrives</p>
                                             <p className="text-xs text-amber-600 font-semibold mt-1">
-                                                Delivery fee: {formatPrice(deliveryMethod === 'pickup' ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier))} will be added
+                                                {(() => {
+                                                    const codFee = deliveryMethod === 'pickup' ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier);
+                                                    return codFee === 0 ? "FREE delivery" : `Delivery fee: ${formatPrice(codFee)} will be added`;
+                                                })()}
                                             </p>
                                         </div>
                                     </label>
@@ -1744,7 +1747,7 @@ function CheckoutContent() {
                         email={user?.email || address.email || "guest@example.com"}
                         onSuccess={(ref) => finalizeOrder(ref)}
                         onClose={() => setShowPaystack(false)}
-                        autoStart={false}
+                        autoStart={true}
                     />
                 )}
             </AnimatePresence>

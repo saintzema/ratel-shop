@@ -69,33 +69,37 @@ export async function POST(req: Request) {
 
         // Ensure "global-partners" seller exists if saving a globally sourced product
         if (body.seller_id === 'global-partners') {
-            const globalUser = await db.user.upsert({
-                where: { id: 'global-user' },
-                update: {},
-                create: {
-                    id: 'global-user',
-                    email: 'techzema@gmail.com',
-                    name: 'FairPrice Global',
-                    role: 'admin'
-                }
-            });
+            try {
+                const globalUser = await db.user.upsert({
+                    where: { id: 'global-user' },
+                    update: {},
+                    create: {
+                        id: 'global-user',
+                        email: 'global@fairprice.app',
+                        name: 'FairPrice Global',
+                        role: 'admin'
+                    }
+                });
 
-            await db.seller.upsert({
-                where: { id: 'global-partners' },
-                update: { status: 'active' },
-                create: {
-                    id: 'global-partners',
-                    userId: globalUser.id,
-                    businessName: 'Global Stores',
-                    ownerEmail: 'techzema@gmail.com',
-                    description: 'Global Sourcing Partners',
-                    category: 'All',
-                    status: 'active',
-                    verified: true,
-                    rating: 5.0,
-                    trustScore: 100.0
-                }
-            });
+                await db.seller.upsert({
+                    where: { id: 'global-partners' },
+                    update: { status: 'active' },
+                    create: {
+                        id: 'global-partners',
+                        userId: globalUser.id,
+                        businessName: 'Global Stores',
+                        ownerEmail: 'global@fairprice.app',
+                        description: 'Global Sourcing Partners',
+                        category: 'All',
+                        status: 'active',
+                        verified: true,
+                        rating: 5.0,
+                        trustScore: 100.0
+                    }
+                });
+            } catch (upsertErr) {
+                console.warn("Global seller upsert skipped (likely already exists):", (upsertErr as any)?.code);
+            }
         }
 
         // Enforce Seller Status: Products can only be active if the seller is active

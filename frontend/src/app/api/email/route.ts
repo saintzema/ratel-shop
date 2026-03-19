@@ -19,6 +19,11 @@ export async function POST(request: Request) {
 
         const { subject, html } = buildEmailTemplate(type, payload || {});
 
+        if (!html || html.trim().length === 0) {
+            console.warn(`Email template returned empty HTML for type: ${type}`);
+            return NextResponse.json({ success: true, warning: `No template for type: ${type}`, deliveredCode: payload?.code }, { status: 200 });
+        }
+
         const data = await resend.emails.send({
             from: 'FairPrice <hello@fairprice.zemaai.com>',
             replyTo: 'support@fairprice.ng',

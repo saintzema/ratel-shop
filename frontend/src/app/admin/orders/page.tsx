@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { DemoStore } from "@/lib/demo-store";
-import { Package, Search } from "lucide-react";
+import { Package, Search, MessageSquare, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { formatDateExact, cn } from "@/lib/utils";
 
 export default function AdminOrdersPage() {
@@ -60,6 +62,7 @@ export default function AdminOrdersPage() {
                                 <th className="px-6 py-4">Amount</th>
                                 <th className="px-6 py-4">Status & Escrow</th>
                                 <th className="px-6 py-4">Logistics</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -87,7 +90,9 @@ export default function AdminOrdersPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-bold text-gray-900">
-                                                {buyerName}
+                                                <Link href={`/admin/users/${order.customer_id}`} className="hover:text-indigo-600 hover:underline">
+                                                    {buyerName}
+                                                </Link>
                                             </td>
                                             <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate md:whitespace-normal">
                                                 {order.product?.name || "Product"}
@@ -113,6 +118,7 @@ export default function AdminOrdersPage() {
                                                         <span className={cn(
                                                             "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full border",
                                                             order.escrow_status === 'released' ? "border-emerald-200 text-emerald-600 bg-emerald-50" :
+                                                            order.escrow_status === 'refunded' ? "border-gray-200 text-gray-600 bg-gray-50" :
                                                             order.escrow_status === 'disputed' ? "border-rose-200 text-rose-600 bg-rose-50" :
                                                             "border-amber-200 text-amber-600 bg-amber-50"
                                                         )}>
@@ -130,6 +136,20 @@ export default function AdminOrdersPage() {
                                                 ) : (
                                                     <span className="text-gray-400 italic text-[11px]">Awaiting Dispatch</span>
                                                 )}
+                                            </td>
+                                            <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
+                                                <Link href={`/admin/inbox/orders?order=${order.id}`}>
+                                                    <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs font-bold text-gray-700 bg-white border-gray-200 hover:bg-gray-50">
+                                                        <MessageSquare className="w-3 h-3 mr-1.5" />
+                                                        Concierge
+                                                    </Button>
+                                                </Link>
+                                                <Link href={`/admin/orders/${order.id}`}>
+                                                    <Button size="sm" variant="ghost" className="h-8 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100">
+                                                        <ExternalLink className="w-3 h-3 md:mr-0 lg:mr-1.5" />
+                                                        <span className="hidden lg:inline">Details</span>
+                                                    </Button>
+                                                </Link>
                                             </td>
                                         </tr>
                                     );
