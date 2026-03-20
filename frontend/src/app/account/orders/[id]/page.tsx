@@ -420,6 +420,19 @@ export default function OrderDetailsPage() {
                                         <p className="text-gray-500">{order.shipping_address || "Lagos, Nigeria"}</p>
                                     </div>
                                 </div>
+                                {(order.customer_phone || order.customer_whatsapp) && (
+                                    <div className="flex items-start gap-3 pt-3 border-t border-gray-50">
+                                        <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
+                                        <div className="space-y-1">
+                                            {order.customer_phone && (
+                                                <p className="text-gray-900 font-medium">{order.customer_phone}</p>
+                                            )}
+                                            {order.customer_whatsapp && (
+                                                <p className="text-emerald-600 font-medium text-xs mt-1">WhatsApp: {order.customer_whatsapp}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

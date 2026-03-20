@@ -9,11 +9,12 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
-import { ShieldCheck, MessageSquare, Tag, AlertTriangle } from "lucide-react";
+import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
 import { useMessages } from "@/context/MessageContext";
+import Link from "next/link";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -39,6 +40,12 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const maxDiscountPct = (typeof window !== "undefined" && localStorage.getItem("fp_max_negotiation_discount"))
         ? Number(localStorage.getItem("fp_max_negotiation_discount")) : 5;
     const minAllowedPrice = Math.round(product.price * (1 - maxDiscountPct / 100));
+
+    // Get 3 similar products to suggest
+    const similarProducts = DemoStore.getProducts()
+        .filter(p => p.category === product.category && p.id !== product.id && p.price < product.price)
+        .sort((a, b) => b.sold_count - a.sold_count)
+        .slice(0, 3);
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
@@ -297,6 +304,25 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                 Got it
                             </Button>
                         </div>
+                        {similarProducts.length > 0 && (
+                            <div className="mt-8 pt-6 border-t border-zinc-100 text-left">
+                                <h4 className="text-sm font-bold text-zinc-900 mb-3 text-center">While you wait, check out these similar deals:</h4>
+                                <div className="space-y-3">
+                                    {similarProducts.map((p) => (
+                                        <Link key={p.id} href={`/product/${p.id}`} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
+                                            <div className="h-12 w-12 bg-white rounded-lg border border-zinc-100 overflow-hidden shrink-0">
+                                                <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-zinc-900 truncate group-hover:text-brand-green-700">{p.name}</p>
+                                                <p className="text-xs text-zinc-500 font-medium">{formatPrice(p.price)}</p>
+                                            </div>
+                                            <ChevronRight className="h-4 w-4 text-zinc-300 group-hover:text-brand-green-500" />
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </DialogContent>

@@ -49,6 +49,7 @@ export default function AdminUserDetailPage() {
     const [editForm, setEditForm] = useState<any>({});
     const [userEntity, setUserEntity] = useState<any>(null);
     const [orders, setOrders] = useState<any[]>([]);
+    const [kycSubmission, setKycSubmission] = useState<any>(null);
 
     useEffect(() => {
         if (userEntity) setEditForm(userEntity);
@@ -71,10 +72,17 @@ export default function AdminUserDetailPage() {
         let found = false;
         let localStatus: string | null | undefined = null;
 
-        // ── Step 1: Check if this is a seller (match by id, user_id, or email) ──
         const dsSeller = DemoStore.getSellers().find((s: any) => s.id === id || s.user_id === id || s.owner_email === id);
         if (dsSeller) {
             const dsOrders = DemoStore.getOrders().filter((o: any) => o.seller_id === dsSeller.id || o.customer_id === id || o.customer_email === id);
+            
+            // Check for KYC submissions
+            const kycList = DemoStore.getKYCSubmissions();
+            const kyc = kycList.find((k: any) => k.seller_id === dsSeller.id || k.seller_id === id);
+            if (kyc) {
+                setKycSubmission(kyc);
+            }
+
             localStatus = dsSeller.status;
             setUserEntity({ ...dsSeller, role: "seller" });
             setOrders(dsOrders);
@@ -406,14 +414,31 @@ export default function AdminUserDetailPage() {
                                         <Phone className="h-4 w-4 text-gray-400" />
                                     </div>
                                     {isEditing ? (
-                                        <input
-                                            type="text"
-                                            value={editForm.phone || ""}
-                                            onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                                            className="bg-white border border-gray-200 rounded-lg px-3 py-1 flex-1 max-w-sm"
-                                        />
+                                        <div className="flex-1 w-full space-y-2">
+                                            <input
+                                                type="text"
+                                                value={editForm.phone || ""}
+                                                onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                                                className="bg-white border border-gray-200 rounded-lg px-3 py-1 w-full max-w-sm"
+                                                placeholder="Primary Phone"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={editForm.phone_numbers ? editForm.phone_numbers.join(", ") : ""}
+                                                onChange={e => setEditForm({ ...editForm, phone_numbers: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) })}
+                                                className="bg-white border text-[11px] border-gray-200 rounded-lg px-3 py-1 w-full max-w-sm"
+                                                placeholder="Other Phones (comma separated)"
+                                            />
+                                        </div>
                                     ) : (
-                                        userEntity.phone || "N/A"
+                                        <div className="flex flex-col">
+                                            <span>{userEntity.phone || "N/A"}</span>
+                                            {userEntity.phone_numbers && userEntity.phone_numbers.length > 1 && (
+                                                <span className="text-[10px] text-gray-400 mt-0.5 font-medium leading-tight">
+                                                    Other: {userEntity.phone_numbers.filter((p: string) => p !== userEntity.phone).join(", ")}
+                                                </span>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                                 <div className="flex items-start text-[13px] font-semibold text-gray-700">
@@ -484,7 +509,7 @@ export default function AdminUserDetailPage() {
                                     { icon: Building2, label: "Business Name", value: userEntity.business_name },
                                     { icon: Users, label: "Owner Name", value: userEntity.owner_name },
                                     { icon: Mail, label: "Owner Email", value: userEntity.owner_email },
-                                    { icon: Phone, label: "Phone", value: userEntity.phone },
+                                    { icon: Phone, label: "Phone(s)", value: userEntity.phone_numbers?.length ? userEntity.phone_numbers.join(", ") : userEntity.phone },
                                     { icon: Globe, label: "Store URL", value: userEntity.store_url },
                                     { icon: MapPin, label: "Street Address", value: userEntity.street_address },
                                     { icon: MapPin, label: "City", value: userEntity.city },
@@ -516,7 +541,7 @@ export default function AdminUserDetailPage() {
                     )}
 
                     {/* ── Uploaded Documents ── */}
-                    {isSeller && (userEntity.cac_document_url || userEntity.id_document_url || userEntity.document_url) && (
+                    {isSeller && (userEntity.cac_document_url || userEntity.id_document_url || userEntity.document_url || kycSubmission?.document_url) && (
                         <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
                             <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
                                 <div className="h-2 w-2 rounded-full bg-rose-500" />
@@ -530,7 +555,7 @@ export default function AdminUserDetailPage() {
                                             <img src={userEntity.cac_document_url} alt="CAC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
                                         ) : (
                                             <a href={userEntity.cac_document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
-                                                <FileText className="h-4 w-4" /> View Document <ExternalLink className="h-3 w-3" />
+                                                <FileText className="h-4 w-4" /> View CAC Document <ExternalLink className="h-3 w-3" />
                                             </a>
                                         )}
                                     </div>
@@ -542,7 +567,19 @@ export default function AdminUserDetailPage() {
                                             <img src={userEntity.id_document_url || userEntity.document_url} alt="ID Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
                                         ) : (
                                             <a href={userEntity.id_document_url || userEntity.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
-                                                <FileText className="h-4 w-4" /> View Document <ExternalLink className="h-3 w-3" />
+                                                <FileText className="h-4 w-4" /> View ID Document <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                                {kycSubmission && kycSubmission.document_url && !userEntity.document_url && !userEntity.id_document_url && (
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Submitted KYC Document ({kycSubmission.document_type || 'Document'})</p>
+                                        {kycSubmission.document_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                            <img src={kycSubmission.document_url} alt="KYC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
+                                        ) : (
+                                            <a href={kycSubmission.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
+                                                <FileText className="h-4 w-4" /> View KYC Document <ExternalLink className="h-3 w-3" />
                                             </a>
                                         )}
                                     </div>

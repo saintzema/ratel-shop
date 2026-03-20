@@ -456,15 +456,25 @@ function SearchContent() {
   const filteredProducts = useMemo(() => {
     return allProducts
       .filter((product) => {
-        if (
-          query &&
-          !product.name.toLowerCase().includes(query.toLowerCase()) &&
-          !(
-            product.description &&
-            product.description.toLowerCase().includes(query.toLowerCase())
-          )
-        )
-          return false;
+        if (query) {
+          const q = query.toLowerCase();
+          const pName = product.name.toLowerCase();
+          const pDesc = (product.description || "").toLowerCase();
+
+          // First: check if the entire query matches (exact substring)
+          const exactMatch = pName.includes(q) || pDesc.includes(q);
+
+          if (!exactMatch) {
+            // Tokenize query into significant words (3+ chars, not just numbers/years)
+            const queryWords = q.split(/\s+/).filter(w => w.length >= 3 && !/^\d{2,4}$/.test(w));
+
+            if (queryWords.length === 0) return false; // only short/numeric words, can't meaningfully match
+
+            // Require at least one significant query word to appear in the product name
+            const nameHasMatch = queryWords.some(w => pName.includes(w));
+            if (!nameHasMatch) return false;
+          }
+        }
         if (
           selectedCategory &&
           selectedCategory !== "All" &&

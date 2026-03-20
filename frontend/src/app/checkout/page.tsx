@@ -6,7 +6,7 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
-import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown } from "lucide-react";
+import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -177,6 +177,7 @@ interface SavedAddress {
     state?: string;
     station?: string;
     method: "doorstep" | "pickup";
+    whatsappPhone?: string;
 }
 
 function getAddressKey(): string {
@@ -230,10 +231,11 @@ function CheckoutContent() {
     // Added state for the "View More" feature
     const [loadedMore, setLoadedMore] = useState(false);
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
-    const [paymentMethod, setPaymentMethod] = useState<"paystack" | "cod">("paystack");
+    const [paymentMethod, setPaymentMethod] = useState<"paystack" | "transfer" | "cod">("paystack");
     const [showConcierge, setShowConcierge] = useState(false);
     const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
     const [conciergeOrderId, setConciergeOrderId] = useState<string | null>(null);
+    const [showPushOptIn, setShowPushOptIn] = useState(false);
 
     // Coupon System
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
@@ -435,6 +437,10 @@ function CheckoutContent() {
             } else {
                 setDeliveryMethod("doorstep");
             }
+            if (latest.whatsappPhone) {
+                setShowWhatsappField(true);
+                setWhatsappPhone(latest.whatsappPhone);
+            }
             setIsEditingAddress(false);
         } else if (user) {
             const nameParts = (user.name || "").split(" ");
@@ -520,7 +526,7 @@ function CheckoutContent() {
 
     // Shipping: FREE for online payments (Paystack) OR Premium Users spending ₦50,000+
     const isPremiumFreeDelivery = user?.isPremium && subtotal >= 50000;
-    const shipping = (paymentMethod === "paystack" || isPremiumFreeDelivery) ? 0 : (
+    const shipping = (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery) ? 0 : (
         deliveryMethod === "pickup"
             ? Math.round(basePickupFee * shippingMultiplier)
             : Math.round(baseDoorFee * shippingMultiplier)
@@ -553,7 +559,8 @@ function CheckoutContent() {
             city: address.city,
             state: pickupDetails.state,
             station: pickupDetails.station,
-            method: deliveryMethod
+            method: deliveryMethod,
+            whatsappPhone: showWhatsappField ? whatsappPhone : undefined
         };
         // Avoid duplicates by matching street + city + method (case-insensitive and trimmed)
         const normalize = (str?: string) => (str || "").trim().toLowerCase();
@@ -584,6 +591,13 @@ function CheckoutContent() {
                 city: addr.city || "",
                 station: addr.station || ""
             });
+        }
+        if (addr.whatsappPhone) {
+            setShowWhatsappField(true);
+            setWhatsappPhone(addr.whatsappPhone);
+        } else {
+            setShowWhatsappField(false);
+            setWhatsappPhone("");
         }
         setShowAddressPicker(false);
         setIsEditingAddress(false);
@@ -649,7 +663,7 @@ function CheckoutContent() {
             // Pay on delivery — skip Paystack, go straight to order confirmation
             finalizeOrder("COD-" + Date.now());
         } else {
-            // Always show the Paystack UI to make it feel like production
+            // Both card and transfer go through Paystack
             setShowPaystack(true);
         }
     };
@@ -677,7 +691,10 @@ function CheckoutContent() {
                     escrow_status: "held",
                     shipping_address: deliveryMethod === "pickup"
                         ? `${fullName}, Pickup at: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
-                        : `${fullName}, ${address.street}, ${address.city}`
+                        : `${fullName}, ${address.street}, ${address.city}`,
+                    delivery_method: deliveryMethod,
+                    customer_phone: `${countryCode} ${address.phone}`,
+                    customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined
                 }, item.product);
                 createdOrders.push({ order: newOrder, product: item.product, item });
             });
@@ -748,7 +765,8 @@ function CheckoutContent() {
                         name: fullName || "Guest User",
                         role: "customer",
                         password: "fairprice123", // Default password — user will be prompted to change
-                        phone: address.phone,
+                        phone: `${countryCode} ${address.phone}`,
+                        whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
                         address: deliveryMethod === "doorstep"
                             ? `${address.street}, ${address.city}`
                             : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
@@ -758,7 +776,8 @@ function CheckoutContent() {
             // Show concierge before redirect
             setShowConcierge(true);
 
-            // Fire off Order Confirmation Email to BUYER with real order IDs
+            // Don't auto-redirect — let the concierge close trigger the redirect (via handleConciergeClose)
+            // The redirect happens in handleConciergeClose after optional push notification prompt
             if (user?.email || address.email) {
                 const targetEmail = user?.email || address.email;
                 const firstOrder = createdOrders[0];
@@ -826,11 +845,6 @@ function CheckoutContent() {
                     })
                 }).catch(console.error);
             });
-
-            // Redirect after a brief delay so user sees the concierge
-            setTimeout(() => {
-                router.push("/account/orders?success=true");
-            }, 500);
         }, 1500);
     };
 
@@ -1363,16 +1377,31 @@ function CheckoutContent() {
 
                         {checkoutStep === 2 && (
                             <div className="p-6 space-y-3">
-                                {/* Paystack (Online Payment) */}
+                                {/* Paystack (Card Payment) */}
                                 <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'paystack' ? 'border-brand-orange/50 bg-orange-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
                                     <input suppressHydrationWarning type="radio" name="payment" checked={paymentMethod === 'paystack'} onChange={() => setPaymentMethod('paystack')} className="h-5 w-5 text-brand-orange focus:ring-brand-orange" />
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-0.5">
-                                            <span className="font-bold text-gray-900">Add Debit/Credit Card</span>
+                                            <span className="font-bold text-gray-900">Pay with Card</span>
                                             <CreditCard className="h-4 w-4 text-gray-400" />
                                         </div>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
-                                            <Lock className="h-3 w-3" /> Your card details are stored securely and encrypted
+                                            <Lock className="h-3 w-3" /> Debit or credit card · Secured by Paystack
+                                        </p>
+                                        <p className="text-xs text-emerald-600 font-bold mt-1">FREE delivery when you pay online 🎉</p>
+                                    </div>
+                                </label>
+
+                                {/* Pay with Transfer */}
+                                <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'transfer' ? 'border-blue-400 bg-blue-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <input suppressHydrationWarning type="radio" name="payment" checked={paymentMethod === 'transfer'} onChange={() => setPaymentMethod('transfer')} className="h-5 w-5 text-blue-500 focus:ring-blue-500" />
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-0.5">
+                                            <span className="font-bold text-gray-900">Pay with Transfer</span>
+                                            <Building className="h-4 w-4 text-blue-500" />
+                                        </div>
+                                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                                            <Lock className="h-3 w-3" /> Bank transfer via Paystack
                                         </p>
                                         <p className="text-xs text-emerald-600 font-bold mt-1">FREE delivery when you pay online 🎉</p>
                                     </div>
@@ -1430,11 +1459,11 @@ function CheckoutContent() {
                         )}
                         {checkoutStep > 2 && (
                             <div className="px-6 py-4 flex items-center gap-4 bg-white opacity-80">
-                                {paymentMethod === 'paystack' ? <CreditCard className="h-5 w-5 text-gray-400" /> : <Truck className="h-5 w-5 text-amber-500" />}
+                                {paymentMethod === 'paystack' ? <CreditCard className="h-5 w-5 text-gray-400" /> : paymentMethod === 'transfer' ? <Building className="h-5 w-5 text-blue-500" /> : <Truck className="h-5 w-5 text-amber-500" />}
                                 <div>
-                                    <p className="text-sm font-bold text-gray-900">{paymentMethod === 'paystack' ? 'Debit/Credit Card' : 'Pay on Delivery'}</p>
-                                    <p className={`text-xs font-medium ${paymentMethod === 'paystack' ? 'text-green-600' : 'text-amber-600'}`}>
-                                        {paymentMethod === 'paystack' ? 'Secured online payment · FREE delivery' : `Delivery fee: ${formatPrice(shipping)}`}
+                                    <p className="text-sm font-bold text-gray-900">{paymentMethod === 'paystack' ? 'Pay with Card' : paymentMethod === 'transfer' ? 'Pay with Transfer' : 'Pay on Delivery'}</p>
+                                    <p className={`text-xs font-medium ${paymentMethod === 'cod' ? 'text-amber-600' : 'text-green-600'}`}>
+                                        {paymentMethod === 'paystack' ? 'Secured card payment · FREE delivery' : paymentMethod === 'transfer' ? 'Bank transfer via Paystack · FREE delivery' : `Delivery fee: ${formatPrice(shipping)}`}
                                     </p>
                                 </div>
                             </div>
@@ -1614,7 +1643,7 @@ function CheckoutContent() {
                                 {shipping === 0 ? (
                                     <span className="font-bold text-emerald-600 flex items-center gap-1">
                                         FREE
-                                        {user?.isPremium && subtotal >= 50000 && paymentMethod !== 'paystack' && <Crown className="h-3 w-3" />}
+                                        {user?.isPremium && subtotal >= 50000 && paymentMethod === 'cod' && <Crown className="h-3 w-3" />}
                                     </span>
                                 ) : (
                                     <span className="font-medium">{formatPrice(shipping)}</span>
@@ -1813,11 +1842,89 @@ function CheckoutContent() {
             {/* Post-Order Concierge Chat */}
             <PostOrderConciergeChat
                 isOpen={showConcierge}
-                onClose={() => setShowConcierge(false)}
+                onClose={() => {
+                    setShowConcierge(false);
+                    // Check if we should show push notification opt-in
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                        setShowPushOptIn(true);
+                    } else {
+                        router.push("/account/orders?success=true");
+                    }
+                }}
                 product={conciergeProduct}
                 orderId={conciergeOrderId || undefined}
                 mode="post_order"
             />
+
+            {/* Push Notification Opt-In Modal */}
+            <AnimatePresence>
+                {showPushOptIn && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                            onClick={() => {
+                                setShowPushOptIn(false);
+                                router.push("/account/orders?success=true");
+                            }}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden"
+                        >
+                            <div className="p-8 text-center">
+                                <div className="mx-auto w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center mb-5 shadow-lg shadow-emerald-500/30">
+                                    <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-xl font-black text-gray-900 mb-2">Stay Updated! 🔔</h3>
+                                <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                                    Get instant notifications about your <strong>order status</strong>, <strong>delivery updates</strong>, and <strong>exclusive deals</strong>.
+                                </p>
+                                <div className="space-y-3">
+                                    <Button
+                                        onClick={async () => {
+                                            try {
+                                                const permission = await Notification.requestPermission();
+                                                if (permission === 'granted') {
+                                                    new Notification('FairPrice Notifications Enabled! 🎉', {
+                                                        body: 'You will now receive order updates and deals.',
+                                                        icon: '/favicon.ico'
+                                                    });
+                                                }
+                                            } catch { /* ignore */ }
+                                            setShowPushOptIn(false);
+                                            router.push("/account/orders?success=true");
+                                        }}
+                                        className="w-full h-12 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 text-base"
+                                    >
+                                        Enable Notifications
+                                    </Button>
+                                    <button
+                                        onClick={() => {
+                                            setShowPushOptIn(false);
+                                            router.push("/account/orders?success=true");
+                                        }}
+                                        className="w-full py-2.5 text-sm font-medium text-gray-400 hover:text-gray-600 transition-colors"
+                                    >
+                                        Maybe Later
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
+                                <p className="text-[10px] text-gray-400 text-center">
+                                    You can change this anytime in your browser settings
+                                </p>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div >
     );
 }

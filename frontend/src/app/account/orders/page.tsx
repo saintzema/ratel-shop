@@ -315,7 +315,7 @@ function OrdersContent() {
                                                             {order.product?.name || "Product"}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[10px] text-gray-400 font-mono">#{order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}</span>
+                                                            <span className="text-[10px] text-gray-400 font-mono">#{order.id.substring(0, 14)}</span>
                                                             {order.tracking_id && (
                                                                 <span className="text-[10px] text-gray-400">• {order.carrier || "Track"}: {order.tracking_id}</span>
                                                             )}
@@ -514,14 +514,14 @@ function OrdersContent() {
                         </div>
 
                         {/* Escrow Summary */}
-                        {orders.some(o => o.escrow_status === "held") && (
+                        {orders.some(o => o.escrow_status === "held" && o.status !== "cancelled" && o.status !== "return_requested") && (
                             <div className="bg-white backdrop-blur-[12px] border border-gray-200 shadow-lg rounded-xl overflow-hidden">
                                 <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
                                     <ShieldCheck className="h-4 w-4 text-amber-500" />
                                     <h3 className="text-sm font-bold text-gray-900">Escrow Pending</h3>
                                 </div>
                                 <div className="divide-y divide-gray-100">
-                                    {orders.filter(o => o.escrow_status === "held").map(order => (
+                                    {orders.filter(o => o.escrow_status === "held" && o.status !== "cancelled" && o.status !== "return_requested").map(order => (
                                         <div key={order.id} className="px-4 py-3">
                                             <p className="text-xs font-medium text-gray-700 line-clamp-1">{order.product?.name}</p>
                                             <div className="flex items-center justify-between mt-1.5">
@@ -625,7 +625,7 @@ function OrdersContent() {
                             <div className="p-5 pb-3 flex items-center justify-between border-b border-gray-200">
                                 <div>
                                     <h2 className="text-lg font-bold text-gray-900">Order Details</h2>
-                                    <p className="text-xs text-gray-500 font-mono mt-0.5">#{selectedOrderForTracking.id.substring(0, 12)}</p>
+                                    <p className="text-xs text-gray-500 font-mono mt-0.5">#{selectedOrderForTracking.id.substring(0, 14)}</p>
                                 </div>
                                 <button
                                     onClick={() => setSelectedOrderForTracking(null)}
@@ -673,7 +673,7 @@ function OrdersContent() {
                                                     selectedOrderForTracking.escrow_status === "refunded" ? "Refund issued" : "Escrow"}
                                     </span>
                                 </div>
-                                {selectedOrderForTracking.escrow_status === "held" && (
+                                {selectedOrderForTracking.escrow_status === "held" && selectedOrderForTracking.status !== "cancelled" && selectedOrderForTracking.status !== "return_requested" && (
                                     <Button
                                         size="sm"
                                         onClick={() => {

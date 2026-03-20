@@ -13,6 +13,8 @@ export interface User {
     referralCode?: string;
     referredBy?: string;
     emailVerified?: boolean;
+    phone?: string;
+    phone_numbers?: string[];
     created_at: string;
 }
 
@@ -40,6 +42,8 @@ export interface Seller {
     logo_url?: string;
     category: string;
     verified: boolean;
+    phone_number?: string;
+    phone_numbers?: string[];
     subscription_plan?: "Starter" | "Pro" | "Growth" | "Scale";
     plan_expiry_date?: string;
     rating?: number;
@@ -106,6 +110,7 @@ export interface Order {
     status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "return_requested" | "return_approved" | "return_rejected" | "returned";
     escrow_status: "held" | "seller_confirmed" | "buyer_confirmed" | "auto_release_eligible" | "released" | "disputed" | "refunded";
     shipping_address: string;
+    delivery_method?: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
     tracking_id?: string;
     payout_status?: "pending_payout" | "cashed_out";
@@ -133,6 +138,8 @@ export interface Order {
     product?: Product;
     customer_name?: string;
     customer_email?: string;
+    customer_phone?: string;
+    customer_whatsapp?: string;
     source?: string;
     seller_name?: string;
 }

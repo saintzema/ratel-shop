@@ -248,7 +248,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 
 <div style="background-color:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:16px;margin-bottom:32px;">
     <p style="margin:0;color:#dc2626;font-size:14px;font-weight:700;text-align:center;">
-        ⚠️ If you do not confirm within 7 days, the funds will be automatically released to the seller.
+        ⚠️ If you do not confirm within 48 hours, the funds will be automatically released to the seller.
     </p>
 </div>
 

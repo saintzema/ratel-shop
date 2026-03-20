@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
     TrendingUp,
     Users,
@@ -26,6 +27,7 @@ import Link from "next/link";
 import { cn, formatDateExact } from "@/lib/utils";
 
 export default function AdminDashboard() {
+    const router = useRouter();
     const [stats, setStats] = useState<any>(null);
     const [showBroadcastModal, setShowBroadcastModal] = useState(false);
     const [broadcastMessage, setBroadcastMessage] = useState("");
@@ -307,6 +309,13 @@ export default function AdminDashboard() {
                                                     onClick={(e) => {
                                                         e.preventDefault();
                                                         DemoStore.updateComplaintStatus(c.id, "investigating");
+                                                        // Navigate to the appropriate page
+                                                        if (c.id.startsWith('dispute_')) {
+                                                            const orderId = c.id.replace('dispute_', '');
+                                                            router.push(`/admin/escrow?filter=disputed&order=${orderId}`);
+                                                        } else {
+                                                            router.push('/admin/governance');
+                                                        }
                                                     }}
                                                     className="h-8 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-[10px] uppercase"
                                                 >
@@ -358,13 +367,13 @@ export default function AdminDashboard() {
                                                     <Star key={s} className={`h-3 w-3 ${s <= review.rating ? "text-amber-400 fill-current" : "text-gray-200"}`} />
                                                 ))}
                                             </div>
-                                            <span className="font-bold text-gray-900 text-sm">{review.title}</span>
+                                            <span className="font-bold text-gray-900 text-sm">{review.title || `${review.rating}-Star Review`}</span>
                                         </div>
-                                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{review.body}</p>
+                                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{review.body || review.comment || "No written review"}</p>
                                         <div className="flex items-center gap-2 mt-2 text-[10px] font-bold text-gray-400 uppercase">
                                             <span>By {review.user_name}</span>
                                             <span>•</span>
-                                            <span>Product ID: {review.product_id}</span>
+                                            <span>{(() => { const p = DemoStore.getProducts().find(p => p.id === review.product_id); return p?.name || review.product_id; })()}</span>
                                             <span>•</span>
                                             <span>{new Date(review.created_at).toLocaleDateString()}</span>
                                         </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Order, ReturnRequest } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
@@ -22,7 +23,9 @@ import {
     Lock,
     AlertTriangle,
     ArrowUpRight,
-    Wallet
+    Wallet,
+    MessageSquare,
+    ArrowUpDown
 } from "lucide-react";
 
 export default function SellerOrders() {
@@ -31,13 +34,14 @@ export default function SellerOrders() {
     const [search, setSearch] = useState("");
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [sortBy, setSortBy] = useState<string>("newest");
     const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
     const searchParams = useSearchParams();
 
     // Read ?filter= from URL (e.g. from dashboard Total Revenue card)
     useEffect(() => {
         const urlFilter = searchParams?.get("filter");
-        if (urlFilter && ["pending", "processing", "shipped", "delivered", "returns"].includes(urlFilter)) {
+        if (urlFilter && ["pending", "processing", "shipped", "delivered", "returns", "disputed"].includes(urlFilter)) {
             setStatusFilter(urlFilter);
         }
     }, [searchParams]);
@@ -135,14 +139,28 @@ export default function SellerOrders() {
 
         let matchStatus = false;
         if (statusFilter === "all") matchStatus = true;
-        else if (statusFilter === "return_requested" || statusFilter === "returns") {
-            // "returns" filter groups all return states
+        else if (statusFilter === "disputed") {
+            matchStatus = o.escrow_status === "disputed";
+        } else if (statusFilter === "return_requested" || statusFilter === "returns") {
             matchStatus = ["return_requested", "return_approved", "returned"].includes(o.status);
         } else {
             matchStatus = o.status === statusFilter;
         }
 
         return matchSearch && matchStatus;
+    }).sort((a, b) => {
+        switch (sortBy) {
+            case "newest":
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            case "oldest":
+                return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            case "amount_high":
+                return b.amount - a.amount;
+            case "amount_low":
+                return a.amount - b.amount;
+            default:
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
     });
 
     return (
@@ -195,7 +213,7 @@ export default function SellerOrders() {
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    {["all", "pending", "processing", "shipped", "delivered", "returns"].map(s => {
+                    {["all", "pending", "processing", "shipped", "delivered", "disputed", "returns"].map(s => {
                         const isSelected = statusFilter === s || (s === "returns" && ["return_requested", "return_approved", "returned"].includes(statusFilter));
                         return (
                             <button
@@ -210,6 +228,20 @@ export default function SellerOrders() {
                             </button>
                         );
                     })}
+                </div>
+                <div className="relative shrink-0">
+                    <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="appearance-none pl-9 pr-8 py-2 rounded-xl text-xs font-bold bg-gray-50 text-gray-600 border-none outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="amount_high">Amount: High → Low</option>
+                        <option value="amount_low">Amount: Low → High</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                 </div>
             </div>
 
@@ -558,7 +590,12 @@ export default function SellerOrders() {
                                                                 <AlertTriangle className="h-4 w-4 text-rose-600" />
                                                                 <span className="text-xs font-bold text-rose-700">Buyer Dispute Filed</span>
                                                             </div>
-                                                            <p className="text-[11px] text-rose-600">Payment has been frozen. The platform admin is reviewing this case.</p>
+                                                            <p className="text-[11px] text-rose-600 mb-2">Payment has been frozen. The platform admin is reviewing this case.</p>
+                                                            <Link href={`/seller/dashboard/messages?order=${order.id}&customer=${order.customer_id}`}>
+                                                                <Button size="sm" variant="outline" className="text-[10px] font-bold rounded-lg h-7 border-rose-200 text-rose-600 hover:bg-rose-100 bg-transparent">
+                                                                    <MessageSquare className="h-3 w-3 mr-1" /> View Chat
+                                                                </Button>
+                                                            </Link>
                                                         </div>
                                                     )}
                                                 </div>

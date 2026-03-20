@@ -70,6 +70,8 @@ export default function AdminOrdersTakeoverPage() {
             if (selectedOrder) {
                 const updated = DemoStore.getOrders().find(o => o.id === selectedOrder.id);
                 if (updated) setSelectedOrder(updated);
+                // Mark as read when selected
+                DemoStore.markOrderReadAsAdmin(selectedOrder.id);
             }
         };
         load();
@@ -86,6 +88,7 @@ export default function AdminOrdersTakeoverPage() {
 
         // Mark Ziva as inactive implicitly by sending a message
         DemoStore.addOrderMessage(selectedOrder.id, "system", "Human agent (Superadmin) has joined the chat.");
+        DemoStore.updateOrder(selectedOrder.id, { zivaActive: false });
 
         showNotification({
             type: "success",
@@ -98,6 +101,11 @@ export default function AdminOrdersTakeoverPage() {
 
     const handleSendMessage = () => {
         if (!chatInput.trim() || !selectedOrder) return;
+        
+        if (selectedOrder.zivaActive) {
+            handleTakeover();
+        }
+        
         DemoStore.addOrderMessage(selectedOrder.id, "admin", chatInput);
         setChatInput("");
     };
@@ -105,6 +113,10 @@ export default function AdminOrdersTakeoverPage() {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file || !selectedOrder) return;
+
+        if (selectedOrder.zivaActive) {
+            handleTakeover();
+        }
 
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -149,7 +161,10 @@ export default function AdminOrdersTakeoverPage() {
                             .map(order => (
                                 <div
                                     key={order.id}
-                                    onClick={() => setSelectedOrder(order)}
+                                    onClick={() => {
+                                        setSelectedOrder(order);
+                                        DemoStore.markOrderReadAsAdmin(order.id);
+                                    }}
                                     className={`p-4 rounded-xl cursor-pointer border transition-all ${selectedOrder?.id === order.id ? "border-black shadow-md bg-gray-50" : "border-gray-100 hover:border-gray-300 hover:shadow-sm"} relative`}
                                 >
                                     {order.unread_admin && (
@@ -219,7 +234,9 @@ export default function AdminOrdersTakeoverPage() {
                                                     ? "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm"
                                                     : msg.sender === "ziva"
                                                         ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-tr-sm"
-                                                        : "bg-blue-600 text-white rounded-tr-sm shadow-sm"
+                                                        : msg.sender === "seller"
+                                                            ? "bg-amber-600 text-white rounded-tr-sm shadow-sm"
+                                                            : "bg-blue-600 text-white rounded-tr-sm shadow-sm"
                                                     }`}>
                                                     {msg.imageUrl && (
                                                         <div className="mb-2 rounded-xl overflow-hidden border border-black/10">

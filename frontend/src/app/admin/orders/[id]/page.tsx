@@ -14,7 +14,9 @@ import {
     MessageSquare,
     User,
     MapPin,
-    CreditCard
+    CreditCard,
+    Phone,
+    MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -203,6 +205,25 @@ export default function AdminOrderDetailPage() {
                                     </div>
                                 </div>
                             </div>
+                            {(order.customer_phone || order.customer_whatsapp) && (
+                                <div className="flex items-start gap-4 pt-4 border-t border-gray-50">
+                                    <div className="mt-0.5"><Phone className="w-5 h-5 text-gray-400" /></div>
+                                    <div className="space-y-3">
+                                        {order.customer_phone && (
+                                            <div>
+                                                <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone</div>
+                                                <div className="text-sm font-medium text-gray-900 leading-relaxed">{order.customer_phone}</div>
+                                            </div>
+                                        )}
+                                        {order.customer_whatsapp && (
+                                            <div>
+                                                <div className="text-xs font-bold text-emerald-600 uppercase tracking-wider">WhatsApp</div>
+                                                <div className="text-sm font-medium text-emerald-700 leading-relaxed">{order.customer_whatsapp}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

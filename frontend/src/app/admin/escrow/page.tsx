@@ -20,7 +20,9 @@ import {
     MessageSquare,
     X,
     Eye,
-    ChevronLeft
+    ChevronLeft,
+    ArrowUpDown,
+    ChevronDown
 } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,7 @@ export default function EscrowManagement() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [allOrders, setAllOrders] = useState<Order[]>([]);
     const [filter, setFilter] = useState<"all" | "held" | "seller_confirmed" | "released" | "disputed">("all");
+    const [sortBy, setSortBy] = useState<string>("newest");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 15;
 
@@ -82,8 +85,23 @@ export default function EscrowManagement() {
                     ? orders.filter(o => o.escrow_status === "disputed")
                     : orders.filter(o => o.escrow_status === "held");
 
-    const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
-    const paginatedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const sortedOrders = [...filteredOrders].sort((a, b) => {
+        switch (sortBy) {
+            case "newest":
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            case "oldest":
+                return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            case "amount_high":
+                return b.amount - a.amount;
+            case "amount_low":
+                return a.amount - b.amount;
+            default:
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+    });
+
+    const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
+    const paginatedOrders = sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const heldCount = orders.filter(o => o.escrow_status === "held").length;
     const pendingReleaseCount = orders.filter(o => o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed").length;
@@ -231,33 +249,49 @@ export default function EscrowManagement() {
                 </div>
             </div>
 
-            {/* Filter Tabs */}
-            <div className="bg-white p-1.5 rounded-2xl border border-gray-100 inline-flex gap-1 shadow-sm">
-                {([
-                    { key: "all", label: "All Orders" },
-                    { key: "held", label: "In Escrow" },
-                    { key: "seller_confirmed", label: "Pending Release" },
-                    { key: "disputed", label: `Disputed${disputedCount > 0 ? ` (${disputedCount})` : ""}` },
-                    { key: "released", label: "Released" },
-                ] as const).map(f => (
-                    <button
-                        key={f.key}
-                        onClick={() => { setFilter(f.key); setCurrentPage(1); }}
-                        className={cn(
-                            "px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
-                            filter === f.key
-                                ? "bg-indigo-600 text-white shadow-lg"
-                                : "text-gray-400 hover:text-gray-600"
-                        )}
+            {/* Filter Tabs + Sort */}
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                <div className="bg-white p-1.5 rounded-2xl border border-gray-100 inline-flex gap-1 shadow-sm flex-wrap">
+                    {([
+                        { key: "all", label: "All Orders" },
+                        { key: "held", label: "In Escrow" },
+                        { key: "seller_confirmed", label: "Pending Release" },
+                        { key: "disputed", label: `Disputed${disputedCount > 0 ? ` (${disputedCount})` : ""}` },
+                        { key: "released", label: "Released" },
+                    ] as const).map(f => (
+                        <button
+                            key={f.key}
+                            onClick={() => { setFilter(f.key); setCurrentPage(1); }}
+                            className={cn(
+                                "px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all",
+                                filter === f.key
+                                    ? "bg-indigo-600 text-white shadow-lg"
+                                    : "text-gray-400 hover:text-gray-600"
+                            )}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
+                <div className="relative shrink-0">
+                    <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                    <select
+                        value={sortBy}
+                        onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                        className="appearance-none pl-9 pr-8 py-2 rounded-xl text-xs font-bold bg-white text-gray-600 border border-gray-200 outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
                     >
-                        {f.label}
-                    </button>
-                ))}
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="amount_high">Amount: High → Low</option>
+                        <option value="amount_low">Amount: Low → High</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                </div>
             </div>
 
             {/* Orders Table */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                {filteredOrders.length === 0 ? (
+                {sortedOrders.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-16 text-center">
                         <ShieldCheck className="h-14 w-14 text-gray-200 mb-4" />
                         <h3 className="text-lg font-black text-gray-300">No orders in this view</h3>

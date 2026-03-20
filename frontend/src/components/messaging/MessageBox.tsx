@@ -11,6 +11,7 @@ import { useMessages, Conversation, ChatMessage } from "@/context/MessageContext
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { DemoStore } from "@/lib/demo-store";
 
 // ─── Notification types ─────────────────────────────────
 interface AppNotification {
@@ -40,15 +41,16 @@ export function MessageBox() {
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Load notifications from database API
+    // Load notifications from database API, with DemoStore fallback
     const loadNotifications = useCallback(async () => {
         const email = user?.email;
-        if (!email) { setNotifications([]); return; }
+        const userId = user?.id || user?.email || "";
+        if (!email && !userId) { setNotifications([]); return; }
         try {
-            const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(email)}`);
+            const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(email || "")}`);
             if (res.ok) {
                 const data = await res.json();
-                if (Array.isArray(data)) {
+                if (Array.isArray(data) && data.length > 0) {
                     setNotifications(data.map((n: any) => ({
                         id: String(n.id),
                         type: n.type || "system",
@@ -57,12 +59,25 @@ export function MessageBox() {
                         timestamp: n.timestamp,
                         link: n.link || undefined,
                     })));
+                    return;
                 }
             }
         } catch (err) {
-            console.error("Failed to load notifications from DB:", err);
+            // Backend unavailable, fall through to DemoStore
         }
-    }, [user?.email]);
+        // Fallback: load from DemoStore
+        if (userId) {
+            const demoNotifs = DemoStore.getNotifications(userId);
+            setNotifications(demoNotifs.map((n: any) => ({
+                id: n.id,
+                type: n.type || "system",
+                message: n.message,
+                read: n.read,
+                timestamp: n.timestamp,
+                link: n.link || undefined,
+            })));
+        }
+    }, [user?.email, user?.id]);
 
     useEffect(() => {
         if (isMessageBoxOpen) {
@@ -80,29 +95,34 @@ export function MessageBox() {
     // Mark all notifications as read when switching to notifications tab
     const handleTabSwitch = async (tab: "chats" | "notifications") => {
         setActiveTab(tab);
-        if (tab === "notifications" && user?.email) {
-            // Mark all as read in the database
-            try {
-                await fetch(`/api/notifications?mark_all=true&user_email=${encodeURIComponent(user.email)}`, {
-                    method: "PATCH",
-                });
-                // Refresh to update local state
-                await loadNotifications();
-            } catch (err) {
-                console.error("Failed to mark notifications as read:", err);
+        if (tab === "notifications") {
+            const userId = user?.id || user?.email || "";
+            // Try backend first
+            if (user?.email) {
+                try {
+                    await fetch(`/api/notifications?mark_all=true&user_email=${encodeURIComponent(user.email)}`, {
+                        method: "PATCH",
+                    });
+                } catch { /* ignore */ }
             }
+            // Also mark in DemoStore
+            if (userId) {
+                DemoStore.markAllNotificationsRead(userId);
+            }
+            await loadNotifications();
         }
     };
 
     // Mark a single notification as read when clicked
     const handleNotifClick = async (notif: AppNotification) => {
         if (!notif.read) {
+            // Try backend
             try {
                 await fetch(`/api/notifications?id=${notif.id}`, { method: "PATCH" });
-                await loadNotifications();
-            } catch (err) {
-                console.error("Failed to mark notification as read:", err);
-            }
+            } catch { /* ignore */ }
+            // Also mark in DemoStore
+            DemoStore.markNotificationRead(notif.id);
+            await loadNotifications();
         }
         if (notif.link && typeof window !== "undefined") {
             window.location.href = notif.link;

@@ -1512,6 +1512,13 @@ class DemoStoreService {
         window.dispatchEvent(new Event("demo-store-update"));
     }
 
+    markOrderReadAsAdmin(orderId: string) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === orderId ? { ...o, unread_admin: false } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
 
     // --- Product CRUD ---
     addProduct(product: Omit<Product, "id" | "created_at" | "seller_id" | "seller_name" | "price_flag">) {
@@ -1700,6 +1707,14 @@ class DemoStoreService {
     }
 
     // --- Order Management ---
+    updateOrder(id: string, updates: Partial<Order>) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === id ? { ...o, ...updates } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
     updateOrderStatus(id: string, status: Order["status"]) {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === id);

@@ -12,7 +12,7 @@ import { Capacitor } from "@capacitor/core";
 
 interface Message {
     id: string;
-    sender: "user" | "ziva" | "admin";
+    sender: "user" | "ziva" | "admin" | "seller";
     text: string;
     timestamp: Date;
     imageUrl?: string;
@@ -196,6 +196,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
         // Ziva acknowledges the image
         setTimeout(() => {
+            if (order?.zivaActive === false) {
+                const lastHumanMsg = messages.slice().reverse().find(m => m.sender === "admin" || m.sender === "seller");
+                // Wait 60 seconds before Ziva automatically jumps back in
+                if (!lastHumanMsg || (Date.now() - new Date(lastHumanMsg.timestamp).getTime()) < 60000) return;
+                DemoStore.updateOrder(orderId!, { zivaActive: true });
+                DemoStore.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
+            }
+
             const zivaText = mode === "return"
                 ? "Thank you for uploading the photo evidence. I've attached it to your return case. Our dispute resolution team will review this along with the merchant. Is there anything else you'd like to add about the issue?"
                 : "I've received the image. I'll pass this along to the merchant and our support team for review.";
@@ -238,6 +246,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
         // Smart Ziva Response
         setTimeout(() => {
+            if (order?.zivaActive === false) {
+                const lastHumanMsg = messages.slice().reverse().find(m => m.sender === "admin" || m.sender === "seller");
+                // Wait 60 seconds before Ziva automatically jumps back in
+                if (!lastHumanMsg || (Date.now() - new Date(lastHumanMsg.timestamp).getTime()) < 60000) return;
+                DemoStore.updateOrder(orderId!, { zivaActive: true });
+                DemoStore.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
+            }
+
             let zivaText = "I've noted your concern and notified the merchant. Our support team is also monitoring this request and will step in shortly if needed.";
 
             const lowerText = text.toLowerCase();
@@ -398,7 +414,11 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             user_id: currentUser?.id || "guest",
             user_name: currentUser?.name || "Guest User",
             rating: stars,
-            comment: ""
+            title: `${stars}-Star Rating`,
+            body: "",
+            verified_purchase: true,
+            helpful_count: 0,
+            images: []
         });
 
         const userMsg: Message = {
@@ -512,8 +532,12 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                     <img src="/assets/images/image_v2.png" alt="Ziva AI" className="w-full h-full object-cover" />
                                                 </div>
                                             ) : msg.sender === "admin" ? (
-                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" title="Admin">
                                                     <span className="text-[10px] font-bold text-blue-700">A</span>
+                                                </div>
+                                            ) : msg.sender === "seller" ? (
+                                                <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center border border-amber-200" title="Seller">
+                                                    <span className="text-[10px] font-bold text-amber-700">S</span>
                                                 </div>
                                             ) : null}
                                         </div>

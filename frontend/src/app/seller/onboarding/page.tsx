@@ -23,6 +23,7 @@ export default function KYCOnboarding() {
     const [streetAddress, setStreetAddress] = useState("");
     const [city, setCity] = useState("");
     const [stateRegion, setStateRegion] = useState("");
+    const [phoneNumbers, setPhoneNumbers] = useState("");
     const [isRegistered, setIsRegistered] = useState(false);
     const [cacNumber, setCacNumber] = useState("");
     const [cacFileName, setCacFileName] = useState<string | null>(null);
@@ -58,6 +59,7 @@ export default function KYCOnboarding() {
             if (!streetAddress.trim()) errors.push("Street Address is required");
             if (!stateRegion) errors.push("State is required");
             if (!city) errors.push("City is required");
+            if (!phoneNumbers.trim()) errors.push("At least one phone number is required");
             if (!weeklyOrders) errors.push("Weekly orders selection is required");
             if (!staffCount) errors.push("Staff count selection is required");
             if (!physicalStores) errors.push("Number of physical stores is required");
@@ -106,6 +108,8 @@ export default function KYCOnboarding() {
             city: city,
             state: stateRegion,
             location: `${city}, ${stateRegion}`,
+            phone_number: phoneNumbers.split(",")[0].trim(),
+            phone_numbers: phoneNumbers.split(",").map(p => p.trim()).filter(Boolean),
             business_registered: isRegistered,
             cac_rc_number: isRegistered ? cacNumber : undefined,
             cac_document_url: isRegistered && cacFileName ? `/mock/cac/${cacFileName}` : undefined,
@@ -262,6 +266,18 @@ export default function KYCOnboarding() {
                                             className="border border-gray-300"
                                             required
                                         />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Business Phone Number(s) *</label>
+                                        <Input
+                                            placeholder="E.g. +2348012345678, +2349012345678"
+                                            value={phoneNumbers}
+                                            onChange={(e) => setPhoneNumbers(e.target.value)}
+                                            className="border border-gray-300"
+                                            required
+                                        />
+                                        <p className="text-[11px] text-gray-500">Separate multiple numbers with commas.</p>
                                     </div>
 
                                     <div className="space-y-2">

@@ -41,7 +41,7 @@ interface Conversation {
     negotiation?: NegotiationRequest;
     order?: Order;
     // mock support chat
-    chat_messages: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[];
+    chat_messages: { sender: "seller" | "buyer" | "system" | "admin" | "ziva"; text: string; timestamp: Date; imageUrl?: string }[];
 }
 
 export default function UniversalMessagesPage() {
@@ -84,7 +84,7 @@ export default function UniversalMessagesPage() {
                 convos.push({
                     id: `neg-${neg.id}`,
                     type: "negotiation",
-                    customer_name: neg.customer_name,
+                    customer_name: neg.customer_name || "Customer",
                     customer_id: neg.customer_id,
                     product_id: neg.product_id,
                     product_name: prod?.name,
@@ -114,7 +114,13 @@ export default function UniversalMessagesPage() {
                         unread: true, // Mock unread for demo
                         order: order,
                         chat_messages: [
-                            { sender: "system", text: type === "dispute" ? "Buyer opened a dispute regarding this order." : "Buyer requested a return for this order.", timestamp: new Date(order.updated_at) }
+                            { sender: "system" as const, text: type === "dispute" ? "Buyer opened a dispute regarding this order." : "Buyer requested a return for this order.", timestamp: new Date(order.updated_at) },
+                            ...(order.chat_messages || []).map(m => ({
+                                sender: m.sender as "seller" | "buyer" | "system" | "admin" | "ziva",
+                                text: m.text,
+                                timestamp: new Date(),
+                                imageUrl: m.imageUrl
+                            }))
                         ]
                     });
                 }
@@ -256,7 +262,15 @@ export default function UniversalMessagesPage() {
         // In a real app, logic branches based on conversation type (DemoStore handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
             DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage || "[Image Attached]");
-        } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-") && !activeConvo.id.startsWith("chat-")) {
+        } else if (activeConvo.id.startsWith("ord-")) {
+            const orderId = activeConvo.id.replace("ord-", "");
+            DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined);
+        } else if (activeConvo.id.startsWith("chat-")) {
+            // New direct chat created from stub
+            const newConv = DemoStore.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
+            DemoStore.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""));
+            setSelectedId(newConv.id);
+        } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-")) {
             // It's a real DM conversation
             DemoStore.sendChatMessage(
                 activeConvo.id,
@@ -471,14 +485,21 @@ export default function UniversalMessagesPage() {
                                     <div key={idx} className={cn("flex w-full", isSeller ? "justify-end" : "justify-start")}>
                                         <div className="flex items-end gap-2 max-w-[85%]">
                                             {!isSeller && (
-                                                <div className="h-8 w-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0 text-xs shadow-inner mb-5">
-                                                    {activeConvo.customer_name.charAt(0)}
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mb-5",
+                                                    msg.sender === "admin" ? "bg-blue-100 text-blue-700" :
+                                                    msg.sender === "ziva" ? "bg-brand-green-100 text-brand-green-700 text-[9px]" :
+                                                    "bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700"
+                                                )}>
+                                                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : activeConvo.customer_name.charAt(0)}
                                                 </div>
                                             )}
                                             <div className="flex flex-col gap-1">
                                                 <div className={cn(
                                                     "rounded-2xl p-3.5 text-[13px] shadow-sm relative",
-                                                    isSeller ? "bg-indigo-600 text-white rounded-br-sm" : "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
+                                                    isSeller ? "bg-indigo-600 text-white rounded-br-sm" : 
+                                                    msg.sender === "admin" ? "bg-blue-600 text-white rounded-bl-sm" :
+                                                    msg.sender === "ziva" ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-bl-sm" :
+                                                    "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
                                                 )}>
                                                     {msg.imageUrl && (
                                                         <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
