@@ -128,9 +128,13 @@ export default function PayoutsSettingsPage() {
         await new Promise((r) => setTimeout(r, 1000));
 
         // Mark pending orders as cashed out
-        pendingPayoutOrders.forEach((o) => {
-            DemoStore.updateOrder(o.id, { payout_status: "cashed_out" });
-        });
+        const allOrders: Order[] = DemoStore.getOrders();
+        const pendingIds = new Set(pendingPayoutOrders.map(o => o.id));
+        const updatedOrders = allOrders.map(o =>
+            pendingIds.has(o.id) ? { ...o, payout_status: "cashed_out" as const } : o
+        );
+        localStorage.setItem("fp_orders", JSON.stringify(updatedOrders));
+        window.dispatchEvent(new Event("demo-store-update"));
 
         // Notify seller
         DemoStore.addNotification({

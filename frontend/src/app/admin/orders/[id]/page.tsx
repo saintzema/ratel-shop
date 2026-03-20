@@ -56,7 +56,7 @@ export default function AdminOrderDetailPage() {
     const handleStatusUpdate = (newStatus: string) => {
         if (!order) return;
         DemoStore.updateOrderStatus(order.id, newStatus as any);
-        setOrder(prev => prev ? { ...prev, status: newStatus } : null);
+        setOrder((prev: any) => prev ? { ...prev, status: newStatus } : null);
         alert(`Order status updated to ${newStatus}`);
     };
 
@@ -68,7 +68,7 @@ export default function AdminOrderDetailPage() {
         localStorage.setItem("fp_orders", JSON.stringify(updated));
         window.dispatchEvent(new Event("demo-store-update"));
         
-        setOrder(prev => prev ? { ...prev, escrow_status: newEscrow } : null);
+        setOrder((prev: any) => prev ? { ...prev, escrow_status: newEscrow } : null);
         alert(`Escrow status updated to ${newEscrow}`);
     };
 

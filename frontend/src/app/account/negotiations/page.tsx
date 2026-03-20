@@ -81,7 +81,7 @@ export default function NegotiationsPage() {
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900">
             <Navbar />
-            <div className="container mx-auto px-4 py-8 max-w-5xl">
+            <div className="container mx-auto px-4 py-8 max-w-5xl mt-20">
                 <div className="mb-8 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <button
@@ -151,7 +151,7 @@ export default function NegotiationsPage() {
                     ) : (
                         <>
                             {/* Desktop Table Header */}
-                            <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                            <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider sticky top-0 z-10">
                                 <span></span>
                                 <span>Product</span>
                                 <span>List Price</span>

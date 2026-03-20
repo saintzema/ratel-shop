@@ -85,10 +85,10 @@ function BaseTemplate(title: string, contentHTML: string) {
     <div role="article" aria-roledescription="email" lang="en" style="text-size-adjust:100%;-webkit-text-size-adjust:100%;ms-text-size-adjust:100%;background-color:#f5f5f7;" class="wrapper">
         <table role="presentation" style="width:100%;border:none;border-spacing:0;">
             <tr>
-                <td align="center" style="padding:24px 16px;">
+                <td align="center" style="padding:16px 8px;">
                     <table role="presentation" style="width:100%;max-width:600px;border:none;border-spacing:0;text-align:left;background-color:#ffffff;border-radius:24px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.04);" class="card">
                         <tr>
-                            <td style="padding:32px 24px;">
+                            <td style="padding:24px 16px;">
                                 <div style="text-align:center;margin-bottom:32px;">
                                     <div style="display:inline-block;width:48px;height:48px;border-radius:14px;overflow:hidden;background-color:#f5f5f7;border:1px solid rgba(0,0,0,0.08);box-shadow:0 4px 12px rgba(34,197,94,0.15);margin:0 auto 16px auto;position:relative;">
                                         <img src="https://fairprice-ten.vercel.app/logo.png" alt="FairPrice Logo" style="width:100%;height:100%;object-fit:cover;transform:scale(1.3);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.1));" />
@@ -554,102 +554,84 @@ ${payload.daysRemaining === 0 ? `
         case 'ORDER_CANCELLED':
             subject = `Order Cancelled — #${(payload.orderId || '').substring(0,8)}`;
             html = BaseTemplate(subject, `
-                <div style="padding: 20px;">
-                    <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Order Cancelled</h2>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.name || payload.sellerName || 'User'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` for <strong>${payload.productName}</strong>` : ''} has been successfully cancelled.</p>
-                    <p class="text-muted" style="font-size: 14px; line-height: 20px;">If a payment was made, your funds are safely returning from escrow to your original payment method immediately.</p>
-                    
-                    <div style="text-align: center; margin-top: 32px;">
-                        <a href="https://fairprice.ng/account/orders" class="btn" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 980px; font-weight: 600; font-size: 15px;">View Your Orders</a>
-                    </div>
-                </div>
+<p style="margin:0 0 16px 0;">Hi ${payload.name || payload.sellerName || 'User'},</p>
+<p style="margin:0 0 16px 0;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` for <strong>${payload.productName}</strong>` : ''} has been successfully cancelled.</p>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">If a payment was made, your funds are safely returning from escrow to your original payment method immediately.</p>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Your Orders</a>
+</div>
             `);
             break;
 
         case 'RETURN_REQUESTED':
             subject = 'Return Requested - Action Required';
             html = BaseTemplate(subject, `
-                <div style="padding: 20px;">
-                    <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Return Requested</h2>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.sellerName || 'Seller'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">A return has been initiated by the buyer for Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
-                    <p class="text-muted" style="font-size: 14px; line-height: 20px;">Please check your dashboard to review the evidence provided by the buyer. Escrow funds are paused until this dispute is securely resolved.</p>
-                    
-                    <div style="text-align: center; margin-top: 32px;">
-                        <a href="https://fairprice.ng/seller/orders" class="btn" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 980px; font-weight: 600; font-size: 15px;">Manage Returns</a>
-                    </div>
-                </div>
+<p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
+<p style="margin:0 0 16px 0;">A return has been initiated by the buyer for Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Please check your dashboard to review the evidence provided by the buyer. Escrow funds are paused until this dispute is securely resolved.</p>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/seller/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Manage Returns</a>
+</div>
             `);
             break;
 
         case 'RETURN_UPDATED':
             subject = 'Return Request Update';
             html = BaseTemplate(subject, `
-                <div style="padding: 20px;">
-                    <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Return Update</h2>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.name || 'Customer'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Your return request for Order <strong>#${(payload.orderId || '').substring(0,8)}</strong> has been <strong>${payload.newStatus || 'updated'}</strong>.</p>
-                    <p class="text-muted" style="font-size: 14px; line-height: 20px;">If approved, your escrow funds will be fully refunded shortly.</p>
-                    
-                    <div style="text-align: center; margin-top: 32px;">
-                        <a href="https://fairprice.ng/account/orders" class="btn" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 980px; font-weight: 600; font-size: 15px;">View Order Status</a>
-                    </div>
-                </div>
+<p style="margin:0 0 16px 0;">Hi ${payload.name || 'Customer'},</p>
+<p style="margin:0 0 16px 0;">Your return request for Order <strong>#${(payload.orderId || '').substring(0,8)}</strong> has been <strong>${payload.newStatus || 'updated'}</strong>.</p>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">If approved, your escrow funds will be fully refunded shortly.</p>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Order Status</a>
+</div>
             `);
             break;
 
         case 'ORDER_SHIPPED':
             subject = `Your order has shipped — #${(payload.orderId || '').substring(0,8)}`;
             html = BaseTemplate(subject, `
-                <div style="padding: 20px;">
-                    <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Your Order is on the Way 🚚</h2>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.name || 'Customer'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` — <strong>${payload.productName}</strong>` : ''} has left the merchant's warehouse and is currently in transit.</p>
-                    <p class="text-muted" style="font-size: 14px; line-height: 20px;">You can track its live status below. Remember, your funds remain safe in escrow until delivery is confirmed.</p>
-                    
-                    <div style="text-align: center; margin-top: 32px;">
-                        <a href="https://fairprice.ng/account/orders" class="btn" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 980px; font-weight: 600; font-size: 15px;">Track Package</a>
-                    </div>
-                </div>
+<p style="margin:0 0 16px 0;">Hi ${payload.name || 'Customer'},</p>
+<p style="margin:0 0 16px 0;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` — <strong>${payload.productName}</strong>` : ''} has left the merchant's warehouse and is currently in transit.</p>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">You can track its live status below. Remember, your funds remain safe in escrow until delivery is confirmed.</p>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Track Package</a>
+</div>
             `);
             break;
 
         case 'ORDER_INQUIRY':
             subject = 'New Order Inquiry from Buyer';
             html = BaseTemplate(subject, `
-                <div style="padding: 20px;">
-                    <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Customer Inquiry</h2>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.sellerName || 'Seller'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">The buyer has an inquiry regarding Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
-                    <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin: 20px 0;">
-                        <p class="text-main" style="font-size: 15px; margin: 0;"><i>"${payload.message || 'I have a question about this order.'}"</i></p>
-                    </div>
-                    <p class="text-muted" style="font-size: 14px; line-height: 20px;">Please respond as soon as possible via the messaging dashboard to ensure a smooth Escrow transaction.</p>
-                    
-                    <div style="text-align: center; margin-top: 32px;">
-                        <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/dashboard/messages'}" class="btn" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 980px; font-weight: 600; font-size: 15px;">Reply to Customer</a>
-                    </div>
-                </div>
+<p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
+<p style="margin:0 0 16px 0;">The buyer has an inquiry regarding Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
+<div style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:0 0 24px 0;" class="feature-box">
+    <p style="font-size:15px;margin:0;font-style:italic;" class="text-main">"${payload.message || 'I have a question about this order.'}"</p>
+</div>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Please respond as soon as possible via the messaging dashboard to ensure a smooth Escrow transaction.</p>
+
+<div style="text-align:center;">
+    <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/dashboard/messages'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply to Customer</a>
+</div>
             `);
             break;
 
         case 'NEW_DISPUTE':
             subject = `Dispute Filed: Order #${(payload.orderId || '').substring(0,8)}`;
             html = BaseTemplate("Dispute Action Required ⚠️", `
-                <div style="padding: 20px;">
-                    <h2 class="text-main" style="margin-top: 0; font-weight: 600; letter-spacing: -0.5px;">Buyer Filed a Dispute</h2>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">Hi ${payload.sellerName || 'Seller'},</p>
-                    <p class="text-main" style="font-size: 16px; line-height: 24px;">A dispute was just filed by the customer on Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
-                    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin: 20px 0;">
-                        <p class="text-main" style="font-size: 15px; margin: 0; color: #dc2626;"><strong>Issue:</strong> "${payload.message || 'Issue not specified.'}"</p>
-                    </div>
-                    <p class="text-muted" style="font-size: 14px; line-height: 20px;">Your escrow payment for this transaction has been temporarily frozen. Please navigate to your dashboard immediately to review the dispute and provide evidence or a resolution.</p>
-                    
-                    <div style="text-align: center; margin-top: 32px;">
-                        <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/orders'}" class="btn" style="display: inline-block; padding: 14px 28px; text-decoration: none; border-radius: 980px; font-weight: 600; font-size: 15px;">Review Dispute</a>
-                    </div>
-                </div>
+<p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
+<p style="margin:0 0 16px 0;">A dispute was just filed by the customer on Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
+<div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin:0 0 24px 0;">
+    <p style="font-size:15px;margin:0;color:#dc2626;"><strong>Issue:</strong> "${payload.message || 'Issue not specified.'}"</p>
+</div>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Your escrow payment for this transaction has been temporarily frozen. Please navigate to your dashboard immediately to review the dispute and provide evidence or a resolution.</p>
+
+<div style="text-align:center;">
+    <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Review Dispute</a>
+</div>
             `);
             break;
 

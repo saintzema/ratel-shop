@@ -244,9 +244,28 @@ class DemoStoreService {
                 const dbSellers = await sellersResult.value.json();
                 if (dbSellers.length > 0) {
                     const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
-                    const dbMap = new Map(dbSellers.map((s: any) => [s.id, s]));
+                    const dbMap = new Map<string, any>(dbSellers.map((s: any) => [s.id, s]));
                     const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
-                    const merged = new Map(dbMap);
+
+                    // Start from DB data but preserve local-only fields that the API doesn't track
+                    const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'bank_name', 'account_number', 'account_name', 'payout_history'];
+                    const merged = new Map<string, any>();
+
+                    for (const [id, dbSeller] of dbMap) {
+                        const localVersion = localMap.get(id);
+                        if (localVersion) {
+                            // Merge: DB data wins, but preserve local-only fields if DB doesn't have them
+                            const mergedSeller = { ...localVersion, ...(dbSeller as any) };
+                            for (const field of LOCAL_ONLY_FIELDS) {
+                                if (localVersion[field] !== undefined && (dbSeller[field] === undefined || dbSeller[field] === null)) {
+                                    mergedSeller[field] = localVersion[field];
+                                }
+                            }
+                            merged.set(id, mergedSeller);
+                        } else {
+                            merged.set(id, dbSeller);
+                        }
+                    }
 
                     // Preserve local versions of sellers with pending edits (e.g. KYC approvals)
                     for (const pendingSellerId of this._pendingSellerEdits) {

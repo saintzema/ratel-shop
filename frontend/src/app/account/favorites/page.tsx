@@ -57,9 +57,28 @@ function FavoritesContent() {
         if (!user) return; // Must be logged in to share own list
         const url = new URL(window.location.href);
         url.searchParams.set("shared_by", user.id);
+        const shareUrl = url.toString();
 
+        // Use Web Share API if available (shows native app picker on mobile)
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            try {
+                await navigator.share({
+                    title: `${user.name || 'My'} Wishlist on FairPrice`,
+                    text: `Check out my wishlist on FairPrice! ${favoritedProducts.length} items I love.`,
+                    url: shareUrl,
+                });
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+                return;
+            } catch (err: any) {
+                // User cancelled or share failed — fall through to clipboard
+                if (err?.name === 'AbortError') return;
+            }
+        }
+
+        // Fallback: copy to clipboard
         const { copyToClipboard } = await import("@/lib/utils");
-        const success = await copyToClipboard(url.toString());
+        const success = await copyToClipboard(shareUrl);
         if (success) {
             setIsCopied(true);
             setTimeout(() => setIsCopied(false), 2000);
