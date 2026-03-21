@@ -338,7 +338,7 @@ export default function SellerDashboard() {
                                         <div className="flex justify-between items-start gap-4">
                                             <div className="flex gap-4 flex-1 min-w-0">
                                                 <div className="h-14 w-14 bg-white rounded-xl border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1.5">
-                                                    <img src={product.image_url || (product as any).imageUrl || undefined} className="w-full h-full object-contain mix-blend-multiply" alt="" />
+                                                    <img src={product.image_url || (product as any).imageUrl || "/placeholder.png"} className="w-full h-full object-contain mix-blend-multiply" alt="" />
                                                 </div>
                                                 <div className="min-w-0">
                                                     <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
@@ -386,7 +386,7 @@ export default function SellerDashboard() {
                                         <div className="flex justify-between items-start gap-4">
                                             <div className="flex gap-4 flex-1 min-w-0">
                                                 <div className="h-14 w-14 bg-white rounded-xl border border-gray-100 shrink-0 overflow-hidden flex items-center justify-center p-1.5">
-                                                    <img src={product.image_url || (product as any).imageUrl || undefined} className="w-full h-full mix-blend-multiply object-contain" alt="" />
+                                                    <img src={product.image_url || (product as any).imageUrl || "/placeholder.png"} className="w-full h-full mix-blend-multiply object-contain" alt="" />
                                                 </div>
                                                 <div className="min-w-0">
                                                     <h4 className="font-bold text-sm text-gray-900 truncate">{product.name}</h4>
