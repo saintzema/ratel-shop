@@ -10,7 +10,7 @@ import { FavoritesProvider } from "@/context/FavoritesContext";
 import { MessageProvider } from "@/context/MessageContext";
 import { FloatingCart } from "@/components/ui/FloatingCart";
 import { NotificationProvider } from "@/components/ui/NotificationProvider";
-import { FloatingNotification } from "@/components/ui/FloatingNotification";
+import { DynamicPillNotification } from "@/components/ui/DynamicPillNotification";
 import { MessageBox } from "@/components/messaging/MessageBox";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { PwaManager } from "@/components/ui/PwaManager";
@@ -92,7 +92,7 @@ export default function RootLayout({
                     <NotificationProvider>
                       {children}
                       <ZivaChat />
-                      <FloatingNotification />
+                      <DynamicPillNotification />
                       <MessageBox />
                     </NotificationProvider>
                     <MobileBottomNav />

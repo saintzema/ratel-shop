@@ -1,6 +1,7 @@
 "use client";
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
+export type { NegotiationRequest };
 // Lazy-import DEMO data as fallback when DB is offline
 let _demoFallbackLoaded = false;
 let _DEMO_PRODUCTS: any[] = [];
