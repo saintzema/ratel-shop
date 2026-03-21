@@ -39,7 +39,7 @@ function AdminSearchContent() {
             // Search Sellers
             const allSellers = DemoStore.getSellers();
             setSellers(allSellers.filter(s =>
-                s.business_name.toLowerCase().includes(query) ||
+                (s.business_name || "").toLowerCase().includes(query) ||
                 (s.cac_rc_number && s.cac_rc_number.toLowerCase().includes(query))
             ));
 

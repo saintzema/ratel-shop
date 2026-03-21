@@ -475,6 +475,18 @@ export default function SellerOrders() {
                                                         </Button>
                                                     )}
 
+                                                    {order.status !== "delivered" && order.status !== "returned" && order.status !== "return_requested" && order.status !== "return_approved" && (
+                                                        <Link href={`/seller/dashboard/messages?order=${order.id}&customer=${order.customer_id}`}>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-brand-green-700 bg-brand-green-50/50 border-brand-green-200 hover:bg-brand-green-100 rounded-xl text-xs font-bold h-9"
+                                                            >
+                                                                <MessageSquare className="h-3 w-3 mr-1.5" /> View Buyer Chat (Ziva)
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+
                                                     {order.status === "delivered" && order.escrow_status !== "disputed" && (
                                                         <div className="flex items-center gap-4 w-full">
                                                             <span className="text-xs font-semibold text-emerald-600 flex items-center gap-1 flex-1">
@@ -693,6 +705,18 @@ export default function SellerOrders() {
                                                             >
                                                                 <CheckCircle className="h-3 w-3 mr-1" /> Confirm Delivery
                                                             </Button>
+                                                        )}
+
+                                                        {order.status !== "delivered" && order.status !== "returned" && order.status !== "return_requested" && order.status !== "return_approved" && (
+                                                            <Link href={`/seller/dashboard/messages?order=${order.id}&customer=${order.customer_id}`}>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="w-full mt-2 text-brand-green-700 bg-brand-green-50/50 border-brand-green-200 hover:bg-brand-green-100 rounded-lg text-[10px] font-bold h-7"
+                                                                >
+                                                                    <MessageSquare className="h-3 w-3 mr-1" /> View Buyer Chat
+                                                                </Button>
+                                                            </Link>
                                                         )}
 
                                                         {order.status === "delivered" && (

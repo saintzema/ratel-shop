@@ -160,12 +160,54 @@ function OrdersContent() {
 
     const handleReturnOrder = (order: Order) => {
         DemoStore.updateOrderStatus(order.id, "return_requested");
+        DemoStore.updateOrder(order.id, { escrow_status: "disputed" });
+        
+        // Notify customer
         DemoStore.addNotification({
             userId: user?.email || "guest",
             type: "order",
             message: `Return requested for ${order.product?.name || 'your order'}. The seller will review your request.`,
             link: "/account/orders"
         });
+        
+        // Notify admin
+        DemoStore.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `⚠️ Return requested on order #${order.id.substring(0, 8)} — ${order.product?.name || 'Product'} by ${order.customer_name || 'Customer'}`,
+            link: `/admin/inbox/orders?order=${order.id}`
+        });
+        
+        // Notify seller
+        if (order.seller_id) {
+            DemoStore.addNotification({
+                userId: order.seller_id,
+                type: "order",
+                message: `⚠️ Return requested on order #${order.id.substring(0, 8)} — ${order.product?.name || 'Product'}`,
+                link: `/seller/dashboard/messages?order=${order.id}`
+            });
+            
+            // Email seller
+            const seller = DemoStore.getSellers().find(s => s.id === order.seller_id);
+            if (seller?.owner_email) {
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: seller.owner_email,
+                        type: 'SELLER_RETURN_REQUEST',
+                        payload: {
+                            name: seller.business_name || "Seller",
+                            productName: order.product?.name || "Product",
+                            orderId: order.id,
+                            customerName: order.customer_name || "Customer",
+                            dashboardUrl: `${window.location.origin}/seller/dashboard/messages?order=${order.id}`,
+                        }
+                    })
+                }).catch(() => { /* best-effort */ });
+            }
+        }
+        
         loadData();
         setConciergeOrder({ ...order, status: "return_requested" });
         setConciergeMode("return");

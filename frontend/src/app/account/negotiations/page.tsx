@@ -41,12 +41,16 @@ export default function NegotiationsPage() {
         const loadData = () => {
             const all = DemoStore.getNegotiations(undefined, userId);
             setNegotiations(all);
-            setProducts(DemoStore.getProducts());
+            setProducts(DemoStore.getProducts({ includeInactiveSellers: true }));
         };
 
         loadData();
         window.addEventListener("storage", loadData);
-        return () => window.removeEventListener("storage", loadData);
+        window.addEventListener("demo-store-update", loadData);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("demo-store-update", loadData);
+        };
     }, [user]);
 
     const handleAction = (id: string, status: "accepted" | "rejected") => {

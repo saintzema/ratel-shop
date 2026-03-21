@@ -39,6 +39,7 @@ export function MessageBox() {
     const [activeTab, setActiveTab] = useState<"chats" | "notifications">("chats");
     const [searchQuery, setSearchQuery] = useState("");
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
+    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     // Load notifications from database API, with DemoStore fallback
@@ -88,7 +89,7 @@ export function MessageBox() {
     // Poll notifications while open
     useEffect(() => {
         if (!isMessageBoxOpen) return;
-        const poll = setInterval(loadNotifications, 30000);
+        const poll = setInterval(loadNotifications, 5000);
         return () => clearInterval(poll);
     }, [isMessageBoxOpen, loadNotifications]);
 
@@ -190,8 +191,9 @@ export function MessageBox() {
             return;
         }
 
-        sendMessage(selectedConvId, { sender: "user", text: input.trim() });
+        sendMessage(selectedConvId, { sender: "user", text: input.trim(), replyTo: replyingTo || undefined });
         setInput("");
+        setReplyingTo(null);
     };
 
     const handleSelectConversation = (conv: Conversation) => {
@@ -346,7 +348,14 @@ export function MessageBox() {
                                                                 ? "bg-brand-green-600 text-white rounded-2xl rounded-br-sm shadow-md"
                                                                 : "bg-white text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
                                                                 }`}
+                                                            onDoubleClick={() => setReplyingTo({ sender: msg.sender === 'user' ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}
                                                         >
+                                                            {msg.replyTo && (
+                                                                <div className={`mb-2 p-2 rounded-lg text-[10px] border-l-2 opacity-80 ${msg.sender === "user" ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
+                                                                    <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                                                                    <p className="truncate block max-w-[200px] sm:max-w-xs">{msg.replyTo.text}</p>
+                                                                </div>
+                                                            )}
                                                             <div className="whitespace-pre-wrap">{msg.text}</div>
                                                             <div className="flex items-center gap-1 justify-end mt-1">
                                                                 <span className={`text-[9px] ${msg.sender === "user" ? "text-white/60" : "text-gray-400"}`}>
@@ -382,9 +391,23 @@ export function MessageBox() {
                                 </div>
 
                                 {/* Input bar — WhatsApp style */}
-                                <div className="px-2 py-2 flex gap-2 items-center bg-[#f0f2f5] shrink-0 border-t border-gray-200/50">
-                                    <Input
-                                        value={input}
+                                <div className="px-2 py-2 flex flex-col gap-2 bg-[#f0f2f5] shrink-0 border-t border-gray-200/50">
+                                    {replyingTo && (
+                                        <div className="mx-2 mb-1 mt-1 px-3 py-2 bg-brand-green-50 border border-brand-green-100 rounded-lg flex items-center justify-between shadow-sm">
+                                            <div className="flex flex-col min-w-0 flex-1">
+                                                <div className="flex items-center gap-1.5 font-bold text-[10px] text-brand-green-700 uppercase tracking-wider mb-0.5">
+                                                    Replying to {replyingTo.sender}
+                                                </div>
+                                                <p className="text-[11px] text-gray-600 truncate pr-4">{replyingTo.text}</p>
+                                            </div>
+                                            <button onClick={() => setReplyingTo(null)} className="h-5 w-5 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2 items-center w-full">
+                                        <Input
+                                            value={input}
                                         onChange={(e) => setInput(e.target.value)}
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter" && !e.shiftKey) {
@@ -403,6 +426,7 @@ export function MessageBox() {
                                     >
                                         <Send className="h-4 w-4" />
                                     </Button>
+                                </div>
                                 </div>
                             </>
                         ) : (

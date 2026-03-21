@@ -16,6 +16,7 @@ interface Message {
     text: string;
     timestamp: Date;
     imageUrl?: string;
+    replyTo?: { sender: string; text: string };
 }
 
 interface PostOrderChatProps {
@@ -54,6 +55,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const [isTyping, setIsTyping] = useState(false);
     const [reviewRating, setReviewRating] = useState<number>(0);
     const [hoverRating, setHoverRating] = useState<number>(0);
+    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,7 +97,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 sender: m.sender as any,
                 text: m.text,
                 timestamp: new Date(), 
-                imageUrl: m.imageUrl
+                imageUrl: m.imageUrl,
+                replyTo: m.replyTo
             }));
         }
 
@@ -155,15 +158,19 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     sender: m.sender as any,
                     text: m.text,
                     timestamp: new Date(),
-                    imageUrl: m.imageUrl
+                    imageUrl: m.imageUrl,
+                    replyTo: m.replyTo
                 })));
             }
         };
         window.addEventListener("storage", handleUpdate);
         window.addEventListener("demo-store-update", handleUpdate);
+        // Polling for cross-browser/device realtime sync
+        const pollInterval = setInterval(handleUpdate, 3000);
         return () => {
             window.removeEventListener("storage", handleUpdate);
             window.removeEventListener("demo-store-update", handleUpdate);
+            clearInterval(pollInterval);
         };
     }, [isOpen, orderId]);
 
@@ -188,11 +195,23 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             text: `📷 ${file.name}`,
             timestamp: new Date(),
             imageUrl,
+            replyTo: replyingTo || undefined
         };
 
-        DemoStore.addOrderMessage(orderId!, "user", userMsg.text, imageUrl);
+        DemoStore.addOrderMessage(orderId!, "user", userMsg.text, imageUrl, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
+        setReplyingTo(null);
+
+        // Notify seller about image upload
+        if (product && product.seller_id) {
+            DemoStore.addNotification({
+                userId: product.seller_id,
+                type: "order",
+                message: `📷 Buyer uploaded a product image for Order ${trackingId}. Please review in the Concierge Inbox.`,
+                link: `/seller/dashboard/messages?order=${orderId}`
+            });
+        }
 
         // Ziva acknowledges the image
         setTimeout(() => {
@@ -236,13 +255,15 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             id: Date.now().toString(),
             sender: "user",
             text,
-            timestamp: new Date()
+            timestamp: new Date(),
+            replyTo: replyingTo || undefined
         };
 
-        DemoStore.addOrderMessage(orderId!, "user", text);
+        DemoStore.addOrderMessage(orderId!, "user", text, undefined, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
+        setReplyingTo(null);
 
         // Smart Ziva Response
         setTimeout(() => {
@@ -282,9 +303,19 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 DemoStore.addNotification({
                     userId: "admin",
                     type: "system",
-                    message: "Order Escalation: Customer requested human support",
+                    message: `Order Escalation: Customer requested human support for ${trackingId}`,
                     link: `/admin/inbox/orders?order=${trackingId}`
                 });
+
+                // Add notification for seller
+                if (product && product.seller_id) {
+                    DemoStore.addNotification({
+                        userId: product.seller_id,
+                        type: "order",
+                        message: `🚨 Buyer requested human support for Order ${trackingId}. Please take over from Ziva.`,
+                        link: `/seller/dashboard/messages?order=${orderId}`
+                    });
+                }
 
                 zivaText = `🛡️ **Connecting you to a human agent...**\n\nI understand you'd like to speak with our support team regarding order **${trackingId}**. I've escalated your request. A human agent will review your case and respond to this chat shortly.`;
             } else if (isCancelIntent) {
@@ -516,14 +547,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
 
-                            {messages.map((msg, idx) => (
+                            {messages.map((msg, idx) => {
+                                const isUser = msg.sender === "user";
+                                return (
                                 <motion.div
                                     key={`${msg.id}-${idx}`}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                                 >
-                                    <div className={`flex gap-2 max-w-[85%] ${msg.sender === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                                    <div className={`flex gap-2 max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-row"} group/msg items-end`}>
 
                                         {/* Avatar */}
                                         <div className="shrink-0 mt-auto">
@@ -542,14 +575,30 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                             ) : null}
                                         </div>
 
+                                        {!isUser && (
+                                            <button 
+                                                onClick={() => setReplyingTo({ sender: msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}
+                                                className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden sm:block mb-4"
+                                                title="Reply"
+                                            >
+                                                <RotateCcw className="h-3 w-3 -rotate-90" />
+                                            </button>
+                                        )}
+
                                         {/* Message Bubble */}
-                                        <div className="flex flex-col gap-1">
+                                        <div className="flex flex-col gap-1 relative cursor-pointer sm:cursor-auto" onDoubleClick={() => setReplyingTo({ sender: isUser ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}>
                                             <div
-                                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative whitespace-pre-line ${msg.sender === "user"
+                                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative whitespace-pre-line ${isUser
                                                     ? "bg-black text-white rounded-br-sm"
                                                     : "bg-white text-gray-800 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-bl-sm"
                                                     }`}
                                             >
+                                                {msg.replyTo && (
+                                                    <div className={`mb-2 p-2 rounded-lg text-[10px] border-l-2 opacity-80 ${isUser ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
+                                                        <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                                                        <p className="truncate block max-w-[200px] sm:max-w-xs">{msg.replyTo.text}</p>
+                                                    </div>
+                                                )}
                                                 {msg.text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
                                                     if (part.startsWith("**") && part.endsWith("**")) {
                                                         return <strong key={i}>{part.slice(2, -2)}</strong>;
@@ -574,14 +623,24 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 </div>
                                             )}
                                             {/* Timestamp */}
-                                            <span className={`text-[9px] font-medium mt-0.5 px-1 ${msg.sender === "user" ? "text-gray-400 text-right" : "text-gray-400"}`}>
+                                            <span className={`text-[9px] font-medium mt-0.5 px-1 ${isUser ? "text-gray-400 text-right" : "text-gray-400"}`}>
                                                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
+                                        
+                                        {isUser && (
+                                            <button 
+                                                onClick={() => setReplyingTo({ sender: 'You', text: msg.text })}
+                                                className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden sm:block mb-4"
+                                                title="Reply"
+                                            >
+                                                <RotateCcw className="h-3 w-3 -rotate-90" />
+                                            </button>
+                                        )}
 
                                     </div>
                                 </motion.div>
-                            ))}
+                            )})}
 
                             {isTyping && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
@@ -665,7 +724,20 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 )}
                             </div>
                         ) : (
-                            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+                            <div className="p-4 bg-white border-t border-gray-100 shrink-0 flex flex-col">
+                                {replyingTo && (
+                                    <div className="mb-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+                                        <div className="flex flex-col min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 font-bold text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">
+                                                <RotateCcw className="h-3 w-3 -rotate-90" /> Replying to {replyingTo.sender}
+                                            </div>
+                                            <p className="text-xs text-gray-500 truncate pr-4">{replyingTo.text}</p>
+                                        </div>
+                                        <button onClick={() => setReplyingTo(null)} className="h-6 w-6 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="relative flex items-center gap-2">
                                     <button
                                         onClick={() => fileInputRef.current?.click()}

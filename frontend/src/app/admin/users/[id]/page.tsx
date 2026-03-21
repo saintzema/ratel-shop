@@ -287,7 +287,13 @@ export default function AdminUserDetailPage() {
                                     DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
                                     try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
+                                    // Update by both ID and email for reliable persistence
                                     DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                    if (userEntity.email && userEntity.email !== userEntity.id) {
+                                        DemoStore.updateUserStatus(userEntity.email, newStatus);
+                                    }
+                                    // Persist to API
+                                    try { await fetch(`/api/users?id=${encodeURIComponent(userEntity.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) }); } catch { }
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
                                 setIsUpdating(false);
@@ -385,9 +391,9 @@ export default function AdminUserDetailPage() {
                                     </div>
                                     <div className={cn(
                                         "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest",
-                                        userEntity.status === 'active' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                                        userEntity.status === 'active' || !userEntity.status ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
                                     )}>
-                                        Status: {userEntity.status || "Pending"}
+                                        Status: {userEntity.status || "Active"}
                                     </div>
                                 </div>
                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-tighter opacity-70">Internal ID: {userEntity.id}</p>

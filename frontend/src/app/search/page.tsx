@@ -458,7 +458,7 @@ function SearchContent() {
       .filter((product) => {
         if (query) {
           const q = query.toLowerCase();
-          const pName = product.name.toLowerCase();
+          const pName = (product.name || "").toLowerCase();
           const pDesc = (product.description || "").toLowerCase();
 
           // First: check if the entire query matches (exact substring)
@@ -483,8 +483,7 @@ function SearchContent() {
           return false;
         if (
           isVerified &&
-          !product.seller_name.includes("TechHub") &&
-          !product.seller_name.includes("FairPrice")
+          (!product.seller_name || (!product.seller_name.includes("TechHub") && !product.seller_name.includes("FairPrice")))
         )
           return false;
         if (product.price < priceRange[0] || product.price > priceRange[1])

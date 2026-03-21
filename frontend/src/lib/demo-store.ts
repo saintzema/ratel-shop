@@ -475,10 +475,23 @@ class DemoStoreService {
         let filtered = all;
         
         if (sellerId) {
-            const products = this.getProducts();
+            const products = this.getProducts({ includeInactiveSellers: true });
+            const seller = this.getSellers().find(s => s.id === sellerId || s.user_id === sellerId || s.owner_email === sellerId);
+            
+            // Build a set of valid IDs for this seller
+            const matchIds = new Set<string>([sellerId]);
+            if (seller) {
+                if (seller.id) matchIds.add(seller.id);
+                if (seller.user_id) matchIds.add(seller.user_id);
+                if (seller.owner_email) matchIds.add(seller.owner_email);
+            }
+
             filtered = filtered.filter((n: NegotiationRequest) => {
                 const product = products.find(p => p.id === n.product_id);
-                return product?.seller_id === sellerId || (n as any).seller_id === sellerId;
+                const nSellerId = (n as any).seller_id || "";
+                
+                return matchIds.has(nSellerId) || 
+                       (product?.seller_id && matchIds.has(product.seller_id));
             });
         }
         
@@ -490,14 +503,17 @@ class DemoStoreService {
     }
 
     addNegotiation(request: NegotiationRequest) {
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === request.product_id);
+        
+        // Attach seller_id to the negotiation for reliable matching
+        const enrichedRequest = { ...request, seller_id: product?.seller_id || '' };
+        
         const current = this.getNegotiations();
-        const updated = [request, ...current];
+        const updated = [enrichedRequest, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         // Persist to Postgres (queued if offline)
-        resilientFetch("/api/negotiations", { method: "POST", body: request, type: "general" });
-
-        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === request.product_id);
+        resilientFetch("/api/negotiations", { method: "POST", body: enrichedRequest, type: "general" });
 
         // Notify Buyer — confirmation that negotiation was sent
         this.addNotification({
@@ -512,12 +528,22 @@ class DemoStoreService {
             const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
             const sellerEmail = seller?.owner_email || this.getUser(product.seller_id)?.email || `seller_${product.seller_id}@fairprice.ng`;
 
+            // Notify by seller ID (for dashboard visibility)
             this.addNotification({
-                userId: seller?.owner_email || product.seller_id,
+                userId: product.seller_id,
                 type: "negotiation",
                 message: `💰 New negotiation offer for ${product.name} from ${request.customer_name}: ₦${request.proposed_price.toLocaleString()}`,
                 link: "/seller/dashboard/messages"
             });
+            // Also notify by email if different
+            if (seller?.owner_email && seller.owner_email !== product.seller_id) {
+                this.addNotification({
+                    userId: seller.owner_email,
+                    type: "negotiation",
+                    message: `💰 New negotiation offer for ${product.name} from ${request.customer_name}: ₦${request.proposed_price.toLocaleString()}`,
+                    link: "/seller/dashboard/messages"
+                });
+            }
 
             // Email seller
             fetch("/api/email", {
@@ -566,7 +592,7 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         if (negotiation && (status === "accepted" || status === "rejected")) {
-            const product = this.getProducts().find(p => p.id === negotiation.product_id);
+            const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
             if (product) {
                 // Notify Buyer
                 this.addNotification({
@@ -694,7 +720,7 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
 
-        const product = this.getProducts().find(p => p.id === negotiation.product_id);
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
 
         // Notify Buyer (User)
         this.addNotification({
@@ -1255,7 +1281,16 @@ class DemoStoreService {
             tracking_id: orderId,
             tracking_status: "pending",
             tracking_steps: trackingSteps,
-            escrow_status: "held" as const
+            escrow_status: "held" as const,
+            zivaActive: true,
+            chat_messages: [
+                {
+                    id: Date.now().toString(),
+                    sender: "ziva",
+                    text: `Hello ${customerName.split(" ")[0]}! I'm Ziva, your AI Concierge for order #${orderId}. I'll keep you updated on tracking info and coordinate with ${product.seller_name || "the seller"} if you have any questions. How can we help?`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                }
+            ]
         };
 
         const orders = this.getOrders();
@@ -1400,7 +1435,7 @@ class DemoStoreService {
         return order?.chat_messages || [];
     }
 
-    addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string) {
+    addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string, replyTo?: { sender: string; text: string }) {
         const orders = this.getOrders();
 
         const updated = orders.map(o => {
@@ -1409,6 +1444,7 @@ class DemoStoreService {
                     id: Date.now().toString(),
                     sender,
                     text,
+                    replyTo,
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     imageUrl
                 };
@@ -1444,7 +1480,7 @@ class DemoStoreService {
                         userId: order.seller_id,
                         type: 'order',
                         message: `💬 Customer message on order #${orderShortId}: "${msgPreview}"`,
-                        link: `/seller/orders`
+                        link: `/seller/dashboard/messages?order=${orderId}`
                     });
                 }
             } else if (sender === 'admin') {
@@ -1462,7 +1498,7 @@ class DemoStoreService {
                         userId: order.seller_id,
                         type: 'order',
                         message: `💬 Admin message on order #${orderShortId}: "${msgPreview}"`,
-                        link: `/seller/orders`
+                        link: `/seller/dashboard/messages?order=${orderId}`
                     });
                 }
             } else if (sender === 'seller') {
@@ -2184,14 +2220,14 @@ class DemoStoreService {
         } catch { }
     }
     // --- Negotiation Chat Messaging ---
-    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string) {
+    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string, replyTo?: { sender: string; text: string }) {
         const stored = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
         if (!stored) return;
         const negs = JSON.parse(stored);
         const idx = negs.findIndex((n: any) => n.id === negId);
         if (idx === -1) return;
         if (!negs[idx].chat_messages) negs[idx].chat_messages = [];
-        negs[idx].chat_messages.push({ sender, text, timestamp: new Date().toISOString() });
+        negs[idx].chat_messages.push({ sender, text, replyTo, timestamp: new Date().toISOString() });
 
         const negotiation = negs[idx];
         const product = this.getProducts().find(p => p.id === negotiation.product_id);
@@ -2889,7 +2925,7 @@ class DemoStoreService {
         const stored = localStorage.getItem(this.STORAGE_KEYS.COUPONS);
         const all: Coupon[] = stored ? JSON.parse(stored) : [];
         if (!userId) return all;
-        return all.filter(c => c.userId === userId);
+        return all.filter(c => c.userId === userId || c.userId === "all");
     }
 
     getActiveCoupons(userId: string): Coupon[] {
@@ -3074,7 +3110,20 @@ class DemoStoreService {
         if (typeof window === "undefined") return [];
         const convs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CONVERSATIONS) || "[]");
         if (!userId) return convs;
-        return convs.filter((c: any) => c.participants.includes(userId));
+        
+        // Build a set of all known IDs for this user (handles seller ID mismatches)
+        const matchIds = new Set<string>([userId]);
+        const seller = this.getSellers().find(s => s.id === userId || s.user_id === userId || s.owner_email === userId);
+        if (seller) {
+            if (seller.id) matchIds.add(seller.id);
+            if (seller.user_id) matchIds.add(seller.user_id);
+            if (seller.owner_email) matchIds.add(seller.owner_email);
+        }
+        const userRecord = this.getUser(userId);
+        if (userRecord?.email) matchIds.add(userRecord.email);
+        if (userRecord?.id) matchIds.add(userRecord.id);
+        
+        return convs.filter((c: any) => c.participants.some((p: string) => matchIds.has(p)));
     }
 
     getOrCreateConversation(
@@ -3115,7 +3164,7 @@ class DemoStoreService {
         return allMsgs.filter((m: any) => m.conversation_id === conversationId);
     }
 
-    sendChatMessage(conversationId: string, senderId: string, senderName: string, text: string): any {
+    sendChatMessage(conversationId: string, senderId: string, senderName: string, text: string, replyTo?: { sender: string; text: string }): any {
         if (typeof window === "undefined") return null;
 
         const msg = {
@@ -3124,6 +3173,7 @@ class DemoStoreService {
             sender_id: senderId,
             sender_name: senderName,
             text,
+            replyTo, // allow threading context
             timestamp: new Date().toISOString(),
             read_by: [senderId],
         };

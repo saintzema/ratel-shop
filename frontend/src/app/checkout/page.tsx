@@ -43,28 +43,75 @@ function getDeliveryDateRange(): string {
 function DiscountSection({
     availableCoupons,
     appliedCoupon,
+    subtotal,
     onApplyCoupon
 }: {
     availableCoupons: Coupon[];
     appliedCoupon: Coupon | null;
+    subtotal: number;
     onApplyCoupon: (coupon: Coupon | null) => void;
 }) {
     const [code, setCode] = useState("");
     const [msg, setMsg] = useState("");
     const [showDropdown, setShowDropdown] = useState(false);
 
-    const handleApply = (manualCode?: string) => {
+    const handleApply = async (manualCode?: string) => {
         const targetCode = manualCode || code;
         if (!targetCode) return;
 
+        setMsg("Validating...");
+
+        // First check DemoStore defined coupons
         const validCoupon = availableCoupons.find(c => c.code.toUpperCase() === targetCode.toUpperCase());
 
         if (validCoupon) {
             onApplyCoupon(validCoupon);
             setMsg(`Discount Applied: ₦${validCoupon.amount.toLocaleString()} OFF`);
             setShowDropdown(false);
-        } else {
-            setMsg("Invalid or expired discount code");
+            return;
+        }
+
+        // If not found in DemoStore, check the database via the API
+        try {
+            const res = await fetch(`/api/discounts/validate?code=${targetCode.toUpperCase()}`);
+            if (res.ok) {
+                const discount = await res.json();
+                
+                let amountOff = 0;
+                let reasonStr = "";
+                
+                if (discount.type === 'percentage') {
+                    amountOff = Math.round(subtotal * (discount.value / 100));
+                    reasonStr = `${discount.value}% off storewide discount`;
+                } else if (discount.type === 'fixed') {
+                    amountOff = discount.value;
+                    reasonStr = `₦${discount.value.toLocaleString()} flat discount`;
+                } else if (discount.type === 'shipping') {
+                    amountOff = 0; // Handled separately or mock a typical shipping cost as discount
+                    reasonStr = `Free Shipping discount`;
+                }
+
+                const mappedCoupon: Coupon = {
+                    id: discount.id,
+                    userId: "all",
+                    code: discount.code,
+                    amount: amountOff,
+                    reason: reasonStr,
+                    isUsed: false,
+                    issuedBy: discount.sellerId || "system",
+                    createdAt: new Date().toISOString(),
+                    expiresAt: new Date(Date.now() + 86400000).toISOString()
+                };
+
+                onApplyCoupon(mappedCoupon);
+                setMsg(`Discount Applied: ₦${amountOff.toLocaleString()} OFF`);
+                setShowDropdown(false);
+            } else {
+                setMsg("Invalid or expired discount code");
+                setTimeout(() => setMsg(""), 3000);
+            }
+        } catch (e) {
+            setMsg("Error validating code. Please try again.");
             setTimeout(() => setMsg(""), 3000);
         }
     };
@@ -524,9 +571,10 @@ function CheckoutContent() {
     const hasGlobalProduct = checkoutItems.some(item => item.product.seller_id === "global-partners" || item.product.seller_name.toLowerCase().includes("global"));
     const shippingMultiplier = hasGlobalProduct ? 1.5 : 1;
 
-    // Shipping: FREE for online payments (Paystack) OR Premium Users spending ₦50,000+
+    // Shipping: FREE for online payments (Paystack) OR Premium Users spending ₦50,000+ OR Free Shipping Discount
+    const isFreeShippingDiscount = appliedCoupon?.reason === "Free Shipping discount";
     const isPremiumFreeDelivery = user?.isPremium && subtotal >= 50000;
-    const shipping = (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery) ? 0 : (
+    const shipping = (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount) ? 0 : (
         deliveryMethod === "pickup"
             ? Math.round(basePickupFee * shippingMultiplier)
             : Math.round(baseDoorFee * shippingMultiplier)
@@ -860,7 +908,7 @@ function CheckoutContent() {
 
                     {/* Step 1: Shipping Address */}
                     <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => checkoutStep > 1 && setCheckoutStep(1)}>
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => { if (checkoutStep > 1) setCheckoutStep(1); }}>
                             <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
                                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
                                     {checkoutStep > 1 ? <Check className="h-4 w-4" /> : '1'}
@@ -1123,7 +1171,7 @@ function CheckoutContent() {
                                                                 required
                                                             >
                                                                 <option value="" disabled>Select City</option>
-                                                                {pickupDetails.state && Object.keys(PICKUP_STATIONS[pickupDetails.state]).map(city => (
+                                                                {pickupDetails.state && PICKUP_STATIONS[pickupDetails.state] && Object.keys(PICKUP_STATIONS[pickupDetails.state]).map(city => (
                                                                     <option key={city} value={city}>{city}</option>
                                                                 ))}
                                                             </select>
@@ -1145,7 +1193,7 @@ function CheckoutContent() {
                                                                 onChange={e => setPickupDetails({ ...pickupDetails, station: e.target.value })}
                                                             >
                                                                 <option value="">Select nearest landmark (optional)</option>
-                                                                {PICKUP_STATIONS[pickupDetails.state][address.city].map(landmark => (
+                                                                {(PICKUP_STATIONS[pickupDetails.state]?.[address.city] || []).map(landmark => (
                                                                     <option key={landmark} value={landmark}>{landmark}</option>
                                                                 ))}
                                                             </select>
@@ -1189,7 +1237,7 @@ function CheckoutContent() {
                                                                 required
                                                             >
                                                                 <option value="" disabled>Select City</option>
-                                                                {pickupDetails.state && Object.keys(PICKUP_STATIONS[pickupDetails.state]).map(city => (
+                                                                {pickupDetails.state && PICKUP_STATIONS[pickupDetails.state] && Object.keys(PICKUP_STATIONS[pickupDetails.state]).map(city => (
                                                                     <option key={city} value={city}>{city}</option>
                                                                 ))}
                                                             </select>
@@ -1210,7 +1258,7 @@ function CheckoutContent() {
                                                             required
                                                         >
                                                             <option value="" disabled>Select a Station</option>
-                                                            {pickupDetails.city && PICKUP_STATIONS[pickupDetails.state][pickupDetails.city].map(station => (
+                                                            {pickupDetails.city && PICKUP_STATIONS[pickupDetails.state]?.[pickupDetails.city] && PICKUP_STATIONS[pickupDetails.state][pickupDetails.city].map(station => (
                                                                 <option key={station} value={station}>{station}</option>
                                                             ))}
                                                         </select>
@@ -1444,6 +1492,7 @@ function CheckoutContent() {
                                 <DiscountSection
                                     availableCoupons={availableCoupons}
                                     appliedCoupon={appliedCoupon}
+                                    subtotal={subtotal}
                                     onApplyCoupon={setAppliedCoupon}
                                 />
 

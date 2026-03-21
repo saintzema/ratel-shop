@@ -133,13 +133,21 @@ export function Navbar() {
 
             // Always include local DemoStore notification unread count
             const localNotifs = DemoStore.getNotifications(user.id || user.email);
-            const localUnread = localNotifs.filter(n => !n.read).length;
+            let localUnread = localNotifs.filter(n => !n.read).length;
+
+            // If user is a seller, also fetch notifications addressed to their seller store ID
+            if (isSeller) {
+                const sellerId = DemoStore.getCurrentSellerId();
+                if (sellerId && sellerId !== user.id && sellerId !== user.email) {
+                    const sellerNotifs = DemoStore.getNotifications(sellerId);
+                    localUnread += sellerNotifs.filter(n => !n.read).length;
+                }
+            }
 
             try {
                 const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}&count_only=true`);
                 if (res.ok) {
                     const data = await res.json();
-                    // Use the higher of API count and local count (avoid double-counting)
                     setUnreadNotifs(Math.max(data.unread_count ?? 0, localUnread));
                 } else {
                     // API failed — use local count

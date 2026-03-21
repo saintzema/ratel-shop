@@ -141,7 +141,7 @@ export default function AdminOrdersPage() {
                                                 <Link href={`/admin/inbox/orders?order=${order.id}`}>
                                                     <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs font-bold text-gray-700 bg-white border-gray-200 hover:bg-gray-50">
                                                         <MessageSquare className="w-3 h-3 mr-1.5" />
-                                                        Concierge
+                                                        View Ziva Chat
                                                     </Button>
                                                 </Link>
                                                 <Link href={`/admin/orders/${order.id}`}>

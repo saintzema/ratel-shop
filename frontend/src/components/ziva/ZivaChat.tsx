@@ -756,6 +756,8 @@ export function ZivaChat() {
                     );
                     if (lastNegotiateMsg && lastNegotiateMsg.products && lastNegotiateMsg.products.length > 0) {
                         const matchProduct = lastNegotiateMsg.products[0];
+                        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${amount.toLocaleString()}\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+
                         // Save as proper negotiation entry (shows on /account/negotiations)
                         DemoStore.addNegotiation({
                             id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -766,14 +768,19 @@ export function ZivaChat() {
                             message: `Offer submitted via Ziva AI`,
                             status: "pending",
                             created_at: new Date().toISOString(),
+                            chat_messages: [{
+                                sender: "buyer" as const,
+                                text: negMessageText,
+                                timestamp: new Date().toISOString()
+                            }]
                         });
+
                         // Also save to inbox conversation thread
-                        const negMessage = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${amount.toLocaleString()}\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
                         startConversation(
                             `neg_${matchProduct.id}_${Date.now()}`,
                             matchProduct.name,
                             matchProduct.image_url,
-                            negMessage
+                            negMessageText
                         );
 
                         setTimeout(() => {
@@ -927,6 +934,8 @@ export function ZivaChat() {
                         return;
                     }
 
+                    const negMessageText = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${offerAmount.toLocaleString()}\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+
                     // Save as proper negotiation entry (shows on /account/negotiations)
                     DemoStore.addNegotiation({
                         id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -937,14 +946,19 @@ export function ZivaChat() {
                         message: `Offer submitted via Ziva AI`,
                         status: "pending",
                         created_at: new Date().toISOString(),
+                        chat_messages: [{
+                            sender: "buyer" as const,
+                            text: negMessageText,
+                            timestamp: new Date().toISOString()
+                        }]
                     });
-                    // Also save to inbox conversation thread
-                    const negMessage = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${offerAmount.toLocaleString()}\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+
+                    // Also save to generic inbox conversation thread for buyer
                     startConversation(
                         `neg_${matchProduct.id}_${Date.now()}`,
                         matchProduct.name,
                         matchProduct.image_url,
-                        negMessage
+                        negMessageText
                     );
 
                     setTimeout(() => {

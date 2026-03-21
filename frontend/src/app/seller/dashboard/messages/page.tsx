@@ -20,16 +20,18 @@ import {
     AlertTriangle,
     Undo2,
     Headphones,
-    X
+    X,
+    Bot,
+    ShieldAlert
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 // Unified Conversation Type
-type ConversationType = "all" | "negotiation" | "order" | "dispute" | "return" | "support";
+type ConversationType = "all" | "negotiation" | "order" | "dispute" | "return" | "support" | "concierge";
 
 interface Conversation {
     id: string; // The ID of the neg or order or support msg
-    type: "negotiation" | "order" | "dispute" | "return" | "support";
+    type: "negotiation" | "order" | "dispute" | "return" | "support" | "concierge";
     customer_name: string;
     customer_id?: string;
     product_id?: string;
@@ -39,9 +41,13 @@ interface Conversation {
     unread: boolean;
     // Context linking
     negotiation?: NegotiationRequest;
+    negotiations?: NegotiationRequest[]; // Multiple negotiations grouped by customer
     order?: Order;
     // mock support chat
-    chat_messages: { sender: "seller" | "buyer" | "system" | "admin" | "ziva"; text: string; timestamp: Date; imageUrl?: string }[];
+    chat_messages: { sender: "seller" | "buyer" | "system" | "admin" | "ziva"; text: string; timestamp: Date; imageUrl?: string; replyTo?: { sender: string; text: string } }[];
+    // Concierge-specific
+    orderId?: string;
+    zivaActive?: boolean;
 }
 
 export default function UniversalMessagesPage() {
@@ -55,6 +61,7 @@ export default function UniversalMessagesPage() {
     const [counterPrice, setCounterPrice] = useState("");
     const [counterMessage, setCounterMessage] = useState("");
     const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
+    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -71,28 +78,59 @@ export default function UniversalMessagesPage() {
 
             const convos: Conversation[] = [];
 
-            // Add Negotiations
+            // Group Negotiations by Customer
+            const negotiationsByCustomer = new Map<string, NegotiationRequest[]>();
             negs.forEach(neg => {
-                const prod = allProds.find(p => p.id === neg.product_id);
-                // convert chat messages
-                const chatHistory = neg.chat_messages ? neg.chat_messages.map(m => ({
+                const custId = neg.customer_id;
+                if (!negotiationsByCustomer.has(custId)) {
+                    negotiationsByCustomer.set(custId, []);
+                }
+                negotiationsByCustomer.get(custId)!.push(neg);
+            });
+
+            negotiationsByCustomer.forEach((customerNegs, custId) => {
+                // Sort by newest first
+                customerNegs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const latestNeg = customerNegs[0];
+                const prod = allProds.find(p => p.id === latestNeg.product_id);
+                
+                // Combine all chat messages from all negotiations for this customer, sorted chronologically
+                let allChatMessages: any[] = [];
+                customerNegs.forEach(n => {
+                    if (n.chat_messages) {
+                        allChatMessages.push(...n.chat_messages.map(m => ({
+                            ...m,
+                            contextProductId: n.product_id,
+                            contextProductName: allProds.find(p => p.id === n.product_id)?.name || "Product"
+                        })));
+                    }
+                });
+                allChatMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+                const mappedChatHistory = allChatMessages.map(m => ({
                     sender: m.sender as "seller" | "buyer",
                     text: m.text,
-                    timestamp: new Date(m.timestamp)
-                })) : [];
+                    timestamp: new Date(m.timestamp),
+                    replyTo: m.replyTo
+                }));
+
+                const hasUnread = customerNegs.some(n => n.status === "pending" && !n.counter_status);
 
                 convos.push({
-                    id: `neg-${neg.id}`,
+                    id: `neg-group-${custId}`,
                     type: "negotiation",
-                    customer_name: neg.customer_name || "Customer",
-                    customer_id: neg.customer_id,
-                    product_id: neg.product_id,
+                    customer_name: latestNeg.customer_name || "Customer",
+                    customer_id: custId,
+                    product_id: latestNeg.product_id, // Default to latest product context
                     product_name: prod?.name,
-                    preview: chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].text : "Sent an offer",
-                    updated_at: new Date(neg.created_at),
-                    unread: neg.status === "pending" && !neg.counter_status,
-                    negotiation: neg,
-                    chat_messages: chatHistory
+                    preview: mappedChatHistory.length > 0 
+                        ? mappedChatHistory[mappedChatHistory.length - 1].text 
+                        : "Sent an offer",
+                    updated_at: new Date(latestNeg.created_at),
+                    unread: hasUnread,
+                    negotiation: latestNeg, // Primary negotiation context
+                    negotiations: customerNegs, // All negotiations for this customer
+                    chat_messages: mappedChatHistory
                 });
             });
 
@@ -126,11 +164,47 @@ export default function UniversalMessagesPage() {
                 }
             });
 
+            // Add Concierge chats from orders with chat_messages
+            orders.forEach(order => {
+                if (order.chat_messages && order.chat_messages.length > 0 && !order.escrow_status?.includes('disputed')) {
+                    const prod = allProds.find(p => p.id === order.product_id);
+                    const lastMsg = order.chat_messages[order.chat_messages.length - 1];
+                    convos.push({
+                        id: `conc-${order.id}`,
+                        type: "concierge",
+                        customer_name: order.customer_name || "Customer",
+                        customer_id: order.customer_id,
+                        product_id: order.product_id,
+                        product_name: prod?.name || "Product",
+                        preview: lastMsg.text?.substring(0, 60) || "Concierge chat",
+                        updated_at: new Date(order.updated_at || order.created_at),
+                        unread: !!order.chat_messages.find((m: any) => m.sender === 'user' && !m.read_by?.includes(sellerId)),
+                        chat_messages: order.chat_messages.map((m: any) => ({
+                            sender: m.sender === 'user' ? 'buyer' as const : m.sender as any,
+                            text: m.text,
+                            timestamp: new Date(),
+                            imageUrl: m.imageUrl
+                        })),
+                        orderId: order.id,
+                        zivaActive: order.zivaActive !== false,
+                        order: order,
+                    });
+                }
+            });
+
             // Load real DM conversations
+            const seller = DemoStore.getCurrentSeller();
+            const sellerMatchIds = new Set<string>([sellerId]);
+            if (seller) {
+                if (seller.id) sellerMatchIds.add(seller.id);
+                if (seller.user_id) sellerMatchIds.add(seller.user_id);
+                if (seller.owner_email) sellerMatchIds.add(seller.owner_email);
+            }
+            
             const dmConvs = DemoStore.getConversations(sellerId);
             dmConvs.forEach((conv: any) => {
                 const isImageRequest = conv.context?.type === "buyer_seller" && conv.context?.product_id;
-                const otherParticipantId = conv.participants.find((p: string) => p !== sellerId) || "";
+                const otherParticipantId = conv.participants.find((p: string) => !sellerMatchIds.has(p)) || "";
                 const customerName = conv.participant_names?.[otherParticipantId] || "Customer";
 
                 let productName = isImageRequest ? "Image Request" : "Chat";
@@ -141,15 +215,15 @@ export default function UniversalMessagesPage() {
 
                 // Map to unified conversation type
                 const mappedMsgs: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[] = DemoStore.getChatMessages(conv.id).map((m: any) => ({
-                    sender: m.sender_id === sellerId ? "seller" as const : "buyer" as const,
+                    sender: sellerMatchIds.has(m.sender_id) ? "seller" as const : "buyer" as const,
                     text: m.text,
                     timestamp: new Date(m.timestamp),
-                    imageUrl: undefined, // Add support for images later if needed
+                    imageUrl: undefined,
                 }));
 
                 convos.push({
                     id: conv.id,
-                    type: isImageRequest ? "support" : "order", // use order icon for general chat
+                    type: isImageRequest ? "support" : "order",
                     customer_name: customerName,
                     customer_id: otherParticipantId,
                     product_id: conv.context?.product_id,
@@ -161,9 +235,27 @@ export default function UniversalMessagesPage() {
                 });
             });
 
-            // If a URL parameter specifies a customer id to message directly
+            // Handle ?order= URL param for auto-selecting concierge chat
             const params = new URLSearchParams(window.location.search);
+            const orderFromUrl = params.get('order');
             const directCustomer = params.get('customer');
+            
+            if (orderFromUrl) {
+                // Try to find existing concierge conversation
+                const concThread = convos.find(c => c.orderId === orderFromUrl || c.id === `conc-${orderFromUrl}`);
+                if (concThread) {
+                    // Will be auto-selected below
+                } else {
+                    // Create a concierge entry for this order if it has no chat yet
+                    const targetOrder = orders.find(o => o.id === orderFromUrl);
+                    if (targetOrder) {
+                        DemoStore.addOrderMessage(orderFromUrl, 'system', 'Seller joined the concierge chat.');
+                        // Re-fetch
+                        window.dispatchEvent(new Event('storage'));
+                    }
+                }
+            }
+            
             if (directCustomer) {
                 // Mock a direct chat thread for this customer if it doesn't exist
                 if (!convos.find(c => c.customer_id === directCustomer && c.type === "order")) {
@@ -185,7 +277,14 @@ export default function UniversalMessagesPage() {
 
         loadData();
         window.addEventListener("storage", loadData);
-        return () => window.removeEventListener("storage", loadData);
+        window.addEventListener("demo-store-update", loadData);
+        // Polling for cross-browser/device realtime sync
+        const pollInterval = setInterval(loadData, 3000);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("demo-store-update", loadData);
+            clearInterval(pollInterval);
+        };
     }, []);
 
     const filteredConvos = conversations
@@ -212,6 +311,24 @@ export default function UniversalMessagesPage() {
             if (directThread) setSelectedId(directThread.id);
         }
     }, [conversations, selectedId]);
+
+    // Auto-select concierge from ?order= URL
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const orderFromUrl = params.get('order');
+        if (orderFromUrl && !selectedId && conversations.length > 0) {
+            const concThread = conversations.find(c => c.orderId === orderFromUrl || c.id === `conc-${orderFromUrl}`);
+            if (concThread) {
+                setSelectedId(concThread.id);
+                setFilter('concierge');
+            }
+        }
+    }, [conversations, selectedId]);
+
+    // Clear reply context when changing conversations
+    useEffect(() => {
+        setReplyingTo(null);
+    }, [selectedId]);
 
     // Mark as read when active conversation changes
     useEffect(() => {
@@ -261,14 +378,23 @@ export default function UniversalMessagesPage() {
 
         // In a real app, logic branches based on conversation type (DemoStore handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
-            DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage || "[Image Attached]");
+            DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage || "[Image Attached]", replyingTo || undefined);
         } else if (activeConvo.id.startsWith("ord-")) {
             const orderId = activeConvo.id.replace("ord-", "");
-            DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined);
+            DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
+        } else if (activeConvo.id.startsWith("conc-")) {
+            // Concierge chat — seller sends via order message system
+            const orderId = activeConvo.orderId || activeConvo.id.replace("conc-", "");
+            DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
+            // If Ziva was active, take over
+            if (activeConvo.zivaActive) {
+                DemoStore.updateOrder(orderId, { zivaActive: false });
+                DemoStore.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
+            }
         } else if (activeConvo.id.startsWith("chat-")) {
             // New direct chat created from stub
             const newConv = DemoStore.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
-            DemoStore.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""));
+            DemoStore.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""), replyingTo || undefined);
             setSelectedId(newConv.id);
         } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-")) {
             // It's a real DM conversation
@@ -276,7 +402,8 @@ export default function UniversalMessagesPage() {
                 activeConvo.id,
                 sellerId,
                 sellerName,
-                chatMessage || (selectedImagePreview ? "[Image Uploaded]" : "")
+                chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""),
+                replyingTo || undefined
             );
         } else {
             // Mock adding to local state for legacy orders/disputes
@@ -284,17 +411,44 @@ export default function UniversalMessagesPage() {
                 if (c.id === activeConvo.id) {
                     return {
                         ...c,
-                        chat_messages: [...c.chat_messages, { sender: "seller", text: chatMessage, timestamp: new Date(), imageUrl: selectedImagePreview || undefined }]
+                        chat_messages: [...c.chat_messages, { sender: "seller", text: chatMessage, timestamp: new Date(), imageUrl: selectedImagePreview || undefined, replyTo: replyingTo || undefined }]
                     };
                 }
                 return c;
             }));
         }
 
+        // Send email notification to the customer
+        if (activeConvo.customer_id) {
+            const customerEmail = activeConvo.customer_id; // customer_id is often the email
+            const sellerObj2 = DemoStore.getSellers().find(s => s.id === sellerId);
+            const sellerBusinessName = sellerObj2?.business_name || "Seller";
+            fetch('/api/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: customerEmail,
+                    type: 'ORDER_UPDATE',
+                    payload: {
+                        name: activeConvo.customer_name || 'Customer',
+                        orderId: activeConvo.orderId || activeConvo.order?.id || '',
+                        status: 'message',
+                        message: `${sellerBusinessName} sent you a message: "${(chatMessage || '[Image Attached]').substring(0, 100)}"`,
+                    }
+                })
+            }).catch(err => console.error('Email notification failed:', err));
+        }
+
         setChatMessage("");
         setSelectedImagePreview(null);
+        setReplyingTo(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
         window.dispatchEvent(new Event("storage")); // mostly for negotiations
+    };
+
+    const handleSwipeToReply = (sender: string, text: string) => {
+        setReplyingTo({ sender, text });
+        // Focus input (would need a ref for the input, but user will tap anyway in mobile)
     };
 
     const getConvoIcon = (type: string) => {
@@ -304,6 +458,7 @@ export default function UniversalMessagesPage() {
             case "dispute": return <AlertTriangle className="h-4 w-4" />;
             case "return": return <Undo2 className="h-4 w-4" />;
             case "support": return <Headphones className="h-4 w-4" />;
+            case "concierge": return <Bot className="h-4 w-4" />;
             default: return <MessageSquare className="h-4 w-4" />;
         }
     };
@@ -315,8 +470,28 @@ export default function UniversalMessagesPage() {
             case "dispute": return "bg-red-100 text-red-600";
             case "return": return "bg-amber-100 text-amber-600";
             case "support": return "bg-emerald-100 text-emerald-600";
+            case "concierge": return "bg-brand-green-100 text-brand-green-600";
             default: return "bg-gray-100 text-gray-600";
         }
+    };
+
+    const handleZivaTakeover = () => {
+        if (!activeConvo?.orderId) return;
+        const orderId = activeConvo.orderId;
+        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerObj = sellerId ? DemoStore.getSellers().find(s => s.id === sellerId) : null;
+        const sellerName = sellerObj?.business_name || "Seller";
+        DemoStore.updateOrder(orderId, { zivaActive: false });
+        DemoStore.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
+        window.dispatchEvent(new Event("storage"));
+    };
+
+    const handleZivaHandback = () => {
+        if (!activeConvo?.orderId) return;
+        const orderId = activeConvo.orderId;
+        DemoStore.updateOrder(orderId, { zivaActive: true });
+        DemoStore.addOrderMessage(orderId, "system", "Chat has been handed back to Ziva AI.");
+        window.dispatchEvent(new Event("storage"));
     };
 
     return (
@@ -339,7 +514,7 @@ export default function UniversalMessagesPage() {
                         />
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        {(["all", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
+                        {(["all", "concierge", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
                             <button
                                 key={t}
                                 onClick={() => setFilter(t)}
@@ -432,10 +607,21 @@ export default function UniversalMessagesPage() {
                                             {activeConvo.type}
                                         </Badge>
                                     </div>
-                                    {activeConvo.customer_id && <p className="text-[11px] text-gray-400 font-bold uppercase">Customer ID: {activeConvo.customer_id.substring(0, 8)}</p>}
+                                    {activeConvo.customer_id && <p className="text-[11px] text-gray-400 font-bold uppercase">Customer: {activeConvo.customer_id}</p>}
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">
+                                {activeConvo.type === "concierge" && (
+                                    activeConvo.zivaActive ? (
+                                        <Button size="sm" onClick={handleZivaTakeover} className="bg-black hover:bg-gray-800 text-white font-bold text-xs h-8 rounded-lg">
+                                            <ShieldAlert className="w-3 h-3 mr-1.5" /> Take Over from Ziva
+                                        </Button>
+                                    ) : (
+                                        <Button size="sm" variant="outline" onClick={handleZivaHandback} className="text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50 font-bold text-xs h-8 rounded-lg">
+                                            <Bot className="w-3 h-3 mr-1.5" /> Hand Back to Ziva
+                                        </Button>
+                                    )
+                                )}
                                 <Button size="icon" variant="ghost" className="text-gray-400 hover:text-gray-900">
                                     <MoreVertical className="h-5 w-5" />
                                 </Button>
@@ -452,7 +638,7 @@ export default function UniversalMessagesPage() {
                                     <h4 className="text-[13px] font-bold text-gray-900 truncate">{activeProduct.name}</h4>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <span className="text-[11px] font-black text-gray-500">{formatPrice(activeProduct.price)} listed</span>
-                                        {activeConvo.order && <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">Order #{activeConvo.order.id.substring(0, 8)}</span>}
+                                        {activeConvo.order && <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">Order #{activeConvo.order.id}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -493,21 +679,56 @@ export default function UniversalMessagesPage() {
                                                     {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : activeConvo.customer_name.charAt(0)}
                                                 </div>
                                             )}
-                                            <div className="flex flex-col gap-1">
-                                                <div className={cn(
-                                                    "rounded-2xl p-3.5 text-[13px] shadow-sm relative",
-                                                    isSeller ? "bg-indigo-600 text-white rounded-br-sm" : 
-                                                    msg.sender === "admin" ? "bg-blue-600 text-white rounded-bl-sm" :
-                                                    msg.sender === "ziva" ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-bl-sm" :
-                                                    "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
-                                                )}>
-                                                    {msg.imageUrl && (
-                                                        <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
-                                                            <img src={msg.imageUrl} alt="attachment" className="max-w-[200px] sm:max-w-xs h-auto" />
-                                                        </div>
+                                            <div className="flex flex-col gap-1 items-end group/msg">
+                                                <div className="flex items-center gap-2">
+                                                    {!isSeller && (
+                                                        <button 
+                                                            onClick={() => handleSwipeToReply(msg.sender === "admin" ? "Admin" : msg.sender === "ziva" ? "Ziva AI" : activeConvo.customer_name, msg.text)}
+                                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden md:block"
+                                                            title="Reply to message"
+                                                        >
+                                                            <Undo2 className="h-3.5 w-3.5" />
+                                                        </button>
                                                     )}
-                                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                    <div className={cn(
+                                                        "rounded-2xl p-3.5 text-[13px] shadow-sm relative",
+                                                        isSeller ? "bg-indigo-600 text-white rounded-br-sm" : 
+                                                        msg.sender === "admin" ? "bg-blue-600 text-white rounded-bl-sm" :
+                                                        msg.sender === "ziva" ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-bl-sm" :
+                                                        "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
+                                                    )}>
+                                                        {msg.replyTo && (
+                                                            <div className={cn(
+                                                                "mb-2 p-2 rounded-lg text-[11px] border-l-2 opacity-80",
+                                                                isSeller ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"
+                                                            )}>
+                                                                <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                                                                <p className="truncate block max-w-[200px]">{msg.replyTo.text}</p>
+                                                            </div>
+                                                        )}
+                                                        {msg.imageUrl && (
+                                                            <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
+                                                                <img src={msg.imageUrl} alt="attachment" className="max-w-[200px] sm:max-w-xs h-auto" />
+                                                            </div>
+                                                        )}
+                                                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                    </div>
+                                                    {isSeller && (
+                                                        <button 
+                                                            onClick={() => handleSwipeToReply("You", msg.text)}
+                                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden md:block"
+                                                            title="Reply to message"
+                                                        >
+                                                            <Undo2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
+                                                {/* Mobile swipe hint could be implemented via framer-motion, but clicking is a good fallback for now */}
+                                                <div 
+                                                    className="md:hidden opacity-0 w-full h-full absolute inset-0 cursor-pointer" 
+                                                    onDoubleClick={() => handleSwipeToReply(isSeller ? "You" : msg.sender === "admin" ? "Admin" : activeConvo.customer_name, msg.text)}
+                                                    title="Double tap to reply"
+                                                />
                                                 <span className={cn(
                                                     "text-[10px] font-semibold flex items-center gap-1",
                                                     isSeller ? "text-gray-400 justify-end" : "text-gray-400 justify-start"
@@ -614,6 +835,20 @@ export default function UniversalMessagesPage() {
 
                         {/* Input Area */}
                         <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20">
+
+                            {replyingTo && (
+                                <div className="mb-3 px-3 py-2 bg-indigo-50/50 border border-indigo-100 rounded-lg flex items-center justify-between">
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 font-bold text-[11px] text-indigo-600 uppercase tracking-wider mb-0.5">
+                                            <Undo2 className="h-3 w-3" /> Replying to {replyingTo.sender}
+                                        </div>
+                                        <p className="text-xs text-gray-600 truncate pr-4">{replyingTo.text}</p>
+                                    </div>
+                                    <button onClick={() => setReplyingTo(null)} className="h-6 w-6 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                </div>
+                            )}
 
                             {selectedImagePreview && (
                                 <div className="mb-3 relative inline-block">

@@ -48,8 +48,8 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         window.addEventListener("storage", handler);
         window.addEventListener("demo-store-update", handler);
 
-        // Also poll every 15s as backup
-        const poll = setInterval(refreshNotifications, 15000);
+        // Also poll every 5s for cross-browser/device realtime sync
+        const poll = setInterval(refreshNotifications, 5000);
 
         return () => {
             window.removeEventListener("storage", handler);

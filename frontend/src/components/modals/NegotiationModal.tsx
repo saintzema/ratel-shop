@@ -119,7 +119,10 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
 
         const currentUserId = user?.id || DemoStore.getCurrentUserId() || "guest_session";
 
-        // Create new negotiation
+        // Create a conversation thread message string
+        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
+
+        // Create new negotiation with the initial message bundled in so it hot renders in the seller inbox
         const newNegotiation = {
             id: `neg_${Date.now()}`,
             product_id: product.id,
@@ -128,19 +131,21 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             proposed_price: Number(proposedPrice),
             message: message,
             status: "pending" as const,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            chat_messages: [{
+                sender: "buyer" as const,
+                text: negMessageText,
+                timestamp: new Date().toISOString()
+            }]
         };
 
         DemoStore.addNegotiation(newNegotiation);
 
-        // Create a conversation thread for this negotiation
-        const negMessage = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
-
         startConversation(
-            `neg_${product.id}_${Date.now()}`,
+            `neg_${product.id}`,
             product.name,
             product.image_url,
-            negMessage
+            negMessageText
         );
 
         setIsSubmitting(false);

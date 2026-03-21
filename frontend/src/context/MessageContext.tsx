@@ -16,6 +16,10 @@ export interface ChatMessage {
         counterPrice: number;
         originalPrice: number;
     };
+    replyTo?: {
+        sender: string;
+        text: string;
+    };
 }
 
 export interface Conversation {

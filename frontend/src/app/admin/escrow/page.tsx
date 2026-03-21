@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import Link from "next/link";
 import {
     ShieldCheck,
@@ -18,7 +18,7 @@ import {
     Timer,
     TrendingUp,
     MessageSquare,
-    X,
+    X, Send, ImageIcon, Bot, ShieldAlert, Undo2,
     Eye,
     ChevronLeft,
     ArrowUpDown,
@@ -55,6 +55,33 @@ export default function EscrowManagement() {
         orderId: string | null;
     }>({ isOpen: false, orderId: null });
     const [adminMessage, setAdminMessage] = useState("");
+    const [chatMessages, setChatMessages] = useState<any[]>([]);
+    const [chatImagePreview, setChatImagePreview] = useState<string | null>(null);
+    const [adminTakeover, setAdminTakeover] = useState(false);
+    const chatFileInputRef = useRef<HTMLInputElement>(null);
+    const chatScrollRef = useRef<HTMLDivElement>(null);
+
+    // Load and poll chat messages for the open chat modal
+    const loadChatMessages = useCallback(() => {
+        if (!chatModal.orderId) return;
+        const msgs = DemoStore.getOrderMessages(chatModal.orderId);
+        setChatMessages(msgs || []);
+    }, [chatModal.orderId]);
+
+    useEffect(() => {
+        if (chatModal.isOpen && chatModal.orderId) {
+            loadChatMessages();
+            const poll = setInterval(loadChatMessages, 3000);
+            return () => clearInterval(poll);
+        }
+    }, [chatModal.isOpen, chatModal.orderId, loadChatMessages]);
+
+    // Auto-scroll chat
+    useEffect(() => {
+        if (chatScrollRef.current) {
+            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+        }
+    }, [chatMessages]);
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -82,7 +109,7 @@ export default function EscrowManagement() {
             : filter === "seller_confirmed"
                 ? orders.filter(o => o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed" || o.escrow_status === "auto_release_eligible")
                 : filter === "disputed"
-                    ? orders.filter(o => o.escrow_status === "disputed")
+                    ? orders.filter(o => o.escrow_status === "disputed" || o.status === "cancelled")
                     : orders.filter(o => o.escrow_status === "held");
 
     const sortedOrders = [...filteredOrders].sort((a, b) => {
@@ -606,14 +633,14 @@ export default function EscrowManagement() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            onClick={() => setChatModal({ isOpen: false, orderId: null })}
+                            onClick={() => { setChatModal({ isOpen: false, orderId: null }); setAdminTakeover(false); setChatImagePreview(null); }}
                             className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
                         />
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col"
+                            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-full max-w-lg bg-gray-50 rounded-2xl shadow-2xl overflow-hidden border border-gray-200 flex flex-col max-h-[85vh]"
                         >
                             <div className="bg-slate-900 text-white p-4 flex items-center justify-between shadow-md z-10">
                                 <div className="flex items-center gap-3">
@@ -623,28 +650,52 @@ export default function EscrowManagement() {
                                     <div>
                                         <h3 className="text-sm font-bold flex items-center gap-2">
                                             Live Order Chat
-                                            <span className="bg-indigo-500/20 text-indigo-300 text-[10px] uppercase font-black px-2 py-0.5 rounded-full border border-indigo-500/30">QA Monitoring</span>
+                                            <span className={cn("text-[10px] uppercase font-black px-2 py-0.5 rounded-full border", adminTakeover ? "bg-rose-500/20 text-rose-300 border-rose-500/30" : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30")}>
+                                                {adminTakeover ? "Admin Active" : "QA Monitoring"}
+                                            </span>
                                         </h3>
-                                        <p className="text-[11px] text-slate-400">Order #{chatModal.orderId} • Read-only access</p>
+                                        <p className="text-[11px] text-slate-400">Order #{chatModal.orderId}</p>
                                     </div>
                                 </div>
-                                <button onClick={() => setChatModal({ isOpen: false, orderId: null })} className="text-slate-400 hover:text-white transition-colors">
-                                    <X className="h-5 w-5" />
-                                </button>
+                                <div className="flex items-center gap-2">
+                                    {adminTakeover ? (
+                                        <button onClick={() => setAdminTakeover(false)} className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 px-3 py-1.5 rounded-lg border border-emerald-500/30 transition-colors flex items-center gap-1">
+                                            <Bot className="h-3 w-3" /> Hand Back
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => setAdminTakeover(true)} className="text-[10px] font-bold bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 px-3 py-1.5 rounded-lg border border-rose-500/30 transition-colors flex items-center gap-1">
+                                            <ShieldAlert className="h-3 w-3" /> Take Over
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setChatModal({ isOpen: false, orderId: null }); setAdminTakeover(false); setChatImagePreview(null); }} className="text-slate-400 hover:text-white transition-colors">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
                             </div>
 
-                            <div className="flex-1 p-5 overflow-y-auto space-y-4 max-h-[60vh] min-h-[400px]">
-                                {(chatModal.orderId ? DemoStore.getOrderMessages(chatModal.orderId) : []).length > 0 ? (
+                            <div ref={chatScrollRef} className="flex-1 p-5 overflow-y-auto space-y-4 min-h-[300px]">
+                                {chatMessages.length > 0 ? (
                                     (() => {
                                         const order = DemoStore.getOrders().find(o => o.id === chatModal.orderId);
                                         const sellerId = order?.seller_id;
-                                        return DemoStore.getOrderMessages(chatModal.orderId!).map((msg, i) => {
+                                        return chatMessages.map((msg, i) => {
                                             const isCustomer = msg.sender === "user";
                                             const isZiva = msg.sender === "ziva";
+                                            const isSeller = msg.sender === "seller" || (sellerId && msg.sender === sellerId);
+                                            const isAdmin = msg.sender === "admin";
+                                            const senderLabel = isCustomer ? "Buyer" : isZiva ? "Ziva AI" : isSeller ? "Seller" : isAdmin ? "Admin" : msg.sender;
+                                            const bubbleColor = isCustomer ? "bg-white border text-gray-800 rounded-tl-sm" : isZiva ? "bg-emerald-600 text-white rounded-tr-sm" : isSeller ? "bg-blue-600 text-white rounded-tr-sm" : "bg-indigo-600 text-white rounded-tr-sm";
+                                            const align = isCustomer ? "items-start" : "items-end self-end ml-auto";
                                             return (
-                                                <div key={i} className={cn("flex flex-col max-w-[85%]", isCustomer ? "items-start" : "items-end self-end ml-auto")}>
-                                                    <span className="text-[10px] font-bold text-gray-500 mb-1 ml-1">{isCustomer ? "Buyer" : isZiva ? "Ziva AI" : "Admin"}</span>
-                                                    <div className={cn("px-4 py-2.5 rounded-2xl shadow-sm text-sm", isCustomer ? "bg-white border text-gray-800 rounded-tl-sm" : isZiva ? "bg-emerald-600 text-white rounded-tr-sm" : "bg-indigo-600 text-white rounded-tr-sm")}>
+                                                <div key={msg.id || i} className={cn("flex flex-col max-w-[85%]", align)}>
+                                                    {msg.replyTo && (
+                                                        <div className="text-[10px] text-gray-400 mb-1 ml-1 bg-gray-100 px-2 py-1 rounded-lg border border-gray-200">
+                                                            <span className="font-bold">{msg.replyTo.sender}:</span> {msg.replyTo.text.substring(0, 60)}...
+                                                        </div>
+                                                    )}
+                                                    <span className={cn("text-[10px] font-bold mb-1", isCustomer ? "ml-1 text-gray-500" : "mr-1 text-gray-500")}>{senderLabel}</span>
+                                                    <div className={cn("px-4 py-2.5 rounded-2xl shadow-sm text-sm", bubbleColor)}>
+                                                        {msg.imageUrl && <img src={msg.imageUrl} alt="" className="max-w-[200px] rounded-xl mb-2 border border-white/20" />}
                                                         {msg.text}
                                                     </div>
                                                 </div>
@@ -652,52 +703,64 @@ export default function EscrowManagement() {
                                         });
                                     })()
                                 ) : (
-                                    <>
-                                        <div className="mt-8 flex justify-center">
-                                            <div className="bg-yellow-50 text-yellow-800 text-xs font-bold px-4 py-2 rounded-full border border-yellow-200 shadow-sm flex items-center gap-2">
-                                                <Lock className="h-3.5 w-3.5" />
-                                                End-to-end encrypted session
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-start max-w-[85%] mt-6">
-                                            <span className="text-[10px] font-bold text-gray-500 mb-1 ml-1">Buyer</span>
-                                            <div className="px-4 py-2.5 rounded-2xl shadow-sm text-sm bg-white border text-gray-800 rounded-tl-sm">
-                                                Hi, I have a problem with my order. It looks damaged.
-                                            </div>
-                                            <span className="text-[9px] text-gray-400 mt-1 ml-2">Today, 2:30 PM</span>
-                                        </div>
-                                        <div className="flex flex-col items-end self-end ml-auto max-w-[85%] mt-4">
-                                            <span className="text-[10px] font-bold text-gray-500 mb-1 mr-1">Seller</span>
-                                            <div className="px-4 py-2.5 rounded-2xl shadow-sm text-sm bg-indigo-600 text-white rounded-tr-sm">
-                                                I apologize for the inconvenience. Could you please provide pictures of the damage?
-                                            </div>
-                                            <span className="text-[9px] text-gray-400 mt-1 mr-2">Today, 2:35 PM</span>
-                                        </div>
-                                    </>
+                                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                                        <MessageSquare className="h-10 w-10 text-gray-200 mb-3" />
+                                        <p className="text-sm font-bold text-gray-400">No messages yet</p>
+                                        <p className="text-xs text-gray-300 mt-1">Messages from the concierge chat will appear here.</p>
+                                    </div>
                                 )}
                             </div>
 
                             <div className="bg-gray-200/50 p-4 border-t border-gray-200">
+                                {chatImagePreview && (
+                                    <div className="mb-3 relative inline-block">
+                                        <img src={chatImagePreview} alt="preview" className="h-16 w-16 object-cover rounded-xl border-2 border-indigo-100 shadow-sm" />
+                                        <button onClick={() => setChatImagePreview(null)} className="absolute -top-2 -right-2 h-5 w-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md text-xs">✕</button>
+                                    </div>
+                                )}
                                 <form onSubmit={(e) => {
                                     e.preventDefault();
-                                    if (adminMessage.trim() && chatModal.orderId) {
-                                        DemoStore.addOrderMessage(chatModal.orderId, adminMessage.trim(), "admin");
+                                    if ((adminMessage.trim() || chatImagePreview) && chatModal.orderId) {
+                                        DemoStore.addOrderMessage(chatModal.orderId, "admin", adminMessage.trim() || "[Image]", chatImagePreview || undefined);
                                         setAdminMessage("");
+                                        setChatImagePreview(null);
+                                        loadChatMessages();
                                     }
                                 }} className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => chatFileInputRef.current?.click()}
+                                        className="h-11 w-11 shrink-0 rounded-xl border border-gray-300 bg-white text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-colors"
+                                    >
+                                        <ImageIcon className="h-4 w-4" />
+                                    </button>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        ref={chatFileInputRef}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => setChatImagePreview(reader.result as string);
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
                                     <input
                                         type="text"
                                         value={adminMessage}
                                         onChange={(e) => setAdminMessage(e.target.value)}
-                                        placeholder="Type a message as Admin/QA..."
+                                        placeholder={adminTakeover ? "Send a message as Admin..." : "Type a message as Admin/QA..."}
                                         className="flex-1 bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                     />
                                     <button
                                         type="submit"
-                                        disabled={!adminMessage.trim()}
+                                        disabled={!adminMessage.trim() && !chatImagePreview}
                                         className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-xl px-4 flex items-center justify-center transition-colors"
                                     >
-                                        <MessageSquare className="h-5 w-5" />
+                                        <Send className="h-5 w-5" />
                                     </button>
                                 </form>
                             </div>

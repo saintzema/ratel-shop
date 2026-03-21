@@ -127,6 +127,7 @@ export interface Order {
         text: string;
         timestamp: string;
         imageUrl?: string;
+        replyTo?: { sender: string; text: string };
     }[];
     zivaActive?: boolean;
     unread_admin?: boolean;
