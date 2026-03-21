@@ -210,11 +210,12 @@ class DemoStoreService {
 
         try {
             // 🚀 PARALLEL FETCH: Fire all four requests simultaneously for fast sync
-            const [productsResult, sellersResult, searchCacheResult, ordersResult] = await Promise.allSettled([
+            const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult] = await Promise.allSettled([
                 fetch("/api/products?all=true"),
                 fetch("/api/sellers?all=true"),
                 fetch("/api/search-cache"),
                 fetch("/api/orders?all=true"),
+                fetch("/api/negotiations?all=true")
             ]);
 
             // ── Process Products ──
@@ -333,6 +334,65 @@ class DemoStoreService {
                         }
                     }
                     localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(Array.from(localMap.values())));
+                }
+            }
+
+            // ── Process Negotiations (merge DB negotiations with local negotiations & recreate chat) ──
+            if (negotiationsResult.status === "fulfilled" && negotiationsResult.value.ok) {
+                const negData = await negotiationsResult.value.json();
+                const dbNegotiations: any[] = negData.negotiations || [];
+                
+                if (dbNegotiations.length > 0) {
+                    const localNegotiations: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || '[]');
+                    const localMap = new Map(localNegotiations.map((n: any) => [n.id, n]));
+
+                    for (const dbNeg of dbNegotiations) {
+                        const localVersion = localMap.get(dbNeg.id);
+                        
+                        let chatMessages = localVersion?.chat_messages;
+                        if (!chatMessages || chatMessages.length === 0) {
+                            // Synthesize frontend chat_messages array because it is not natively stored in the DB columns
+                            chatMessages = [];
+                            chatMessages.push({
+                                sender: "buyer",
+                                text: `🤝 Negotiation Request\n\nProduct: ${dbNeg.product?.name || "Product"}\nCurrent Price: ₦${dbNeg.product?.price?.toLocaleString() || 0}\nMy Offer: ₦${dbNeg.proposedPrice.toLocaleString()}\n\nMessage: ${dbNeg.message || "Offer submitted"}\n\nWaiting for seller to respond...`,
+                                timestamp: dbNeg.createdAt
+                            });
+                            
+                            if (dbNeg.status === 'accepted') {
+                                chatMessages.push({ sender: "seller", text: `Your offer of ₦${dbNeg.proposedPrice.toLocaleString()} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout.`, timestamp: dbNeg.updatedAt });
+                            } else if (dbNeg.status === 'rejected') {
+                                chatMessages.push({ sender: "seller", text: `Unfortunately, your offer of ₦${dbNeg.proposedPrice.toLocaleString()} was REJECTED.`, timestamp: dbNeg.updatedAt });
+                            } else if (dbNeg.counterPrice) {
+                                chatMessages.push({
+                                    sender: "seller",
+                                    text: dbNeg.counterMessage || `The seller sent a counter offer of ₦${dbNeg.counterPrice.toLocaleString()}.\n\nDo you accept?`,
+                                    timestamp: dbNeg.updatedAt || dbNeg.createdAt
+                                });
+                            }
+                        }
+
+                        const mapped = {
+                            id: dbNeg.id,
+                            product_id: dbNeg.productId,
+                            customer_id: dbNeg.customerId,
+                            customer_name: dbNeg.customerName,
+                            seller_id: dbNeg.sellerId,
+                            proposed_price: dbNeg.proposedPrice,
+                            message: dbNeg.message,
+                            status: dbNeg.status,
+                            counter_price: dbNeg.counterPrice,
+                            counter_message: dbNeg.counterMessage,
+                            counter_status: dbNeg.counterStatus,
+                            created_at: dbNeg.createdAt,
+                            updated_at: dbNeg.updatedAt,
+                            chat_messages: chatMessages,
+                        };
+                        
+                        // Merge DB data, overriding local but keeping synthesized chats
+                        localMap.set(mapped.id, mapped);
+                    }
+                    localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
                 }
             }
 

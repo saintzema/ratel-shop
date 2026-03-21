@@ -78,23 +78,24 @@ export default function UniversalMessagesPage() {
 
             const convos: Conversation[] = [];
 
-            // Group Negotiations by Customer
-            const negotiationsByCustomer = new Map<string, NegotiationRequest[]>();
+            // Group Negotiations by Customer + Product
+            const negotiationsByGroup = new Map<string, NegotiationRequest[]>();
             negs.forEach(neg => {
-                const custId = neg.customer_id;
-                if (!negotiationsByCustomer.has(custId)) {
-                    negotiationsByCustomer.set(custId, []);
+                const groupId = `${neg.customer_id}_${neg.product_id}`;
+                if (!negotiationsByGroup.has(groupId)) {
+                    negotiationsByGroup.set(groupId, []);
                 }
-                negotiationsByCustomer.get(custId)!.push(neg);
+                negotiationsByGroup.get(groupId)!.push(neg);
             });
 
-            negotiationsByCustomer.forEach((customerNegs, custId) => {
+            negotiationsByGroup.forEach((customerNegs, groupId) => {
                 // Sort by newest first
                 customerNegs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
                 const latestNeg = customerNegs[0];
+                const custId = latestNeg.customer_id;
                 const prod = allProds.find(p => p.id === latestNeg.product_id);
                 
-                // Combine all chat messages from all negotiations for this customer, sorted chronologically
+                // Combine all chat messages from all negotiations for this customer/product group
                 let allChatMessages: any[] = [];
                 customerNegs.forEach(n => {
                     if (n.chat_messages) {
@@ -117,7 +118,7 @@ export default function UniversalMessagesPage() {
                 const hasUnread = customerNegs.some(n => n.status === "pending" && !n.counter_status);
 
                 convos.push({
-                    id: `neg-group-${custId}`,
+                    id: `neg-group-${groupId}`,
                     type: "negotiation",
                     customer_name: latestNeg.customer_name || "Customer",
                     customer_id: custId,
