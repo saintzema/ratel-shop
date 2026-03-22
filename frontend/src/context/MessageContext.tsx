@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
 import { DemoStore } from "@/lib/demo-store";
 
 // ─── Types ───────────────────────────────────────────────
@@ -83,6 +83,10 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         setMounted(true);
     }, []);
 
+    // Keep a ref to avoid stale closures in event handlers
+    const conversationsRef = useRef<Conversation[]>([]);
+    useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
+
     // Listen for storage events (cross-tab: admin dashboard → customer)
     useEffect(() => {
         if (!mounted) return;
@@ -90,7 +94,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
             if (e.key === STORAGE_KEY && e.newValue) {
                 const newConversations: Conversation[] = JSON.parse(e.newValue);
                 // Find new messages to trigger notifications
-                const oldConvMap = new Map(conversations.map(c => [c.id, c]));
+                const oldConvMap = new Map(conversationsRef.current.map(c => [c.id, c]));
                 for (const conv of newConversations) {
                     const old = oldConvMap.get(conv.id);
                     if (old && conv.messages.length > old.messages.length) {
@@ -180,7 +184,43 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 
                 setConversations(prev => {
                     let changed = false;
-                    const updated = prev.map(conv => {
+                    let nextConvs = [...prev];
+                    
+                    // 1. Auto-create missing negotiations (essential for cross-device/guest sync)
+                    for (const neg of negs) {
+                        const orderId = `neg_${neg.product_id}`;
+                        // Ensure we only sync negotiations meant for the current user
+                        const currentUserId = typeof window !== "undefined" ? localStorage.getItem("fp_guest_name") || localStorage.getItem("fp_user_id") || "guest_session" : "";
+                        if (neg.customer_id !== currentUserId && neg.customer_id !== "guest_session") continue;
+
+                        if (!nextConvs.some(c => c.orderId === orderId)) {
+                            // Find product to enrich conversation UI
+                            const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+                            const product = allProducts.find(p => p.id === neg.product_id);
+                            
+                            const newConv: Conversation = {
+                                id: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                orderId,
+                                productName: product?.name || "Negotiated Item",
+                                productImage: product?.image_url,
+                                storeName: product?.seller_name || "Global Store",
+                                messages: Array.isArray(neg.chat_messages) ? neg.chat_messages.map((m: any) => ({
+                                    id: `msg_sync_init_${Math.random()}`,
+                                    sender: m.sender || (m.sender_id === neg.customer_id ? "user" : "seller"),
+                                    text: m.text,
+                                    timestamp: m.timestamp || new Date().toISOString(),
+                                    negotiation: m.negotiation
+                                })) : [],
+                                unreadCount: 1,
+                                lastUpdated: neg.updated_at || new Date().toISOString()
+                            };
+                            nextConvs.push(newConv);
+                            changed = true;
+                        }
+                    }
+
+                    // 2. Diff and append new messages
+                    const updated = nextConvs.map(conv => {
                         if (!conv.orderId?.startsWith("neg_")) return conv;
                         const productId = conv.orderId.replace("neg_", "");
                         
@@ -307,14 +347,14 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                     return prev;
                 });
             } catch {}
-        }, 3000);
+        }, 12000);
 
         return () => {
             window.removeEventListener("storage", handleStorage);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
             clearInterval(pollInterval);
         };
-    }, [mounted, conversations]);
+    }, [mounted]);
 
     // Persist
     useEffect(() => {

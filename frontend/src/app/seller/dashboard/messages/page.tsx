@@ -22,9 +22,16 @@ import {
     Headphones,
     X,
     Bot,
-    ShieldAlert
+    ShieldAlert,
+    Trash2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Unified Conversation Type
 type ConversationType = "all" | "negotiation" | "order" | "dispute" | "return" | "support" | "concierge";
@@ -495,6 +502,36 @@ export default function UniversalMessagesPage() {
         window.dispatchEvent(new Event("storage"));
     };
 
+    const handleDeleteChat = () => {
+        if (!selectedId) return;
+        const sellerId = DemoStore.getCurrentSellerId();
+        if (!sellerId) return;
+
+        // Clean up from DB/LocalStorage
+        if (selectedId.startsWith("neg-group-")) {
+            // It's a negotiation group
+            const groupId = selectedId.replace("neg-group-", "");
+            const negs = DemoStore.getNegotiations(sellerId);
+            const toDelete = negs.filter(n => `${n.customer_id}_${n.product_id}` === groupId);
+            // Simulate deletion in DemoStore (or hide it)
+            const remaining = negs.filter(n => `${n.customer_id}_${n.product_id}` !== groupId);
+            localStorage.setItem("fp_negotiations", JSON.stringify(remaining));
+        } else if (selectedId.startsWith("conc-") || selectedId.startsWith("ord-")) {
+            // Cannot permanently delete core orders, but we could hide them locally or mock it.
+            // A realistic implementation drops them from view. 
+            alert("Order threads cannot be deleted permanently for record-keeping purposes.");
+            return;
+        } else {
+            // It's a standard DM
+            DemoStore.deleteConversation(selectedId);
+        }
+
+        // Force UI state refresh
+        setConversations(prev => prev.filter(c => c.id !== selectedId));
+        setSelectedId(null);
+        window.dispatchEvent(new Event("storage"));
+    };
+
     return (
         <div className="h-[calc(100vh-6rem)] -mt-2 -mx-2 md:-mx-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
 
@@ -625,9 +662,19 @@ export default function UniversalMessagesPage() {
                                         </Button>
                                     )
                                 )}
-                                <Button size="icon" variant="ghost" className="text-gray-400 hover:text-gray-900">
-                                    <MoreVertical className="h-5 w-5" />
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button size="icon" variant="ghost" className="text-gray-400 hover:text-gray-900">
+                                            <MoreVertical className="h-5 w-5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem onClick={handleDeleteChat} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Delete Chat
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
 
@@ -635,7 +682,7 @@ export default function UniversalMessagesPage() {
                         {activeProduct && (
                             <div className="p-3 bg-gray-50/80 border-b border-gray-100 flex gap-4 items-center shrink-0">
                                 <div className="h-12 w-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center p-1 shrink-0 shadow-sm">
-                                    <img src={activeProduct.image_url || undefined} alt="" className="max-w-full max-h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                    <img src={activeProduct.image_url || (activeProduct as any).imageUrl || activeProduct.images?.[0] || undefined} alt="" className="max-w-full max-h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-[13px] font-bold text-gray-900 truncate">{activeProduct.name}</h4>

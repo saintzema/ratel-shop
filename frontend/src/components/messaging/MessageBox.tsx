@@ -158,7 +158,6 @@ export function MessageBox() {
         }
     }, [selectedConvId, conversations]);
 
-    if (!isMessageBoxOpen) return null;
 
     const selectedConversation = conversations.find(c => c.id === selectedConvId);
     const showChat = selectedConvId && selectedConversation;
@@ -328,7 +327,7 @@ export function MessageBox() {
                                         <h3 className="font-bold text-sm leading-tight truncate">
                                             {selectedConversation.productName}
                                         </h3>
-                                        <p className="text-[10px] text-white/70 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                                        <p className="text-[10px] text-white/70 font-medium whitespace-nowrap overflow-hidden text-ellipsis">
                                             {selectedConversation.storeName ? selectedConversation.storeName : selectedConversation.orderId ? `Order ${selectedConversation.orderId.slice(0, 14)}...` : "Active"}
                                         </p>
                                     </div>
@@ -407,20 +406,88 @@ export function MessageBox() {
                                                                 <p className={`text-xs mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-600'}`}>{msg.negotiation.productName}: <strong className={`text-base font-black ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
                                                                 
                                                                 {msg.negotiation.type === 'countered' && (
-                                                                    <Button 
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            const product = DemoStore.getProducts().find(p => p.id === msg.negotiation?.productId);
-                                                                            if (product && msg.negotiation) {
-                                                                                addToCart({ ...product, price: msg.negotiation.counterPrice });
-                                                                                router.push("/cart");
-                                                                                closeMessageBox();
-                                                                            }
-                                                                        }}
-                                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 rounded-lg font-bold shadow-md transition-all"
-                                                                    >
-                                                                        Accept & Buy @ ₦{(msg.negotiation.counterPrice || 0).toLocaleString()}
-                                                                    </Button>
+                                                                    <div className="flex flex-col gap-2 mt-2">
+                                                                        <div className="flex gap-2">
+                                                                            <Button 
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    // Accept counter-offer via proper counter_status update
+                                                                                    const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
+                                                                                    const targetNeg = negs.find((n: any) => n.product_id === msg.negotiation?.productId && n.counter_price);
+                                                                                    if (targetNeg) {
+                                                                                        DemoStore.updateCounterStatus(targetNeg.id, "accepted");
+                                                                                    }
+                                                                                    const product = DemoStore.getProducts().find(p => p.id === msg.negotiation?.productId);
+                                                                                    if (product && msg.negotiation) {
+                                                                                        addToCart({ ...product, price: msg.negotiation.counterPrice });
+                                                                                        router.push("/cart");
+                                                                                        closeMessageBox();
+                                                                                    }
+                                                                                }}
+                                                                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 rounded-lg font-bold shadow-md transition-all"
+                                                                            >
+                                                                                Accept ₦{(msg.negotiation.counterPrice || 0).toLocaleString()}
+                                                                            </Button>
+                                                                            <Button 
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    // Reject counter-offer via proper counter_status update
+                                                                                    const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
+                                                                                    const targetNeg = negs.find((n: any) => n.product_id === msg.negotiation?.productId && n.counter_price);
+                                                                                    if (targetNeg) {
+                                                                                        DemoStore.updateCounterStatus(targetNeg.id, "rejected");
+                                                                                    }
+                                                                                }}
+                                                                                variant="outline"
+                                                                                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 text-xs h-9 rounded-lg font-bold transition-all"
+                                                                            >
+                                                                                Reject
+                                                                            </Button>
+                                                                        </div>
+                                                                        
+                                                                        <div className="relative flex items-center pt-2 pb-1">
+                                                                            <div className="flex-grow border-t border-gray-200"></div>
+                                                                            <span className="shrink-0 text-[10px] font-bold text-gray-400 px-2 uppercase tracking-widest">Or Negotiate</span>
+                                                                            <div className="flex-grow border-t border-gray-200"></div>
+                                                                        </div>
+                                                                        
+                                                                        <form 
+                                                                            onSubmit={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                const form = e.target as HTMLFormElement;
+                                                                                const input = form.elements.namedItem("renegotiatePrice") as HTMLInputElement;
+                                                                                if (!input.value) return;
+                                                                                const price = Number(input.value);
+                                                                                const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
+                                                                                const targetNeg = negs.find((n: any) => n.product_id === msg.negotiation?.productId);
+                                                                                if (targetNeg) {
+                                                                                    // Update existing negotiation instead of creating a duplicate
+                                                                                    DemoStore.sendBuyerCounterOffer(targetNeg.id, price);
+                                                                                    
+                                                                                    sendMessage(selectedConvId!, {
+                                                                                        sender: "user",
+                                                                                        text: `I'd like to propose ₦${price.toLocaleString()} instead.`
+                                                                                    });
+                                                                                    input.value = "";
+                                                                                }
+                                                                            }} 
+                                                                            className="flex gap-2"
+                                                                        >
+                                                                            <div className="relative flex-1">
+                                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₦</span>
+                                                                                <input 
+                                                                                    name="renegotiatePrice"
+                                                                                    type="number" 
+                                                                                    placeholder="Amount" 
+                                                                                    className="w-full h-9 pl-7 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
+                                                                                />
+                                                                            </div>
+                                                                            <Button type="submit" size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold px-3">
+                                                                                Send
+                                                                            </Button>
+                                                                        </form>
+                                                                    </div>
                                                                 )}
                                                                 
                                                                 {msg.negotiation.type === 'accepted' && (

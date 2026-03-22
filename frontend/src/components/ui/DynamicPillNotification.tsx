@@ -152,13 +152,14 @@ export function DynamicPillNotification() {
             audioRef.current = new Audio(NOTIFICATION_SOUND);
         }
 
-        if (pendingNotification) {
+        // Trigger on EITHER pendingNotification or customNotification
+        const activeNotif = pendingNotification || customNotification;
+        if (activeNotif) {
             setVisible(true);
             
             // Try playing sound
             if (audioRef.current) {
                 audioRef.current.play().catch(() => {
-                    // Fallback to synthesized web audio if generic audio play is blocked
                     playDingSound();
                 });
             } else {

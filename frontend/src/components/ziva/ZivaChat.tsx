@@ -777,10 +777,11 @@ export function ZivaChat() {
 
                         // Also save to inbox conversation thread
                         startConversation(
-                            `neg_${matchProduct.id}_${Date.now()}`,
+                            `neg_${matchProduct.id}`,
                             matchProduct.name,
                             matchProduct.image_url,
-                            negMessageText
+                            negMessageText,
+                            matchProduct.seller_name || "Global Store"
                         );
 
                         setTimeout(() => {

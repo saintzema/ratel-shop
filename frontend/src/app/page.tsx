@@ -521,20 +521,17 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        if (direction === "left") {
-          if (el.scrollLeft >= el.scrollWidth / 3) {
-            el.scrollLeft = 0;
-          } else {
-            el.scrollLeft += 1;
-          }
+        const scrollAmount = direction === "left" ? 240 : -240;
+        
+        // Handle loop wrap around natively
+        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+          el.scrollLeft = 0;
+        } else if (direction === "right" && el.scrollLeft <= 0) {
+          el.scrollLeft = el.scrollWidth / 3;
         } else {
-          if (el.scrollLeft <= 0) {
-            el.scrollLeft = el.scrollWidth / 3;
-          } else {
-            el.scrollLeft -= 1;
-          }
+          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
         }
-      }, 30);
+      }, 3500);
     };
 
     if (!isHovered) {
@@ -763,20 +760,17 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        if (direction === "left") {
-          if (el.scrollLeft >= el.scrollWidth / 3) {
-            el.scrollLeft = 0;
-          } else {
-            el.scrollLeft += 1;
-          }
+        const scrollAmount = direction === "left" ? 220 : -220; // Approximately one card width
+        
+        // Handle native wrap around
+        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+          el.scrollLeft = 0;
+        } else if (direction === "right" && el.scrollLeft <= 0) {
+          el.scrollLeft = el.scrollWidth / 3;
         } else {
-          if (el.scrollLeft <= 0) {
-            el.scrollLeft = el.scrollWidth / 3;
-          } else {
-            el.scrollLeft -= 1;
-          }
+          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
         }
-      }, 30);
+      }, 3500);
     };
 
     if (!isPaused) {

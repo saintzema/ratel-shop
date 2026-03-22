@@ -458,10 +458,13 @@ class DemoStoreService {
         return { name: "Bronze Haggler", color: "text-amber-700 bg-amber-50 border-amber-200/50", discount: 0 };
     }
 
+    private _syncFailedAt = 0;
     public async syncNegotiations() {
         if (typeof window === "undefined") return;
+        // Circuit breaker: skip for 30s after a failure to avoid hammering a dead DB
+        if (this._syncFailedAt && Date.now() - this._syncFailedAt < 30000) return;
         try {
-            const res = await fetch("/api/negotiations?all=true");
+            const res = await fetch("/api/negotiations?all=true", { signal: AbortSignal.timeout(4000) });
             if (!res.ok) return;
             const negData = await res.json();
             const dbNegotiations: any[] = negData.negotiations || [];
@@ -531,12 +534,20 @@ class DemoStoreService {
                         window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
                     }
                 }
-                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
-                window.dispatchEvent(new Event("storage"));
-                window.dispatchEvent(new Event("demo-store-update"));
-            }
+                    const newDataStr = JSON.stringify(Array.from(localMap.values()));
+                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
+                    if (newDataStr !== oldDataStr) {
+                        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("demo-store-update"));
+                    }
+                }
+            // Success: reset breaker
+            this._syncFailedAt = 0;
         } catch (error) {
             // Silently fail if DB is offline, frontend resilience pattern takes over
+            // Circuit breaker: record failure time to back off for 30s
+            this._syncFailedAt = Date.now();
         }
     }
 
@@ -917,12 +928,14 @@ class DemoStoreService {
                 counter_price: price,
                 counter_message: message,
                 counter_status: "pending",
+                status: "countered",
                 chat_messages: existingMessages
             };
         });
 
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
 
         // Notify Buyer (User)
         this.addNotification({
@@ -960,6 +973,188 @@ class DemoStoreService {
                 }
             })
         }).catch(console.error);
+    }
+
+    /**
+     * Buyer sends a counter-counter-offer back to seller.
+     * Updates the EXISTING negotiation record instead of creating a duplicate.
+     */
+    sendBuyerCounterOffer(negId: string, newPrice: number, message?: string) {
+        const current = this.getNegotiations();
+        const negotiation = current.find(n => n.id === negId);
+        if (!negotiation) return;
+
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
+        const buyerName = negotiation.customer_name || "Buyer";
+
+        const updated = current.map(n => {
+            if (n.id !== negId) return n;
+            const existingMessages = Array.isArray(n.chat_messages) ? [...n.chat_messages] : [];
+            existingMessages.push({
+                sender: "buyer" as const,
+                text: `🤝 Counter-Offer\n\nI'd like to propose ₦${newPrice.toLocaleString()} for ${product?.name || 'this item'}.${message ? `\n\nMessage: "${message}"` : ''}`,
+                timestamp: new Date().toISOString()
+            });
+            return {
+                ...n,
+                proposed_price: newPrice,
+                status: "pending",
+                counter_status: undefined,
+                counter_price: undefined,
+                counter_message: undefined,
+                chat_messages: existingMessages,
+                updated_at: new Date().toISOString()
+            };
+        });
+
+        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+
+        // Persist to Postgres
+        fetch("/api/negotiations", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: negId,
+                status: "pending",
+                counterPrice: null,
+                counterMessage: null,
+            })
+        }).catch(console.error);
+
+        // Notify Seller
+        if (product && product.seller_id) {
+            const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
+            this.addNotification({
+                userId: product.seller_id,
+                type: "negotiation",
+                message: `💰 ${buyerName} sent a counter-offer of ₦${newPrice.toLocaleString()} for ${product.name}`,
+                link: "/seller/dashboard/messages"
+            });
+            if (seller?.owner_email && seller.owner_email !== product.seller_id) {
+                this.addNotification({
+                    userId: seller.owner_email,
+                    type: "negotiation",
+                    message: `💰 ${buyerName} sent a counter-offer of ₦${newPrice.toLocaleString()} for ${product.name}`,
+                    link: "/seller/dashboard/messages"
+                });
+            }
+
+            // Email seller
+            const sellerEmail = seller?.owner_email || `seller_${product.seller_id}@fairprice.ng`;
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: sellerEmail,
+                    subject: `Counter-Offer Received: ${product.name}`,
+                    type: "NEGOTIATION_REQUEST",
+                    payload: {
+                        customerName: buyerName,
+                        productName: product.name,
+                        amount: `₦${newPrice.toLocaleString()}`
+                    }
+                })
+            }).catch(console.error);
+        }
+
+        // Notify buyer confirmation
+        this.addNotification({
+            userId: negotiation.customer_id,
+            type: "negotiation",
+            message: `✅ Your counter-offer of ₦${newPrice.toLocaleString()} for "${product?.name || 'Product'}" has been sent!`,
+            link: "/account/negotiations"
+        });
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+    }
+
+    /**
+     * Buyer accepts or rejects a COUNTER-OFFER from the seller.
+     * Updates counter_status specifically (not the base status).
+     */
+    updateCounterStatus(negId: string, counterStatus: "accepted" | "rejected") {
+        const current = this.getNegotiations();
+        const negotiation = current.find(n => n.id === negId);
+        if (!negotiation) return;
+
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
+
+        const updated = current.map(n => {
+            if (n.id !== negId) return n;
+            const existingMessages = Array.isArray(n.chat_messages) ? [...n.chat_messages] : [];
+            existingMessages.push({
+                sender: "buyer" as const,
+                text: counterStatus === "accepted"
+                    ? `✅ I accept the counter-offer of ₦${n.counter_price?.toLocaleString()} for ${product?.name || 'this item'}! Proceeding to checkout.`
+                    : `❌ I've declined the counter-offer of ₦${n.counter_price?.toLocaleString()} for ${product?.name || 'this item'}.`,
+                timestamp: new Date().toISOString()
+            });
+            return {
+                ...n,
+                counter_status: counterStatus,
+                status: counterStatus === "accepted" ? "accepted" : n.status,
+                chat_messages: existingMessages,
+                updated_at: new Date().toISOString()
+            };
+        });
+
+        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+
+        // Persist to Postgres
+        fetch("/api/negotiations", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: negId,
+                status: counterStatus === "accepted" ? "accepted" : "countered",
+            })
+        }).catch(console.error);
+
+        // Notify Seller
+        if (product && product.seller_id) {
+            const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
+            this.addNotification({
+                userId: product.seller_id,
+                type: "negotiation",
+                message: counterStatus === "accepted"
+                    ? `🎉 ${negotiation.customer_name || 'Buyer'} ACCEPTED your counter-offer of ₦${negotiation.counter_price?.toLocaleString()} for ${product.name}!`
+                    : `${negotiation.customer_name || 'Buyer'} declined your counter-offer for ${product.name}.`,
+                link: "/seller/dashboard/messages"
+            });
+
+            // Email seller
+            const sellerEmail = seller?.owner_email || `seller_${product.seller_id}@fairprice.ng`;
+            fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: sellerEmail,
+                    subject: counterStatus === "accepted"
+                        ? `Counter-Offer Accepted: ${product.name}`
+                        : `Counter-Offer Declined: ${product.name}`,
+                    type: counterStatus === "accepted" ? "NEGOTIATION_ACCEPTED" : "NEGOTIATION_REJECTED",
+                    payload: {
+                        customerName: negotiation.customer_name || "Buyer",
+                        productName: product.name,
+                        amount: `₦${(negotiation.counter_price || 0).toLocaleString()}`
+                    }
+                })
+            }).catch(console.error);
+        }
+
+        // Notify buyer
+        this.addNotification({
+            userId: negotiation.customer_id,
+            type: "negotiation",
+            message: counterStatus === "accepted"
+                ? `🎉 You accepted the counter-offer of ₦${(negotiation.counter_price || 0).toLocaleString()} for "${product?.name || 'Product'}". Proceed to checkout!`
+                : `You declined the counter-offer for "${product?.name || 'Product'}".`,
+            link: "/account/negotiations"
+        });
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 
     // --- Login ---
@@ -3490,6 +3685,18 @@ class DemoStoreService {
         window.dispatchEvent(new Event("storage"));
     }
 
+    deleteConversation(conversationId: string) {
+        if (typeof window === "undefined") return;
+        const currentMsgs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+        const remainingMsgs = currentMsgs.filter((m: any) => m.conversation_id !== conversationId);
+        localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(remainingMsgs));
+        
+        const currentConvs = this.getConversations();
+        const remainingConvs = currentConvs.filter((c: any) => c.id !== conversationId);
+        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(remainingConvs));
+        
+        window.dispatchEvent(new Event("storage"));
+    }
 }
 
 export const DemoStore = DemoStoreService.getInstance();
