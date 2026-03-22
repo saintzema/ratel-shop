@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from "react";
+import { DemoStore } from "@/lib/demo-store";
 
 // ─── Types ───────────────────────────────────────────────
 export interface ChatMessage {
@@ -159,9 +160,159 @@ export function MessageProvider({ children }: { children: ReactNode }) {
 
         window.addEventListener("storage", handleStorage);
         window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
+
+        // ─── AGGRESSIVE DUAL-LAYER SYNC LOOP ───
+        // Layer 1: DB → localStorage (cross-device)
+        // Layer 2: localStorage negotiations → fp_messages conversations (same-browser bridging)
+        const pollInterval = setInterval(() => {
+            if (typeof window === "undefined") return;
+
+            // Layer 1: Pull from Postgres
+            DemoStore.syncNegotiations();
+
+            // Layer 2: Directly reconcile localStorage negotiations → buyer conversations
+            // This fixes the critical bug where sendCounterOffer() writes to negotiations localStorage
+            // BEFORE syncNegotiations() polls, causing the diff check to see no change.
+            try {
+                const rawNegs = localStorage.getItem("fp_negotiations");
+                if (!rawNegs) return;
+                const negs: any[] = JSON.parse(rawNegs);
+                
+                setConversations(prev => {
+                    let changed = false;
+                    const updated = prev.map(conv => {
+                        if (!conv.orderId?.startsWith("neg_")) return conv;
+                        const productId = conv.orderId.replace("neg_", "");
+                        
+                        // Find ALL negotiations for this product
+                        const relatedNegs = negs.filter((n: any) => n.product_id === productId);
+                        if (relatedNegs.length === 0) return conv;
+                        
+                        let newMessages = [...conv.messages];
+                        let hasNewMsg = false;
+                        
+                        for (const neg of relatedNegs) {
+                            // Check for counter offers not yet in the conversation
+                            if (neg.counter_price && !conv.messages.some(m => 
+                                m.negotiation?.type === 'countered' && m.negotiation?.counterPrice === neg.counter_price
+                            )) {
+                                const counterText = neg.counter_message 
+                                    ? `💬 Counter Offer\n\nThe seller has proposed a new price of ₦${neg.counter_price.toLocaleString()} for ${conv.productName}.\n\nSeller's message: "${neg.counter_message}"\n\nDo you accept this counter offer?`
+                                    : `💬 Counter Offer\n\nThe seller has proposed a new price of ₦${neg.counter_price.toLocaleString()} for ${conv.productName}.\n\nDo you accept this counter offer?`;
+                                
+                                if (!conv.messages.some(m => m.text === counterText)) {
+                                    newMessages.push({
+                                        id: `msg_sync_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                        sender: "seller",
+                                        text: counterText,
+                                        timestamp: neg.updated_at || new Date().toISOString(),
+                                        negotiation: {
+                                            type: "countered",
+                                            productId: neg.product_id,
+                                            counterPrice: neg.counter_price,
+                                            productName: conv.productName,
+                                            originalPrice: neg.proposed_price || neg.counter_price
+                                        }
+                                    });
+                                    hasNewMsg = true;
+                                }
+                            }
+                            
+                            // Check for accepted status
+                            if (neg.status === "accepted" && !conv.messages.some(m => 
+                                m.negotiation?.type === 'accepted' && m.text?.includes("ACCEPTED")
+                            )) {
+                                const acceptText = `✅ Your offer of ₦${neg.proposed_price?.toLocaleString()} for ${conv.productName} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`;
+                                if (!conv.messages.some(m => m.text === acceptText)) {
+                                    newMessages.push({
+                                        id: `msg_sync_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                        sender: "seller",
+                                        text: acceptText,
+                                        timestamp: neg.updated_at || new Date().toISOString(),
+                                        negotiation: {
+                                            type: "accepted",
+                                            productId: neg.product_id,
+                                            counterPrice: neg.proposed_price,
+                                            productName: conv.productName,
+                                            originalPrice: neg.proposed_price
+                                        }
+                                    });
+                                    hasNewMsg = true;
+                                }
+                            }
+                            
+                            // Check for rejected status
+                            if (neg.status === "rejected" && !conv.messages.some(m => 
+                                m.text?.includes("REJECTED") && m.negotiation?.type === 'rejected'
+                            )) {
+                                const rejectText = `❌ Unfortunately, your offer of ₦${neg.proposed_price?.toLocaleString()} was REJECTED.`;
+                                if (!conv.messages.some(m => m.text === rejectText)) {
+                                    newMessages.push({
+                                        id: `msg_sync_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                        sender: "seller",
+                                        text: rejectText,
+                                        timestamp: neg.updated_at || new Date().toISOString(),
+                                        negotiation: {
+                                            type: "rejected",
+                                            productId: neg.product_id,
+                                            counterPrice: neg.proposed_price,
+                                            productName: conv.productName,
+                                            originalPrice: neg.proposed_price
+                                        }
+                                    });
+                                    hasNewMsg = true;
+                                }
+                            }
+
+                            // Also inject seller chat_messages that aren't in fp_messages yet
+                            if (neg.chat_messages && Array.isArray(neg.chat_messages)) {
+                                for (const chatMsg of neg.chat_messages) {
+                                    if (chatMsg.sender === "seller" && !conv.messages.some(m => m.text === chatMsg.text)) {
+                                        // Skip if it's a system counter-offer message we already handled above
+                                        if (chatMsg.text?.startsWith("💬 Counter Offer") || chatMsg.text?.includes("ACCEPTED") || chatMsg.text?.includes("REJECTED")) continue;
+                                        newMessages.push({
+                                            id: `msg_sync_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+                                            sender: "seller",
+                                            text: chatMsg.text,
+                                            timestamp: chatMsg.timestamp || new Date().toISOString(),
+                                            negotiation: chatMsg.negotiation
+                                        });
+                                        hasNewMsg = true;
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (hasNewMsg) {
+                            changed = true;
+                            return { ...conv, messages: newMessages, lastUpdated: new Date().toISOString(), unreadCount: conv.unreadCount + 1 };
+                        }
+                        return conv;
+                    });
+                    
+                    if (changed) {
+                        // Persist immediately
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+                        // Trigger notification for the latest new message
+                        const latestConv = updated.find(c => c.unreadCount > 0);
+                        if (latestConv) {
+                            const lastMsg = latestConv.messages[latestConv.messages.length - 1];
+                            if (lastMsg?.sender !== "user") {
+                                setPendingNotification(lastMsg);
+                                setPendingConversationId(latestConv.id);
+                            }
+                        }
+                        return updated;
+                    }
+                    return prev;
+                });
+            } catch {}
+        }, 3000);
+
         return () => {
             window.removeEventListener("storage", handleStorage);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
+            clearInterval(pollInterval);
         };
     }, [mounted, conversations]);
 

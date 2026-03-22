@@ -45,6 +45,8 @@ export function MessageBox() {
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
     const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [keyboardOffset, setKeyboardOffset] = useState(0);
 
     // Load notifications from database API, with DemoStore fallback
     const loadNotifications = useCallback(async () => {
@@ -262,6 +264,23 @@ export function MessageBox() {
         return groups;
     };
 
+    // ─── Mobile keyboard viewport fix ───
+    useEffect(() => {
+        if (typeof window === "undefined" || !window.visualViewport) return;
+        const vv = window.visualViewport;
+        const handler = () => {
+            // The difference between window.innerHeight and visualViewport.height IS the keyboard height
+            const offset = window.innerHeight - vv.height;
+            setKeyboardOffset(offset > 50 ? offset : 0); // Only trigger for real keyboards (>50px)
+        };
+        vv.addEventListener("resize", handler);
+        vv.addEventListener("scroll", handler);
+        return () => {
+            vv.removeEventListener("resize", handler);
+            vv.removeEventListener("scroll", handler);
+        };
+    }, [isMessageBoxOpen]);
+
     return (
         <AnimatePresence>
             {isMessageBoxOpen && (
@@ -277,17 +296,24 @@ export function MessageBox() {
 
                     {/* Message Box Container */}
                     <motion.div
+                        ref={containerRef}
                         initial={{ opacity: 0, y: 60, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 60, scale: 0.95 }}
                         transition={{ type: "spring", damping: 30, stiffness: 350 }}
-                        className="relative w-full md:w-[440px] h-[70dvh] md:h-[600px] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl shadow-2xl border border-white/10 bg-white"
+                        className="relative w-full md:w-[440px] md:h-[600px] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl shadow-2xl border border-white/10 bg-white"
+                        style={{
+                            height: keyboardOffset > 0 ? `calc(100dvh - ${keyboardOffset}px)` : '70dvh',
+                            maxHeight: keyboardOffset > 0 ? `calc(100dvh - ${keyboardOffset}px)` : undefined,
+                            paddingBottom: keyboardOffset > 0 ? 0 : 'env(safe-area-inset-bottom, 0px)',
+                            transition: 'height 0.15s ease-out',
+                        }}
                     >
                         {showChat ? (
                             /* ─── CHAT VIEW ────────────────────────── */
                             <>
                                 {/* Chat Header */}
-                                <div className="px-4 py-3 flex items-center gap-3 shrink-0 bg-brand-green-900 text-white">
+                                <div className="px-4 py-3 flex items-center gap-3 shrink-0 bg-indigo-900 text-white">
                                     <button onClick={handleBack} className="p-1.5 -ml-1 rounded-full hover:bg-white/10 transition-colors">
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
@@ -311,19 +337,16 @@ export function MessageBox() {
                                     </button>
                                 </div>
 
-                                {/* Chat Messages — FairPrice branded style */}
+                                {/* Chat Messages — Apple iOS / Amazon Seller Context Style */}
                                 <div
                                     ref={scrollRef}
-                                    className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-3 py-3 space-y-1"
-                                    style={{
-                                        background: "linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ecfdf5 100%)",
-                                    }}
+                                    className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-4 py-4 space-y-2 bg-gray-50/30"
                                 >
                                     {groupMessagesByDate(selectedConversation.messages).map((group) => (
                                         <div key={group.date}>
                                             {/* Date separator */}
-                                            <div className="flex justify-center my-3">
-                                                <span className="bg-brand-green-50 text-brand-green-700 text-[10px] font-bold px-4 py-1 rounded-full shadow-sm border border-brand-green-100">
+                                            <div className="flex justify-center my-4">
+                                                <span className="bg-white border border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-sm">
                                                     {group.date}
                                                 </span>
                                             </div>
@@ -334,23 +357,20 @@ export function MessageBox() {
                                                 >
                                                     {/* Sender avatar for non-user messages */}
                                                     {msg.sender !== "user" && (
-                                                        <div className="w-7 h-7 rounded-full bg-brand-green-100 border border-brand-green-200 flex items-center justify-center shrink-0 mr-1.5 mt-auto mb-1">
-                                                            {msg.sender === "ziva" && <Bot className="h-3.5 w-3.5 text-brand-green-600" />}
-                                                            {msg.sender === "admin" && <Headphones className="h-3.5 w-3.5 text-brand-green-600" />}
-                                                            {msg.sender === "seller" && <Store className="h-3.5 w-3.5 text-brand-green-600" />}
-                                                            {!["ziva", "admin", "seller"].includes(msg.sender) && <Bell className="h-3.5 w-3.5 text-gray-400" />}
+                                                        <div className="h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700">
+                                                            {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />}
                                                         </div>
                                                     )}
-                                                    <div className={`max-w-[78%] relative`}>
+                                                    <div className={`max-w-[85%] relative flex flex-col items-${msg.sender === "user" ? "end" : "start"}`}>
                                                         {msg.sender !== "user" && (
-                                                            <p className="text-[9px] font-bold text-brand-green-600 mb-0.5 px-1">
+                                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 px-1 ml-1">
                                                                 {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : "Seller"}
                                                             </p>
                                                         )}
                                                         <div
                                                             className={`px-3.5 py-2.5 text-[13px] leading-[1.5] ${msg.sender === "user"
-                                                                ? "bg-brand-green-600/90 backdrop-blur-md text-white rounded-2xl rounded-br-sm shadow-md border border-brand-green-500/30"
-                                                                : "bg-white/85 text-gray-800 backdrop-blur-md rounded-2xl rounded-bl-sm shadow-sm border border-white/40"
+                                                                ? "bg-indigo-600 backdrop-blur-md text-white rounded-2xl rounded-br-sm shadow-md border-0"
+                                                                : "bg-white text-gray-800 backdrop-blur-md rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
                                                                 }`}
                                                             onDoubleClick={() => setReplyingTo({ sender: msg.sender === 'user' ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}
                                                         >
@@ -428,12 +448,12 @@ export function MessageBox() {
                                     ))}
                                 </div>
 
-                                {/* Input bar — WhatsApp style */}
-                                <div className="px-2 py-2 flex flex-col gap-2 bg-[#f0f2f5] shrink-0 border-t border-gray-200/50">
+                                {/* Input bar — Apple iOS style */}
+                                <div className="px-4 py-3 flex flex-col gap-2 bg-white shrink-0 border-t border-gray-100">
                                     {replyingTo && (
-                                        <div className="mx-2 mb-1 mt-1 px-3 py-2 bg-brand-green-50 border border-brand-green-100 rounded-lg flex items-center justify-between shadow-sm">
+                                        <div className="mx-0 mb-1 mt-1 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between shadow-sm">
                                             <div className="flex flex-col min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5 font-bold text-[10px] text-brand-green-700 uppercase tracking-wider mb-0.5">
+                                                <div className="flex items-center gap-1.5 font-bold text-[10px] text-indigo-700 uppercase tracking-wider mb-0.5">
                                                     Replying to {replyingTo.sender}
                                                 </div>
                                                 <p className="text-[11px] text-gray-600 truncate pr-4">{replyingTo.text}</p>
@@ -460,7 +480,7 @@ export function MessageBox() {
                                         size="icon"
                                         onClick={handleSend}
                                         disabled={!input.trim()}
-                                        className="rounded-full h-10 w-10 bg-brand-green-600 hover:bg-brand-green-700 text-white shadow-sm shrink-0"
+                                        className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0"
                                     >
                                         <Send className="h-4 w-4" />
                                     </Button>
@@ -471,7 +491,7 @@ export function MessageBox() {
                             /* ─── LIST VIEW (Chats + Notifications tabs) ─── */
                             <>
                                 {/* Header */}
-                                <div className="shrink-0 bg-brand-green-900 text-white">
+                                <div className="shrink-0 bg-indigo-900 text-white">
                                     <div className="px-5 pt-4 pb-2 flex items-center justify-between">
                                         <h2 className="text-lg font-bold">Messages</h2>
                                         <button onClick={closeMessageBox} className="p-2 rounded-full hover:bg-white/10 transition-colors">

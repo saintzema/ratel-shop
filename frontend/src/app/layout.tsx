@@ -20,6 +20,8 @@ import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
 import { SessionProvider } from "@/context/SessionProvider";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 // Standalone component to handle popup closing without forcing the whole layout to be client-side
 import { PopupCloser } from "@/components/auth/PopupCloser";
@@ -45,11 +47,13 @@ export const viewport = {
   interactiveWidget: "resizes-visual",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const session = await getServerSession(authOptions);
+
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
@@ -83,7 +87,7 @@ export default function RootLayout({
         <SwipeToBack />
         <ClientImageFallback />
         <PopupCloser />
-        <SessionProvider>
+        <SessionProvider session={session}>
           <LocationProvider>
             <AuthProvider>
               <CartProvider>
