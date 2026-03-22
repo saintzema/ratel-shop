@@ -608,7 +608,9 @@ export default function UniversalMessagesPage() {
                                             {activeConvo.type}
                                         </Badge>
                                     </div>
-                                    {activeConvo.customer_id && <p className="text-[11px] text-gray-400 font-bold uppercase">Customer: {activeConvo.customer_id}</p>}
+                                    <p className="text-[11px] text-gray-400 font-bold uppercase">
+                                        {activeConvo.type === "negotiation" ? `Negotiation ID: ${activeConvo.id}` : `Customer: ${activeConvo.customer_id}`}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">

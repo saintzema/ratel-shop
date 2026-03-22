@@ -80,7 +80,10 @@ export default function SellerDashboard() {
         const loadData = () => {
             const seller = DemoStore.getCurrentSeller();
             if (seller) {
-                setCurrentSeller(seller);
+                // Recalculate and persist dynamic trust score
+                const dynamicScore = DemoStore.recalculateTrustScore(seller.id);
+                const enrichedSeller = { ...seller, trust_score: dynamicScore };
+                setCurrentSeller(enrichedSeller);
 
                 const allNegs = DemoStore.getNegotiations(seller.id);
                 setNegotiations(allNegs);
@@ -368,7 +371,7 @@ export default function SellerDashboard() {
                             <MessageSquare className="h-4 w-4 text-blue-500" />
                             Recent Negotiations
                         </h3>
-                        <Link href="/seller/dashboard/negotiations" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 transition-colors">
+                        <Link href="/seller/dashboard/messages" className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-0.5 transition-colors">
                             View All ({negotiations.length}) <ChevronRight className="h-3 w-3" />
                         </Link>
                     </div>

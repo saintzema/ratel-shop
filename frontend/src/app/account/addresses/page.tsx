@@ -39,13 +39,78 @@ export default function AddressesPage() {
     const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" as "home" | "work" | "other" });
 
     useEffect(() => {
+        // Load from localStorage first (instant), then merge with DB
         const saved = localStorage.getItem(getAddressKey());
-        if (saved) setAddresses(JSON.parse(saved));
+        const localAddrs: Address[] = saved ? JSON.parse(saved) : [];
+        setAddresses(localAddrs);
+
+        // Fetch from DB for cross-device sync
+        const userId = (() => {
+            try {
+                const raw = localStorage.getItem("fp_user");
+                if (raw) return JSON.parse(raw)?.id;
+            } catch { }
+            return null;
+        })();
+
+        if (userId) {
+            fetch(`/api/addresses?userId=${encodeURIComponent(userId)}`)
+                .then(r => r.json())
+                .then(data => {
+                    const dbAddrs: Address[] = (data.addresses || []).map((a: any) => ({
+                        id: a.id,
+                        label: a.label || "Home",
+                        firstName: a.firstName || a.street?.split(" ")[0] || "",
+                        lastName: a.lastName || "",
+                        phone: a.phone || "",
+                        street: a.street || "",
+                        city: a.city || "",
+                        state: a.state || "",
+                        isDefault: a.isDefault || false,
+                        type: (a.type || a.label?.toLowerCase() || "home") as "home" | "work" | "other",
+                    }));
+                    // Merge: DB addresses take priority by ID, local-only addresses are kept
+                    const dbMap = new Map(dbAddrs.map(a => [a.id, a]));
+                    const localMap = new Map(localAddrs.map(a => [a.id, a]));
+                    for (const [id, addr] of dbMap) localMap.set(id, addr);
+                    const merged = Array.from(localMap.values());
+                    setAddresses(merged);
+                    localStorage.setItem(getAddressKey(), JSON.stringify(merged));
+                })
+                .catch(() => { /* fallback to local only */ });
+        }
     }, []);
+
+    const getUserId = () => {
+        try {
+            const raw = localStorage.getItem("fp_user");
+            if (raw) return JSON.parse(raw)?.id;
+        } catch { }
+        return null;
+    };
 
     const save = (updated: Address[]) => {
         setAddresses(updated);
         localStorage.setItem(getAddressKey(), JSON.stringify(updated));
+    };
+
+    const persistToDB = (addr: Address) => {
+        const userId = getUserId();
+        if (!userId) return;
+        fetch("/api/addresses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: addr.id,
+                userId,
+                label: addr.label || addr.type,
+                street: `${addr.firstName} ${addr.lastName}`.trim() + (addr.street ? `, ${addr.street}` : ""),
+                city: addr.city,
+                state: addr.state,
+                phone: addr.phone,
+                isDefault: addr.isDefault,
+            }),
+        }).catch(console.error);
     };
 
     const handleAdd = () => {
@@ -54,12 +119,15 @@ export default function AddressesPage() {
         if (editingId) {
             const updated = addresses.map(a => a.id === editingId ? { ...a, ...form, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other" } : a);
             save(updated);
+            const editedAddr = updated.find(a => a.id === editingId);
+            if (editedAddr) persistToDB(editedAddr);
         } else {
             const newAddr: Address = {
                 ...form, id: `addr_${Date.now()}`, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other",
                 isDefault: addresses.length === 0
             };
             save([...addresses, newAddr]);
+            persistToDB(newAddr);
         }
         setForm({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" });
         setIsAdding(false);
@@ -84,6 +152,8 @@ export default function AddressesPage() {
         const updated = addresses.filter(a => a.id !== id);
         if (updated.length > 0 && !updated.some(a => a.isDefault)) updated[0].isDefault = true;
         save(updated);
+        // Delete from DB too
+        fetch(`/api/addresses?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(console.error);
     };
 
     const setDefault = (id: string) => save(addresses.map(a => ({ ...a, isDefault: a.id === id })));

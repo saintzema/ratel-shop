@@ -45,9 +45,14 @@ export default function NegotiationsPage() {
         };
 
         loadData();
+        const syncTimer = setInterval(() => {
+            DemoStore.syncNegotiations();
+        }, 5000); // 5 sec heartbeat for real-time buyer sync
+
         window.addEventListener("storage", loadData);
         window.addEventListener("demo-store-update", loadData);
         return () => {
+            clearInterval(syncTimer);
             window.removeEventListener("storage", loadData);
             window.removeEventListener("demo-store-update", loadData);
         };

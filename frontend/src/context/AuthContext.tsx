@@ -160,6 +160,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
         window.dispatchEvent(new Event("fp-auth-update"));
+
+        // Migrate guest/orphaned DB records to this user's real ID
+        const targetId = userData.id || userData.email;
+        fetch("/api/auth/migrate-guest", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                oldId: "guest",
+                newId: targetId,
+                email: userData.email,
+            }),
+        }).catch(err => console.error("Guest migration failed:", err));
     };
 
     const logout = () => {

@@ -58,37 +58,92 @@ export function DynamicPillNotification() {
         route: string;
     } | null>(null);
 
-    // Monitor for global Seller and Admin notifications
+    // Monitor for global Seller and Buyer notifications
     useEffect(() => {
         const checkGlobalNotifications = () => {
             const sellerId = DemoStore.getCurrentSellerId();
-            if (!sellerId) return;
             
-            // Check for new negotiations for the seller
-            const negs = DemoStore.getNegotiations(sellerId);
-            const recentNeg = negs.find((n: NegotiationRequest) => {
-                const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
-                // If it's very recent (last 3 seconds) and unread (for demo purposes assumed unread)
-                return ageMs < 3000 && n.status !== "accepted" && n.status !== "rejected";
-            });
+            // ─── Seller-side: new incoming negotiation offers ───
+            if (sellerId) {
+                const negs = DemoStore.getNegotiations(sellerId);
+                const recentNeg = negs.find((n: NegotiationRequest) => {
+                    const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
+                    return ageMs < 3000 && n.status !== "accepted" && n.status !== "rejected";
+                });
 
-            if (recentNeg) {
-                const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentNeg.product_id);
+                if (recentNeg) {
+                    const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentNeg.product_id);
+                    setCustomNotification({
+                        text: `New negotiation offer for ${product?.name || 'Product'} at ₦${recentNeg.proposed_price.toLocaleString()}`,
+                        isNegotiation: false,
+                        hasImage: false,
+                        route: "/seller/dashboard/messages?customer=" + (recentNeg.customer_id || "") + "&order=" + recentNeg.id
+                    });
+                    return;
+                }
+            }
+
+            // ─── Buyer-side: seller accepted, rejected, or countered ───
+            const currentUser = DemoStore.getCurrentUser();
+            if (currentUser) {
+                const buyerNegs = DemoStore.getNegotiations(undefined, currentUser.id);
+                const recentBuyerNeg = buyerNegs.find((n: NegotiationRequest) => {
+                    const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
+                    if (ageMs > 5000) return false;
+                    // Show pill for recently accepted, rejected, or countered negotiations
+                    return n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending";
+                });
+
+                if (recentBuyerNeg) {
+                    const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
+                    triggerBuyerNotification(recentBuyerNeg, product);
+                }
+            }
+        };
+
+        const handleRemoteNegotiationUpdate = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const neg = customEvent.detail?.negotiation;
+            if (!neg) return;
+            const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
+            triggerBuyerNotification(neg, product);
+        };
+
+        const triggerBuyerNotification = (neg: any, product: any) => {
+            const hasCounter = neg.counter_status === "pending" && neg.counter_price;
+            
+            if (hasCounter) {
                 setCustomNotification({
-                    text: `New negotiation offer for ${product?.name || 'Product'} at ₦${recentNeg.proposed_price.toLocaleString()}`,
-                    isNegotiation: false, // We'll show a simple click-to-view for sellers for now, they don't accept from pill (buyer accepts counter-offer from pill)
+                    text: `Counter offer of ₦${neg.counter_price.toLocaleString()} for ${product?.name || 'Product'}`,
+                    isNegotiation: true,
                     hasImage: false,
-                    route: "/seller/dashboard/messages?customer=" + (recentNeg.customer_id || "") + "&order=" + recentNeg.id
+                    negotiation: {
+                        productId: neg.product_id,
+                        counterPrice: neg.counter_price,
+                        productName: product?.name || "Product"
+                    },
+                    route: "/account/negotiations"
+                });
+            } else {
+                setCustomNotification({
+                    text: neg.status === "accepted"
+                        ? `🎉 Your offer for "${product?.name || 'Product'}" was ACCEPTED!`
+                        : `Your offer for "${product?.name || 'Product'}" was declined.`,
+                    isNegotiation: false,
+                    hasImage: false,
+                    route: "/account/negotiations"
                 });
             }
         };
 
         window.addEventListener("demo-store-update", checkGlobalNotifications);
         window.addEventListener("storage", checkGlobalNotifications);
+        window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
         
         return () => {
             window.removeEventListener("demo-store-update", checkGlobalNotifications);
             window.removeEventListener("storage", checkGlobalNotifications);
+            window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
         };
     }, []);
 

@@ -80,6 +80,7 @@ export async function POST(request: Request) {
                 customerName: body.customer_name || "Guest Buyer",
                 sellerId: product.sellerId,
                 proposedPrice: body.proposed_price,
+                message: body.message || null,
                 status: 'pending',
             }
         });
@@ -94,5 +95,36 @@ export async function POST(request: Request) {
             status: 202,
             headers: { "X-DB-Status": "offline" }
         });
+    }
+}
+
+// PATCH /api/negotiations
+// Update status (accept/reject) or counter-offer
+export async function PATCH(request: Request) {
+    try {
+        const body = await request.json();
+        const { id, status, counterPrice, counterMessage, chatMessages } = body;
+
+        if (!id) {
+            return NextResponse.json({ success: false, error: "Negotiation ID required" }, { status: 400 });
+        }
+
+        const updateData: any = {};
+        if (status) updateData.status = status;
+        if (counterPrice !== undefined) updateData.counterPrice = counterPrice;
+        if (counterMessage !== undefined) updateData.counterMessage = counterMessage;
+        if (chatMessages !== undefined) updateData.chatMessages = chatMessages;
+
+        const updated = await db.negotiationRequest.update({
+            where: { id },
+            data: updateData,
+        });
+
+        broadcast({ type: "negotiation_updated", id: updated.id });
+
+        return NextResponse.json({ success: true, negotiation: updated });
+    } catch (error: any) {
+        console.error("Negotiations PATCH Error:", error);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

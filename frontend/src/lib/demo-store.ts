@@ -349,7 +349,8 @@ class DemoStoreService {
                     for (const dbNeg of dbNegotiations) {
                         const localVersion = localMap.get(dbNeg.id);
                         
-                        let chatMessages = localVersion?.chat_messages;
+                        // Map from backend or fallback to localized logic
+                        let chatMessages = dbNeg.chatMessages || localVersion?.chat_messages;
                         if (!chatMessages || chatMessages.length === 0) {
                             // Synthesize frontend chat_messages array because it is not natively stored in the DB columns
                             chatMessages = [];
@@ -358,18 +359,34 @@ class DemoStoreService {
                                 text: `🤝 Negotiation Request\n\nProduct: ${dbNeg.product?.name || "Product"}\nCurrent Price: ₦${dbNeg.product?.price?.toLocaleString() || 0}\nMy Offer: ₦${dbNeg.proposedPrice.toLocaleString()}\n\nMessage: ${dbNeg.message || "Offer submitted"}\n\nWaiting for seller to respond...`,
                                 timestamp: dbNeg.createdAt
                             });
-                            
-                            if (dbNeg.status === 'accepted') {
-                                chatMessages.push({ sender: "seller", text: `Your offer of ₦${dbNeg.proposedPrice.toLocaleString()} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout.`, timestamp: dbNeg.updatedAt });
-                            } else if (dbNeg.status === 'rejected') {
-                                chatMessages.push({ sender: "seller", text: `Unfortunately, your offer of ₦${dbNeg.proposedPrice.toLocaleString()} was REJECTED.`, timestamp: dbNeg.updatedAt });
-                            } else if (dbNeg.counterPrice) {
-                                chatMessages.push({
-                                    sender: "seller",
-                                    text: dbNeg.counterMessage || `The seller sent a counter offer of ₦${dbNeg.counterPrice.toLocaleString()}.\n\nDo you accept?`,
-                                    timestamp: dbNeg.updatedAt || dbNeg.createdAt
-                                });
-                            }
+                        }
+                        
+                        // Append new states if they changed since local version
+                        let justUpdatedType = null;
+                        if (dbNeg.status === 'accepted' && localVersion?.status !== 'accepted') {
+                            chatMessages.push({ 
+                                sender: "seller", 
+                                text: `Your offer of ₦${dbNeg.proposedPrice.toLocaleString()} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout.`, 
+                                timestamp: dbNeg.updatedAt || dbNeg.createdAt,
+                                negotiation: { type: "accepted", productId: dbNeg.productId, counterPrice: dbNeg.proposedPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice }
+                            });
+                            justUpdatedType = 'accepted';
+                        } else if (dbNeg.status === 'rejected' && localVersion?.status !== 'rejected') {
+                            chatMessages.push({ 
+                                sender: "seller", 
+                                text: `Unfortunately, your offer of ₦${dbNeg.proposedPrice.toLocaleString()} was REJECTED.`, 
+                                timestamp: dbNeg.updatedAt || dbNeg.createdAt,
+                                negotiation: { type: "rejected", productId: dbNeg.productId, counterPrice: dbNeg.proposedPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice }
+                            });
+                            justUpdatedType = 'rejected';
+                        } else if (dbNeg.counterPrice && localVersion?.counter_price !== dbNeg.counterPrice) {
+                            chatMessages.push({
+                                sender: "seller",
+                                text: dbNeg.counterMessage || `The seller sent a counter offer of ₦${dbNeg.counterPrice.toLocaleString()}.\n\nDo you accept?`,
+                                timestamp: dbNeg.updatedAt || dbNeg.createdAt,
+                                negotiation: { type: "countered", productId: dbNeg.productId, counterPrice: dbNeg.counterPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice || dbNeg.counterPrice }
+                            });
+                            justUpdatedType = 'countered';
                         }
 
                         const mapped = {
@@ -391,6 +408,10 @@ class DemoStoreService {
                         
                         // Merge DB data, overriding local but keeping synthesized chats
                         localMap.set(mapped.id, mapped);
+
+                        if (justUpdatedType && typeof window !== "undefined") {
+                            window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
+                        }
                     }
                     localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
                 }
@@ -435,6 +456,88 @@ class DemoStoreService {
         if (wins >= 5) return { name: "Gold Negotiator", color: "text-amber-500 bg-amber-50 border-amber-200", discount: 50 };
         if (wins >= 2) return { name: "Silver Deal-Maker", color: "text-gray-500 bg-gray-50 border-gray-200", discount: 20 };
         return { name: "Bronze Haggler", color: "text-amber-700 bg-amber-50 border-amber-200/50", discount: 0 };
+    }
+
+    public async syncNegotiations() {
+        if (typeof window === "undefined") return;
+        try {
+            const res = await fetch("/api/negotiations?all=true");
+            if (!res.ok) return;
+            const negData = await res.json();
+            const dbNegotiations: any[] = negData.negotiations || [];
+            
+            if (dbNegotiations.length > 0) {
+                const localNegotiations: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+                const localMap = new Map(localNegotiations.map((n: any) => [n.id, n]));
+
+                for (const dbNeg of dbNegotiations) {
+                    const localVersion = localMap.get(dbNeg.id);
+                    let chatMessages = dbNeg.chatMessages || localVersion?.chat_messages;
+                    if (!chatMessages || chatMessages.length === 0) {
+                        chatMessages = [];
+                        chatMessages.push({
+                            sender: "buyer",
+                            text: `🤝 Negotiation Request\n\nProduct: ${dbNeg.product?.name || "Product"}\nCurrent Price: ₦${dbNeg.product?.price?.toLocaleString() || 0}\nMy Offer: ₦${dbNeg.proposedPrice.toLocaleString()}\n\nMessage: ${dbNeg.message || "Offer submitted"}\n\nWaiting for seller to respond...`,
+                            timestamp: dbNeg.createdAt
+                        });
+                    }
+                        
+                    let justUpdatedType = null;
+                    if (dbNeg.status === "accepted" && localVersion?.status !== "accepted") {
+                        chatMessages.push({ 
+                            sender: "seller", 
+                            text: `Your offer of ₦${dbNeg.proposedPrice.toLocaleString()} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout.`, 
+                            timestamp: dbNeg.updatedAt || dbNeg.createdAt,
+                            negotiation: { type: "accepted", productId: dbNeg.productId, counterPrice: dbNeg.proposedPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice }
+                        });
+                        justUpdatedType = 'accepted';
+                    } else if (dbNeg.status === "rejected" && localVersion?.status !== "rejected") {
+                        chatMessages.push({ 
+                            sender: "seller", 
+                            text: `Unfortunately, your offer of ₦${dbNeg.proposedPrice.toLocaleString()} was REJECTED.`, 
+                            timestamp: dbNeg.updatedAt || dbNeg.createdAt,
+                            negotiation: { type: "rejected", productId: dbNeg.productId, counterPrice: dbNeg.proposedPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice }
+                        });
+                        justUpdatedType = 'rejected';
+                    } else if (dbNeg.counterPrice && localVersion?.counter_price !== dbNeg.counterPrice) {
+                        chatMessages.push({
+                            sender: "seller",
+                            text: dbNeg.counterMessage || `The seller sent a counter offer of ₦${dbNeg.counterPrice.toLocaleString()}.\n\nDo you accept?`,
+                            timestamp: dbNeg.updatedAt || dbNeg.createdAt,
+                            negotiation: { type: "countered", productId: dbNeg.productId, counterPrice: dbNeg.counterPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice || dbNeg.counterPrice }
+                        });
+                        justUpdatedType = 'countered';
+                    }
+
+                    const mapped = {
+                        id: dbNeg.id,
+                        product_id: dbNeg.productId,
+                        customer_id: dbNeg.customerId,
+                        customer_name: dbNeg.customerName,
+                        seller_id: dbNeg.sellerId,
+                        proposed_price: dbNeg.proposedPrice,
+                        message: dbNeg.message,
+                        status: dbNeg.status,
+                        counter_price: dbNeg.counterPrice,
+                        counter_message: dbNeg.counterMessage,
+                        counter_status: dbNeg.counterStatus,
+                        created_at: dbNeg.createdAt,
+                        updated_at: dbNeg.updatedAt,
+                        chat_messages: chatMessages,
+                    };
+                    localMap.set(mapped.id, mapped);
+
+                    if (justUpdatedType && typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
+                    }
+                }
+                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
+                window.dispatchEvent(new Event("storage"));
+                window.dispatchEvent(new Event("demo-store-update"));
+            }
+        } catch (error) {
+            // Silently fail if DB is offline, frontend resilience pattern takes over
+        }
     }
 
     // Missed Deal Follow-up
@@ -649,7 +752,25 @@ class DemoStoreService {
     updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased") {
         const current = this.getNegotiations();
         const negotiation = current.find(n => n.id === id);
-        const updated = current.map(n => n.id === id ? { ...n, status } : n);
+        const updated = current.map(n => {
+            if (n.id !== id) return n;
+            const updatedNeg = { ...n, status };
+
+            // Append a seller chat message so the buyer sees the response in the chat thread
+            if (status === "accepted" || status === "rejected") {
+                const existingMessages = Array.isArray(n.chat_messages) ? [...n.chat_messages] : [];
+                const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === n.product_id);
+                existingMessages.push({
+                    sender: "seller" as const,
+                    text: status === "accepted"
+                        ? `✅ Your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
+                        : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`,
+                    timestamp: new Date().toISOString()
+                });
+                updatedNeg.chat_messages = existingMessages;
+            }
+            return updatedNeg;
+        });
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         if (negotiation && (status === "accepted" || status === "rejected")) {
@@ -659,7 +780,9 @@ class DemoStoreService {
                 this.addNotification({
                     userId: negotiation.customer_id,
                     type: "negotiation",
-                    message: `Your negotiation for ${product.name} was ${status}.`,
+                    message: status === "accepted"
+                        ? `🎉 Great news! Your offer of ₦${negotiation.proposed_price.toLocaleString()} for "${product.name}" was ACCEPTED! Proceed to checkout.`
+                        : `Your negotiation for "${product.name}" was ${status}.`,
                     link: "/account/negotiations"
                 });
 
@@ -688,6 +811,13 @@ class DemoStoreService {
                     })
                 }).catch(console.error);
             }
+
+            // Persist status change to database
+            fetch("/api/negotiations", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, status })
+            }).catch(console.error);
         }
 
         window.dispatchEvent(new Event("storage"));
@@ -771,25 +901,48 @@ class DemoStoreService {
         const negotiation = current.find(n => n.id === id);
         if (!negotiation) return;
 
-        const updated = current.map(n => n.id === id ? {
-            ...n,
-            counter_price: price,
-            counter_message: message,
-            counter_status: "pending"
-        } : n);
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
+
+        const updated = current.map(n => {
+            if (n.id !== id) return n;
+            // Append counter-offer as a seller chat message
+            const existingMessages = Array.isArray(n.chat_messages) ? [...n.chat_messages] : [];
+            existingMessages.push({
+                sender: "seller" as const,
+                text: `💬 Counter Offer\n\nThe seller has proposed a new price of ₦${price.toLocaleString()} for ${product?.name || 'this item'}.\n\n${message ? `Seller's message: "${message}"` : ''}\n\nDo you accept this counter offer?`,
+                timestamp: new Date().toISOString()
+            });
+            return {
+                ...n,
+                counter_price: price,
+                counter_message: message,
+                counter_status: "pending",
+                chat_messages: existingMessages
+            };
+        });
 
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-
-        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
 
         // Notify Buyer (User)
         this.addNotification({
             userId: negotiation.customer_id,
             type: "negotiation",
-            message: `Seller sent a counter offer of ₦${price.toLocaleString()} for ${product?.name || 'an item'}. Check your dashboard.`,
+            message: `💰 Counter offer of ₦${price.toLocaleString()} for "${product?.name || 'an item'}". Check your negotiations!`,
             link: "/account/negotiations"
         });
+
+        // Persist counter-offer to database
+        fetch("/api/negotiations", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id,
+                counterPrice: price,
+                counterMessage: message,
+                status: "countered"
+            })
+        }).catch(console.error);
 
         const buyerUser = this.getUser(negotiation.customer_id);
         const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
@@ -927,6 +1080,47 @@ class DemoStoreService {
         if (plan === "Growth" || plan === "Scale") return 0; // Free
 
         return 0.01; // Default to Starter
+    }
+
+    /**
+     * Dynamically recalculates a seller's trust score based on:
+     * - Confirmed/delivered orders (+2 each, capped at +30)
+     * - Average review rating (5★ = +15, 1★ = -10)
+     * - Disputed orders (-5 each, capped at -20)
+     * Base is 50. Range is clamped to 0–100.
+     */
+    recalculateTrustScore(sellerId: string): number {
+        const BASE = 50;
+        const orders = this.getOrders().filter(o => o.seller_id === sellerId);
+        const reviews: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.REVIEWS) || "[]");
+
+        // +2 per confirmed delivery, capped at +30
+        const confirmedOrders = orders.filter(o =>
+            o.status === "delivered" || o.escrow_status === "released"
+        );
+        const deliveryBonus = Math.min(confirmedOrders.length * 2, 30);
+
+        // Average star rating bonus: maps 1–5★ to -10 to +15
+        const sellerProducts = this.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId);
+        const sellerProductIds = new Set(sellerProducts.map(p => p.id));
+        const sellerReviews = reviews.filter((r: any) => sellerProductIds.has(r.product_id));
+        let ratingBonus = 0;
+        if (sellerReviews.length > 0) {
+            const avgRating = sellerReviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / sellerReviews.length;
+            // Scale: 1★ → -10, 3★ → 0, 5★ → +15
+            ratingBonus = Math.round((avgRating - 3) * 6.25);
+        }
+
+        // -5 per disputed order, capped at -20
+        const disputedOrders = orders.filter(o => o.escrow_status === "disputed");
+        const disputePenalty = Math.min(disputedOrders.length * 5, 20);
+
+        const score = Math.max(0, Math.min(100, BASE + deliveryBonus + ratingBonus - disputePenalty));
+
+        // Persist the updated score back to the seller record
+        this.updateSeller(sellerId, { trust_score: score });
+
+        return score;
     }
 
     updateSellerCoverImage(id: string, url: string) {
@@ -2344,6 +2538,16 @@ class DemoStoreService {
                     })
                 }).catch(console.error);
             }
+
+            // Sync the updated chat messages array to the database for cross-device access
+            fetch("/api/negotiations", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: negotiation.id,
+                    chatMessages: negs[idx].chat_messages
+                })
+            }).catch(console.error);
         }
 
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));

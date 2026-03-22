@@ -90,6 +90,7 @@ enum NegotiationStatus {
   pending
   accepted
   rejected
+  countered
 }
 
 enum SupportSource {
@@ -356,6 +357,7 @@ model NegotiationRequest {
   counterPrice   Float?
   counterMessage String?
   counterStatus  NegotiationStatus?
+  chatMessages   Json?
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

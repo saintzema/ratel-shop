@@ -117,6 +117,17 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         // Logic to simulate API call
         await new Promise(resolve => setTimeout(resolve, 800));
 
+        let tempGuestName = "Guest Buyer";
+        if (typeof window !== "undefined") {
+            const savedGuestName = localStorage.getItem("fp_guest_name");
+            if (savedGuestName) {
+                tempGuestName = savedGuestName;
+            } else {
+                tempGuestName = `Guest #${Math.floor(1000 + Math.random() * 9000)}`;
+                localStorage.setItem("fp_guest_name", tempGuestName);
+            }
+        }
+
         const currentUserId = user?.id || DemoStore.getCurrentUserId() || "guest_session";
 
         // Create a conversation thread message string
@@ -127,7 +138,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             id: `neg_${Date.now()}`,
             product_id: product.id,
             customer_id: currentUserId,
-            customer_name: user?.name || "Guest Buyer",
+            customer_name: user?.name || tempGuestName,
             proposed_price: Number(proposedPrice),
             message: message,
             status: "pending" as const,
@@ -145,7 +156,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             `neg_${product.id}`,
             product.name,
             product.image_url,
-            negMessageText
+            negMessageText,
+            product.seller_name || "Global Store"
         );
 
         setIsSubmitting(false);

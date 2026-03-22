@@ -11,10 +11,11 @@ export interface ChatMessage {
     imageUrl?: string;
     /** For negotiation counter-offers */
     negotiation?: {
+        type?: 'countered' | 'accepted' | 'rejected' | string;
         productId: string;
         productName: string;
         counterPrice: number;
-        originalPrice: number;
+        originalPrice?: number;
     };
     replyTo?: {
         sender: string;
@@ -27,6 +28,7 @@ export interface Conversation {
     orderId: string;
     productName: string;
     productImage?: string;
+    storeName?: string;
     messages: ChatMessage[];
     unreadCount: number;
     lastUpdated: string;
@@ -46,7 +48,7 @@ interface MessageContextType {
     closeMessageBox: () => void;
     dismissNotification: () => void;
     getConversation: (orderId: string) => Conversation | undefined;
-    startConversation: (orderId: string, productName: string, productImage?: string, initialMessage?: string) => string;
+    startConversation: (orderId: string, productName: string, productImage?: string, initialMessage?: string, storeName?: string) => string;
 }
 
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
@@ -101,8 +103,66 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 setConversations(newConversations);
             }
         };
+
+        const handleRemoteNegotiationSync = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            if (!customEvent.detail || !customEvent.detail.negotiation) return;
+            
+            const { type, negotiation: neg } = customEvent.detail;
+            const orderId = `neg_${neg.product_id}`;
+
+            setConversations(prev => {
+                const existing = prev.find(c => c.orderId === orderId);
+                if (!existing) return prev; // Avoid creating ghost chats if buyer never started it here
+
+                let text = "";
+                if (type === "accepted") {
+                    text = `Your offer of ₦${neg.proposed_price.toLocaleString()} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout.`;
+                } else if (type === "rejected") {
+                    text = `Unfortunately, your offer of ₦${neg.proposed_price.toLocaleString()} was REJECTED.`;
+                } else if (type === "countered") {
+                    text = neg.counter_message || `The seller sent a counter offer of ₦${neg.counter_price.toLocaleString()}.\n\nDo you accept?`;
+                }
+
+                // Deduplicate system messages by text to prevent duplication loops
+                if (existing.messages.some(m => m.text === text)) return prev;
+
+                const newMsg: ChatMessage = {
+                    sender: "seller",
+                    text,
+                    timestamp: new Date().toISOString(),
+                    id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
+                };
+
+                if (type === "countered") {
+                    newMsg.negotiation = {
+                        productId: neg.product_id,
+                        counterPrice: neg.counter_price,
+                        productName: "Product",
+                        originalPrice: neg.proposed_price || neg.counter_price
+                    };
+                }
+
+                const updated = prev.map(c => 
+                    c.id === existing.id 
+                    ? { ...c, messages: [...c.messages, newMsg], lastUpdated: new Date().toISOString(), unreadCount: c.unreadCount + 1 } 
+                    : c
+                );
+                
+                // Immediately save back to storage to sync any other tabs
+                if (typeof window !== "undefined") {
+                    localStorage.setItem("fp_messages", JSON.stringify(updated));
+                }
+                return updated;
+            });
+        };
+
         window.addEventListener("storage", handleStorage);
-        return () => window.removeEventListener("storage", handleStorage);
+        window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
+        return () => {
+            window.removeEventListener("storage", handleStorage);
+            window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
+        };
     }, [mounted, conversations]);
 
     // Persist
@@ -123,6 +183,15 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 };
                 return { ...c, messages: [...c.messages, newMsg], lastUpdated: new Date().toISOString() };
             });
+
+            // Dispatch event to DemoStore to sync local floating chats to backend Postgres schema
+            if (typeof window !== "undefined" && conversationId.startsWith("neg_")) {
+                const productId = conversationId.replace("neg_", "");
+                window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {
+                    detail: { productId, text: message.text }
+                }));
+            }
+
             return updated;
         });
     }, []);
@@ -165,7 +234,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         setPendingConversationId(orderId);
     }, []);
 
-    const startConversation = useCallback((orderId: string, productName: string, productImage?: string, initialMessage?: string) => {
+    const startConversation = useCallback((orderId: string, productName: string, productImage?: string, initialMessage?: string, storeName?: string) => {
         const existing = conversations.find(c => c.orderId === orderId);
         if (existing) {
             if (initialMessage) {
@@ -187,6 +256,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
             orderId,
             productName,
             productImage,
+            storeName,
             messages: newMsg ? [newMsg] : [],
             unreadCount: 0,
             lastUpdated: new Date().toISOString()

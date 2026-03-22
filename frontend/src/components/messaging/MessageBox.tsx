@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { DemoStore } from "@/lib/demo-store";
+import { useRouter } from "next/navigation";
+import { useCart } from "@/context/CartContext";
 
 // ─── Notification types ─────────────────────────────────
 interface AppNotification {
@@ -34,6 +36,8 @@ export function MessageBox() {
     } = useMessages();
 
     const { user } = useAuth();
+    const router = useRouter();
+    const { addToCart } = useCart();
     const [input, setInput] = useState("");
     const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<"chats" | "notifications">("chats");
@@ -298,8 +302,8 @@ export function MessageBox() {
                                         <h3 className="font-bold text-sm leading-tight truncate">
                                             {selectedConversation.productName}
                                         </h3>
-                                        <p className="text-[10px] text-white/70 font-medium">
-                                            {selectedConversation.orderId ? `Order ${selectedConversation.orderId.slice(0, 14)}...` : "Active"}
+                                        <p className="text-[10px] text-white/70 font-medium whitespace-nowrap overflow-hidden text-ellipsis max-w-[150px]">
+                                            {selectedConversation.storeName ? selectedConversation.storeName : selectedConversation.orderId ? `Order ${selectedConversation.orderId.slice(0, 14)}...` : "Active"}
                                         </p>
                                     </div>
                                     <button onClick={closeMessageBox} className="p-2 rounded-full hover:bg-white/10 transition-colors">
@@ -345,8 +349,8 @@ export function MessageBox() {
                                                         )}
                                                         <div
                                                             className={`px-3.5 py-2.5 text-[13px] leading-[1.5] ${msg.sender === "user"
-                                                                ? "bg-brand-green-600 text-white rounded-2xl rounded-br-sm shadow-md"
-                                                                : "bg-white text-gray-800 rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
+                                                                ? "bg-brand-green-600/90 backdrop-blur-md text-white rounded-2xl rounded-br-sm shadow-md border border-brand-green-500/30"
+                                                                : "bg-white/85 text-gray-800 backdrop-blur-md rounded-2xl rounded-bl-sm shadow-sm border border-white/40"
                                                                 }`}
                                                             onDoubleClick={() => setReplyingTo({ sender: msg.sender === 'user' ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}
                                                         >
@@ -376,11 +380,45 @@ export function MessageBox() {
                                                             </div>
                                                         )}
                                                         {msg.negotiation && (
-                                                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-3 mt-1.5 text-xs shadow-sm">
-                                                                <p className="font-bold text-amber-800 mb-1 flex items-center gap-1.5">
-                                                                    <Coins className="h-3.5 w-3.5" /> Counter Offer
+                                                            <div className={`border rounded-xl p-3.5 mt-2 shadow-lg backdrop-blur-md ${msg.negotiation.type === 'accepted' ? 'bg-gradient-to-br from-emerald-500 to-brand-green-600 text-white border-brand-green-400/50' : 'bg-white/90 text-gray-900 border-white/60'}`}>
+                                                                <p className={`font-bold mb-1 flex items-center gap-1.5 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-gray-900'}`}>
+                                                                    <Coins className="h-4 w-4" /> {msg.negotiation.type === 'accepted' ? "Offer Accepted!" : msg.negotiation.type === 'rejected' ? "Offer Rejected" : "Counter Offer"}
                                                                 </p>
-                                                                <p className="text-amber-700">{msg.negotiation.productName}: <strong className="text-amber-900">₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
+                                                                <p className={`text-xs mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-600'}`}>{msg.negotiation.productName}: <strong className={`text-base font-black ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
+                                                                
+                                                                {msg.negotiation.type === 'countered' && (
+                                                                    <Button 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            const product = DemoStore.getProducts().find(p => p.id === msg.negotiation?.productId);
+                                                                            if (product && msg.negotiation) {
+                                                                                addToCart({ ...product, price: msg.negotiation.counterPrice });
+                                                                                router.push("/cart");
+                                                                                closeMessageBox();
+                                                                            }
+                                                                        }}
+                                                                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-8 rounded-lg font-bold shadow-md transition-all"
+                                                                    >
+                                                                        Accept & Buy @ ₦{(msg.negotiation.counterPrice || 0).toLocaleString()}
+                                                                    </Button>
+                                                                )}
+                                                                
+                                                                {msg.negotiation.type === 'accepted' && (
+                                                                    <Button 
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            const product = DemoStore.getProducts().find(p => p.id === msg.negotiation?.productId);
+                                                                            if (product && msg.negotiation) {
+                                                                                addToCart({ ...product, price: msg.negotiation.counterPrice });
+                                                                                router.push("/cart");
+                                                                                closeMessageBox();
+                                                                            }
+                                                                        }}
+                                                                        className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-8 rounded-lg font-bold shadow-md transition-all"
+                                                                    >
+                                                                        Proceed to Checkout
+                                                                    </Button>
+                                                                )}
                                                             </div>
                                                         )}
                                                     </div>
