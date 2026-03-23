@@ -953,24 +953,9 @@ class DemoStoreService {
                 id,
                 counterPrice: price,
                 counterMessage: message,
-                status: "countered"
-            })
-        }).catch(console.error);
-
-        const buyerUser = this.getUser(negotiation.customer_id);
-        const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
-        fetch("/api/email", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                to: buyerEmail,
-                subject: `Counter Offer Received: ${product?.name || 'An Item'}`,
-                type: "NEGOTIATION_REQUEST", 
-                payload: {
-                    customerName: negotiation.customer_name,
-                    productName: product?.name || 'An Item',
-                    amount: `₦${price.toLocaleString()}`
-                }
+                counterStatus: "pending",
+                status: "countered",
+                chatMessages: updated.find((n: any) => n.id === id)?.chat_messages
             })
         }).catch(console.error);
     }

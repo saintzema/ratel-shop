@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const { id, status, counterPrice, counterMessage, chatMessages } = body;
+        const { id, status, counterPrice, counterMessage, counterStatus, chatMessages } = body;
 
         if (!id) {
             return NextResponse.json({ success: false, error: "Negotiation ID required" }, { status: 400 });
@@ -121,14 +121,38 @@ export async function PATCH(request: Request) {
         if (status) updateData.status = status;
         if (counterPrice !== undefined) updateData.counterPrice = counterPrice;
         if (counterMessage !== undefined) updateData.counterMessage = counterMessage;
+        if (counterStatus !== undefined) updateData.counterStatus = counterStatus;
         if (chatMessages !== undefined) updateData.chatMessages = chatMessages;
 
         const updated = await db.negotiationRequest.update({
             where: { id },
             data: updateData,
+            include: { product: true, customer: true }
         });
 
         broadcast({ type: "negotiation_updated", id: updated.id });
+
+        // If it's a seller counter-offer, send email to Buyer
+        if (status === "countered" && counterPrice !== undefined) {
+             const buyerEmail = updated.customer?.email;
+             if (buyerEmail && buyerEmail !== "guest@fairprice.ng") {
+                 // Try to send email, but don't block the response
+                 fetch(new URL('/api/email', request.url).toString(), {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                         to: buyerEmail,
+                         subject: `Counter Offer Received: ${updated.product?.name || 'An Item'}`,
+                         type: "NEGOTIATION_REQUEST",
+                         payload: {
+                             customerName: updated.customerName,
+                             productName: updated.product?.name || 'An Item',
+                             amount: `₦${counterPrice.toLocaleString()}`
+                         }
+                     })
+                 }).catch(e => console.error("Failed to trigger counter-offer email:", e));
+             }
+        }
 
         return NextResponse.json({ success: true, negotiation: updated });
     } catch (error: any) {

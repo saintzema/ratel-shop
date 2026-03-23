@@ -190,7 +190,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                 {!submitted ? (
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-3 pb-6">
                         <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 flex gap-4 shrink-0">
-                            <img src={product.image_url} alt={product.name} className="w-16 h-16 object-contain mix-blend-multiply" />
+                            <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-16 h-16 object-contain mix-blend-multiply" />
                             <div>
                                 <p className="font-bold text-sm line-clamp-1">{product.name}</p>
                                 <p className="text-xs text-zinc-500">Current Price: {formatPrice(product.price)}</p>
@@ -328,7 +328,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     {similarProducts.map((p) => (
                                         <Link key={p.id} href={`/product/${p.id}`} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
                                             <div className="h-12 w-12 bg-white rounded-lg border border-zinc-100 overflow-hidden shrink-0">
-                                                <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                                <img src={p.image_url || "/assets/images/placeholder.png"} alt={p.name} className="w-full h-full object-cover" />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-xs font-bold text-zinc-900 truncate group-hover:text-brand-green-700">{p.name}</p>

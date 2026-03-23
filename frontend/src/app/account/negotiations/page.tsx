@@ -192,7 +192,7 @@ export default function NegotiationsPage() {
                                             {/* Desktop Row */}
                                             <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 items-center hover:bg-gray-50 transition-colors">
                                                 <Link href={`/product/${product.id}`} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
-                                                    <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" />
+                                                    <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
                                                 </Link>
                                                 <div className="min-w-0">
                                                     <Link href={`/product/${product.id}`} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
@@ -237,7 +237,7 @@ export default function NegotiationsPage() {
                                             <div className="md:hidden p-4 space-y-3">
                                                 <div className="flex items-center gap-3">
                                                     <Link href={`/product/${product.id}`} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block">
-                                                        <img src={product.image_url} alt={product.name} className="h-full w-full object-contain" />
+                                                        <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
                                                     </Link>
                                                     <div className="flex-1 min-w-0">
                                                         <Link href={`/product/${product.id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
