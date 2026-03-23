@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_SELLER_STATS } from "@/lib/data";
 import { NegotiationRequest, Order, Product, Seller } from "@/lib/types";
@@ -36,6 +36,7 @@ export default function SellerDashboard() {
     const [products, setProducts] = useState<Product[]>([]);
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
     const [cashoutSuccess, setCashoutSuccess] = useState(false);
+    const hasAttemptedCreation = useRef(false);
 
     useEffect(() => {
         let sellerId = DemoStore.getCurrentSellerId();
@@ -49,9 +50,10 @@ export default function SellerDashboard() {
             if (existingSeller) {
                 DemoStore.loginSeller(existingSeller.id);
                 sellerId = existingSeller.id;
-            } else {
-                // Create a new seller record for this user
-                const newSellerId = `seller_${Math.random().toString(36).substr(2, 9)}`;
+            } else if (!hasAttemptedCreation.current) {
+                hasAttemptedCreation.current = true;
+                // Create a deterministic seller record for this user to avoid duplicates if sync delays
+                const newSellerId = `seller_${user.id.replace(/[^a-z0-9]/gi, '_')}`;
                 const newSeller: Seller = {
                     id: newSellerId,
                     user_id: user.id,
@@ -64,7 +66,7 @@ export default function SellerDashboard() {
                     verified: false,
                     kyc_status: "pending",
                     trust_score: 50,
-                    joined_at: new Date().toISOString(),
+                    joined_at: "2024-01-01T00:00:00.000Z", // Deterministic timestamp to avoid loop triggers
                 };
                 DemoStore.addSeller(newSeller);
                 DemoStore.loginSeller(newSellerId);
@@ -130,7 +132,7 @@ export default function SellerDashboard() {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("demo-store-update", loadData);
         }
-    }, [router, user]);
+    }, [router, user?.id]);
 
     const handleNegAction = (id: string, status: "accepted" | "rejected") => {
         DemoStore.updateNegotiationStatus(id, status);

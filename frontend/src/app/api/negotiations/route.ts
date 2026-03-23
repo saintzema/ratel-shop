@@ -15,23 +15,21 @@ export async function GET(request: Request) {
         if (customerId) whereClause.customerId = customerId;
         if (sellerId) whereClause.sellerId = sellerId;
 
-        // Fast-fail with 3s timeout to avoid 5+ second hangs when DB is offline
+        // Fetch negotiations with a global try-catch for resiliency
         try {
-            const negotiations = await Promise.race([
-                db.negotiationRequest.findMany({
-                    where: whereClause,
-                    include: {
-                        product: true,
-                    },
-                    orderBy: {
-                        createdAt: 'desc',
-                    }
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("Database connection timeout")), 2500))
-            ]);
+            const negotiations = await db.negotiationRequest.findMany({
+                where: whereClause,
+                include: {
+                    product: true,
+                },
+                orderBy: {
+                    createdAt: 'desc',
+                }
+            });
             
             return NextResponse.json({ success: true, negotiations });
         } catch (dbError: any) {
+            console.error("Database fetch error:", dbError);
             throw dbError;
         }
     } catch (error: any) {

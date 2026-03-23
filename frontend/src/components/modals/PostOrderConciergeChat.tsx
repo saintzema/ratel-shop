@@ -9,6 +9,9 @@ import { Product, Order } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
 import { Keyboard } from "@capacitor/keyboard";
 import { Capacitor } from "@capacitor/core";
+import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/navigation";
+import { ShoppingCart } from "lucide-react";
 
 interface Message {
     id: string;
@@ -58,6 +61,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { addToCart } = useCart();
+    const router = useRouter();
 
     const trackingId = order?.tracking_id || orderId || "PENDING";
     const orderStatus = order?.status || "processing";
@@ -614,6 +619,24 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                             </Button>
                                                         </a>
                                                     </div>
+                                                )}
+
+                                                {msg.text.includes("ACCEPTED") && msg.text.includes("offer") && product && (
+                                                    <Button 
+                                                        onClick={() => {
+                                                            // Calculate negotiated price from text if possible, or use a heuristic
+                                                            // The text: "Your offer for ... has been ACCEPTED at ₦..."
+                                                            const priceMatch = msg.text.match(/₦([\d,]+)/);
+                                                            const finalPrice = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : product.price;
+                                                            
+                                                            addToCart({ ...product, price: finalPrice });
+                                                            onClose();
+                                                            router.push('/checkout');
+                                                        }}
+                                                        className="mt-3 w-full bg-brand-green-600 hover:bg-brand-green-700 text-white font-black py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm border border-brand-green-700 transition-all active:scale-[0.98]"
+                                                    >
+                                                        <ShoppingCart className="w-4 h-4" /> Buy Now at Negotiated Price
+                                                    </Button>
                                                 )}
                                             </div>
 

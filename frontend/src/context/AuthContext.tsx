@@ -75,11 +75,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const handleStorageChange = () => {
             const updatedUser = localStorage.getItem("fp_user");
             if (updatedUser) {
-                const parsed = JSON.parse(updatedUser);
-                if (!parsed.role) parsed.role = "customer";
-                setUser(parsed);
+                // To avoid redundant re-renders from frequent "storage" events (e.g. from DemoStore sync),
+                // we only update if the string value has actually changed.
+                const currentUserStr = localStorage.getItem("fp_user_last_synced");
+                if (updatedUser !== currentUserStr) {
+                    try {
+                        const parsed = JSON.parse(updatedUser);
+                        if (!parsed.role) parsed.role = "customer";
+                        setUser(parsed);
+                        localStorage.setItem("fp_user_last_synced", updatedUser);
+                    } catch (e) {
+                        console.error("Auth sync error: invalid JSON in storage", e);
+                    }
+                }
             } else {
                 setUser(null);
+                localStorage.removeItem("fp_user_last_synced");
             }
             setIsLoading(false);
         };

@@ -386,7 +386,7 @@ export default function UniversalMessagesPage() {
 
         // In a real app, logic branches based on conversation type (DemoStore handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
-            DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage || "[Image Attached]", replyingTo || undefined);
+            DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage, selectedImagePreview || undefined, replyingTo || undefined);
         } else if (activeConvo.id.startsWith("ord-")) {
             const orderId = activeConvo.id.replace("ord-", "");
             DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);

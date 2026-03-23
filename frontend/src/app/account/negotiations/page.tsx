@@ -29,7 +29,7 @@ import { useAuth } from "@/context/AuthContext";
 export default function NegotiationsPage() {
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
-    const [filter, setFilter] = useState<"all" | "pending" | "accepted" | "rejected">("all");
+    const [filter, setFilter] = useState<"all" | "pending" | "accepted" | "rejected" | "purchased">("all");
     const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
     const { addToCart } = useCart();
     const { user } = useAuth();
@@ -84,7 +84,13 @@ export default function NegotiationsPage() {
         }, 800);
     };
 
-    const filteredNegs = filter === "all" ? negotiations : negotiations.filter(n => n.status === filter);
+    const filteredNegs = filter === "all" ? negotiations : negotiations.filter(n => {
+        if (filter === "accepted") return n.status === "accepted" || n.counter_status === "accepted";
+        if (filter === "rejected") return n.status === "rejected" || n.counter_status === "rejected";
+        if (filter === "pending") return n.status === "pending" || (n.status === "countered" && n.counter_status === "pending");
+        if (filter === "purchased") return n.status === "purchased" || n.purchased === true;
+        return n.status === filter;
+    });
     const userTier = DemoStore.getUserTier(user?.id || user?.email || "");
 
     return (
@@ -132,7 +138,7 @@ export default function NegotiationsPage() {
 
                 {/* Filter chips */}
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                    {(["all", "pending", "accepted", "rejected"] as const).map((f) => (
+                    {(["all", "pending", "accepted", "rejected", "purchased"] as const).map((f) => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
@@ -183,9 +189,11 @@ export default function NegotiationsPage() {
                                         ? <Badge className="bg-blue-500/15 text-blue-600 border-none text-[10px] animate-pulse">Counter</Badge>
                                         : neg.status === "pending"
                                             ? <Badge className="bg-amber-500/15 text-amber-600 border-none text-[10px]">Pending</Badge>
-                                            : neg.status === "accepted"
+                                            : (neg.status === "accepted" || neg.counter_status === "accepted")
                                                 ? <Badge className="bg-brand-green-500/15 text-brand-green-600 border-none text-[10px]">Accepted</Badge>
-                                                : <Badge className="bg-red-500/15 text-red-600 border-none text-[10px]">Rejected</Badge>;
+                                                : neg.status === "purchased"
+                                                    ? <Badge className="bg-indigo-500/15 text-indigo-600 border-none text-[10px]">Purchased</Badge>
+                                                    : <Badge className="bg-red-500/15 text-red-600 border-none text-[10px]">Rejected</Badge>;
 
                                     return (
                                         <div key={neg.id}>

@@ -384,6 +384,9 @@ export function MessageProvider({ children }: { children: ReactNode }) {
 
     const sendMessage = useCallback((conversationId: string, message: Omit<ChatMessage, "id" | "timestamp">) => {
         setConversations(prev => {
+            const conv = prev.find(c => c.id === conversationId);
+            if (!conv) return prev;
+
             const updated = prev.map(c => {
                 if (c.id !== conversationId) return c;
                 const newMsg: ChatMessage = {
@@ -395,10 +398,10 @@ export function MessageProvider({ children }: { children: ReactNode }) {
             });
 
             // Dispatch event to DemoStore to sync local floating chats to backend Postgres schema
-            if (typeof window !== "undefined" && conversationId.startsWith("neg_")) {
-                const productId = conversationId.replace("neg_", "");
+            if (typeof window !== "undefined" && conv.orderId.startsWith("neg_")) {
+                const productId = conv.orderId.replace("neg_", "");
                 window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {
-                    detail: { productId, text: message.text }
+                    detail: { productId, text: message.text, replyTo: (message as any).replyTo }
                 }));
             }
 

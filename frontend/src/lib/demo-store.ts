@@ -71,6 +71,7 @@ class DemoStoreService {
     // Track seller IDs with local edits (KYC approve/reject) not yet confirmed by DB
     private _pendingSellerEdits: Set<string> = new Set();
     private readonly _PENDING_SELLER_KEY = "fp_pending_seller_edits";
+    private _isRegisteringSeller = false;
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -115,6 +116,38 @@ class DemoStoreService {
             } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
+
+            // Listen for buyer messages from floating chat to hot-sync to DB
+            window.addEventListener("buyer-negotiation-message-sent", (e: any) => {
+                const { productId, text, replyTo } = e.detail;
+                const negs = this.getNegotiations();
+                const neg = negs.find(n => n.product_id === productId && n.status !== "accepted" && n.status !== "rejected");
+                
+                if (neg) {
+                    const existingMessages = Array.isArray(neg.chat_messages) ? [...neg.chat_messages] : [];
+                    existingMessages.push({
+                        id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        sender: "buyer",
+                        text,
+                        timestamp: new Date().toISOString(),
+                        replyTo
+                    });
+
+                    // Update local storage
+                    const updated = negs.map(n => n.id === neg.id ? { ...n, chat_messages: existingMessages } : n);
+                    localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+                    
+                    // Hot sync to DB
+                    fetch("/api/negotiations", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            id: neg.id,
+                            chatMessages: existingMessages
+                        })
+                    }).catch(console.error);
+                }
+            });
         }
     }
 
@@ -205,17 +238,23 @@ class DemoStoreService {
         };
     }
 
+    private _isSyncing = false;
     private async syncWithDB() {
-        if (typeof window === "undefined") return;
-
+        if (typeof window === "undefined" || this._isSyncing) return;
+        this._isSyncing = true;
         try {
-            // 🚀 PARALLEL FETCH: Fire all four requests simultaneously for fast sync
-            const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult] = await Promise.allSettled([
+
+            // 🚀 PARALLEL FETCH: Fire all Five requests simultaneously for fast sync
+            const user = this.getCurrentUser();
+            const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
+
+            const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult, notificationsResult] = await Promise.allSettled([
                 fetch("/api/products?all=true"),
                 fetch("/api/sellers?all=true"),
                 fetch("/api/search-cache"),
                 fetch("/api/orders?all=true"),
-                fetch("/api/negotiations?all=true")
+                fetch("/api/negotiations?all=true"),
+                notificationUrl ? fetch(notificationUrl) : Promise.reject("No user email")
             ]);
 
             // ── Process Products ──
@@ -236,8 +275,13 @@ class DemoStoreService {
                     for (const [id, product] of localMap) {
                         if (!dbMap.has(id)) merged.set(id, product);
                     }
-
-                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(Array.from(merged.values())));
+                    const newDataStr = JSON.stringify(Array.from(merged.values()));
+                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
+                    if (newDataStr !== oldDataStr) {
+                        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("demo-store-update"));
+                    }
                 }
             }
 
@@ -281,7 +325,14 @@ class DemoStoreService {
                         if (!dbMap.has(id)) merged.set(id, seller);
                     }
 
-                    localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(Array.from(merged.values())));
+                    const sortedSellers = Array.from(merged.values()).sort((a, b) => a.id.localeCompare(b.id));
+                    const newDataStr = JSON.stringify(sortedSellers);
+                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
+                    if (newDataStr !== oldDataStr) {
+                        localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("demo-store-update"));
+                    }
 
                     const storedSellerId = this.getCurrentSellerId();
                     if (storedSellerId && !merged.has(storedSellerId)) {
@@ -333,7 +384,14 @@ class DemoStoreService {
                             localMap.set(mapped.id, mapped);
                         }
                     }
-                    localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(Array.from(localMap.values())));
+
+                    const newDataStr = JSON.stringify(Array.from(localMap.values()));
+                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.ORDERS);
+                    if (newDataStr !== oldDataStr) {
+                        localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("demo-store-update"));
+                    }
                 }
             }
 
@@ -425,11 +483,38 @@ class DemoStoreService {
                 }
             }
 
+            // ── Process Notifications ──
+            if (notificationsResult.status === "fulfilled" && notificationsResult.value.ok) {
+                const dbNotifs = await notificationsResult.value.json();
+                if (Array.isArray(dbNotifs)) {
+                    const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
+                    const local: any[] = stored ? JSON.parse(stored) : [];
+                    const localMap = new Map(local.map(n => [n.id, n]));
+                    
+                    // Merge DB notifications, keeping locally generated ones if they aren't in DB yet
+                    dbNotifs.forEach((n: any) => {
+                        localMap.set(n.id, {
+                            id: n.id,
+                            userId: n.user_email,
+                            type: n.type,
+                            message: n.message,
+                            link: n.link,
+                            read: n.read,
+                            timestamp: n.created_at || new Date().toISOString()
+                        });
+                    });
+                    
+                    localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
+                }
+            }
+
             // Trigger update events so React components re-render with live data
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
         } catch (error) {
             console.warn("Database sync failed quietly:", (error as Error).message || "Network issue");
+        } finally {
+            this._isSyncing = false;
         }
 
         // ── Fallback: if localStorage is still empty after sync, seed with DEMO data ──
@@ -520,10 +605,10 @@ class DemoStoreService {
                         seller_id: dbNeg.sellerId,
                         proposed_price: dbNeg.proposedPrice,
                         message: dbNeg.message,
-                        status: dbNeg.status,
-                        counter_price: dbNeg.counterPrice,
-                        counter_message: dbNeg.counterMessage,
-                        counter_status: dbNeg.counterStatus,
+                        status: (localVersion?.status === "countered" && dbNeg.status === "pending") ? "countered" : dbNeg.status,
+                        counter_price: localVersion?.counter_price || dbNeg.counterPrice,
+                        counter_message: localVersion?.counter_message || dbNeg.counterMessage,
+                        counter_status: (localVersion?.counter_status === "pending" && !dbNeg.counterStatus) ? "pending" : dbNeg.counterStatus,
                         created_at: dbNeg.createdAt,
                         updated_at: dbNeg.updatedAt,
                         chat_messages: chatMessages,
@@ -763,19 +848,39 @@ class DemoStoreService {
     updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased") {
         const current = this.getNegotiations();
         const negotiation = current.find(n => n.id === id);
+        if (!negotiation) return;
+
+        const isRespondingToCounter = negotiation.status === "countered" && negotiation.counter_status === "pending";
+
         const updated = current.map(n => {
             if (n.id !== id) return n;
-            const updatedNeg = { ...n, status };
+            
+            const updatedNeg = { ...n };
+            if (isRespondingToCounter) {
+                updatedNeg.counter_status = status;
+            } else {
+                updatedNeg.status = status;
+            }
 
-            // Append a seller chat message so the buyer sees the response in the chat thread
+            // Append a chat message so the response is visible in the chat thread
             if (status === "accepted" || status === "rejected") {
                 const existingMessages = Array.isArray(n.chat_messages) ? [...n.chat_messages] : [];
                 const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === n.product_id);
-                existingMessages.push({
-                    sender: "seller" as const,
-                    text: status === "accepted"
+                
+                let text = "";
+                if (isRespondingToCounter) {
+                    text = status === "accepted"
+                        ? `✅ You accepted the counter offer of ₦${n.counter_price?.toLocaleString()}! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
+                        : `❌ You rejected the counter offer of ₦${n.counter_price?.toLocaleString()}.`;
+                } else {
+                    text = status === "accepted"
                         ? `✅ Your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
-                        : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`,
+                        : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`;
+                }
+
+                existingMessages.push({
+                    sender: isRespondingToCounter ? "buyer" as const : "seller" as const,
+                    text: text,
                     timestamp: new Date().toISOString()
                 });
                 updatedNeg.chat_messages = existingMessages;
@@ -824,10 +929,19 @@ class DemoStoreService {
             }
 
             // Persist status change to database
+            const payload: any = { id };
+            if (isRespondingToCounter) {
+                payload.counterStatus = status;
+                payload.chatMessages = updated.find((n: any) => n.id === id)?.chat_messages;
+            } else {
+                payload.status = status;
+                payload.chatMessages = updated.find((n: any) => n.id === id)?.chat_messages;
+            }
+
             fetch("/api/negotiations", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ id, status })
+                body: JSON.stringify(payload)
             }).catch(console.error);
         }
 
@@ -1211,6 +1325,14 @@ class DemoStoreService {
         const updatedSeller = sellers.find(s => s.id === id);
         if (!updatedSeller) return;
 
+        // 🛡️ INFINITE LOOP GUARD: Dirty check for trust_score
+        // If we're only updating trust_score and it hasn't changed, skip everything.
+        // This stops the recalculateTrustScore -> updateSeller -> demo-store-update -> loadData loop.
+        const keys = Object.keys(updates);
+        if (keys.length === 1 && keys[0] === 'trust_score' && updatedSeller.trust_score === updates.trust_score) {
+            return;
+        }
+
         const mergedSeller = { ...updatedSeller, ...updates };
         const updated = sellers.map(s => s.id === id ? mergedSeller : s);
 
@@ -1219,6 +1341,8 @@ class DemoStoreService {
         try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
 
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
+        
+        // Only dispatch if something actually changed (beyond the guard above)
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
 
@@ -1596,17 +1720,39 @@ class DemoStoreService {
     getSellers(): Seller[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
-        // Fallback to empty array if DB sync hasn't populated localStorage yet
         return stored ? JSON.parse(stored) : [];
     }
 
-    addSeller(seller: Seller) {
+    async addSeller(seller: Seller) {
+        if (this._isRegisteringSeller) return;
+        
+        // Final guard: check if we already have this seller or are currently building it
+        const existing = this.getSellers();
+        if (existing.some(s => s.user_id === seller.user_id || s.id === seller.id)) return;
+
+        // Persistent lock to prevent cross-tab/re-reload loops
+        const lockKey = `fairprice_reg_lock_${seller.user_id || seller.id}`;
+        const lastAttempt = localStorage.getItem(lockKey);
+        if (lastAttempt && Date.now() - parseInt(lastAttempt) < 10000) {
+            console.log("Registration locked - attempt too recent");
+            return;
+        }
+        localStorage.setItem(lockKey, Date.now().toString());
+
+        this._isRegisteringSeller = true;
         const sellers = this.getSellers();
         sellers.push(seller);
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
 
-        // Persist to Postgres (queued if offline)
-        resilientFetch("/api/sellers", { method: "POST", body: seller, type: "registration" });
+        try {
+            await resilientFetch("/api/sellers", { method: "POST", body: seller, type: "registration" });
+        } catch (e) {
+            console.error("Seller registration failed, queued for later:", e);
+        } finally {
+            this._isRegisteringSeller = false;
+        }
 
         // Trigger Admin Registration Email
         try {
@@ -2460,6 +2606,9 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
+
+        // Sync to backend
+        fetch(`/api/notifications?id=${notifId}`, { method: "PATCH" }).catch(() => {});
     }
 
     markAllNotificationsRead(userId: string) {
@@ -2489,6 +2638,11 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
+
+        // Sync to backend
+        if (user?.email) {
+            fetch(`/api/notifications?mark_all=true&user_email=${encodeURIComponent(user.email)}`, { method: "PATCH" }).catch(() => {});
+        }
     }
 
     getAllUsers(): any[] {
@@ -2655,17 +2809,32 @@ class DemoStoreService {
         } catch { }
     }
     // --- Negotiation Chat Messaging ---
-    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string, replyTo?: { sender: string; text: string }) {
+    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string, imageUrl?: string, replyTo?: { sender: string; text: string }) {
         const stored = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
         if (!stored) return;
         const negs = JSON.parse(stored);
         const idx = negs.findIndex((n: any) => n.id === negId);
         if (idx === -1) return;
         if (!negs[idx].chat_messages) negs[idx].chat_messages = [];
-        negs[idx].chat_messages.push({ sender, text, replyTo, timestamp: new Date().toISOString() });
+        const newMsg = { sender, text, imageUrl, replyTo, timestamp: new Date().toISOString() };
+        negs[idx].chat_messages.push(newMsg);
+
+        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
 
         const negotiation = negs[idx];
         const product = this.getProducts().find(p => p.id === negotiation.product_id);
+
+        // Sync to DB
+        fetch("/api/negotiations", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: negId,
+                chatMessages: negs[idx].chat_messages
+            })
+        }).catch(console.error);
 
         if (product) {
             if (sender === "buyer") {

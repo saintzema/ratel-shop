@@ -11,34 +11,47 @@ import { useRouter } from "next/navigation";
 // Base64 short pop/ding sound for immediate feedback without an external asset file
 const NOTIFICATION_SOUND = "data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 
-// Fallback to Web Audio API synthesized ding if base64 silent string doesn't play right
+// Fallback to Web Audio API synthesized premium chime (iOS-like glass sound)
 const playDingSound = () => {
+    if (typeof window === 'undefined') return;
     try {
-        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+        if (!AudioContextClass) return;
+        
+        const audioCtx = new AudioContextClass();
         if (audioCtx.state === 'suspended') {
             audioCtx.resume();
         }
         
-        const oscillator = audioCtx.createOscillator();
-        const gainNode = audioCtx.createGain();
+        const now = audioCtx.currentTime;
         
-        oscillator.type = "sine";
-        // E6 (1318 Hz) for a pleasant high pitch
-        oscillator.frequency.setValueAtTime(1318.51, audioCtx.currentTime); 
-        // Slide to A5 (880 Hz) for the second part of a double-chime effect
-        oscillator.frequency.exponentialRampToValueAtTime(880.00, audioCtx.currentTime + 0.1);
+        // Multi-layered glass chime harmonics
+        // Use a base frequency (A5) and its harmonics for clarity and "premium" feel
+        const harmonics = [880, 1318.51, 1760, 2637]; 
+        
+        harmonics.forEach((freq, i) => {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = "sine";
+            oscillator.frequency.setValueAtTime(freq, now);
+            // Subtle pitch drop for "natural" acoustic feel
+            oscillator.frequency.exponentialRampToValueAtTime(freq * 0.99, now + 0.8);
 
-        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.02);
-        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+            gainNode.gain.setValueAtTime(0, now);
+            // Quick attack
+            gainNode.gain.linearRampToValueAtTime(0.15 / (i + 1), now + 0.015);
+            // Long, smooth exponential decay
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.0 + (i * 0.2));
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioCtx.destination);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
 
-        oscillator.start(audioCtx.currentTime);
-        oscillator.stop(audioCtx.currentTime + 0.5);
+            oscillator.start(now);
+            oscillator.stop(now + 1.5);
+        });
     } catch (e) {
-        console.log("Audio not allowed without user interaction first.");
+        console.log("Audio play blocked:", e);
     }
 };
 

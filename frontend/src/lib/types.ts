@@ -167,11 +167,17 @@ export interface NegotiationRequest {
     customer_name: string;
     proposed_price: number;
     message?: string;
-    status: "pending" | "accepted" | "rejected";
+    status: "pending" | "accepted" | "rejected" | "countered" | "purchased";
     counter_price?: number;
     counter_message?: string;
-    counter_status?: "pending" | "accepted" | "rejected";
-    chat_messages?: { sender: "seller" | "buyer"; text: string; timestamp: string }[];
+    counter_status?: "pending" | "accepted" | "rejected" | "purchased";
+    chat_messages?: {
+        id?: string;
+        sender: "seller" | "buyer" | "system";
+        text: string;
+        timestamp: string;
+        replyTo?: { sender: string; text: string };
+    }[];
     purchased?: boolean;
     created_at: string;
 }

@@ -60,12 +60,9 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "User ID is required" }, { status: 400 });
         }
 
-        // Ensure user exists first (basic check or creation)
         const user = await db.user.upsert({
             where: { id: userId },
-            update: {
-                role: "seller"
-            },
+            update: { role: "seller" },
             create: {
                 id: userId,
                 email: body.owner_email || `${body.id}_owner@fairprice.ng`,
@@ -74,18 +71,14 @@ export async function POST(req: Request) {
             }
         });
 
-        // Map snake_case to camelCase
-        // Sanitize status to valid Prisma SellerStatus enum: pending | active | frozen | banned
         const validSellerStatuses = ['pending', 'active', 'frozen', 'banned'];
         let safeStatus = body.status || 'active';
         if (!validSellerStatuses.includes(safeStatus)) {
-            // Map non-enum values: verified → active, rejected → frozen, etc.
             if (safeStatus === 'verified') safeStatus = 'active';
             else if (safeStatus === 'rejected') safeStatus = 'frozen';
             else safeStatus = 'active';
         }
 
-        // Sanitize kycStatus to valid KYCStatus enum: not_submitted | pending | approved | rejected
         const validKycStatuses = ['not_submitted', 'pending', 'approved', 'rejected'];
         let safeKycStatus = body.kyc_status || 'not_submitted';
         if (!validKycStatuses.includes(safeKycStatus)) {
@@ -103,8 +96,8 @@ export async function POST(req: Request) {
             verified: body.verified || false,
             rating: body.rating || 0,
             trustScore: body.trust_score || 50,
-            status: safeStatus,
-            kycStatus: safeKycStatus,
+            status: safeStatus as any,
+            kycStatus: safeKycStatus as any,
             bankName: body.bank_name,
             accountNumber: body.account_number,
             accountName: body.account_name,
@@ -122,20 +115,19 @@ export async function POST(req: Request) {
             where: { userId: sellerData.userId },
             update: {
                 ...sellerData,
-                id: undefined, // Never overwrite the primary key on update
+                id: undefined,
             },
             create: sellerData,
         });
 
-        // Broadcast update for real-time sync
         broadcast({ type: "seller_updated", id: seller.id });
 
         return NextResponse.json(seller);
     } catch (error: any) {
-        console.error("Seller creation error:", error);
-        return NextResponse.json({ success: true, queued: true }, {
-            status: 202,
-            headers: { "X-DB-Status": "offline" }
+        console.error("Seller API error:", error);
+        return NextResponse.json({ error: "Database temporarily unavailable", queued: true }, {
+            status: 503,
+            headers: { "Retry-After": "30" }
         });
     }
 }
