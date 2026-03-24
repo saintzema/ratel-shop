@@ -47,43 +47,60 @@ export function MessageBox() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [keyboardOffset, setKeyboardOffset] = useState(0);
+    const [activeNegotiation, setActiveNegotiation] = useState<any>(null);
+    const [counterPrice, setCounterPrice] = useState("");
+    const [counterMessage, setCounterMessage] = useState("");
 
     // Load notifications from database API, with DemoStore fallback
     const loadNotifications = useCallback(async () => {
         const email = user?.email;
         const userId = user?.id || user?.email || "";
         if (!email && !userId) { setNotifications([]); return; }
+        
+        let apiNotifs: any[] = [];
         try {
             const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(email || "")}`);
             if (res.ok) {
                 const data = await res.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    setNotifications(data.map((n: any) => ({
-                        id: String(n.id),
-                        type: n.type || "system",
-                        message: n.message,
-                        read: n.read,
-                        timestamp: n.timestamp,
-                        link: n.link || undefined,
-                    })));
-                    return;
+                if (Array.isArray(data)) {
+                    apiNotifs = data;
                 }
             }
         } catch (err) {
-            // Backend unavailable, fall through to DemoStore
+            // Backend unavailable
         }
-        // Fallback: load from DemoStore
-        if (userId) {
-            const demoNotifs = DemoStore.getNotifications(userId);
-            setNotifications(demoNotifs.map((n: any) => ({
-                id: n.id,
+
+        // Always fallback and merge with DemoStore
+        const demoNotifs = DemoStore.getNotifications(userId);
+        
+        // Map DemoStore notifs first layout, updating read status from API if present
+        const mergedNotifs = demoNotifs.map((n: any) => {
+            const apiMatch = apiNotifs.find((a: any) => String(a.id) === String(n.id));
+            return {
+                id: String(n.id),
                 type: n.type || "system",
                 message: n.message,
-                read: n.read,
+                read: apiMatch ? apiMatch.read : n.read,
                 timestamp: n.timestamp,
                 link: n.link || undefined,
-            })));
-        }
+            };
+        });
+
+        // Add any additional notifications from the API not present in DemoStore locally
+        apiNotifs.forEach((a: any) => {
+            if (!mergedNotifs.find((m: any) => String(m.id) === String(a.id))) {
+                mergedNotifs.push({
+                    id: String(a.id),
+                    type: a.type || "system",
+                    message: a.message,
+                    read: a.read,
+                    timestamp: a.timestamp,
+                    link: a.link || undefined,
+                });
+            }
+        });
+
+        setNotifications(mergedNotifs);
     }, [user?.email, user?.id]);
 
     useEffect(() => {
@@ -158,6 +175,50 @@ export function MessageBox() {
         }
     }, [selectedConvId, conversations]);
 
+    // Find active negotiation for counter-offers
+    useEffect(() => {
+        const updateActiveNegotiation = () => {
+            if (!selectedConvId || !user) {
+                setActiveNegotiation(null);
+                return;
+            }
+
+            const selectedConv = conversations.find(c => c.id === selectedConvId);
+            if (selectedConv) {
+                let productId = "";
+                if (selectedConv.orderId?.startsWith("neg_")) {
+                    productId = selectedConv.orderId.replace("neg_", "");
+                }
+
+                if (productId) {
+                    const negs = DemoStore.getNegotiations(undefined, user.id);
+                    // Match IF (status=countered OR counter_price exists) AND counter_status is pending
+                    const active = negs.find(n => 
+                        n.product_id === productId && 
+                        n.counter_status === "pending" &&
+                        (n.status === "countered" || (n.counter_price && n.counter_price > 0))
+                    );
+                    setActiveNegotiation(active || null);
+                } else {
+                    setActiveNegotiation(null);
+                }
+            }
+        };
+
+        updateActiveNegotiation();
+        
+        // Listen for real-time updates to negotiations
+        window.addEventListener("demo-store-update", updateActiveNegotiation);
+        window.addEventListener("storage", updateActiveNegotiation);
+        window.addEventListener("negotiation-updated-remote", updateActiveNegotiation);
+
+        return () => {
+            window.removeEventListener("demo-store-update", updateActiveNegotiation);
+            window.removeEventListener("storage", updateActiveNegotiation);
+            window.removeEventListener("negotiation-updated-remote", updateActiveNegotiation);
+        };
+    }, [selectedConvId, conversations, user]);
+
 
     const selectedConversation = conversations.find(c => c.id === selectedConvId);
     const showChat = selectedConvId && selectedConversation;
@@ -194,6 +255,17 @@ export function MessageBox() {
         if (has10Digits || (containsBankKeywords && /\d{8,}/.test(cleanedText))) {
             alert("Security Alert: Sending account numbers or requesting direct transfers is strictly prohibited on FairPrice for your safety. Please use the secure Escrow checkout.");
             return;
+        }
+
+        // If this is a negotiation thread, sync the message to the negotiation history
+        if (activeNegotiation) {
+            DemoStore.addNegotiationMessage(
+                activeNegotiation.id, 
+                "buyer", 
+                input.trim(), 
+                undefined, 
+                replyingTo ? { sender: replyingTo.sender, text: replyingTo.text } : undefined
+            );
         }
 
         sendMessage(selectedConvId, { sender: "user", text: input.trim(), replyTo: replyingTo || undefined });
@@ -514,6 +586,82 @@ export function MessageBox() {
                                         </div>
                                     ))}
                                 </div>
+                                
+                                {activeNegotiation && (
+                                    <div className="mx-4 mb-3 bg-gray-50/80 p-4 rounded-2xl border border-gray-100 shadow-inner backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="flex gap-2 justify-center mb-4">
+                                            <Button 
+                                                onClick={() => {
+                                                    DemoStore.updateCounterStatus(activeNegotiation.id, "accepted");
+                                                    const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === activeNegotiation.product_id);
+                                                    if (product) {
+                                                        addToCart(product, 1, activeNegotiation.counter_price);
+                                                        router.push("/cart");
+                                                        closeMessageBox();
+                                                    }
+                                                }} 
+                                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1"
+                                            >
+                                                Accept ₦{(activeNegotiation.counter_price || 0).toLocaleString()}
+                                            </Button>
+                                            <Button 
+                                                onClick={() => {
+                                                    DemoStore.updateCounterStatus(activeNegotiation.id, "rejected");
+                                                    setActiveNegotiation(null);
+                                                }} 
+                                                variant="outline" 
+                                                className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1"
+                                            >
+                                                Reject
+                                            </Button>
+                                        </div>
+                                        <div className="relative flex items-center mb-4 opacity-70">
+                                            <div className="absolute inset-x-0 h-px bg-gray-200"></div>
+                                            <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR NEGOTIATE</span>
+                                        </div>
+                                        <form 
+                                            onSubmit={(e) => {
+                                                e.preventDefault();
+                                                const price = Number(counterPrice);
+                                                if (!price) return;
+                                                DemoStore.sendBuyerCounterOffer(activeNegotiation.id, price, counterMessage);
+                                                sendMessage(selectedConvId!, { 
+                                                    sender: "user", 
+                                                    text: `🤝 Counter-Offer: ₦${price.toLocaleString()}${counterMessage ? `\n\n"${counterMessage}"` : ""}` 
+                                                });
+                                                setCounterPrice("");
+                                                setCounterMessage("");
+                                                setActiveNegotiation(null);
+                                            }} 
+                                            className="p-1"
+                                        >
+                                            <div className="flex flex-col gap-2">
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
+                                                    <Input
+                                                        type="number"
+                                                        value={counterPrice}
+                                                        onChange={(e) => setCounterPrice(e.target.value)}
+                                                        className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
+                                                        placeholder="Price"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        value={counterMessage}
+                                                        onChange={(e) => setCounterMessage(e.target.value)}
+                                                        className="flex-1 bg-white border-gray-200 rounded-xl h-11 text-[13px] shadow-sm font-medium"
+                                                        placeholder="Add a message..."
+                                                    />
+                                                    <Button type="submit" className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
+                                                        Send Offer
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                )}
 
                                 {/* Input bar — Apple iOS style */}
                                 <div className="px-4 py-3 flex flex-col gap-2 bg-white shrink-0 border-t border-gray-100">

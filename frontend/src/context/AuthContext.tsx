@@ -205,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem("fp_conversations");
             localStorage.removeItem("fp_chat_messages");
             localStorage.removeItem("fairprice_demo_orders");
-            localStorage.removeItem("fairprice_demo_notifications");
+            // DELIBERATE OMISSION: Do NOT remove "fairprice_demo_notifications". They are device-bound and targetId-bound.
             localStorage.removeItem("fairprice_demo_returns");
             localStorage.removeItem("fairprice_demo_order_messages");
             localStorage.removeItem("fairprice_demo_support_messages");

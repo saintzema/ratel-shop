@@ -7,11 +7,12 @@ import { useAuth } from "@/context/AuthContext";
 export interface CartItem {
     product: Product;
     quantity: number;
+    negotiatedPrice?: number;
 }
 
 interface CartContextType {
     cart: CartItem[];
-    addToCart: (product: Product, quantity?: number) => void;
+    addToCart: (product: Product, quantity?: number, negotiatedPrice?: number) => void;
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
@@ -56,17 +57,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
     }, [cart, isLoaded, user?.email]);
 
-    const addToCart = (product: Product, quantity = 1) => {
+    const addToCart = (product: Product, quantity = 1, negotiatedPrice?: number) => {
         setCart(prev => {
             const existing = prev.find(item => item.product.id === product.id);
             if (existing) {
                 return prev.map(item =>
                     item.product.id === product.id
-                        ? { ...item, quantity: item.quantity + quantity }
+                        ? { ...item, quantity: item.quantity + quantity, negotiatedPrice: negotiatedPrice || item.negotiatedPrice }
                         : item
                 );
             }
-            return [...prev, { product, quantity }];
+            return [...prev, { product, quantity, negotiatedPrice }];
         });
     };
 
@@ -86,7 +87,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const clearCart = () => setCart([]);
 
-    const cartTotal = cart.reduce((ctx, item) => ctx + (item.product.price * item.quantity), 0);
+    const cartTotal = cart.reduce((ctx, item) => ctx + ((item.negotiatedPrice || item.product.price) * item.quantity), 0);
     const cartCount = cart.reduce((ctx, item) => ctx + item.quantity, 0);
 
     return (

@@ -210,6 +210,19 @@ export function ZivaChat() {
             Keyboard.addListener('keyboardWillHide', () => {
                 setKeyboardHeight(0);
             });
+        } else if (typeof window !== 'undefined' && window.visualViewport) {
+            // Web fallback: detect soft keyboard via visualViewport resize
+            const vv = window.visualViewport;
+            const handler = () => {
+                const offset = window.innerHeight - vv!.height;
+                setKeyboardHeight(offset > 50 ? offset : 0);
+            };
+            vv.addEventListener("resize", handler);
+            vv.addEventListener("scroll", handler);
+            return () => {
+                vv.removeEventListener("resize", handler);
+                vv.removeEventListener("scroll", handler);
+            };
         }
         return () => {
             if (Capacitor.isNativePlatform()) {
@@ -1209,12 +1222,15 @@ export function ZivaChat() {
                         }}
                     >
                         {/* Header */}
-                        <div className="relative h-28 bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0">
+                        <div className={cn(
+                            "relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0 transition-all duration-300",
+                            keyboardHeight > 0 ? "h-16" : "h-28"
+                        )}>
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.2),transparent_70%)]" />
                             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-25" />
 
                             <motion.div
-                                className="relative w-16 h-16 shrink-0"
+                                className={cn("relative shrink-0 transition-all duration-300", keyboardHeight > 0 ? "w-10 h-10" : "w-16 h-16")}
                                 animate={{ y: [0, -2, 0] }}
                                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                             >
@@ -1226,16 +1242,20 @@ export function ZivaChat() {
                                 />
                             </motion.div>
 
-                            <div className="ml-4 flex-1 relative z-10">
-                                <h2 className="text-white font-black text-lg tracking-tight">Ziva AI</h2>
-                                <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
-                                <div className="flex items-center gap-1.5 mt-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                    <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
-                                </div>
+                            <div className="ml-4 flex-1 relative z-10 overflow-hidden">
+                                <h2 className={cn("text-white font-black tracking-tight transition-all", keyboardHeight > 0 ? "text-base" : "text-lg")}>Ziva AI</h2>
+                                {keyboardHeight === 0 && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                            <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
 
-                            <button onClick={toggleChat} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
+                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
                                 <X className="h-4 w-4 drop-shadow-sm" strokeWidth={3} />
                             </button>
                         </div>
@@ -1291,78 +1311,139 @@ export function ZivaChat() {
                                                 {/* Inline Product Cards */}
                                                 {msg.products && msg.products.length > 0 && (
                                                     <div className="space-y-2 mt-2">
-                                                        {msg.products.map(product => (
-                                                            <Link
-                                                                key={product.id}
-                                                                href={`/product/${product.id}`}
-                                                                onClick={() => setIsOpen(false)}
-                                                            >
-                                                                <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
-                                                                    <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
-                                                                        {product.image_url && typeof product.image_url === 'string' && product.image_url.trim() ? (
-                                                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
-                                                                        ) : (
-                                                                            <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
-                                                                                <span className="text-white font-black text-lg">{product.name.charAt(0)}</span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex-1 min-w-0 pr-8">
-                                                                        <p className="text-xs font-bold text-white line-clamp-1 group-hover:text-emerald-400 transition-colors">{product.name}</p>
-                                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                                            <div className="flex text-amber-400">
-                                                                                {[...Array(5)].map((_, i) => (
-                                                                                    <Star key={i} className={`h-2.5 w-2.5 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-600"}`} />
-                                                                                ))}
-                                                                            </div>
-                                                                            <span className="text-[10px] text-gray-500">({product.review_count})</span>
+                                                        {msg.products.map(product => {
+                                                            // Check for active negotiations for this product
+                                                            const negotiations = DemoStore.getNegotiations(undefined, user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session");
+                                                            const activeNeg = negotiations.find(n => n.product_id === product.id && (n.status === "accepted" || n.counter_status === "accepted" || (n.status === "countered" && n.counter_status === "pending")));
+                                                            const isPurchased = negotiations.some(n => n.product_id === product.id && (n.status === "purchased" || n.purchased));
+                                                            
+                                                            const hasDeal = activeNeg && (activeNeg.status === "accepted" || activeNeg.counter_status === "accepted");
+                                                            const hasCounter = activeNeg && activeNeg.status === "countered" && activeNeg.counter_status === "pending";
+                                                            const dealPrice = hasDeal ? (activeNeg.counter_price || activeNeg.proposed_price) : (hasCounter ? activeNeg.counter_price : null);
+
+                                                            return (
+                                                                <Link
+                                                                    key={product.id}
+                                                                    href={`/product/${product.id}`}
+                                                                    onClick={() => setIsOpen(false)}
+                                                                >
+                                                                    <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
+                                                                        <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                                                                            {product.image_url && typeof product.image_url === 'string' && product.image_url.trim() ? (
+                                                                                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                                            ) : (
+                                                                                <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                                                                                    <span className="text-white font-black text-lg">{product.name.charAt(0)}</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                        <div className="flex items-center gap-2 mt-1">
-                                                                            <span className="text-sm font-black text-white">{formatPrice(product.price)}</span>
-                                                                            {product.original_price && (
-                                                                                <span className="text-[10px] text-gray-500 line-through">{formatPrice(product.original_price)}</span>
+                                                                        <div className="flex-1 min-w-0 pr-8">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <p className="text-xs font-bold text-white line-clamp-1 group-hover:text-emerald-400 transition-colors">{product.name}</p>
+                                                                                {isPurchased && <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                                <div className="flex text-amber-400">
+                                                                                    {[...Array(5)].map((_, i) => (
+                                                                                        <Star key={i} className={`h-2.5 w-2.5 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-600"}`} />
+                                                                                    ))}
+                                                                                </div>
+                                                                                <span className="text-[10px] text-gray-500">({product.review_count})</span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                                <span className={cn("text-sm font-black text-white", (hasDeal || hasCounter) && "line-through text-gray-500 text-xs")}>{formatPrice(product.price)}</span>
+                                                                                {(hasDeal || hasCounter) && dealPrice && (
+                                                                                    <span className="text-sm font-black text-emerald-400">
+                                                                                        {formatPrice(dealPrice)}
+                                                                                    </span>
+                                                                                )}
+                                                                                {!hasDeal && !hasCounter && product.original_price && (
+                                                                                    <span className="text-[10px] text-gray-500 line-through">{formatPrice(product.original_price)}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                                            {(hasDeal || hasCounter) ? (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.preventDefault();
+                                                                                        e.stopPropagation();
+                                                                                        if (hasCounter && activeNeg) {
+                                                                                            // Accept counter offer first
+                                                                                            DemoStore.updateNegotiationStatus(activeNeg.id, "accepted");
+                                                                                        }
+                                                                                        addToCart(product, 1, dealPrice || product.price);
+                                                                                        
+                                                                                        // Visual feedback
+                                                                                        const btn = e.currentTarget;
+                                                                                        btn.textContent = '✓ Added deal!';
+                                                                                        btn.classList.add('bg-green-500');
+                                                                                        btn.classList.remove('bg-brand-orange');
+                                                                                        setTimeout(() => {
+                                                                                            btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Accept & Buy';
+                                                                                            btn.classList.remove('bg-green-500');
+                                                                                            btn.classList.add('bg-brand-orange');
+                                                                                            window.location.href = '/checkout';
+                                                                                        }, 800);
+                                                                                    }}
+                                                                                    className="px-3 py-1.5 rounded-full bg-brand-orange hover:bg-amber-500 text-black text-[10px] font-black transition-all shadow-lg flex items-center gap-1 animate-pulse"
+                                                                                    title="Accept & Buy"
+                                                                                >
+                                                                                    <Zap className="h-3 w-3 fill-current" />
+                                                                                    {hasCounter ? 'Accept & Buy' : 'Buy Deal'}
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.preventDefault();
+                                                                                        e.stopPropagation();
+                                                                                        handleSend(`I want to negotiate the price of ${product.name}`);
+                                                                                    }}
+                                                                                    className="px-3 py-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1 hover:bg-amber-400"
+                                                                                    title="Negotiate Price"
+                                                                                >
+                                                                                    <Tag className="h-3 w-3" />
+                                                                                    Negotiate
+                                                                                </button>
+                                                                            )}
+                                                                            {!isPurchased && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.preventDefault();
+                                                                                        e.stopPropagation();
+                                                                                        addToCart(product);
+                                                                                        // Visual feedback
+                                                                                        const btn = e.currentTarget;
+                                                                                        btn.textContent = '✓ Added!';
+                                                                                        btn.classList.add('bg-green-500');
+                                                                                        btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+                                                                                        setTimeout(() => {
+                                                                                            btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Add to Cart';
+                                                                                            btn.classList.remove('bg-green-500');
+                                                                                            btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+                                                                                        }, 1500);
+                                                                                    }}
+                                                                                    className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1"
+                                                                                    title="Add to Cart"
+                                                                                >
+                                                                                    <ShoppingBag className="h-3 w-3" />
+                                                                                    {isPurchased ? 'Buy Again' : 'Add to Cart'}
+                                                                                </button>
+                                                                            )}
+                                                                            {isPurchased && (
+                                                                                <Link
+                                                                                    href="/account/orders"
+                                                                                    className="px-3 py-1.5 rounded-full bg-white/10 text-gray-300 text-[10px] font-bold transition-all flex items-center gap-1"
+                                                                                >
+                                                                                    <Package className="h-3 w-3" />
+                                                                                    View Order
+                                                                                </Link>
                                                                             )}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                handleSend(`I want to negotiate the price of ${product.name}`);
-                                                                            }}
-                                                                            className="px-3 py-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1 hover:bg-amber-400"
-                                                                            title="Negotiate Price"
-                                                                        >
-                                                                            <Tag className="h-3 w-3" />
-                                                                            Negotiate
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                addToCart(product);
-                                                                                // Visual feedback
-                                                                                const btn = e.currentTarget;
-                                                                                btn.textContent = '✓ Added!';
-                                                                                btn.classList.add('bg-green-500');
-                                                                                btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
-                                                                                setTimeout(() => {
-                                                                                    btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Add to Cart';
-                                                                                    btn.classList.remove('bg-green-500');
-                                                                                    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
-                                                                                }, 1500);
-                                                                            }}
-                                                                            className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1"
-                                                                            title="Add to Cart"
-                                                                        >
-                                                                            <ShoppingBag className="h-3 w-3" />
-                                                                            Add to Cart
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </Link>
-                                                        ))}
+                                                                </Link>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
 

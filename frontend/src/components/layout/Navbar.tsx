@@ -165,7 +165,7 @@ export function Navbar() {
         window.addEventListener("demo-store-update", onStorageChange);
         window.addEventListener("storage", onStorageChange);
         return () => { clearInterval(poll); window.removeEventListener("demo-store-update", onStorageChange); window.removeEventListener("storage", onStorageChange); };
-    }, [user]);
+    }, [user, isSeller]);
 
     // Trigger bounce when cart count increases
     useEffect(() => {

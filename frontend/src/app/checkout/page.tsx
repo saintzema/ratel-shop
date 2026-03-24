@@ -6,7 +6,7 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
-import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building } from "lucide-react";
+import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building, Sparkles } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -349,6 +349,12 @@ function CheckoutContent() {
     const [deliveryMethod, setDeliveryMethod] = useState<"doorstep" | "pickup">("doorstep");
     const [pickupDetails, setPickupDetails] = useState({ state: "", city: "", station: "" });
 
+    const [isGuestCheckout, setIsGuestCheckout] = useState(false);
+    const [showGuestPasswordSetup, setShowGuestPasswordSetup] = useState(false);
+    const [guestPassword, setGuestPassword] = useState("");
+    const [isSettingPassword, setIsSettingPassword] = useState(false);
+    const [passwordError, setPasswordError] = useState("");
+
     const [baseDoorFee, setBaseDoorFee] = useState(4000);
     const [basePickupFee, setBasePickupFee] = useState(2500);
 
@@ -548,8 +554,9 @@ function CheckoutContent() {
         // Standard Cart Flow
         checkoutItems = cart.map(item => ({
             product: item.product,
-            price: item.product.price,
-            quantity: item.quantity
+            price: item.negotiatedPrice || item.product.price,
+            quantity: item.quantity,
+            isNegotiated: !!item.negotiatedPrice
         }));
     }
 
@@ -579,6 +586,12 @@ function CheckoutContent() {
             ? Math.round(basePickupFee * shippingMultiplier)
             : Math.round(baseDoorFee * shippingMultiplier)
     );
+
+    const totalSavings = checkoutItems.reduce((acc, item) => {
+        const originalPrice = item.product.original_price || item.product.price;
+        const currentPrice = item.price;
+        return acc + (Math.max(0, originalPrice - currentPrice) * item.quantity);
+    }, 0) + (appliedCoupon?.amount || 0);
 
     const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
 
@@ -802,8 +815,9 @@ function CheckoutContent() {
                     created_at: new Date().toISOString()
                 };
                 login(guestUser);
+                setIsGuestCheckout(true);
 
-                // Sync guest user to DB with a default password so they can log in later
+                // Sync guest user to DB with a default password so they can log in later if they skip (though we'll force setup)
                 fetch("/api/users", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -1725,10 +1739,17 @@ function CheckoutContent() {
                             <div className="flex justify-between items-end border-t border-gray-200 pt-4 mt-2">
                                 <div className="space-y-1">
                                     <span className="font-bold text-lg text-gray-900 block">Total:</span>
-                                    {appliedCoupon && (
-                                        <span className="text-xs font-bold text-brand-green-600 block bg-brand-green-50 px-2 py-0.5 rounded border border-brand-green-100">
-                                            Saved ₦{appliedCoupon.amount.toLocaleString()}
-                                        </span>
+                                    {totalSavings > 0 && (
+                                        <div className="flex flex-col gap-1">
+                                            {appliedCoupon && (
+                                                <span className="text-[10px] font-black text-brand-green-600 uppercase tracking-wider bg-brand-green-50 px-2 py-0.5 rounded border border-brand-green-100 w-fit">
+                                                    Coupon: -₦{appliedCoupon.amount.toLocaleString()}
+                                                </span>
+                                            )}
+                                            <span className="text-xs font-black text-white bg-gradient-to-r from-brand-orange to-orange-600 px-3 py-1 rounded-full shadow-sm w-fit flex items-center gap-1 animate-pulse">
+                                                <Sparkles className="h-3 w-3" /> YOU SAVE ₦{totalSavings.toLocaleString()}
+                                            </span>
+                                        </div>
                                     )}
                                 </div>
                                 <div className="text-right">
@@ -1746,7 +1767,12 @@ function CheckoutContent() {
                         <div className="lg:hidden fixed bottom-[calc(64px+env(safe-area-inset-bottom))] left-0 right-0 p-4 bg-white border-t-2 border-slate-100 z-[90] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)]">
                             <div className="flex items-center justify-between mb-3 px-1">
                                 <span className="font-bold text-gray-500 uppercase tracking-widest text-xs">Total</span>
-                                <span className="font-black text-xl text-brand-orange">{formatPrice(total)}</span>
+                                <div className="flex flex-col items-end">
+                                    <span className="font-black text-xl text-brand-orange">{formatPrice(total)}</span>
+                                    {totalSavings > 0 && (
+                                        <span className="text-[10px] font-black text-emerald-600">You Save ₦{totalSavings.toLocaleString()}</span>
+                                    )}
+                                </div>
                             </div>
                             <Button
                                 size="lg"
@@ -1893,8 +1919,9 @@ function CheckoutContent() {
                 isOpen={showConcierge}
                 onClose={() => {
                     setShowConcierge(false);
-                    // Check if we should show push notification opt-in
-                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                    if (isGuestCheckout) {
+                        setShowGuestPasswordSetup(true);
+                    } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
                         setShowPushOptIn(true);
                     } else {
                         router.push("/account/orders?success=true");
@@ -1904,6 +1931,94 @@ function CheckoutContent() {
                 orderId={conciergeOrderId || undefined}
                 mode="post_order"
             />
+
+            {/* Guest Password Setup Modal */}
+            <AnimatePresence>
+                {showGuestPasswordSetup && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative z-10 w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden p-8 text-center border overflow-y-auto"
+                        >
+                            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-5 border border-emerald-200 shadow-sm">
+                                <Lock className="h-7 w-7 text-emerald-600" />
+                            </div>
+                            <h2 className="text-2xl font-black text-gray-900 mb-2">Secure Your Account</h2>
+                            <p className="text-gray-500 mb-6 text-sm">
+                                Your order was placed successfully! Please create a password to track this order and shop faster next time.
+                            </p>
+                            
+                            <form 
+                                onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    setPasswordError("");
+                                    if (!guestPassword || guestPassword.length < 6) {
+                                        setPasswordError("Password must be at least 6 characters.");
+                                        return;
+                                    }
+                                    setIsSettingPassword(true);
+                                    try {
+                                        const res = await fetch("/api/users", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({ email: address.email, password: guestPassword })
+                                        });
+                                        if (res.ok) {
+                                            setShowGuestPasswordSetup(false);
+                                            // Handle success route
+                                            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                                                setShowPushOptIn(true);
+                                            } else {
+                                                router.push("/account/orders?success=true");
+                                            }
+                                        } else {
+                                            throw new Error("Failed to secure account");
+                                        }
+                                    } catch (err) {
+                                        setPasswordError("Failed to set password. Try again later.");
+                                    } finally {
+                                        setIsSettingPassword(false);
+                                    }
+                                }}
+                            >
+                                {passwordError && (
+                                    <div className="mb-4 text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
+                                        {passwordError}
+                                    </div>
+                                )}
+                                <div className="mb-6 relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                    <Input 
+                                        type="password"
+                                        placeholder="Create a secure password"
+                                        value={guestPassword}
+                                        onChange={(e) => setGuestPassword(e.target.value)}
+                                        className="pl-10 h-12 text-base font-medium rounded-xl border-gray-200 bg-gray-50 focus:border-brand-green-500 focus:ring-1 focus:ring-brand-green-500 shadow-inner"
+                                        required
+                                        minLength={6}
+                                        disabled={isSettingPassword}
+                                    />
+                                </div>
+                                
+                                <Button 
+                                    type="submit" 
+                                    disabled={isSettingPassword} 
+                                    className="w-full h-12 rounded-xl text-base font-bold bg-brand-green-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                                >
+                                    {isSettingPassword ? <span className="animate-spin mr-2">⏳</span> : null}
+                                    Create Password & View Order
+                                </Button>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* Push Notification Opt-In Modal */}
             <AnimatePresence>

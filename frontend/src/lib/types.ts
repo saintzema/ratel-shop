@@ -273,6 +273,7 @@ export interface PriceComparison {
 export interface CartItem {
     product: Product;
     quantity: number;
+    negotiatedPrice?: number;
 }
 
 export interface Notification {

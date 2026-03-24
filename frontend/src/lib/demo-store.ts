@@ -889,6 +889,20 @@ class DemoStoreService {
         });
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
+        // Let's add the resilientFetch here!
+        const updatedNegRef = updated.find(n => n.id === id);
+        if (updatedNegRef) {
+            resilientFetch(`/api/negotiations?id=${id}`, { 
+                method: "PATCH", 
+                body: { 
+                    id, 
+                    status: updatedNegRef.status, 
+                    counterStatus: updatedNegRef.counter_status 
+                }, 
+                type: "general" 
+            }).catch(err => console.error("Failed to sync negotiation status:", err));
+        }
+
         if (negotiation && (status === "accepted" || status === "rejected")) {
             const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
             if (product) {
@@ -1050,6 +1064,19 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
+
+        // Push to local API to ensure sync loop doesn't overwrite it
+        resilientFetch(`/api/negotiations?id=${id}`, {
+            method: "PATCH",
+            body: {
+                id,
+                status: "countered",
+                counterPrice: price,
+                counterMessage: message || "",
+                counterStatus: "pending"
+            },
+            type: "general"
+        }).catch(err => console.error("Failed to sync counter offer:", err));
 
         // Notify Buyer (User)
         this.addNotification({
@@ -2570,6 +2597,7 @@ class DemoStoreService {
         const updated = [newNotif, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
 
         // Also persist to database
         if (typeof window !== "undefined") {

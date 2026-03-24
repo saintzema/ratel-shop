@@ -67,15 +67,9 @@ export default function NegotiationsPage() {
     };
 
     const handleAddToCart = (neg: NegotiationRequest, product: Product) => {
-        const finalPrice = neg.counter_status === "accepted" ? (neg.counter_price || neg.proposed_price) : neg.proposed_price;
+        const finalPrice = neg.counter_status === "accepted" ? (neg.counter_price || neg.proposed_price) : (neg.status === "accepted" ? neg.proposed_price : product.price);
 
-        const discountedProduct = {
-            ...product,
-            price: finalPrice,
-            name: `${product.name} (Negotiated Price)`
-        };
-
-        addToCart(discountedProduct);
+        addToCart(product, 1, finalPrice);
         setAddedIds(prev => new Set(prev).add(neg.id));
 
         // Auto-redirect to checkout after a moment
@@ -185,14 +179,14 @@ export default function NegotiationsPage() {
                                     const isCounterOffer = neg.counter_status === "pending";
                                     const justAdded = addedIds.has(neg.id);
 
-                                    const statusBadge = isCounterOffer && neg.status === "pending"
-                                        ? <Badge className="bg-blue-500/15 text-blue-600 border-none text-[10px] animate-pulse">Counter</Badge>
-                                        : neg.status === "pending"
-                                            ? <Badge className="bg-amber-500/15 text-amber-600 border-none text-[10px]">Pending</Badge>
-                                            : (neg.status === "accepted" || neg.counter_status === "accepted")
-                                                ? <Badge className="bg-brand-green-500/15 text-brand-green-600 border-none text-[10px]">Accepted</Badge>
-                                                : neg.status === "purchased"
-                                                    ? <Badge className="bg-indigo-500/15 text-indigo-600 border-none text-[10px]">Purchased</Badge>
+                                    const statusBadge = neg.status === "purchased" || neg.purchased
+                                        ? <Badge className="bg-indigo-500/15 text-indigo-600 border-none text-[10px]">Purchased</Badge>
+                                        : (neg.status === "accepted" || neg.counter_status === "accepted")
+                                            ? <Badge className="bg-brand-green-500/15 text-brand-green-600 border-none text-[10px]">Accepted Deal</Badge>
+                                            : isCounterOffer && neg.status === "countered"
+                                                ? <Badge className="bg-blue-500/15 text-blue-600 border-none text-[10px] animate-pulse">Counter Offer</Badge>
+                                                : neg.status === "pending"
+                                                    ? <Badge className="bg-amber-500/15 text-amber-600 border-none text-[10px]">Pending</Badge>
                                                     : <Badge className="bg-red-500/15 text-red-600 border-none text-[10px]">Rejected</Badge>;
 
                                     return (
@@ -225,9 +219,9 @@ export default function NegotiationsPage() {
                                                             <Button size="sm" variant="outline" onClick={() => handleAction(neg.id, "rejected")} className="text-[10px] font-bold rounded-lg h-7 px-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent">Reject</Button>
                                                         </>
                                                     )}
-                                                    {neg.status === "accepted" && (
+                                                    {(neg.status === "accepted" || neg.counter_status === "accepted") && neg.status !== "purchased" && !neg.purchased && (
                                                         <Button size="sm" onClick={() => handleAddToCart(neg, product)} disabled={justAdded} className={`text-[10px] font-bold rounded-lg h-7 px-3 ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
-                                                            {justAdded ? "✓ Added" : <>Buy <ArrowRight className="h-3 w-3 ml-1" /></>}
+                                                            {justAdded ? "✓ Added" : <>Buy Deal <ArrowRight className="h-3 w-3 ml-1" /></>}
                                                         </Button>
                                                     )}
                                                     {neg.status === "rejected" && (

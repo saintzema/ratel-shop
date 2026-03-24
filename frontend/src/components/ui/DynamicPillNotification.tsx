@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 // Base64 short pop/ding sound for immediate feedback without an external asset file
 const NOTIFICATION_SOUND = "data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 
-// Fallback to Web Audio API synthesized premium chime (iOS-like glass sound)
+// Premium Apple-like glass chime notification sound — calming, rich, ~2.5s
 const playDingSound = () => {
     if (typeof window === 'undefined') return;
     try {
@@ -25,31 +25,59 @@ const playDingSound = () => {
         
         const now = audioCtx.currentTime;
         
-        // Multi-layered glass chime harmonics
-        // Use a base frequency (A5) and its harmonics for clarity and "premium" feel
-        const harmonics = [880, 1318.51, 1760, 2637]; 
+        // Premium glass chime: C6 base with warm harmonics, higher gain, longer sustain
+        // Each layer has progressively lower volume and longer decay for a reverb-like tail
+        const layers = [
+            { freq: 1047,    gain: 0.22, decay: 2.2 },  // C6 — warm fundamental
+            { freq: 1319,    gain: 0.16, decay: 1.8 },  // E6 — major third brightness
+            { freq: 1568,    gain: 0.12, decay: 1.5 },  // G6 — perfect fifth fullness
+            { freq: 2093,    gain: 0.07, decay: 1.2 },  // C7 — octave shimmer
+            { freq: 2637,    gain: 0.04, decay: 0.9 },  // E7 — sparkle top
+        ];
         
-        harmonics.forEach((freq, i) => {
-            const oscillator = audioCtx.createOscillator();
+        layers.forEach(({ freq, gain: peakGain, decay }) => {
+            const osc = audioCtx.createOscillator();
             const gainNode = audioCtx.createGain();
             
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(freq, now);
-            // Subtle pitch drop for "natural" acoustic feel
-            oscillator.frequency.exponentialRampToValueAtTime(freq * 0.99, now + 0.8);
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, now);
+            // Gentle pitch drift for organic feel
+            osc.frequency.exponentialRampToValueAtTime(freq * 0.995, now + decay);
 
             gainNode.gain.setValueAtTime(0, now);
-            // Quick attack
-            gainNode.gain.linearRampToValueAtTime(0.15 / (i + 1), now + 0.015);
-            // Long, smooth exponential decay
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 1.0 + (i * 0.2));
+            // Quick but smooth attack (20ms)
+            gainNode.gain.linearRampToValueAtTime(peakGain, now + 0.02);
+            // Brief sustain plateau
+            gainNode.gain.setValueAtTime(peakGain * 0.85, now + 0.15);
+            // Long calming exponential decay
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + decay);
 
-            oscillator.connect(gainNode);
+            osc.connect(gainNode);
             gainNode.connect(audioCtx.destination);
 
-            oscillator.start(now);
-            oscillator.stop(now + 1.5);
+            osc.start(now);
+            osc.stop(now + decay + 0.1);
         });
+
+        // Second strike echo — subtle repeat at 180ms for depth
+        setTimeout(() => {
+            try {
+                const echoNow = audioCtx.currentTime;
+                [1047, 1568].forEach(freq => {
+                    const osc = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    osc.type = "sine";
+                    osc.frequency.setValueAtTime(freq, echoNow);
+                    g.gain.setValueAtTime(0, echoNow);
+                    g.gain.linearRampToValueAtTime(0.06, echoNow + 0.01);
+                    g.gain.exponentialRampToValueAtTime(0.0001, echoNow + 1.2);
+                    osc.connect(g);
+                    g.connect(audioCtx.destination);
+                    osc.start(echoNow);
+                    osc.stop(echoNow + 1.3);
+                });
+            } catch { /* ignore */ }
+        }, 180);
     } catch (e) {
         console.log("Audio play blocked:", e);
     }
@@ -206,13 +234,15 @@ export function DynamicPillNotification() {
 
     const isNegotiation = pendingNotification ? !!pendingNotification.negotiation : customNotification?.isNegotiation || false;
     const hasImage = pendingNotification ? !!pendingNotification.imageUrl : customNotification?.hasImage || false;
+    const currentNegotiation = pendingNotification?.negotiation || customNotification?.negotiation;
 
     const handleAcceptOffer = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (pendingNotification?.negotiation) {
-            const product = DemoStore.getProducts().find(p => p.id === pendingNotification.negotiation?.productId);
+        const neg = pendingNotification?.negotiation || customNotification?.negotiation;
+        if (neg) {
+            const product = DemoStore.getProducts().find(p => p.id === neg.productId);
             if (product) {
-                addToCart({ ...product, price: pendingNotification.negotiation?.counterPrice || 0 });
+                addToCart({ ...product, price: neg.counterPrice || 0 });
             }
             setVisible(false);
             dismissNotification();
@@ -222,8 +252,12 @@ export function DynamicPillNotification() {
 
     const handleRenegotiate = (e: React.MouseEvent) => {
         e.stopPropagation();
+        const neg = pendingNotification?.negotiation || customNotification?.negotiation;
         if (pendingConversationId) {
             openMessageBox(pendingConversationId);
+        } else if (neg?.productId) {
+            // Force open the chat using the derived orderId
+            openMessageBox(`neg_${neg.productId}`);
         }
         setVisible(false);
         dismissNotification();
@@ -305,9 +339,7 @@ export function DynamicPillNotification() {
                         </motion.div>
 
                         {/* Expanded Negotiaton View */}
-                        {expanded && isNegotiation && (pendingNotification?.negotiation || customNotification?.negotiation) && (() => {
-                            const negInfo = pendingNotification?.negotiation || customNotification?.negotiation!;
-                            return (
+                        {expanded && isNegotiation && currentNegotiation && (
                             <motion.div 
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: "auto" }}
@@ -317,8 +349,8 @@ export function DynamicPillNotification() {
                             >
                                 <div className="bg-white/10 rounded-2xl p-3 mb-3 border border-white/5">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-xs text-white/70 font-medium truncate pr-3">{negInfo.productName}</span>
-                                        <span className="text-sm font-black text-emerald-300">₦{negInfo.counterPrice.toLocaleString()}</span>
+                                        <span className="text-xs text-white/70 font-medium truncate pr-3">{currentNegotiation.productName}</span>
+                                        <span className="text-sm font-black text-emerald-300">₦{currentNegotiation.counterPrice.toLocaleString()}</span>
                                     </div>
                                 </div>
 
@@ -339,8 +371,7 @@ export function DynamicPillNotification() {
                                     </button>
                                 </div>
                             </motion.div>
-                            );
-                        })()}
+                        )}
                     </motion.div>
                 </div>
             )}
