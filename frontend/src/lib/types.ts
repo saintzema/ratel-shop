@@ -176,10 +176,14 @@ export interface NegotiationRequest {
         sender: "seller" | "buyer" | "system";
         text: string;
         timestamp: string;
+        imageUrl?: string;
         replyTo?: { sender: string; text: string };
+        readByRecipient?: boolean;
+        negotiation?: any;
     }[];
     purchased?: boolean;
     created_at: string;
+    updated_at?: string;
 }
 
 export interface Promotion {

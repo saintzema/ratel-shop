@@ -79,11 +79,14 @@ export default function NegotiationsPage() {
     };
 
     const filteredNegs = filter === "all" ? negotiations : negotiations.filter(n => {
-        if (filter === "accepted") return n.status === "accepted" || n.counter_status === "accepted";
-        if (filter === "rejected") return n.status === "rejected" || n.counter_status === "rejected";
-        if (filter === "pending") return n.status === "pending" || (n.status === "countered" && n.counter_status === "pending");
-        if (filter === "purchased") return n.status === "purchased" || n.purchased === true;
-        return n.status === filter;
+        const s = (n.status || "").toLowerCase();
+        const cs = (n.counter_status || "").toLowerCase();
+        
+        if (filter === "accepted") return s === "accepted" || cs === "accepted";
+        if (filter === "rejected") return s === "rejected" || cs === "rejected" || s === "declined" || cs === "declined";
+        if (filter === "pending") return s === "pending" || (s === "countered" && cs === "pending");
+        if (filter === "purchased") return s === "purchased" || n.purchased === true;
+        return s === filter;
     });
     const userTier = DemoStore.getUserTier(user?.id || user?.email || "");
 
@@ -174,7 +177,11 @@ export default function NegotiationsPage() {
                             <div className="max-h-[60vh] overflow-y-auto divide-y divide-gray-100">
                                 {filteredNegs.map((neg) => {
                                     const product = products.find(p => p.id === neg.product_id);
-                                    if (!product) return null;
+                                    // Senior Tech Lead: Don't just return null, show a stub so user knows what's happening
+                                    const productName = product?.name || "Product Info Unavailable";
+                                    const sellerName = product?.seller_name || "Unknown Seller";
+                                    const productImage = product?.image_url || "/assets/images/placeholder.png";
+                                    const listPrice = product?.price || 0;
 
                                     const isCounterOffer = neg.counter_status === "pending";
                                     const justAdded = addedIds.has(neg.id);
@@ -193,16 +200,16 @@ export default function NegotiationsPage() {
                                         <div key={neg.id}>
                                             {/* Desktop Row */}
                                             <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 items-center hover:bg-gray-50 transition-colors">
-                                                <Link href={`/product/${product.id}`} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
-                                                    <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
+                                                <Link href={`/product/${neg.product_id}`} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                    <img src={productImage} alt={productName} className="h-full w-full object-contain" />
                                                 </Link>
                                                 <div className="min-w-0">
-                                                    <Link href={`/product/${product.id}`} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
-                                                        {product.name}
+                                                    <Link href={`/product/${neg.product_id}`} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
+                                                        {productName}
                                                     </Link>
-                                                    <span className="text-[10px] text-gray-400">{product.seller_name}</span>
+                                                    <span className="text-[10px] text-gray-400">{sellerName}</span>
                                                 </div>
-                                                <span className="text-xs text-gray-400 line-through">{formatPrice(product.price)}</span>
+                                                <span className="text-xs text-gray-400 line-through">{formatPrice(listPrice)}</span>
                                                 <span className="text-sm font-bold text-gray-900">{formatPrice(neg.proposed_price)}</span>
                                                 <div>
                                                     {neg.counter_price ? (
@@ -220,12 +227,12 @@ export default function NegotiationsPage() {
                                                         </>
                                                     )}
                                                     {(neg.status === "accepted" || neg.counter_status === "accepted") && neg.status !== "purchased" && !neg.purchased && (
-                                                        <Button size="sm" onClick={() => handleAddToCart(neg, product)} disabled={justAdded} className={`text-[10px] font-bold rounded-lg h-7 px-3 ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
+                                                        <Button size="sm" onClick={() => product && handleAddToCart(neg, product)} disabled={justAdded || !product} className={`text-[10px] font-bold rounded-lg h-7 px-3 ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
                                                             {justAdded ? "✓ Added" : <>Buy Deal <ArrowRight className="h-3 w-3 ml-1" /></>}
                                                         </Button>
                                                     )}
                                                     {neg.status === "rejected" && (
-                                                        <Link href={`/product/${product.id}`}>
+                                                        <Link href={`/product/${neg.product_id}`}>
                                                             <Button size="sm" variant="outline" className="text-[10px] font-bold rounded-lg h-7 px-2 border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View</Button>
                                                         </Link>
                                                     )}
@@ -238,23 +245,23 @@ export default function NegotiationsPage() {
                                             {/* Mobile Card */}
                                             <div className="md:hidden p-4 space-y-3">
                                                 <div className="flex items-center gap-3">
-                                                    <Link href={`/product/${product.id}`} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block">
-                                                        <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="h-full w-full object-contain" />
+                                                    <Link href={`/product/${neg.product_id}`} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block">
+                                                        <img src={productImage} alt={productName} className="h-full w-full object-contain" />
                                                     </Link>
                                                     <div className="flex-1 min-w-0">
-                                                        <Link href={`/product/${product.id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
-                                                            {product.name}
+                                                        <Link href={`/product/${neg.product_id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
+                                                            {productName}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
                                                             {statusBadge}
-                                                            <span className="text-[10px] text-gray-400">{product.seller_name}</span>
+                                                            <span className="text-[10px] text-gray-400">{sellerName}</span>
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-4 text-xs bg-gray-50 rounded-xl px-3 py-2">
                                                     <div>
                                                         <div className="text-[9px] text-gray-400 uppercase font-bold">Listed</div>
-                                                        <div className="line-through text-gray-400">{formatPrice(product.price)}</div>
+                                                        <div className="line-through text-gray-400">{formatPrice(listPrice)}</div>
                                                     </div>
                                                     <div>
                                                         <div className="text-[9px] text-gray-400 uppercase font-bold">Offer</div>
@@ -279,12 +286,12 @@ export default function NegotiationsPage() {
                                                         </>
                                                     )}
                                                     {neg.status === "accepted" && (
-                                                        <Button size="sm" onClick={() => handleAddToCart(neg, product)} disabled={justAdded} className={`flex-1 text-xs rounded-lg font-bold ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
+                                                        <Button size="sm" onClick={() => product && handleAddToCart(neg, product)} disabled={justAdded || !product} className={`flex-1 text-xs rounded-lg font-bold ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
                                                             {justAdded ? <>✓ Added — Checkout</> : <>Buy at {formatPrice(neg.counter_status === 'accepted' ? (neg.counter_price || neg.proposed_price) : neg.proposed_price)} <ArrowRight className="h-3 w-3 ml-1" /></>}
                                                         </Button>
                                                     )}
                                                     {neg.status === "rejected" && (
-                                                        <Link href={`/product/${product.id}`} className="flex-1">
+                                                        <Link href={`/product/${neg.product_id}`} className="flex-1">
                                                             <Button size="sm" variant="outline" className="w-full text-xs rounded-lg font-bold border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View Product</Button>
                                                         </Link>
                                                     )}

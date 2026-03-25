@@ -49,7 +49,11 @@ export async function POST(request: Request) {
 
         const product = await db.product.findUnique({
             where: { id: body.product_id },
-            select: { sellerId: true }
+            select: { 
+                sellerId: true, 
+                name: true,
+                seller: { select: { userId: true } }
+            }
         });
 
         if (!product) {
@@ -88,11 +92,24 @@ export async function POST(request: Request) {
                 proposedPrice: body.proposed_price,
                 message: body.message || null,
                 status: 'pending',
+                chatMessages: body.chat_messages || []
             }
         });
 
         // Broadcast update for real-time sync
         broadcast({ type: "negotiation_updated", id: newNeg.id });
+
+        // Create persistent notification for the seller
+        if (product?.seller?.userId) {
+            await db.notification.create({
+                data: {
+                    userId: product.seller.userId,
+                    type: "negotiation",
+                    message: `💰 ${body.customer_name || 'A buyer'} sent an offer of ₦${body.proposed_price.toLocaleString()} for ${product.name}`,
+                    link: "/seller/dashboard/messages"
+                }
+            }).catch(e => console.error("Failed to create seller notification:", e));
+        }
 
         return NextResponse.json({ success: true, negotiation: newNeg });
     } catch (error: any) {
@@ -125,10 +142,39 @@ export async function PATCH(request: Request) {
         const updated = await db.negotiationRequest.update({
             where: { id },
             data: updateData,
-            include: { product: true, customer: true }
+            include: { 
+                product: true, 
+                customer: true,
+                seller: { select: { userId: true } }
+            }
         });
 
         broadcast({ type: "negotiation_updated", id: updated.id });
+
+        // Create notification for the recipient
+        // Determine recipient: if seller updated it, notify buyer. If buyer updated it, notify seller.
+        // For simplicity, if status changed, we use that logic. If just messages, we look at the last sender.
+        const lastMsg = Array.isArray(chatMessages) ? chatMessages[chatMessages.length - 1] : null;
+        const recipientUserId = (lastMsg?.sender === "buyer") ? updated.seller?.userId : updated.customerId;
+
+        if (recipientUserId) {
+            let notifMessage = "";
+            if (status === "countered") notifMessage = `🤝 Counter-offer received for ${updated.product?.name}: ₦${counterPrice?.toLocaleString()}`;
+            else if (status === "accepted") notifMessage = `🎉 Offer accepted for ${updated.product?.name}!`;
+            else if (status === "rejected") notifMessage = `❌ Offer declined for ${updated.product?.name}.`;
+            else if (lastMsg) notifMessage = `💬 New message regarding ${updated.product?.name}: "${lastMsg.text?.substring(0, 50)}..."`;
+
+            if (notifMessage) {
+                await db.notification.create({
+                    data: {
+                        userId: recipientUserId,
+                        type: "negotiation",
+                        message: notifMessage,
+                        link: lastMsg?.sender === "buyer" ? "/seller/dashboard/messages" : "/account/negotiations"
+                    }
+                }).catch(() => {});
+            }
+        }
 
         // If it's a seller counter-offer, send email to Buyer
         if (status === "countered" && counterPrice !== undefined) {

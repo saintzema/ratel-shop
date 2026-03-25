@@ -340,9 +340,15 @@ export function MessageBox() {
         if (typeof window === "undefined" || !window.visualViewport) return;
         const vv = window.visualViewport;
         const handler = () => {
-            // The difference between window.innerHeight and visualViewport.height IS the keyboard height
             const offset = window.innerHeight - vv.height;
-            setKeyboardOffset(offset > 50 ? offset : 0); // Only trigger for real keyboards (>50px)
+            setKeyboardOffset(offset > 60 ? offset : 0);
+            
+            // Auto-scroll to bottom when keyboard opens to keep input in view
+            if (offset > 60 && scrollRef.current) {
+                setTimeout(() => {
+                    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                }, 100);
+            }
         };
         vv.addEventListener("resize", handler);
         vv.addEventListener("scroll", handler);
@@ -366,7 +372,7 @@ export function MessageBox() {
                     />
 
                     {/* Message Box Container */}
-                    <motion.div
+                        <motion.div
                         ref={containerRef}
                         initial={{ opacity: 0, y: 60, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -374,17 +380,17 @@ export function MessageBox() {
                         transition={{ type: "spring", damping: 30, stiffness: 350 }}
                         className="relative w-full md:w-[440px] md:h-[600px] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl shadow-2xl border border-white/10 bg-white"
                         style={{
-                            height: keyboardOffset > 0 ? `calc(100dvh - ${keyboardOffset}px)` : '70dvh',
-                            maxHeight: keyboardOffset > 0 ? `calc(100dvh - ${keyboardOffset}px)` : undefined,
+                            height: keyboardOffset > 0 ? `calc(100svh - ${keyboardOffset}px)` : '70svh',
+                            maxHeight: keyboardOffset > 0 ? `calc(100svh - ${keyboardOffset}px)` : '85vh',
                             paddingBottom: keyboardOffset > 0 ? 0 : 'env(safe-area-inset-bottom, 0px)',
-                            transition: 'height 0.15s ease-out',
+                            transition: 'height 0.2s cubic-bezier(0.2, 0, 0, 1)',
                         }}
                     >
                         {showChat ? (
                             /* ─── CHAT VIEW ────────────────────────── */
                             <>
-                                {/* Chat Header */}
-                                <div className="px-4 py-3 flex items-center gap-3 shrink-0 bg-indigo-900 text-white">
+                                {/* Chat Header - Collapses when keyboard is active to save space */}
+                                <div className={`px-4 flex items-center gap-3 shrink-0 bg-indigo-900 text-white transition-all duration-300 ${keyboardOffset > 0 ? 'h-12' : 'h-16'}`}>
                                     <button onClick={handleBack} className="p-1.5 -ml-1 rounded-full hover:bg-white/10 transition-colors">
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
@@ -457,7 +463,7 @@ export function MessageBox() {
                                                                     {formatTime(msg.timestamp)}
                                                                 </span>
                                                                 {msg.sender === "user" && (
-                                                                    <CheckCheck className={`h-3.5 w-3.5 ${(msg as any).readByRecipient
+                                                                    <CheckCheck className={`h-3.5 w-3.5 ${msg.readByRecipient
                                                                         ? "text-blue-300"
                                                                         : "text-white/50"
                                                                         }`} />
@@ -814,7 +820,7 @@ export function MessageBox() {
                                                                         <div className="flex items-center justify-between">
                                                                             <p className={`text-[12px] truncate pr-2 ${conv.unreadCount > 0 ? "text-gray-700 font-medium" : "text-gray-500"}`}>
                                                                                 {lastMsg?.sender === "user" && (
-                                                                                    <CheckCheck className="h-3.5 w-3.5 text-blue-500 inline mr-1 -mt-0.5" />
+                                                                                    <CheckCheck className={`h-3.5 w-3.5 inline mr-1 -mt-0.5 ${lastMsg.readByRecipient ? "text-blue-500" : "text-gray-300"}`} />
                                                                                 )}
                                                                                 {lastMsg?.text || "No messages"}
                                                                             </p>

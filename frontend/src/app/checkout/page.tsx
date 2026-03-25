@@ -1676,7 +1676,7 @@ function CheckoutContent() {
                         <div className="space-y-3 border-b border-gray-100 pb-4 mb-4">
                             <h4 className="text-xs font-bold uppercase text-gray-400">Items ({checkoutItems.reduce((a, b) => a + b.quantity, 0)})</h4>
                             {checkoutItems.map((item, i) => (
-                                <div key={i} className="flex items-center gap-3">
+                                <div key={i} className="flex items-center gap-3 group">
                                     <div className="w-12 h-12 bg-white rounded-lg border border-gray-100 p-1 shrink-0 overflow-hidden flex items-center justify-center">
                                         <img
                                             src={item.product.image_url || "/assets/images/placeholder.png"}
@@ -1691,6 +1691,19 @@ function CheckoutContent() {
                                         <p className="text-xs font-medium text-gray-700 line-clamp-1">{item.product.name}</p>
                                         <p className="text-xs text-gray-500">Qty: {item.quantity} × {formatPrice(item.price)}</p>
                                     </div>
+                                    <button 
+                                        onClick={() => {
+                                            if (negotiationId) {
+                                                router.push("/cart");
+                                            } else {
+                                                removeFromCart(item.product.id);
+                                            }
+                                        }}
+                                        className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-black opacity-0 group-hover:opacity-100"
+                                        title="Remove item"
+                                    >
+                                        <X className="h-3.5 w-3.5" />
+                                    </button>
                                 </div>
                             ))}
                         </div>

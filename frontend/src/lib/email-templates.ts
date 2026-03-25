@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE';
 
 interface EmailPayload {
     name?: string;
@@ -541,12 +541,26 @@ ${payload.daysRemaining === 0 ? `
             subject = `Update on your offer for ${payload.productName}`;
             html = BaseTemplate("Offer Update", `
 <p style="margin:0 0 16px 0;">Hi ${name},</p>
-<p style="margin:0 0 24px 0;">The seller has reviewed your negotiation offer for <strong>${payload.productName}</strong> but unfortunately could not accept it at this time.</p>
+<p style="margin:0 0 24px 0;">${payload.message || `The seller has reviewed your negotiation offer for <strong>${payload.productName}</strong> but unfortunately could not accept it at this time.`}</p>
 
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Don't worry! You can still browse other sellers offering the same product, or buy it at the listed price.</p>
 
 <div style="text-align:center;">
     <a href="https://fairprice.ng/account/negotiations" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Details</a>
+</div>
+            `);
+            break;
+
+        case 'COUNTER_OFFER_DECLINED':
+            subject = `Offer Update: Counter-Offer Declined for ${payload.productName}`;
+            html = BaseTemplate("Counter-Offer Update", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">The buyer has reviewed your counter-offer for <strong>${payload.productName}</strong> but has decided not to proceed at this time.</p>
+
+<p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">You can wait for other offers or reach out to the customer via the messaging dashboard.</p>
+
+<div style="text-align:center;">
+    <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/dashboard/messages'}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Message Dashboard</a>
 </div>
             `);
             break;

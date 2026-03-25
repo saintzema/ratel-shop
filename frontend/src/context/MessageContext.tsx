@@ -22,6 +22,7 @@ export interface ChatMessage {
         sender: string;
         text: string;
     };
+    readByRecipient?: boolean;
 }
 
 export interface Conversation {
@@ -201,7 +202,8 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                                      sender: m.sender || (m.sender_id === neg.customer_id ? "user" : "seller"),
                                      text: m.text,
                                      timestamp: m.timestamp || new Date().toISOString(),
-                                     negotiation: m.negotiation
+                                     negotiation: m.negotiation,
+                                     readByRecipient: m.readByRecipient // Added this
                                  })) : [],
                                  unreadCount: 1,
                                  lastUpdated: neg.updated_at || new Date().toISOString()
@@ -323,10 +325,18 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                                              sender: "seller",
                                              text: chatMsg.text,
                                              timestamp: chatMsg.timestamp || new Date().toISOString(),
-                                             negotiation: chatMsg.negotiation
+                                             negotiation: chatMsg.negotiation,
+                                             readByRecipient: chatMsg.readByRecipient // Added this
                                          });
                                          hasNewMsg = true;
-                                     }
+                                      } else if (chatMsg.sender === "buyer" && chatMsg.readByRecipient) {
+                                          // Update existing buyer message read status if recipient (seller) has read it
+                                          const existingMsg = newMessages.find(m => m.sender === "user" && m.text === chatMsg.text && !m.readByRecipient);
+                                          if (existingMsg) {
+                                              existingMsg.readByRecipient = true;
+                                              hasNewMsg = true; 
+                                          }
+                                      }
                                  }
                              }
                          }

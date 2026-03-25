@@ -165,6 +165,13 @@ export function DynamicPillNotification() {
                     },
                     route: "/account/negotiations"
                 });
+            } else if (neg.counter_status === "rejected") {
+                setCustomNotification({
+                    text: `You declined the counter-offer for "${product?.name || 'Product'}".`,
+                    isNegotiation: false,
+                    hasImage: false,
+                    route: "/account/negotiations"
+                });
             } else {
                 setCustomNotification({
                     text: neg.status === "accepted"

@@ -98,6 +98,7 @@ class DemoStoreService {
         DEALS: "fairprice_demo_deals",
         PROMOTIONS: "fairprice_demo_promotions",
         AD_CREDITS: "fairprice_demo_ad_credits",
+        DELETED_STUBS: "fp_deleted_stubs",
     };
 
     private get PROMO_KEY() {
@@ -116,6 +117,11 @@ class DemoStoreService {
             } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
+
+            // Re-sync EVERYTHING when user logs in or switches accounts
+            window.addEventListener("fp-auth-update", () => {
+                this.syncWithDB();
+            });
 
             // Listen for buyer messages from floating chat to hot-sync to DB
             window.addEventListener("buyer-negotiation-message-sent", (e: any) => {
@@ -238,23 +244,22 @@ class DemoStoreService {
         };
     }
 
-    private _isSyncing = false;
-    private async syncWithDB() {
-        if (typeof window === "undefined" || this._isSyncing) return;
-        this._isSyncing = true;
+    public isSyncing = false;
+    public async syncWithDB() {
+        if (typeof window === "undefined" || this.isSyncing) return;
+        this.isSyncing = true;
         try {
-
-            // 🚀 PARALLEL FETCH: Fire all Five requests simultaneously for fast sync
             const user = this.getCurrentUser();
             const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
 
-            const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult, notificationsResult] = await Promise.allSettled([
+            const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult, notificationsResult, conversationsResult] = await Promise.allSettled([
                 fetch("/api/products?all=true"),
                 fetch("/api/sellers?all=true"),
                 fetch("/api/search-cache"),
                 fetch("/api/orders?all=true"),
                 fetch("/api/negotiations?all=true"),
-                notificationUrl ? fetch(notificationUrl) : Promise.reject("No user email")
+                notificationUrl ? fetch(notificationUrl) : Promise.reject("No user email"),
+                user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : Promise.reject("No user email")
             ]);
 
             // ── Process Products ──
@@ -262,22 +267,31 @@ class DemoStoreService {
                 const dbProducts = await productsResult.value.json();
                 if (dbProducts.length > 0) {
                     const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
-                    const dbMap = new Map(dbProducts.map((p: any) => [p.id, p]));
+                    // MAP CamelCase to snake_case for senior tech lead consistency
+                    const mappedDbProducts = dbProducts.map((p: any) => ({
+                        ...p,
+                        seller_id: p.sellerId || p.seller_id,
+                        image_url: p.imageUrl || p.image_url,
+                        avg_rating: p.avgRating || p.avg_rating || 0,
+                        review_count: p.reviewCount || p.review_count || 0,
+                        sold_count: p.soldCount || p.sold_count || 0,
+                        is_trending: p.isTrending || p.is_trending || false,
+                        original_price: p.originalPrice || p.original_price,
+                    }));
+                    
+                    const dbMap = new Map(mappedDbProducts.map((p: any) => [p.id, p]));
                     const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
                     const merged = new Map(dbMap);
 
                     for (const pendingId of this._pendingEdits) {
                         const localVersion = localMap.get(pendingId);
-                        if (localVersion) {
-                            merged.set(pendingId, localVersion);
-                        }
+                        if (localVersion) merged.set(pendingId, localVersion);
                     }
                     for (const [id, product] of localMap) {
                         if (!dbMap.has(id)) merged.set(id, product);
                     }
                     const newDataStr = JSON.stringify(Array.from(merged.values()));
-                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
-                    if (newDataStr !== oldDataStr) {
+                    if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
                         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("demo-store-update"));
@@ -285,22 +299,19 @@ class DemoStoreService {
                 }
             }
 
-            // ── Process Sellers (merge with pending local edits like KYC approvals) ──
+            // ── Process Sellers ──
             if (sellersResult.status === "fulfilled" && sellersResult.value.ok) {
                 const dbSellers = await sellersResult.value.json();
                 if (dbSellers.length > 0) {
                     const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
                     const dbMap = new Map<string, any>(dbSellers.map((s: any) => [s.id, s]));
                     const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
-
-                    // Start from DB data but preserve local-only fields that the API doesn't track
-                    const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'bank_name', 'account_number', 'account_name', 'payout_history'];
+                    const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'payout_history'];
                     const merged = new Map<string, any>();
 
                     for (const [id, dbSeller] of dbMap) {
                         const localVersion = localMap.get(id);
                         if (localVersion) {
-                            // Merge: DB data wins, but preserve local-only fields if DB doesn't have them
                             const mergedSeller = { ...localVersion, ...(dbSeller as any) };
                             for (const field of LOCAL_ONLY_FIELDS) {
                                 if (localVersion[field] !== undefined && (dbSeller[field] === undefined || dbSeller[field] === null)) {
@@ -312,42 +323,25 @@ class DemoStoreService {
                             merged.set(id, dbSeller);
                         }
                     }
-
-                    // Preserve local versions of sellers with pending edits (e.g. KYC approvals)
                     for (const pendingSellerId of this._pendingSellerEdits) {
                         const localVersion = localMap.get(pendingSellerId);
-                        if (localVersion) {
-                            merged.set(pendingSellerId, localVersion);
-                        }
+                        if (localVersion) merged.set(pendingSellerId, localVersion);
                     }
-                    // Keep locally-added sellers that don't exist in DB yet
                     for (const [id, seller] of localMap) {
                         if (!dbMap.has(id)) merged.set(id, seller);
                     }
 
                     const sortedSellers = Array.from(merged.values()).sort((a, b) => a.id.localeCompare(b.id));
                     const newDataStr = JSON.stringify(sortedSellers);
-                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.SELLERS);
-                    if (newDataStr !== oldDataStr) {
+                    if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.SELLERS)) {
                         localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("demo-store-update"));
                     }
-
-                    const storedSellerId = this.getCurrentSellerId();
-                    if (storedSellerId && !merged.has(storedSellerId)) {
-                        const currentUser = this._getCurrentUserId();
-                        if (currentUser) {
-                            const match = dbSellers.find((s: any) => s.user_id === currentUser);
-                            if (match) {
-                                localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, match.id);
-                            }
-                        }
-                    }
                 }
             }
 
-            // ── Process Orders (merge DB orders with local orders) ──
+            // ── Process Orders ──
             if (ordersResult.status === "fulfilled" && ordersResult.value.ok) {
                 const ordersData = await ordersResult.value.json();
                 const dbOrders: any[] = ordersData.orders || ordersData || [];
@@ -355,7 +349,6 @@ class DemoStoreService {
                     const localOrders: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || '[]');
                     const localMap = new Map(localOrders.map((o: any) => [o.id, o]));
 
-                    // Add DB orders that don't exist locally
                     for (const dbOrder of dbOrders) {
                         const mapped = {
                             id: dbOrder.id,
@@ -376,18 +369,14 @@ class DemoStoreService {
                                 price: dbOrder.product.price,
                                 image_url: dbOrder.product.imageUrl || dbOrder.product.image_url,
                                 seller_id: dbOrder.product.sellerId || dbOrder.product.seller_id,
-                                seller_name: dbOrder.product.sellerName || dbOrder.product.seller_name,
                                 category: dbOrder.product.category,
                             } : undefined,
                         };
-                        if (!localMap.has(mapped.id)) {
-                            localMap.set(mapped.id, mapped);
-                        }
+                        if (!localMap.has(mapped.id)) localMap.set(mapped.id, mapped);
                     }
 
                     const newDataStr = JSON.stringify(Array.from(localMap.values()));
-                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.ORDERS);
-                    if (newDataStr !== oldDataStr) {
+                    if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
                         localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("demo-store-update"));
@@ -395,36 +384,31 @@ class DemoStoreService {
                 }
             }
 
-            // ── Process Negotiations (merge DB negotiations with local negotiations & recreate chat) ──
+            // ── Process Negotiations ──
             if (negotiationsResult.status === "fulfilled" && negotiationsResult.value.ok) {
                 const negData = await negotiationsResult.value.json();
                 const dbNegotiations: any[] = negData.negotiations || [];
-                
                 if (dbNegotiations.length > 0) {
                     const localNegotiations: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || '[]');
                     const localMap = new Map(localNegotiations.map((n: any) => [n.id, n]));
 
+                    let hasNewUpdate = false;
                     for (const dbNeg of dbNegotiations) {
                         const localVersion = localMap.get(dbNeg.id);
-                        
-                        // Map from backend or fallback to localized logic
                         let chatMessages = dbNeg.chatMessages || localVersion?.chat_messages;
                         if (!chatMessages || chatMessages.length === 0) {
-                            // Synthesize frontend chat_messages array because it is not natively stored in the DB columns
-                            chatMessages = [];
-                            chatMessages.push({
+                            chatMessages = [{
                                 sender: "buyer",
-                                text: `🤝 Negotiation Request\n\nProduct: ${dbNeg.product?.name || "Product"}\nCurrent Price: ₦${dbNeg.product?.price?.toLocaleString() || 0}\nMy Offer: ₦${dbNeg.proposedPrice.toLocaleString()}\n\nMessage: ${dbNeg.message || "Offer submitted"}\n\nWaiting for seller to respond...`,
+                                text: `🤝 Negotiation Request\n\nProduct: ${dbNeg.product?.name || "Product"}\nCurrent Price: ₦${dbNeg.product?.price?.toLocaleString() || 0}\nMy Offer: ₦${dbNeg.proposedPrice.toLocaleString()}\n\nMessage: ${dbNeg.message || "Offer submitted"}`,
                                 timestamp: dbNeg.createdAt
-                            });
+                            }];
                         }
                         
-                        // Append new states if they changed since local version
                         let justUpdatedType = null;
                         if (dbNeg.status === 'accepted' && localVersion?.status !== 'accepted') {
                             chatMessages.push({ 
                                 sender: "seller", 
-                                text: `Your offer of ₦${dbNeg.proposedPrice.toLocaleString()} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout.`, 
+                                text: `Your offer of ₦${dbNeg.proposedPrice.toLocaleString()} has been ACCEPTED! 🎉`, 
                                 timestamp: dbNeg.updatedAt || dbNeg.createdAt,
                                 negotiation: { type: "accepted", productId: dbNeg.productId, counterPrice: dbNeg.proposedPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice }
                             });
@@ -440,7 +424,7 @@ class DemoStoreService {
                         } else if (dbNeg.counterPrice && localVersion?.counter_price !== dbNeg.counterPrice) {
                             chatMessages.push({
                                 sender: "seller",
-                                text: dbNeg.counterMessage || `The seller sent a counter offer of ₦${dbNeg.counterPrice.toLocaleString()}.\n\nDo you accept?`,
+                                text: dbNeg.counterMessage || `The seller sent a counter offer of ₦${dbNeg.counterPrice.toLocaleString()}.`,
                                 timestamp: dbNeg.updatedAt || dbNeg.createdAt,
                                 negotiation: { type: "countered", productId: dbNeg.productId, counterPrice: dbNeg.counterPrice, productName: dbNeg.product?.name || "Product", originalPrice: dbNeg.proposedPrice || dbNeg.counterPrice }
                             });
@@ -449,29 +433,68 @@ class DemoStoreService {
 
                         const mapped = {
                             id: dbNeg.id,
-                            product_id: dbNeg.productId,
-                            customer_id: dbNeg.customerId,
-                            customer_name: dbNeg.customerName,
-                            seller_id: dbNeg.sellerId,
-                            proposed_price: dbNeg.proposedPrice,
+                            product_id: dbNeg.productId || dbNeg.product_id,
+                            seller_id: dbNeg.sellerId || dbNeg.seller_id,
+                            customer_id: dbNeg.customerId || dbNeg.customer_id,
+                            customer_name: dbNeg.customerName || dbNeg.customer_name,
+                            proposed_price: dbNeg.proposedPrice || dbNeg.proposed_price,
                             message: dbNeg.message,
-                            status: dbNeg.status,
-                            counter_price: dbNeg.counterPrice,
-                            counter_message: dbNeg.counterMessage,
-                            counter_status: dbNeg.counterStatus,
-                            created_at: dbNeg.createdAt,
-                            updated_at: dbNeg.updatedAt,
+                            status: (dbNeg.status || "pending").toLowerCase() === "declined" ? "rejected" : (dbNeg.status || "pending").toLowerCase(),
+                            counter_price: dbNeg.counterPrice || dbNeg.counter_price,
+                            counter_message: dbNeg.counterMessage || dbNeg.counter_message,
+                            counter_status: (dbNeg.counterStatus || dbNeg.counter_status || "").toLowerCase(),
+                            created_at: dbNeg.createdAt || dbNeg.created_at,
+                            updated_at: dbNeg.updatedAt || dbNeg.updated_at,
                             chat_messages: chatMessages,
                         };
                         
-                        // Merge DB data, overriding local but keeping synthesized chats
-                        localMap.set(mapped.id, mapped);
-
-                        if (justUpdatedType && typeof window !== "undefined") {
-                            window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
+                        if (JSON.stringify(localVersion) !== JSON.stringify(mapped)) {
+                            localMap.set(dbNeg.id, mapped);
+                            hasNewUpdate = true;
+                            if (justUpdatedType) {
+                                window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
+                            }
                         }
                     }
-                    localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
+
+                    if (hasNewUpdate) {
+                        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("demo-store-update"));
+                        window.dispatchEvent(new Event("negotiation-updated-remote"));
+                    }
+                }
+            }
+
+            // ── Process Conversations ──
+            if (conversationsResult.status === "fulfilled" && conversationsResult.value.ok) {
+                const dbConversations = await conversationsResult.value.json();
+                if (Array.isArray(dbConversations) && dbConversations.length > 0) {
+                    const localConvs: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CONVERSATIONS) || '[]');
+                    const localMap = new Map(localConvs.map((c: any) => [c.id, c]));
+                    let changed = false;
+
+                    for (const dbConv of dbConversations) {
+                        if (!localMap.has(dbConv.id)) {
+                            localMap.set(dbConv.id, {
+                                id: dbConv.id,
+                                orderId: dbConv.orderId,
+                                productName: dbConv.productName,
+                                productImage: dbConv.productImage,
+                                storeName: dbConv.storeName,
+                                lastMessage: dbConv.lastMessage,
+                                lastUpdated: dbConv.lastUpdated || new Date().toISOString(),
+                                unreadCount: dbConv.unreadCount || 0,
+                                messages: dbConv.messages || []
+                            });
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
+                        window.dispatchEvent(new Event("storage"));
+                        window.dispatchEvent(new Event("demo-store-update"));
+                    }
                 }
             }
 
@@ -487,15 +510,12 @@ class DemoStoreService {
             if (notificationsResult.status === "fulfilled" && notificationsResult.value.ok) {
                 const dbNotifs = await notificationsResult.value.json();
                 if (Array.isArray(dbNotifs)) {
-                    const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
-                    const local: any[] = stored ? JSON.parse(stored) : [];
+                    const local: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS) || '[]');
                     const localMap = new Map(local.map(n => [n.id, n]));
-                    
-                    // Merge DB notifications, keeping locally generated ones if they aren't in DB yet
                     dbNotifs.forEach((n: any) => {
                         localMap.set(n.id, {
                             id: n.id,
-                            userId: n.user_email,
+                            userId: n.user_id || n.user_email,
                             type: n.type,
                             message: n.message,
                             link: n.link,
@@ -503,31 +523,21 @@ class DemoStoreService {
                             timestamp: n.created_at || new Date().toISOString()
                         });
                     });
-                    
                     localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
+                    window.dispatchEvent(new Event("storage"));
                 }
             }
 
-            // Trigger update events so React components re-render with live data
-            window.dispatchEvent(new Event("storage"));
-            window.dispatchEvent(new Event("demo-store-update"));
         } catch (error) {
-            console.warn("Database sync failed quietly:", (error as Error).message || "Network issue");
+            console.warn("Database sync failed quietly:", error);
         } finally {
-            this._isSyncing = false;
+            this.isSyncing = false;
         }
 
-        // ── Fallback: if localStorage is still empty after sync, seed with DEMO data ──
+        // Fallback: seed with DEMO data if empty
         const hasProducts = (localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]') !== '[]';
-        const hasSellers = (localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]') !== '[]';
-        if (!hasProducts || !hasSellers) {
+        if (!hasProducts) {
             await loadDemoFallbacks();
-            if (!hasProducts && _DEMO_PRODUCTS.length > 0) {
-                localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(_DEMO_PRODUCTS));
-            }
-            if (!hasSellers && _DEMO_SELLERS.length > 0) {
-                localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(_DEMO_SELLERS));
-            }
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("demo-store-update"));
         }
@@ -599,18 +609,18 @@ class DemoStoreService {
 
                     const mapped = {
                         id: dbNeg.id,
-                        product_id: dbNeg.productId,
-                        customer_id: dbNeg.customerId,
-                        customer_name: dbNeg.customerName,
-                        seller_id: dbNeg.sellerId,
-                        proposed_price: dbNeg.proposedPrice,
+                        product_id: dbNeg.productId || dbNeg.product_id,
+                        customer_id: dbNeg.customerId || dbNeg.customer_id,
+                        customer_name: dbNeg.customerName || dbNeg.customer_name,
+                        seller_id: dbNeg.sellerId || dbNeg.seller_id,
+                        proposed_price: dbNeg.proposedPrice || dbNeg.proposed_price,
                         message: dbNeg.message,
-                        status: (localVersion?.status === "countered" && dbNeg.status === "pending") ? "countered" : dbNeg.status,
-                        counter_price: localVersion?.counter_price || dbNeg.counterPrice,
-                        counter_message: localVersion?.counter_message || dbNeg.counterMessage,
-                        counter_status: (localVersion?.counter_status === "pending" && !dbNeg.counterStatus) ? "pending" : dbNeg.counterStatus,
-                        created_at: dbNeg.createdAt,
-                        updated_at: dbNeg.updatedAt,
+                        status: (dbNeg.status || "pending").toLowerCase() === "declined" ? "rejected" : (dbNeg.status || "pending").toLowerCase(),
+                        counter_price: dbNeg.counterPrice || dbNeg.counter_price,
+                        counter_message: dbNeg.counterMessage || dbNeg.counter_message,
+                        counter_status: (dbNeg.counterStatus || dbNeg.counter_status || "").toLowerCase(),
+                        created_at: dbNeg.createdAt || dbNeg.created_at,
+                        updated_at: dbNeg.updatedAt || dbNeg.updated_at,
                         chat_messages: chatMessages,
                     };
                     localMap.set(mapped.id, mapped);
@@ -766,7 +776,16 @@ class DemoStoreService {
         const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === request.product_id);
         
         // Attach seller_id to the negotiation for reliable matching
-        const enrichedRequest = { ...request, seller_id: product?.seller_id || '' };
+        const enrichedRequest = { 
+            ...request, 
+            seller_id: product?.seller_id || '',
+            chat_messages: request.chat_messages || [{
+                sender: "buyer",
+                text: request.message || `Initial offer of ₦${request.proposed_price.toLocaleString()}`,
+                timestamp: new Date().toISOString(),
+                readByRecipient: false
+            }]
+        };
         
         const current = this.getNegotiations();
         const updated = [enrichedRequest, ...current];
@@ -881,7 +900,8 @@ class DemoStoreService {
                 existingMessages.push({
                     sender: isRespondingToCounter ? "buyer" as const : "seller" as const,
                     text: text,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    readByRecipient: false
                 });
                 updatedNeg.chat_messages = existingMessages;
             }
@@ -897,7 +917,8 @@ class DemoStoreService {
                 body: { 
                     id, 
                     status: updatedNegRef.status, 
-                    counterStatus: updatedNegRef.counter_status 
+                    counterStatus: updatedNegRef.counter_status,
+                    chatMessages: updatedNegRef.chat_messages
                 }, 
                 type: "general" 
             }).catch(err => console.error("Failed to sync negotiation status:", err));
@@ -1119,7 +1140,15 @@ class DemoStoreService {
             existingMessages.push({
                 sender: "buyer" as const,
                 text: `🤝 Counter-Offer\n\nI'd like to propose ₦${newPrice.toLocaleString()} for ${product?.name || 'this item'}.${message ? `\n\nMessage: "${message}"` : ''}`,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                readByRecipient: false,
+                negotiation: { 
+                    type: "countered", 
+                    productId: negotiation.product_id, 
+                    counterPrice: newPrice, 
+                    productName: product?.name || 'Product',
+                    originalPrice: negotiation.proposed_price || newPrice
+                }
             });
             return {
                 ...n,
@@ -1134,7 +1163,8 @@ class DemoStoreService {
         });
 
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
-
+        const updatedNeg = updated.find(n => n.id === negId);
+        
         // Persist to Postgres
         fetch("/api/negotiations", {
             method: "PATCH",
@@ -1144,6 +1174,7 @@ class DemoStoreService {
                 status: "pending",
                 counterPrice: null,
                 counterMessage: null,
+                chatMessages: updatedNeg?.chat_messages
             })
         }).catch(console.error);
 
@@ -1259,11 +1290,13 @@ class DemoStoreService {
                     subject: counterStatus === "accepted"
                         ? `Counter-Offer Accepted: ${product.name}`
                         : `Counter-Offer Declined: ${product.name}`,
-                    type: counterStatus === "accepted" ? "NEGOTIATION_ACCEPTED" : "NEGOTIATION_REJECTED",
+                    type: counterStatus === "accepted" ? "NEGOTIATION_ACCEPTED" : "COUNTER_OFFER_DECLINED",
                     payload: {
+                        name: seller?.business_name || "Seller",
                         customerName: negotiation.customer_name || "Buyer",
                         productName: product.name,
-                        amount: `₦${(negotiation.counter_price || 0).toLocaleString()}`
+                        amount: `₦${(negotiation.counter_price || 0).toLocaleString()}`,
+                        dashboardUrl: `https://fairprice.ng/seller/dashboard/messages?customer=${negotiation.customer_id}&order=${negotiation.id}`
                     }
                 })
             }).catch(console.error);
@@ -3867,8 +3900,59 @@ class DemoStoreService {
         window.dispatchEvent(new Event("storage"));
     }
 
+    markNegotiationRead(id: string) {
+        if (typeof window === "undefined") return;
+        const current = this.getNegotiations();
+        const negotiation = current.find(n => n.id === id);
+        if (!negotiation) return;
+
+        let hasChange = false;
+        const updatedMessages = (negotiation.chat_messages || []).map((msg: any) => {
+            if (msg.sender === "buyer" && !msg.readByRecipient) {
+                hasChange = true;
+                return { ...msg, readByRecipient: true };
+            }
+            return msg;
+        });
+
+        if (hasChange) {
+            const updated = current.map(n => n.id === id ? { ...n, chat_messages: updatedMessages } : n);
+            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+            
+            // Sync to DB
+            fetch("/api/negotiations", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id,
+                    chatMessages: updatedMessages
+                })
+            }).catch(console.error);
+
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("demo-store-update"));
+        }
+    }
+
+    getDeletedStubs(): string[] {
+        if (typeof window === "undefined") return [];
+        try {
+            return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DELETED_STUBS) || "[]");
+        } catch { return []; }
+    }
+
     deleteConversation(conversationId: string) {
         if (typeof window === "undefined") return;
+        
+        // If it's a stub, track it so it doesn't reappear
+        if (conversationId.startsWith("chat-") || conversationId.startsWith("neg-group-") || conversationId.startsWith("conc-")) {
+            const deleted = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DELETED_STUBS) || "[]");
+            if (!deleted.includes(conversationId)) {
+                deleted.push(conversationId);
+                localStorage.setItem(this.STORAGE_KEYS.DELETED_STUBS, JSON.stringify(deleted));
+            }
+        }
+
         const currentMsgs = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
         const remainingMsgs = currentMsgs.filter((m: any) => m.conversation_id !== conversationId);
         localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(remainingMsgs));
@@ -3878,6 +3962,7 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(remainingConvs));
         
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
     }
 }
 

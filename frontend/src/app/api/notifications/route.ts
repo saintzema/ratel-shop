@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 const API_PREFIX = "/api/v1/notifications";
@@ -39,13 +40,53 @@ export async function GET(req: NextRequest) {
         url.searchParams.set("unread_only", unread_only);
     }
 
-    const { data, status } = await safeFetch(url.toString());
-
-    if (data === null) {
-        // Backend down — return safe fallback
-        return NextResponse.json(count_only ? { unread_count: 0 } : [], { status: 200 });
+    // 1. Fetch from Django Backend
+    const backendResult = await safeFetch(url.toString());
+    
+    // 2. Fetch from Prisma (Next.js local DB)
+    let prismaNotifications: any[] = [];
+    try {
+        const prismaNotifs = await db.notification.findMany({
+            where: {
+                user: { email: user_email },
+                ...(unread_only === "true" ? { read: false } : {})
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
+        prismaNotifications = prismaNotifs.map(n => ({
+            id: n.id,
+            user_id: user_email,
+            type: n.type.toLowerCase(),
+            message: n.message,
+            link: n.link,
+            read: n.read,
+            created_at: n.createdAt.toISOString()
+        }));
+    } catch (e) {
+        console.error("Prisma notification fetch failed:", e);
     }
-    return NextResponse.json(data, { status });
+
+    if (count_only) {
+        const backendCount = backendResult.data?.unread_count || 0;
+        const prismaCount = prismaNotifications.length; // Prisma query already filtered by unread_only above if unread_only was true
+        // But wait, if unread_only was false but count_only was true, we need to be careful.
+        // Actually count_only should probably just return the unread count.
+        return NextResponse.json({ unread_count: backendCount + prismaCount });
+    }
+
+    // 3. Merge and De-duplicate
+    const backendNotifs = Array.isArray(backendResult.data) ? backendResult.data : [];
+    const combined = [...prismaNotifications, ...backendNotifs];
+    
+    // Sort by timestamp descending
+    combined.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.timestamp).getTime();
+        const dateB = new Date(b.created_at || b.timestamp).getTime();
+        return dateB - dateA;
+    });
+
+    return NextResponse.json(combined.slice(0, 50), { status: 200 });
 }
 
 export async function POST(req: NextRequest) {

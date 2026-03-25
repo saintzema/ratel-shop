@@ -122,22 +122,34 @@ export default function UniversalMessagesPage() {
                     replyTo: m.replyTo
                 }));
 
-                const hasUnread = customerNegs.some(n => n.status === "pending" && !n.counter_status);
+                const hasUnread = customerNegs.some(n => {
+                    // Unread if it's pending and no counter has been sent yet
+                    if (n.status === "pending" && !n.counter_status) return true;
+                    // Or if there are messages the seller hasn't read (readByRecipient is false)
+                    return n.chat_messages?.some((m: any) => m.sender === "buyer" && m.readByRecipient === false);
+                });
+
+                // Senior tech lead: Use the absolute latest activity for the timestamp
+                const latestActivityTime = Math.max(
+                    new Date(latestNeg.created_at).getTime(),
+                    new Date(latestNeg.updated_at || 0).getTime(),
+                    ...allChatMessages.map(m => new Date(m.timestamp).getTime())
+                );
 
                 convos.push({
                     id: `neg-group-${groupId}`,
                     type: "negotiation",
                     customer_name: latestNeg.customer_name || "Customer",
                     customer_id: custId,
-                    product_id: latestNeg.product_id, // Default to latest product context
+                    product_id: latestNeg.product_id, 
                     product_name: prod?.name,
-                    preview: mappedChatHistory.length > 0 
-                        ? mappedChatHistory[mappedChatHistory.length - 1].text 
+                    preview: allChatMessages.length > 0 
+                        ? allChatMessages[allChatMessages.length - 1].text 
                         : "Sent an offer",
-                    updated_at: new Date(latestNeg.created_at),
+                    updated_at: new Date(latestActivityTime),
                     unread: hasUnread,
-                    negotiation: latestNeg, // Primary negotiation context
-                    negotiations: customerNegs, // All negotiations for this customer
+                    negotiation: latestNeg,
+                    negotiations: customerNegs,
                     chat_messages: mappedChatHistory
                 });
             });
@@ -280,14 +292,20 @@ export default function UniversalMessagesPage() {
                 }
             }
 
-            setConversations(convos.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime()));
+            const deletedStubs = DemoStore.getDeletedStubs();
+            const filteredConvos = convos.filter(c => !deletedStubs.includes(c.id));
+            setConversations(filteredConvos.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime()));
         };
 
         loadData();
         window.addEventListener("storage", loadData);
         window.addEventListener("demo-store-update", loadData);
         // Polling for cross-browser/device realtime sync
-        const pollInterval = setInterval(loadData, 3000);
+        const pollInterval = setInterval(() => {
+            loadData();
+            // Background sync from DB as safety fallback for hot-receive
+            DemoStore.syncWithDB();
+        }, 3000);
         return () => {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("demo-store-update", loadData);
@@ -340,9 +358,18 @@ export default function UniversalMessagesPage() {
 
     // Mark as read when active conversation changes
     useEffect(() => {
-        if (selectedId && !selectedId.startsWith("neg-") && !selectedId.startsWith("ord-") && !selectedId.startsWith("sup-") && !selectedId.startsWith("chat-")) {
+        if (selectedId) {
             const sellerId = DemoStore.getCurrentSellerId();
-            if (sellerId) DemoStore.markConversationRead(selectedId, sellerId);
+            if (!sellerId) return;
+
+            if (selectedId.startsWith("neg-group-")) {
+                const groupId = selectedId.replace("neg-group-", "");
+                const [custId, prodId] = groupId.split("_");
+                const negs = DemoStore.getNegotiations(sellerId).filter(n => n.customer_id === custId && n.product_id === prodId);
+                negs.forEach(n => DemoStore.markNegotiationRead(n.id));
+            } else if (!selectedId.startsWith("ord-") && !selectedId.startsWith("sup-") && !selectedId.startsWith("chat-") && !selectedId.startsWith("conc-")) {
+                DemoStore.markConversationRead(selectedId, sellerId);
+            }
         }
     }, [selectedId]);
 
@@ -504,29 +531,7 @@ export default function UniversalMessagesPage() {
 
     const handleDeleteChat = () => {
         if (!selectedId) return;
-        const sellerId = DemoStore.getCurrentSellerId();
-        if (!sellerId) return;
-
-        // Clean up from DB/LocalStorage
-        if (selectedId.startsWith("neg-group-")) {
-            // It's a negotiation group
-            const groupId = selectedId.replace("neg-group-", "");
-            const negs = DemoStore.getNegotiations(sellerId);
-            const toDelete = negs.filter(n => `${n.customer_id}_${n.product_id}` === groupId);
-            // Simulate deletion in DemoStore (or hide it)
-            const remaining = negs.filter(n => `${n.customer_id}_${n.product_id}` !== groupId);
-            localStorage.setItem("fp_negotiations", JSON.stringify(remaining));
-        } else if (selectedId.startsWith("conc-") || selectedId.startsWith("ord-")) {
-            // Cannot permanently delete core orders, but we could hide them locally or mock it.
-            // A realistic implementation drops them from view. 
-            alert("Order threads cannot be deleted permanently for record-keeping purposes.");
-            return;
-        } else {
-            // It's a standard DM
-            DemoStore.deleteConversation(selectedId);
-        }
-
-        // Force UI state refresh
+        DemoStore.deleteConversation(selectedId);
         setConversations(prev => prev.filter(c => c.id !== selectedId));
         setSelectedId(null);
         window.dispatchEvent(new Event("storage"));
