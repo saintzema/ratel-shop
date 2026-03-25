@@ -61,7 +61,11 @@ export async function GET(req: Request) {
 
     try {
         if (id) {
-            const user = await db.user.findUnique({ where: { id } });
+            let user = await db.user.findUnique({ where: { id } });
+            // Fallback: If not found by ID and looks like an email, try email lookup
+            if (!user && id.includes("@")) {
+                user = await db.user.findUnique({ where: { email: id } });
+            }
             return NextResponse.json(user);
         }
         if (email) {

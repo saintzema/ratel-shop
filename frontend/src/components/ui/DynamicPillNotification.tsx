@@ -103,13 +103,15 @@ export function DynamicPillNotification() {
     useEffect(() => {
         const checkGlobalNotifications = () => {
             const sellerId = DemoStore.getCurrentSellerId();
+            const currentUser = DemoStore.getCurrentUser();
             
             // ─── Seller-side: new incoming negotiation offers ───
             if (sellerId) {
                 const negs = DemoStore.getNegotiations(sellerId);
                 const recentNeg = negs.find((n: NegotiationRequest) => {
                     const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
-                    return ageMs < 3000 && n.status !== "accepted" && n.status !== "rejected";
+                    // FILTER: Only show if I am the seller for this specific product
+                    return ageMs < 3000 && n.status !== "accepted" && n.status !== "rejected" && n.seller_id === sellerId;
                 });
 
                 if (recentNeg) {
@@ -125,14 +127,13 @@ export function DynamicPillNotification() {
             }
 
             // ─── Buyer-side: seller accepted, rejected, or countered ───
-            const currentUser = DemoStore.getCurrentUser();
             if (currentUser) {
                 const buyerNegs = DemoStore.getNegotiations(undefined, currentUser.id);
                 const recentBuyerNeg = buyerNegs.find((n: NegotiationRequest) => {
                     const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
                     if (ageMs > 5000) return false;
-                    // Show pill for recently accepted, rejected, or countered negotiations
-                    return n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending";
+                    // FILTER: Only show if I am the customer/buyer for this specific negotiation
+                    return (n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending") && n.customer_id === currentUser.id;
                 });
 
                 if (recentBuyerNeg) {
@@ -146,8 +147,25 @@ export function DynamicPillNotification() {
             const customEvent = e as CustomEvent;
             const neg = customEvent.detail?.negotiation;
             if (!neg) return;
-            const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
-            triggerBuyerNotification(neg, product);
+
+            const currentUser = DemoStore.getCurrentUser();
+            const currentSellerId = DemoStore.getCurrentSellerId();
+
+            // FILTER: If I'm the buyer and this is my negotiation
+            if (currentUser && neg.customer_id === currentUser.id) {
+                const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
+                triggerBuyerNotification(neg, product);
+            }
+            // FILTER: If I'm the seller and this is a new offer from a customer
+            else if (currentSellerId && neg.seller_id === currentSellerId && neg.status === 'pending' && !neg.counter_status) {
+                const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
+                setCustomNotification({
+                    text: `New negotiation offer for ${product?.name || 'Product'} at ₦${neg.proposed_price.toLocaleString()}`,
+                    isNegotiation: false,
+                    hasImage: false,
+                    route: "/seller/dashboard/messages?customer=" + (neg.customer_id || "") + "&order=" + neg.id
+                });
+            }
         };
 
         const triggerBuyerNotification = (neg: any, product: any) => {

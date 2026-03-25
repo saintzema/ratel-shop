@@ -227,8 +227,15 @@ class DemoStoreService {
                 const data = JSON.parse(event.data);
                 console.log("Real-time update received:", data);
 
+                let collectionToSync: string | undefined = undefined;
+                if (data.type === "product_updated") collectionToSync = "products";
+                else if (data.type === "seller_updated") collectionToSync = "sellers";
+                else if (data.type === "order_updated") collectionToSync = "orders";
+                else if (data.type === "negotiation_updated") collectionToSync = "negotiations";
+                else if (data.type === "notification") collectionToSync = "notifications";
+
                 // On any change, trigger a sync to refresh localStorage
-                this.syncWithDB();
+                this.syncWithDB(collectionToSync);
 
                 // If it's a specific user update, we could also trigger an auth update event 
                 // but AuthContext should ideally handle its own sync or listen to storage events.
@@ -245,22 +252,39 @@ class DemoStoreService {
     }
 
     public isSyncing = false;
-    public async syncWithDB() {
+    public async syncWithDB(collection?: string) {
         if (typeof window === "undefined" || this.isSyncing) return;
         this.isSyncing = true;
         try {
             const user = this.getCurrentUser();
             const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
 
+            const fetchProducts = !collection || collection === "products";
+            const fetchSellers = !collection || collection === "sellers";
+            const fetchSearchCache = !collection;
+            const fetchOrders = !collection || collection === "orders";
+            const fetchNegotiations = !collection || collection === "negotiations";
+            const fetchNotifications = !collection || collection === "notifications";
+            const fetchConversations = !collection || collection === "conversations";
+
+            const lastSync = localStorage.getItem("fp_last_sync_time");
+            const updatedAfter = lastSync ? `&updated_after=${lastSync}` : "";
+
+            const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
+
             const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult, notificationsResult, conversationsResult] = await Promise.allSettled([
-                fetch("/api/products?all=true"),
-                fetch("/api/sellers?all=true"),
-                fetch("/api/search-cache"),
-                fetch("/api/orders?all=true"),
-                fetch("/api/negotiations?all=true"),
-                notificationUrl ? fetch(notificationUrl) : Promise.reject("No user email"),
-                user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : Promise.reject("No user email")
+                fetchProducts ? fetch(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
+                fetchSellers ? fetch(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
+                fetchSearchCache ? fetch("/api/search-cache") : mockUnfetched,
+                fetchOrders ? fetch("/api/orders?all=true") : mockUnfetched,
+                fetchNegotiations ? fetch("/api/negotiations?all=true") : mockUnfetched,
+                fetchNotifications && notificationUrl ? fetch(notificationUrl) : mockUnfetched,
+                fetchConversations && user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched
             ]);
+
+            if (!collection) {
+                localStorage.setItem("fp_last_sync_time", new Date().toISOString());
+            }
 
             // ── Process Products ──
             if (productsResult.status === "fulfilled" && productsResult.value.ok) {
@@ -346,10 +370,12 @@ class DemoStoreService {
                 const ordersData = await ordersResult.value.json();
                 const dbOrders: any[] = ordersData.orders || ordersData || [];
                 if (dbOrders.length > 0) {
+                    // For Orders, we overwrite with DB status but preserve local additions if DB is incomplete
+                    const dbMap = new Map(dbOrders.map((o: any) => [o.id, o]));
                     const localOrders: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || '[]');
                     const localMap = new Map(localOrders.map((o: any) => [o.id, o]));
 
-                    for (const dbOrder of dbOrders) {
+                    for (const [id, dbOrder] of dbMap) {
                         const mapped = {
                             id: dbOrder.id,
                             customer_id: dbOrder.customerId || dbOrder.customer_id,
@@ -362,6 +388,7 @@ class DemoStoreService {
                             created_at: dbOrder.createdAt || dbOrder.created_at || new Date().toISOString(),
                             updated_at: dbOrder.updatedAt || dbOrder.updated_at || new Date().toISOString(),
                             customer_name: dbOrder.customerName || dbOrder.customer_name,
+                            customer_email: dbOrder.customerEmail || dbOrder.customer_email,
                             seller_name: dbOrder.sellerName || dbOrder.seller_name,
                             product: dbOrder.product ? {
                                 id: dbOrder.product.id,
@@ -372,7 +399,8 @@ class DemoStoreService {
                                 category: dbOrder.product.category,
                             } : undefined,
                         };
-                        if (!localMap.has(mapped.id)) localMap.set(mapped.id, mapped);
+                        // Always update local with DB version (Overwrites stale status)
+                        localMap.set(id, mapped);
                     }
 
                     const newDataStr = JSON.stringify(Array.from(localMap.values()));
@@ -398,12 +426,13 @@ class DemoStoreService {
                         let chatMessages = dbNeg.chatMessages || localVersion?.chat_messages;
                         if (!chatMessages || chatMessages.length === 0) {
                             chatMessages = [{
-                                sender: "buyer",
-                                text: `🤝 Negotiation Request\n\nProduct: ${dbNeg.product?.name || "Product"}\nCurrent Price: ₦${dbNeg.product?.price?.toLocaleString() || 0}\nMy Offer: ₦${dbNeg.proposedPrice.toLocaleString()}\n\nMessage: ${dbNeg.message || "Offer submitted"}`,
-                                timestamp: dbNeg.createdAt
+                                id: `msg_init_${dbNeg.id}`,
+                                sender: "system",
+                                text: "Negotiation started",
+                                timestamp: dbNeg.createdAt || new Date().toISOString()
                             }];
                         }
-                        
+
                         let justUpdatedType = null;
                         if (dbNeg.status === 'accepted' && localVersion?.status !== 'accepted') {
                             chatMessages.push({ 
@@ -448,12 +477,12 @@ class DemoStoreService {
                             chat_messages: chatMessages,
                         };
                         
-                        if (JSON.stringify(localVersion) !== JSON.stringify(mapped)) {
-                            localMap.set(dbNeg.id, mapped);
-                            hasNewUpdate = true;
-                            if (justUpdatedType) {
-                                window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
-                            }
+                        // Always update local with DB version (Overwrites stale status/counters)
+                        localMap.set(dbNeg.id, mapped);
+                        hasNewUpdate = true;
+                        
+                        if (justUpdatedType) {
+                            window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
                         }
                     }
 
@@ -847,16 +876,6 @@ class DemoStoreService {
                 message: `Negotiation: ${request.customer_name} offered ₦${request.proposed_price.toLocaleString()} for "${product.name}" (${seller?.business_name || 'Unknown Store'})`,
                 link: "/admin/governance"
             });
-            fetch("/api/email", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    to: "techzema@gmail.com",
-                    subject: `New Negotiation: ${product.name}`,
-                    type: "security_alert",
-                    data: { storeName: "FairPrice Admin", message: `${request.customer_name} offered ₦${request.proposed_price.toLocaleString()} for "${product.name}" from ${seller?.business_name || 'Unknown Store'}.` }
-                })
-            }).catch(() => {});
         }
 
         // Also trigger storage event for other tabs

@@ -6,6 +6,7 @@ export async function GET(req: Request) {
     try {
         const { searchParams } = new URL(req.url);
         const includeInactive = searchParams.get("all") === "true";
+        const updatedAfter = searchParams.get("updated_after");
 
         const whereClause: any = includeInactive
             ? {}
@@ -17,6 +18,10 @@ export async function GET(req: Request) {
                     }
                 }
             };
+
+        if (updatedAfter) {
+            whereClause.updatedAt = { gte: new Date(updatedAfter) };
+        }
 
         const products = await db.product.findMany({
             where: whereClause,

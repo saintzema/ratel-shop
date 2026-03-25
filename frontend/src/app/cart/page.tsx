@@ -75,7 +75,21 @@ export default function CartPage() {
                                             <Link href={`/product/${product.id}`} className="font-medium text-lg hover:text-brand-orange hover:underline line-clamp-2">
                                                 {product.name}
                                             </Link>
-                                            <div className="font-bold text-lg">{formatPrice(product.price)}</div>
+                                            <div className="flex flex-col items-end">
+                                                <div className="font-bold text-lg text-emerald-600">{formatPrice(product.price)}</div>
+                                                {/* Show original price if this is a negotiated deal */}
+                                                {(() => {
+                                                    const masterProduct = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === product.id);
+                                                    if (masterProduct && masterProduct.price > product.price) {
+                                                        return (
+                                                            <div className="text-sm text-gray-400 line-through font-medium">
+                                                                {formatPrice(masterProduct.price)}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
                                         </div>
 
                                         <div className="text-sm text-emerald-600 font-bold mb-1">In Stock</div>

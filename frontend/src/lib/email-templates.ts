@@ -650,15 +650,10 @@ ${payload.daysRemaining === 0 ? `
             break;
 
         default:
-            subject = 'FairPrice Notification';
-            html = BaseTemplate("Notification", `
-<p style="margin:0 0 16px 0;">Hi ${name},</p>
-<p style="margin:0 0 24px 0;">${(payload as any)?.message || 'You have a new notification from FairPrice.'}</p>
-
-<div style="text-align:center;">
-    <a href="https://fairprice.ng" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Visit FairPrice</a>
-</div>
-            `);
+            // Silenced to reduce operations costs and inbox spam.
+            // Catch-all notifications are now handled purely via in-app alerts.
+            subject = '';
+            html = '';
             break;
     }
 

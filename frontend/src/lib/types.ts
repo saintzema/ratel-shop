@@ -165,6 +165,7 @@ export interface NegotiationRequest {
     product_id: string;
     customer_id: string;
     customer_name: string;
+    seller_id?: string;
     proposed_price: number;
     message?: string;
     status: "pending" | "accepted" | "rejected" | "countered" | "purchased";

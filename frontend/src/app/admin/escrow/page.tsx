@@ -98,8 +98,19 @@ export default function EscrowManagement() {
             setOrders(all);
         };
         load();
+        
+        // Initial sync and periodic heartbeat for Admin freshness
+        DemoStore.syncWithDB();
+        const interval = setInterval(() => DemoStore.syncWithDB(), 10000);
+
         window.addEventListener("storage", load);
-        return () => window.removeEventListener("storage", load);
+        window.addEventListener("demo-store-update", load);
+
+        return () => {
+            window.removeEventListener("storage", load);
+            window.removeEventListener("demo-store-update", load);
+            clearInterval(interval);
+        };
     }, []);
 
     const filteredOrders = filter === "all"
