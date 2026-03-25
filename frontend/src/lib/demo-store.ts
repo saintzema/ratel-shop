@@ -862,6 +862,7 @@ class DemoStoreService {
                     subject: `New Negotiation Offer: ${product.name}`,
                     type: "NEGOTIATION_REQUEST", 
                     payload: {
+                        name: seller?.business_name || seller?.owner_name || "Seller",
                         customerName: request.customer_name,
                         productName: product.name,
                         amount: `₦${request.proposed_price.toLocaleString()}`
@@ -1225,6 +1226,7 @@ class DemoStoreService {
                     subject: `Counter-Offer Received: ${product.name}`,
                     type: "NEGOTIATION_REQUEST",
                     payload: {
+                        name: seller?.business_name || seller?.owner_name || "Seller",
                         customerName: buyerName,
                         productName: product.name,
                         amount: `₦${newPrice.toLocaleString()}`

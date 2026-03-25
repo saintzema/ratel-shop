@@ -52,7 +52,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await getServerSession(authOptions);
+  let session = null;
+  try {
+      session = await getServerSession(authOptions);
+  } catch (error) {
+      console.warn("Failed to get server session (likely DB offline):", error);
+  }
 
   return (
     <html lang="en" className="light" suppressHydrationWarning>
