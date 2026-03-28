@@ -7,6 +7,7 @@ import { useMessages } from "@/context/MessageContext";
 import { useCart } from "@/context/CartContext";
 import { DemoStore, NegotiationRequest } from "@/lib/demo-store";
 import { useRouter } from "next/navigation";
+import { nativeBridge } from "@/lib/native-bridge";
 
 // Base64 short pop/ding sound for immediate feedback without an external asset file
 const NOTIFICATION_SOUND = "data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
@@ -231,6 +232,9 @@ export function DynamicPillNotification() {
             } else {
                 playDingSound();
             }
+            
+            // Trigger Haptic Feedback (equivalent to iOS Notification Haptics)
+            nativeBridge.hapticFeedback("heavy");
 
             // If it's a negotiation, expand it slightly after a short delay
             const isNego = pendingNotification ? !!pendingNotification.negotiation : customNotification ? customNotification.isNegotiation : false;
@@ -323,6 +327,17 @@ export function DynamicPillNotification() {
                             damping: 25, 
                             stiffness: 400, 
                             mass: 0.8 
+                        }}
+                        drag="y"
+                        dragConstraints={{ top: -100, bottom: 0 }}
+                        dragElastic={0.2}
+                        onDragEnd={(e, info) => {
+                            if (info.offset.y < -20) {
+                                // Swiped up (dismiss)
+                                setVisible(false);
+                                dismissNotification();
+                                setCustomNotification(null);
+                            }
                         }}
                         onClick={handlePillClick}
                         className={`pointer-events-auto relative overflow-hidden bg-black/90 text-white shadow-2xl backdrop-blur-3xl cursor-pointer will-change-transform ${

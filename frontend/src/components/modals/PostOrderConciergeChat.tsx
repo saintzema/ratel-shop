@@ -68,24 +68,10 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const orderStatus = order?.status || "processing";
     const carrier = order?.carrier || "FairPrice Logistics";
 
-    // Layout configuration for mobile keyboard
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-    useEffect(() => {
-        if (Capacitor.isNativePlatform()) {
-            Keyboard.addListener('keyboardWillShow', info => {
-                setKeyboardHeight(info.keyboardHeight);
-            });
-            Keyboard.addListener('keyboardWillHide', () => {
-                setKeyboardHeight(0);
-            });
-        }
-        return () => {
-            if (Capacitor.isNativePlatform()) {
-                Keyboard.removeAllListeners();
-            }
-        };
-    }, []);
+    // ─── Hybrid Keyboard Handling ──────────────────────────────
+    // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
+    // to keep the --kb-height CSS variable updated on <html>.
+    // ────────────────────────────────────────────────────────────
 
     // Initialize chat when opened
     useEffect(() => {
@@ -482,11 +468,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     };
 
     const quickActions = mode === "cancel" ? CANCEL_ACTIONS : (mode === "return" ? RETURN_ACTIONS : (mode === "review" ? [] : POST_ORDER_ACTIONS));
-
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center sm:p-6 shadow-2xl transition-all duration-300" style={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight : 0 }}>
+                <div 
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-0 sm:px-4 transition-[bottom] duration-200 cubic-bezier(0.1, 0.7, 0.1, 1)"
+                    style={{ 
+                        bottom: 'var(--kb-height, 0px)',
+                        willChange: 'bottom'
+                    }}
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -500,7 +491,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[80dvh] max-h-full sm:h-[600px] font-sans"
+                        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[80%] max-h-full sm:h-[600px] font-sans"
+                        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                     >
                         {/* Header */}
                         <div className={`px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 relative z-20 ${mode === "return" ? "bg-rose-50/80 backdrop-blur-xl" : "bg-white/80 backdrop-blur-xl"}`}>

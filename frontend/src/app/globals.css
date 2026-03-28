@@ -337,6 +337,11 @@
     animation: bell-swing 2s ease-in-out infinite;
     transform-origin: top center;
   }
+
+  /* Keyboard Awareness Utility */
+  .kb-inset-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-height, 0px));
+  }
 }
 
 html,

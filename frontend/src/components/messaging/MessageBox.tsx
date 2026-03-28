@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, MessageCircle, ChevronLeft, Search,
@@ -25,6 +25,314 @@ interface AppNotification {
     link?: string;
 }
 
+// ─── Utilities ──────────────────────────────────────────
+const formatTime = (ts: string) => {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatDate = (ts: string) => {
+    const d = new Date(ts);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return "Today";
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+};
+
+const formatRelative = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return "Yesterday";
+    if (days < 7) return `${days}d ago`;
+    return formatDate(ts);
+};
+
+const getNotifIcon = (type: string) => {
+    switch (type) {
+        case "order": return <Truck className="h-4 w-4 text-blue-500" />;
+        case "promo": return <Megaphone className="h-4 w-4 text-orange-500" />;
+        case "system": return <Sparkles className="h-4 w-4 text-emerald-500" />;
+        case "negotiation": return <Coins className="h-4 w-4 text-purple-500" />;
+        default: return <Bell className="h-4 w-4 text-gray-500" />;
+    }
+};
+
+const groupMessagesByDate = (messages: ChatMessage[]) => {
+    const groups: { date: string; messages: ChatMessage[] }[] = [];
+    messages.forEach(msg => {
+        const dateStr = formatDate(msg.timestamp);
+        const lastGroup = groups[groups.length - 1];
+        if (lastGroup && lastGroup.date === dateStr) {
+            lastGroup.messages.push(msg);
+        } else {
+            groups.push({ date: dateStr, messages: [msg] });
+        }
+    });
+    return groups;
+};
+
+// ─── Memoized Sub-components ─────────────────────────────
+
+const ChatMessageItem = React.memo(({ 
+    msg, 
+    onReply, 
+    onAcceptCounter, 
+    onRejectCounter,
+    onRenegotiate
+}: { 
+    msg: ChatMessage, 
+    onReply: (sender: string, text: string) => void,
+    onAcceptCounter: (productId: string, price: number) => void,
+    onRejectCounter: (productId: string) => void,
+    onRenegotiate: (productId: string, price: number) => void
+}) => {
+    const isUser = msg.sender === "user";
+    
+    return (
+        <div className={`flex mb-2 ${isUser ? "justify-end" : "justify-start"}`}>
+            {!isUser && (
+                <div className="h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700">
+                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />}
+                </div>
+            )}
+            <div className={`max-w-[85%] relative flex flex-col items-${isUser ? "end" : "start"}`}>
+                {!isUser && (
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 px-1 ml-1">
+                        {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : "Seller"}
+                    </p>
+                )}
+                <div
+                    className={`px-3.5 py-2.5 text-[13px] leading-[1.5] ${isUser
+                        ? "bg-indigo-600 backdrop-blur-md text-white rounded-2xl rounded-br-sm shadow-md border-0"
+                        : "bg-white text-gray-800 backdrop-blur-md rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
+                        }`}
+                    onDoubleClick={() => onReply(msg.sender === 'user' ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', msg.text)}
+                >
+                    {msg.replyTo && (
+                        <div className={`mb-2 p-2 rounded-lg text-[10px] border-l-2 opacity-80 ${isUser ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
+                            <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                            <p className="truncate block max-w-[200px] sm:max-w-xs">{msg.replyTo.text}</p>
+                        </div>
+                    )}
+                    <div className="whitespace-pre-wrap">{msg.text}</div>
+                    <div className="flex items-center gap-1 justify-end mt-1">
+                        <span className={`text-[9px] ${isUser ? "text-white/60" : "text-gray-400"}`}>
+                            {formatTime(msg.timestamp)}
+                        </span>
+                        {isUser && (
+                            <CheckCheck className={`h-3.5 w-3.5 ${msg.readByRecipient ? "text-blue-300" : "text-white/50"}`} />
+                        )}
+                    </div>
+                </div>
+
+                {msg.imageUrl && (
+                    <div className="rounded-xl overflow-hidden mt-1.5 shadow-sm border border-gray-100">
+                        <img src={msg.imageUrl} alt="Attachment" className="w-full max-h-48 object-contain bg-white" />
+                    </div>
+                )}
+                {msg.negotiation && (
+                    <div className={`border rounded-xl p-3.5 mt-2 shadow-lg backdrop-blur-md ${msg.negotiation.type === 'accepted' ? 'bg-gradient-to-br from-emerald-500 to-brand-green-600 text-white border-brand-green-400/50' : 'bg-white/90 text-gray-900 border-white/60'}`}>
+                        <p className={`font-bold mb-1 flex items-center gap-1.5 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-gray-900'}`}>
+                            <Coins className="h-4 w-4" /> {msg.negotiation.type === 'accepted' ? "Offer Accepted!" : msg.negotiation.type === 'rejected' ? "Offer Rejected" : "Counter Offer"}
+                        </p>
+                        <p className={`text-xs mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-600'}`}>{msg.negotiation.productName}: <strong className={`text-base font-black ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
+                        
+                        {msg.negotiation.type === 'countered' && (
+                            <div className="flex flex-col gap-2 mt-2">
+                                <div className="flex gap-2">
+                                    <Button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onAcceptCounter(msg.negotiation!.productId, msg.negotiation!.counterPrice);
+                                        }}
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 rounded-lg font-bold shadow-md transition-all"
+                                    >
+                                        Accept ₦{(msg.negotiation.counterPrice || 0).toLocaleString()}
+                                    </Button>
+                                    <Button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onRejectCounter(msg.negotiation!.productId);
+                                        }}
+                                        variant="outline"
+                                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50 text-xs h-9 rounded-lg font-bold transition-all"
+                                    >
+                                        Reject
+                                    </Button>
+                                </div>
+                                
+                                <div className="relative flex items-center pt-2 pb-1">
+                                    <div className="flex-grow border-t border-gray-200"></div>
+                                    <span className="shrink-0 text-[10px] font-bold text-gray-400 px-2 uppercase tracking-widest">Or Negotiate</span>
+                                    <div className="flex-grow border-t border-gray-200"></div>
+                                </div>
+                                
+                                <form 
+                                    onSubmit={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const form = e.target as HTMLFormElement;
+                                        const input = form.elements.namedItem("renegotiatePrice") as HTMLInputElement;
+                                        if (!input.value) return;
+                                        onRenegotiate(msg.negotiation!.productId, Number(input.value));
+                                        input.value = "";
+                                    }} 
+                                    className="flex gap-2"
+                                >
+                                    <div className="relative flex-1">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₦</span>
+                                        <input 
+                                            name="renegotiatePrice"
+                                            type="number" 
+                                            placeholder="Amount" 
+                                            className="w-full h-9 pl-7 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
+                                        />
+                                    </div>
+                                    <Button type="submit" size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold px-3">
+                                        Send
+                                    </Button>
+                                </form>
+                            </div>
+                        )}
+                        
+                        {msg.negotiation.type === 'accepted' && (
+                            <Button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onAcceptCounter(msg.negotiation!.productId, msg.negotiation!.counterPrice);
+                                }}
+                                className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-8 rounded-lg font-bold shadow-md transition-all"
+                            >
+                                Proceed to Checkout
+                            </Button>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
+
+ChatMessageItem.displayName = "ChatMessageItem";
+
+const ChatMessageList = React.memo(({ 
+    messages, 
+    onReply,
+    onAcceptCounter,
+    onRejectCounter,
+    onRenegotiate
+}: { 
+    messages: ChatMessage[], 
+    onReply: (sender: string, text: string) => void,
+    onAcceptCounter: (productId: string, price: number) => void,
+    onRejectCounter: (productId: string) => void,
+    onRenegotiate: (productId: string, price: number) => void
+}) => {
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const groups = React.useMemo(() => groupMessagesByDate(messages), [messages]);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [messages]);
+
+    return (
+        <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-4 py-4 space-y-2 bg-gray-50/30"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+            {groups.map((group) => (
+                <div key={group.date}>
+                    <div className="flex justify-center my-4">
+                        <span className="bg-white border border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-sm">
+                            {group.date}
+                        </span>
+                    </div>
+                    {group.messages.map((msg) => (
+                        <ChatMessageItem 
+                            key={msg.id} 
+                            msg={msg} 
+                            onReply={onReply}
+                            onAcceptCounter={onAcceptCounter}
+                            onRejectCounter={onRejectCounter}
+                            onRenegotiate={onRenegotiate}
+                        />
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
+});
+
+ChatMessageList.displayName = "ChatMessageList";
+
+const ChatInputBar = React.memo(({ 
+    input, 
+    setInput, 
+    onSend, 
+    replyingTo, 
+    setReplyingTo 
+}: { 
+    input: string, 
+    setInput: (val: string) => void, 
+    onSend: () => void,
+    replyingTo: { sender: string; text: string } | null,
+    setReplyingTo: (val: { sender: string; text: string } | null) => void
+}) => {
+    return (
+        <div className="px-4 py-3 flex flex-col gap-2 bg-white shrink-0 border-t border-gray-100">
+            {replyingTo && (
+                <div className="mx-0 mb-1 mt-1 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between shadow-sm">
+                    <div className="flex flex-col min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 font-bold text-[10px] text-indigo-700 uppercase tracking-wider mb-0.5">
+                            Replying to {replyingTo.sender}
+                        </div>
+                        <p className="text-[11px] text-gray-600 truncate pr-4">{replyingTo.text}</p>
+                    </div>
+                    <button onClick={() => setReplyingTo(null)} className="h-5 w-5 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors">
+                        <X className="h-3 w-3" />
+                    </button>
+                </div>
+            )}
+            <div className="flex gap-2 items-center w-full">
+                <Input
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            onSend();
+                        }
+                    }}
+                    placeholder="Type a message"
+                    className="flex-1 rounded-full h-10 text-sm bg-white border-0 shadow-sm focus-visible:ring-1 focus-visible:ring-emerald-300 px-4"
+                />
+                <Button
+                    size="icon"
+                    onClick={onSend}
+                    disabled={!input.trim()}
+                    className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0"
+                >
+                    <Send className="h-4 w-4" />
+                </Button>
+            </div>
+        </div>
+    );
+});
+
+ChatInputBar.displayName = "ChatInputBar";
+
+import React from "react";
+
 export function MessageBox() {
     const {
         conversations,
@@ -46,7 +354,7 @@ export function MessageBox() {
     const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [keyboardOffset, setKeyboardOffset] = useState(0);
+    // kb-height handled globally by KeyboardAware.tsx via CSS variable --kb-height
     const [activeNegotiation, setActiveNegotiation] = useState<any>(null);
     const [counterPrice, setCounterPrice] = useState("");
     const [counterMessage, setCounterMessage] = useState("");
@@ -244,7 +552,7 @@ export function MessageBox() {
     const unreadNotifCount = sortedNotifications.filter(n => !n.read).length;
     const totalChatUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
-    const handleSend = () => {
+    const handleSend = useCallback(() => {
         if (!input.trim() || !selectedConvId) return;
 
         // Security Filter: Detect and prevent sharing of account numbers and bank details
@@ -271,7 +579,45 @@ export function MessageBox() {
         sendMessage(selectedConvId, { sender: "user", text: input.trim(), replyTo: replyingTo || undefined });
         setInput("");
         setReplyingTo(null);
-    };
+    }, [input, selectedConvId, activeNegotiation, replyingTo, sendMessage]);
+
+    const handleReply = useCallback((sender: string, text: string) => {
+        setReplyingTo({ sender, text });
+    }, []);
+
+    const handleAcceptCounter = useCallback((productId: string, price: number) => {
+        const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
+        const targetNeg = negs.find((n: any) => n.product_id === productId && n.counter_price);
+        if (targetNeg) {
+            DemoStore.updateCounterStatus(targetNeg.id, "accepted");
+        }
+        const product = DemoStore.getProducts().find(p => p.id === productId);
+        if (product) {
+            addToCart({ ...product, price });
+            router.push("/cart");
+            closeMessageBox();
+        }
+    }, [addToCart, router, closeMessageBox]);
+
+    const handleRejectCounter = useCallback((productId: string) => {
+        const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
+        const targetNeg = negs.find((n: any) => n.product_id === productId && n.counter_price);
+        if (targetNeg) {
+            DemoStore.updateCounterStatus(targetNeg.id, "rejected");
+        }
+    }, []);
+
+    const handleRenegotiate = useCallback((productId: string, price: number) => {
+        const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
+        const targetNeg = negs.find((n: any) => n.product_id === productId);
+        if (targetNeg) {
+            DemoStore.sendBuyerCounterOffer(targetNeg.id, price);
+            sendMessage(selectedConvId!, {
+                sender: "user",
+                text: `I'd like to propose ₦${price.toLocaleString()} instead.`
+            });
+        }
+    }, [selectedConvId, sendMessage]);
 
     const handleSelectConversation = (conv: Conversation) => {
         setSelectedConvId(conv.id);
@@ -282,86 +628,21 @@ export function MessageBox() {
         setSelectedConvId(null);
     };
 
-    const formatTime = (ts: string) => {
-        const d = new Date(ts);
-        return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    };
-
-    const formatDate = (ts: string) => {
-        const d = new Date(ts);
-        const today = new Date();
-        if (d.toDateString() === today.toDateString()) return "Today";
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
-        return d.toLocaleDateString([], { month: "short", day: "numeric" });
-    };
-
-    const formatRelative = (ts: string) => {
-        const diff = Date.now() - new Date(ts).getTime();
-        const mins = Math.floor(diff / 60000);
-        if (mins < 1) return "Just now";
-        if (mins < 60) return `${mins}m ago`;
-        const hrs = Math.floor(mins / 60);
-        if (hrs < 24) return `${hrs}h ago`;
-        const days = Math.floor(hrs / 24);
-        if (days === 1) return "Yesterday";
-        if (days < 7) return `${days}d ago`;
-        return formatDate(ts);
-    };
-
-    const getNotifIcon = (type: string) => {
-        switch (type) {
-            case "order": return <Truck className="h-4 w-4 text-blue-500" />;
-            case "promo": return <Megaphone className="h-4 w-4 text-orange-500" />;
-            case "system": return <Sparkles className="h-4 w-4 text-emerald-500" />;
-            case "negotiation": return <Coins className="h-4 w-4 text-purple-500" />;
-            default: return <Bell className="h-4 w-4 text-gray-500" />;
-        }
-    };
-
-    // Group messages by date for chat view
-    const groupMessagesByDate = (messages: ChatMessage[]) => {
-        const groups: { date: string; messages: ChatMessage[] }[] = [];
-        messages.forEach(msg => {
-            const dateStr = formatDate(msg.timestamp);
-            const lastGroup = groups[groups.length - 1];
-            if (lastGroup && lastGroup.date === dateStr) {
-                lastGroup.messages.push(msg);
-            } else {
-                groups.push({ date: dateStr, messages: [msg] });
-            }
-        });
-        return groups;
-    };
-
-    // ─── Mobile keyboard viewport fix ───
-    useEffect(() => {
-        if (typeof window === "undefined" || !window.visualViewport) return;
-        const vv = window.visualViewport;
-        const handler = () => {
-            const offset = window.innerHeight - vv.height;
-            setKeyboardOffset(offset > 60 ? offset : 0);
-            
-            // Auto-scroll to bottom when keyboard opens to keep input in view
-            if (offset > 60 && scrollRef.current) {
-                setTimeout(() => {
-                    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
-                }, 100);
-            }
-        };
-        vv.addEventListener("resize", handler);
-        vv.addEventListener("scroll", handler);
-        return () => {
-            vv.removeEventListener("resize", handler);
-            vv.removeEventListener("scroll", handler);
-        };
-    }, [isMessageBoxOpen]);
+    // ─── Hybrid Keyboard Handling ──────────────────────────────
+    // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
+    // to keep the --kb-height CSS variable updated on <html>.
+    // ────────────────────────────────────────────────────────────
 
     return (
         <AnimatePresence>
             {isMessageBoxOpen && (
-                <div className="fixed inset-0 z-[9998] flex items-end md:items-center justify-center">
+                <div 
+                    className="fixed inset-0 z-[9998] flex items-end md:items-center justify-center transition-[bottom] duration-200 cubic-bezier(0.1, 0.7, 0.1, 1)"
+                    style={{ 
+                        bottom: 'var(--kb-height, 0px)',
+                        willChange: 'bottom'
+                    }}
+                >
                     {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
@@ -372,25 +653,25 @@ export function MessageBox() {
                     />
 
                     {/* Message Box Container */}
-                        <motion.div
+                    <motion.div
                         ref={containerRef}
-                        initial={{ opacity: 0, y: 60, scale: 0.95 }}
+                        initial={{ opacity: 0, y: 30, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 60, scale: 0.95 }}
-                        transition={{ type: "spring", damping: 30, stiffness: 350 }}
+                        exit={{ opacity: 0, y: 30, scale: 0.98 }}
+                        transition={{ type: "spring", damping: 35, stiffness: 550, mass: 0.8 }}
                         className="relative w-full md:w-[440px] md:h-[600px] md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-2xl md:rounded-2xl shadow-2xl border border-white/10 bg-white"
                         style={{
-                            height: keyboardOffset > 0 ? `calc(100svh - ${keyboardOffset}px)` : '70svh',
-                            maxHeight: keyboardOffset > 0 ? `calc(100svh - ${keyboardOffset}px)` : '85vh',
-                            paddingBottom: keyboardOffset > 0 ? 0 : 'env(safe-area-inset-bottom, 0px)',
-                            transition: 'height 0.2s cubic-bezier(0.2, 0, 0, 1)',
+                            height: '75%',
+                            maxHeight: 'calc(100% - 20px)',
+                            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                            transition: 'bottom 0.2s cubic-bezier(0.1, 0.7, 0.1, 1)'
                         }}
                     >
                         {showChat ? (
                             /* ─── CHAT VIEW ────────────────────────── */
                             <>
-                                {/* Chat Header - Collapses when keyboard is active to save space */}
-                                <div className={`px-4 flex items-center gap-3 shrink-0 bg-indigo-900 text-white transition-all duration-300 ${keyboardOffset > 0 ? 'h-12' : 'h-16'}`}>
+                                {/* Chat Header */}
+                                <div className="px-4 flex items-center gap-3 shrink-0 bg-indigo-900 text-white h-16">
                                     <button onClick={handleBack} className="p-1.5 -ml-1 rounded-full hover:bg-white/10 transition-colors">
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
@@ -414,184 +695,14 @@ export function MessageBox() {
                                     </button>
                                 </div>
 
-                                {/* Chat Messages — Apple iOS / Amazon Seller Context Style */}
-                                <div
-                                    ref={scrollRef}
-                                    className="flex-1 overflow-y-auto min-h-0 overscroll-contain px-4 py-4 space-y-2 bg-gray-50/30"
-                                >
-                                    {groupMessagesByDate(selectedConversation.messages).map((group) => (
-                                        <div key={group.date}>
-                                            {/* Date separator */}
-                                            <div className="flex justify-center my-4">
-                                                <span className="bg-white border border-gray-200 text-gray-400 text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full shadow-sm">
-                                                    {group.date}
-                                                </span>
-                                            </div>
-                                            {group.messages.map((msg) => (
-                                                <div
-                                                    key={msg.id}
-                                                    className={`flex mb-2 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
-                                                >
-                                                    {/* Sender avatar for non-user messages */}
-                                                    {msg.sender !== "user" && (
-                                                        <div className="h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700">
-                                                            {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />}
-                                                        </div>
-                                                    )}
-                                                    <div className={`max-w-[85%] relative flex flex-col items-${msg.sender === "user" ? "end" : "start"}`}>
-                                                        {msg.sender !== "user" && (
-                                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 px-1 ml-1">
-                                                                {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : "Seller"}
-                                                            </p>
-                                                        )}
-                                                        <div
-                                                            className={`px-3.5 py-2.5 text-[13px] leading-[1.5] ${msg.sender === "user"
-                                                                ? "bg-indigo-600 backdrop-blur-md text-white rounded-2xl rounded-br-sm shadow-md border-0"
-                                                                : "bg-white text-gray-800 backdrop-blur-md rounded-2xl rounded-bl-sm shadow-sm border border-gray-100"
-                                                                }`}
-                                                            onDoubleClick={() => setReplyingTo({ sender: msg.sender === 'user' ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}
-                                                        >
-                                                            {msg.replyTo && (
-                                                                <div className={`mb-2 p-2 rounded-lg text-[10px] border-l-2 opacity-80 ${msg.sender === "user" ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
-                                                                    <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
-                                                                    <p className="truncate block max-w-[200px] sm:max-w-xs">{msg.replyTo.text}</p>
-                                                                </div>
-                                                            )}
-                                                            <div className="whitespace-pre-wrap">{msg.text}</div>
-                                                            <div className="flex items-center gap-1 justify-end mt-1">
-                                                                <span className={`text-[9px] ${msg.sender === "user" ? "text-white/60" : "text-gray-400"}`}>
-                                                                    {formatTime(msg.timestamp)}
-                                                                </span>
-                                                                {msg.sender === "user" && (
-                                                                    <CheckCheck className={`h-3.5 w-3.5 ${msg.readByRecipient
-                                                                        ? "text-blue-300"
-                                                                        : "text-white/50"
-                                                                        }`} />
-                                                                )}
-                                                            </div>
-                                                        </div>
-
-                                                        {msg.imageUrl && (
-                                                            <div className="rounded-xl overflow-hidden mt-1.5 shadow-sm border border-gray-100">
-                                                                <img src={msg.imageUrl} alt="Attachment" className="w-full max-h-48 object-contain bg-white" />
-                                                            </div>
-                                                        )}
-                                                        {msg.negotiation && (
-                                                            <div className={`border rounded-xl p-3.5 mt-2 shadow-lg backdrop-blur-md ${msg.negotiation.type === 'accepted' ? 'bg-gradient-to-br from-emerald-500 to-brand-green-600 text-white border-brand-green-400/50' : 'bg-white/90 text-gray-900 border-white/60'}`}>
-                                                                <p className={`font-bold mb-1 flex items-center gap-1.5 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-gray-900'}`}>
-                                                                    <Coins className="h-4 w-4" /> {msg.negotiation.type === 'accepted' ? "Offer Accepted!" : msg.negotiation.type === 'rejected' ? "Offer Rejected" : "Counter Offer"}
-                                                                </p>
-                                                                <p className={`text-xs mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-600'}`}>{msg.negotiation.productName}: <strong className={`text-base font-black ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
-                                                                
-                                                                {msg.negotiation.type === 'countered' && (
-                                                                    <div className="flex flex-col gap-2 mt-2">
-                                                                        <div className="flex gap-2">
-                                                                            <Button 
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    // Accept counter-offer via proper counter_status update
-                                                                                    const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
-                                                                                    const targetNeg = negs.find((n: any) => n.product_id === msg.negotiation?.productId && n.counter_price);
-                                                                                    if (targetNeg) {
-                                                                                        DemoStore.updateCounterStatus(targetNeg.id, "accepted");
-                                                                                    }
-                                                                                    const product = DemoStore.getProducts().find(p => p.id === msg.negotiation?.productId);
-                                                                                    if (product && msg.negotiation) {
-                                                                                        addToCart({ ...product, price: msg.negotiation.counterPrice });
-                                                                                        router.push("/cart");
-                                                                                        closeMessageBox();
-                                                                                    }
-                                                                                }}
-                                                                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 rounded-lg font-bold shadow-md transition-all"
-                                                                            >
-                                                                                Accept ₦{(msg.negotiation.counterPrice || 0).toLocaleString()}
-                                                                            </Button>
-                                                                            <Button 
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    // Reject counter-offer via proper counter_status update
-                                                                                    const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
-                                                                                    const targetNeg = negs.find((n: any) => n.product_id === msg.negotiation?.productId && n.counter_price);
-                                                                                    if (targetNeg) {
-                                                                                        DemoStore.updateCounterStatus(targetNeg.id, "rejected");
-                                                                                    }
-                                                                                }}
-                                                                                variant="outline"
-                                                                                className="flex-1 border-red-200 text-red-600 hover:bg-red-50 text-xs h-9 rounded-lg font-bold transition-all"
-                                                                            >
-                                                                                Reject
-                                                                            </Button>
-                                                                        </div>
-                                                                        
-                                                                        <div className="relative flex items-center pt-2 pb-1">
-                                                                            <div className="flex-grow border-t border-gray-200"></div>
-                                                                            <span className="shrink-0 text-[10px] font-bold text-gray-400 px-2 uppercase tracking-widest">Or Negotiate</span>
-                                                                            <div className="flex-grow border-t border-gray-200"></div>
-                                                                        </div>
-                                                                        
-                                                                        <form 
-                                                                            onSubmit={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                const form = e.target as HTMLFormElement;
-                                                                                const input = form.elements.namedItem("renegotiatePrice") as HTMLInputElement;
-                                                                                if (!input.value) return;
-                                                                                const price = Number(input.value);
-                                                                                const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
-                                                                                const targetNeg = negs.find((n: any) => n.product_id === msg.negotiation?.productId);
-                                                                                if (targetNeg) {
-                                                                                    // Update existing negotiation instead of creating a duplicate
-                                                                                    DemoStore.sendBuyerCounterOffer(targetNeg.id, price);
-                                                                                    
-                                                                                    sendMessage(selectedConvId!, {
-                                                                                        sender: "user",
-                                                                                        text: `I'd like to propose ₦${price.toLocaleString()} instead.`
-                                                                                    });
-                                                                                    input.value = "";
-                                                                                }
-                                                                            }} 
-                                                                            className="flex gap-2"
-                                                                        >
-                                                                            <div className="relative flex-1">
-                                                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₦</span>
-                                                                                <input 
-                                                                                    name="renegotiatePrice"
-                                                                                    type="number" 
-                                                                                    placeholder="Amount" 
-                                                                                    className="w-full h-9 pl-7 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
-                                                                                />
-                                                                            </div>
-                                                                            <Button type="submit" size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold px-3">
-                                                                                Send
-                                                                            </Button>
-                                                                        </form>
-                                                                    </div>
-                                                                )}
-                                                                
-                                                                {msg.negotiation.type === 'accepted' && (
-                                                                    <Button 
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            const product = DemoStore.getProducts().find(p => p.id === msg.negotiation?.productId);
-                                                                            if (product && msg.negotiation) {
-                                                                                addToCart({ ...product, price: msg.negotiation.counterPrice });
-                                                                                router.push("/cart");
-                                                                                closeMessageBox();
-                                                                            }
-                                                                        }}
-                                                                        className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-8 rounded-lg font-bold shadow-md transition-all"
-                                                                    >
-                                                                        Proceed to Checkout
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ))}
-                                </div>
+                                {/* Chat Messages — Memoized List */}
+                                <ChatMessageList 
+                                    messages={selectedConversation.messages}
+                                    onReply={handleReply}
+                                    onAcceptCounter={handleAcceptCounter}
+                                    onRejectCounter={handleRejectCounter}
+                                    onRenegotiate={handleRenegotiate}
+                                />
                                 
                                 {activeNegotiation && (
                                     <div className="mx-4 mb-3 bg-gray-50/80 p-4 rounded-2xl border border-gray-100 shadow-inner backdrop-blur-sm animate-in fade-in slide-in-from-bottom-2">
@@ -669,44 +780,14 @@ export function MessageBox() {
                                     </div>
                                 )}
 
-                                {/* Input bar — Apple iOS style */}
-                                <div className="px-4 py-3 flex flex-col gap-2 bg-white shrink-0 border-t border-gray-100">
-                                    {replyingTo && (
-                                        <div className="mx-0 mb-1 mt-1 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-between shadow-sm">
-                                            <div className="flex flex-col min-w-0 flex-1">
-                                                <div className="flex items-center gap-1.5 font-bold text-[10px] text-indigo-700 uppercase tracking-wider mb-0.5">
-                                                    Replying to {replyingTo.sender}
-                                                </div>
-                                                <p className="text-[11px] text-gray-600 truncate pr-4">{replyingTo.text}</p>
-                                            </div>
-                                            <button onClick={() => setReplyingTo(null)} className="h-5 w-5 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors">
-                                                <X className="h-3 w-3" />
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div className="flex gap-2 items-center w-full">
-                                        <Input
-                                            value={input}
-                                        onChange={(e) => setInput(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && !e.shiftKey) {
-                                                e.preventDefault();
-                                                handleSend();
-                                            }
-                                        }}
-                                        placeholder="Type a message"
-                                        className="flex-1 rounded-full h-10 text-sm bg-white border-0 shadow-sm focus-visible:ring-1 focus-visible:ring-emerald-300 px-4"
-                                    />
-                                    <Button
-                                        size="icon"
-                                        onClick={handleSend}
-                                        disabled={!input.trim()}
-                                        className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0"
-                                    >
-                                        <Send className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                                </div>
+                                {/* Memoized Input Bar */}
+                                <ChatInputBar 
+                                    input={input}
+                                    setInput={setInput}
+                                    onSend={handleSend}
+                                    replyingTo={replyingTo}
+                                    setReplyingTo={setReplyingTo}
+                                />
                             </>
                         ) : (
                             /* ─── LIST VIEW (Chats + Notifications tabs) ─── */

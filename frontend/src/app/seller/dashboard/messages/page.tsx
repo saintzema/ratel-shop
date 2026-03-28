@@ -322,9 +322,10 @@ export default function UniversalMessagesPage() {
     const activeNeg = activeConvo?.negotiation;
 
     useEffect(() => {
-        // Pre-fill counter price
         if (activeProduct && activeNeg && !counterPrice && activeNeg.status === "pending" && !activeNeg.counter_status) {
-            setCounterPrice(Math.round(activeProduct.price * 0.9).toString());
+            const buyerOffer = activeNeg.proposed_price || activeProduct.price * 0.8;
+            const suggestedPrice = Math.round(buyerOffer + ((activeProduct.price - buyerOffer) * 0.6));
+            setCounterPrice(suggestedPrice.toString());
         }
     }, [activeProduct, activeNeg, selectedId]);
 
@@ -538,7 +539,7 @@ export default function UniversalMessagesPage() {
     };
 
     return (
-        <div className="h-[calc(100vh-6rem)] -mt-2 -mx-2 md:-mx-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
+        <div className="h-[calc(100dvh-6rem)] -mt-2 -mx-2 md:-mx-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
 
             {/* Sidebar List */}
             <div className={cn(

@@ -318,7 +318,7 @@ export default function CategoriesPage() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-gray-50 pb-16 md:pb-0">
+        <div className="flex flex-col h-[calc(100dvh-64px)] md:h-screen bg-gray-50 pb-16 md:pb-0">
             {/* Top Search Header */}
             <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100 z-10 bg-white shadow-sm">
                 <div className="flex-1 relative">

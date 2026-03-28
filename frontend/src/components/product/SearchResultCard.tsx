@@ -11,6 +11,7 @@ import { useCart } from "@/context/CartContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DemoStore } from "@/lib/demo-store";
+import { nativeBridge } from "@/lib/native-bridge";
 
 // Category icon map for product image fallback
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -65,6 +66,7 @@ export function SearchResultCard({
             if (!isFavorite(product.id)) {
                 toggleFavorite(product.id);
             }
+            nativeBridge.hapticFeedback("heavy");
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 900);
         }
@@ -102,7 +104,15 @@ export function SearchResultCard({
                 )}
                 {/* Heart button */}
                 <button
-                    onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id); }}
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        toggleFavorite(product.id); 
+                        nativeBridge.hapticFeedback("heavy");
+                        if (!isFavorite(product.id)) {
+                            setShowHeartBurst(true);
+                            setTimeout(() => setShowHeartBurst(false), 900);
+                        }
+                    }}
                     className="absolute top-3 right-3 z-20 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 hover:bg-white transition-colors"
                 >
                     <Heart className={`h-4 w-4 transition-colors ${isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}`} />

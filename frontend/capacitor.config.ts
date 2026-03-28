@@ -69,7 +69,7 @@ const config: CapacitorConfig = {
       backgroundColor: "#059669",       // Android status bar color
     },
     Keyboard: {
-      resize: KeyboardResize.Body,      // Resize WebView when keyboard opens
+      resize: KeyboardResize.None,     // Use manual resizing (bottom: var(--kb-height)) for 100% control
       resizeOnFullScreen: true,
     },
     PushNotifications: {

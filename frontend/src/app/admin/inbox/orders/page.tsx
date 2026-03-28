@@ -146,7 +146,7 @@ export default function AdminOrdersTakeoverPage() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-200px)] min-h-[600px]">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100dvh-200px)] min-h-[600px]">
                 {/* Left Column: Orders List */}
                 <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
                     <div className="p-4 border-b border-gray-100 flex gap-2">

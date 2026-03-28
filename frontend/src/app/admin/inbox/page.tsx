@@ -191,7 +191,7 @@ function AdminInboxContent() {
             </div>
 
             {/* Main Chat Layout */}
-            <div className="bg-white rounded-[28px] border border-gray-100 shadow-xl overflow-hidden flex" style={{ height: "calc(100vh - 220px)", minHeight: "500px" }}>
+            <div className="bg-white rounded-[28px] border border-gray-100 shadow-xl overflow-hidden flex" style={{ height: "calc(100dvh - 220px)", minHeight: "500px" }}>
                 <div className={cn(
                     "w-full md:w-[340px] md:min-w-[340px] md:max-w-[340px] border-r border-gray-100 flex flex-col shrink-0",
                     mobileShowChat ? "hidden md:flex" : "flex"

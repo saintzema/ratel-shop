@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
+import { nativeBridge } from "@/lib/native-bridge";
 
 interface ProductCardProps {
     product: Product;
@@ -73,7 +74,8 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
             if (!favorited) {
                 toggleFavorite(product.id);
             }
-            // Show heart burst animation
+            // Show heart burst animation and play haptic
+            nativeBridge.hapticFeedback("heavy");
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 1000);
             lastTapRef.current = 0;
@@ -92,6 +94,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
         }
 
         toggleFavorite(product.id);
+        nativeBridge.hapticFeedback("heavy");
         if (!favorited) {
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 1000);

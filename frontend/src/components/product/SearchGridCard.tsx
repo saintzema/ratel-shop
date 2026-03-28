@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { ShieldCheck, Heart, Star, Check, ShoppingCart } from "lucide-react";
 import NextLink from "next/link";
+import { nativeBridge } from "@/lib/native-bridge";
 import { cn } from "@/lib/utils";
 
 export const SearchGridCard = ({
@@ -15,8 +17,26 @@ export const SearchGridCard = ({
   showGlobalPartner?: boolean;
 }) => {
   const [added, setAdded] = useState(false);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
   const router = useRouter();
   const { addToCart } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
+  const favorited = isFavorite(product.id);
+
+  const lastTapRef = useRef<number>(0);
+  const handleDoubleTap = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastTapRef.current < 400) {
+      if (!favorited) toggleFavorite(product.id);
+      nativeBridge.hapticFeedback("heavy");
+      setShowHeartBurst(true);
+      setTimeout(() => setShowHeartBurst(false), 1000);
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+    }
+  };
 
   const discount =
     product.original_price &&
@@ -75,11 +95,26 @@ export const SearchGridCard = ({
           </div>
         )}
         <button
-          className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-sm shadow-sm border border-gray-100 hover:bg-white hover:scale-110 transition-all text-gray-400 hover:text-red-500"
-          onClick={(e) => e.preventDefault()}
+          className="absolute top-3 right-3 z-20 p-1.5 rounded-full bg-white/80 backdrop-blur-sm shadow-sm border border-gray-100 hover:bg-white hover:scale-110 transition-all cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleFavorite(product.id);
+            nativeBridge.hapticFeedback("heavy");
+            if (!favorited) {
+              setShowHeartBurst(true);
+              setTimeout(() => setShowHeartBurst(false), 1000);
+            }
+          }}
         >
-          <Heart className="h-4 w-4 transition-colors" />
+          <Heart className={cn("h-4 w-4 transition-colors", favorited ? "fill-red-500 text-red-500" : "text-gray-400 hover:text-red-500")} />
         </button>
+        {showHeartBurst && (
+          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+            <Heart className="h-20 w-20 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
+          </div>
+        )}
+        <div className="absolute inset-0 z-10" onClick={handleDoubleTap}></div>
         <img
           src={(() => {
             const isValid = (url: string | undefined | null) =>

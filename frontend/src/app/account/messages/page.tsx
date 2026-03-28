@@ -112,7 +112,7 @@ export default function MessagesPage() {
                     </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex" style={{ height: "calc(100vh - 260px)", minHeight: "420px" }}>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex" style={{ height: "calc(100dvh - 260px)", minHeight: "420px" }}>
                     {/* Left: Lists */}
                     <div className={cn(
                         "w-full md:w-[320px] md:min-w-[320px] border-r border-gray-100 flex flex-col",

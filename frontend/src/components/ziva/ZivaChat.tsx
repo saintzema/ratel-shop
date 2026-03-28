@@ -173,7 +173,7 @@ export function ZivaChat() {
     // Detect current product page for context-aware suggestions
     const pathname = usePathname();
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
-    const [keyboardHeight, setKeyboardHeight] = useState(0);
+    // kb-height handled globally by KeyboardAware.tsx via CSS variable --kb-height
     const [isWiggling, setIsWiggling] = useState(false);
 
     useEffect(() => {
@@ -202,34 +202,10 @@ export function ZivaChat() {
         return () => clearTimeout(timer);
     }, []);
 
-    useEffect(() => {
-        if (Capacitor.isNativePlatform()) {
-            Keyboard.addListener('keyboardWillShow', info => {
-                setKeyboardHeight(info.keyboardHeight);
-            });
-            Keyboard.addListener('keyboardWillHide', () => {
-                setKeyboardHeight(0);
-            });
-        } else if (typeof window !== 'undefined' && window.visualViewport) {
-            // Web fallback: detect soft keyboard via visualViewport resize
-            const vv = window.visualViewport;
-            const handler = () => {
-                const offset = window.innerHeight - vv!.height;
-                setKeyboardHeight(offset > 50 ? offset : 0);
-            };
-            vv.addEventListener("resize", handler);
-            vv.addEventListener("scroll", handler);
-            return () => {
-                vv.removeEventListener("resize", handler);
-                vv.removeEventListener("scroll", handler);
-            };
-        }
-        return () => {
-            if (Capacitor.isNativePlatform()) {
-                Keyboard.removeAllListeners();
-            }
-        };
-    }, []);
+    // ─── Hybrid Keyboard Handling ──────────────────────────────
+    // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
+    // to keep the --kb-height CSS variable updated on <html>.
+    // ────────────────────────────────────────────────────────────
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -1149,7 +1125,7 @@ export function ZivaChat() {
 
         return (
             <div className="overflow-x-auto my-2">
-                <table className="w-full text-[11px] border-collapse">
+                        <table className="w-full text-[11px] border-collapse">
                     <thead>
                         <tr>
                             {headers.map((h, i) => (
@@ -1181,21 +1157,15 @@ export function ZivaChat() {
     const mobileBottom = pathname === "/checkout" ? 280 : 120;
 
     // When keyboard is open, place container exactly 8px above it
-    const containerBottom = keyboardHeight > 0
-        ? keyboardHeight + 8
-        : (isDesktop ? desktopBottom : mobileBottom);
+    const containerBottom = `calc(var(--kb-height, 0px) + ${(isDesktop ? desktopBottom : mobileBottom)}px)`;
 
-    // Calculate maximum available height based on the bottom offset so it NEVER goes off screen
-    // Top padding of 20px + container offset + Space for FAB if closed (80px)
-    const availableHeightStr = keyboardHeight > 0
-        ? `calc(100svh - ${containerBottom + 20}px)`
-        : `calc(100svh - ${containerBottom + 100}px)`;
+    const availableHeightStr = `calc(100% - var(--kb-height, 0px) - ${(isDesktop ? desktopBottom + 100 : mobileBottom + 100)}px)`;
 
     return (
         <div
             className="fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300 ease-out"
             style={{
-                bottom: `${containerBottom}px`
+                bottom: containerBottom
             }}
         >
             {/* Click-outside overlay to close chat */}
@@ -1218,19 +1188,19 @@ export function ZivaChat() {
                             background: "rgba(15, 15, 20, 0.95)",
                             backdropFilter: "blur(40px) saturate(180%)",
                             height: availableHeightStr,
-                            maxHeight: keyboardHeight > 0 ? 'none' : '600px'
+                            maxHeight: 'none'
                         }}
                     >
                         {/* Header */}
                         <div className={cn(
                             "relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0 transition-all duration-300",
-                            keyboardHeight > 0 ? "h-16" : "h-28"
+                            "h-28"
                         )}>
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.2),transparent_70%)]" />
                             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-25" />
 
                             <motion.div
-                                className={cn("relative shrink-0 transition-all duration-300", keyboardHeight > 0 ? "w-10 h-10" : "w-16 h-16")}
+                                className={cn("relative shrink-0 transition-all duration-300", "w-16 h-16")}
                                 animate={{ y: [0, -2, 0] }}
                                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                             >
@@ -1243,8 +1213,8 @@ export function ZivaChat() {
                             </motion.div>
 
                             <div className="ml-4 flex-1 relative z-10 overflow-hidden">
-                                <h2 className={cn("text-white font-black tracking-tight transition-all", keyboardHeight > 0 ? "text-base" : "text-lg")}>Ziva AI</h2>
-                                {keyboardHeight === 0 && (
+                                <h2 className={cn("text-white font-black tracking-tight transition-all", "text-lg")}>Ziva AI</h2>
+                                {true && (
                                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                         <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
                                         <div className="flex items-center gap-1.5 mt-1">
