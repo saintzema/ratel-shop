@@ -102,10 +102,71 @@ export default function SellerLayout({
                         loadData();
                         return;
                     }
-                } catch(e) {}
-                // Logged in but no store -> Onboarding
-                router.push("/seller/onboarding");
-                return;
+
+                    // Store not found locally. It might be in the database but not synced yet.
+                    // Let's do a direct check before redirecting.
+                    fetch('/api/sellers?all=true')
+                        .then(async (res) => {
+                            // Check if DB is offline (Network/Access error)
+                            if (res.headers.get("X-DB-Status") === "offline") {
+                                console.warn("Database is offline. Using local layout fallback.");
+                                // DB offline and no local store found. We shouldn't force redirect 
+                                // to onboarding because they might be a seller whose sync failed.
+                                // Just load local data and let the dashboard handle states.
+                                loadData();
+                                return null; // Signal skip
+                            }
+                            return res.json();
+                        })
+                        .then(dbSellers => {
+                            if (dbSellers === null) return; // Skipped due to offline
+                            
+                            if (Array.isArray(dbSellers)) {
+                                const dbStore = dbSellers.find(s => 
+                                    s.user_id === user.id || 
+                                    s.owner_email === user.email || 
+                                    s.userId === user.id || 
+                                    s.ownerEmail === user.email
+                                );
+                                if (dbStore) {
+                                    // Found it in the backend!
+                                    // Make sure it's seeded locally so DemoStore functions work
+                                    const allSellers = DemoStore.getSellers();
+                                    if (!allSellers.find(s => s.id === dbStore.id)) {
+                                        DemoStore.addSeller(dbStore);
+                                    }
+                                    DemoStore.loginSeller(dbStore.id);
+                                    loadData();
+                                } else {
+                                    // NO store found in DB either.
+                                    // CRITICAL FIX: If user already has 'seller' role, DO NOT force onboarding.
+                                    // They might have just registered or be in a sync delay.
+                                    if (user.role === "seller") {
+                                        console.warn("Seller role detected but no store found. Staying on dashboard.");
+                                        loadData();
+                                    } else {
+                                        router.push("/seller/onboarding");
+                                    }
+                                }
+                            } else {
+                                // Not an array or empty result
+                                if (user.role === "seller") {
+                                    loadData();
+                                } else {
+                                    router.push("/seller/onboarding");
+                                }
+                            }
+                        })
+                        .catch(() => {
+                            // Fetch failed completely (e.g. network failure). Don't redirect to onboarding.
+                            console.warn("Network fetch failed. Falling back to local data.");
+                            loadData();
+                        });
+                    return;
+
+                } catch(e) {
+                    console.error("Failed to parse user for auto-login", e);
+                }
             }
             // Not logged in at all -> Send to main login
             router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);

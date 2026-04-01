@@ -2,87 +2,15 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, ShoppingCart, MessageSquare, Tag, Image as ImageIcon } from "lucide-react";
+import { MessageCircle, ShoppingCart, MessageSquare, Tag, Image as ImageIcon, ChevronRight, X } from "lucide-react";
 import { useMessages } from "@/context/MessageContext";
 import { useCart } from "@/context/CartContext";
 import { DemoStore, NegotiationRequest } from "@/lib/demo-store";
 import { useRouter } from "next/navigation";
-import { nativeBridge } from "@/lib/native-bridge";
-
-// Base64 short pop/ding sound for immediate feedback without an external asset file
-const NOTIFICATION_SOUND = "data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+import { playDingSound } from "@/lib/audio";
 
 // Premium Apple-like glass chime notification sound — calming, rich, ~2.5s
-const playDingSound = () => {
-    if (typeof window === 'undefined') return;
-    try {
-        const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-        if (!AudioContextClass) return;
-        
-        const audioCtx = new AudioContextClass();
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        
-        const now = audioCtx.currentTime;
-        
-        // Premium glass chime: C6 base with warm harmonics, higher gain, longer sustain
-        // Each layer has progressively lower volume and longer decay for a reverb-like tail
-        const layers = [
-            { freq: 1047,    gain: 0.22, decay: 2.2 },  // C6 — warm fundamental
-            { freq: 1319,    gain: 0.16, decay: 1.8 },  // E6 — major third brightness
-            { freq: 1568,    gain: 0.12, decay: 1.5 },  // G6 — perfect fifth fullness
-            { freq: 2093,    gain: 0.07, decay: 1.2 },  // C7 — octave shimmer
-            { freq: 2637,    gain: 0.04, decay: 0.9 },  // E7 — sparkle top
-        ];
-        
-        layers.forEach(({ freq, gain: peakGain, decay }) => {
-            const osc = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(freq, now);
-            // Gentle pitch drift for organic feel
-            osc.frequency.exponentialRampToValueAtTime(freq * 0.995, now + decay);
-
-            gainNode.gain.setValueAtTime(0, now);
-            // Quick but smooth attack (20ms)
-            gainNode.gain.linearRampToValueAtTime(peakGain, now + 0.02);
-            // Brief sustain plateau
-            gainNode.gain.setValueAtTime(peakGain * 0.85, now + 0.15);
-            // Long calming exponential decay
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-
-            osc.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-
-            osc.start(now);
-            osc.stop(now + decay + 0.1);
-        });
-
-        // Second strike echo — subtle repeat at 180ms for depth
-        setTimeout(() => {
-            try {
-                const echoNow = audioCtx.currentTime;
-                [1047, 1568].forEach(freq => {
-                    const osc = audioCtx.createOscillator();
-                    const g = audioCtx.createGain();
-                    osc.type = "sine";
-                    osc.frequency.setValueAtTime(freq, echoNow);
-                    g.gain.setValueAtTime(0, echoNow);
-                    g.gain.linearRampToValueAtTime(0.06, echoNow + 0.01);
-                    g.gain.exponentialRampToValueAtTime(0.0001, echoNow + 1.2);
-                    osc.connect(g);
-                    g.connect(audioCtx.destination);
-                    osc.start(echoNow);
-                    osc.stop(echoNow + 1.3);
-                });
-            } catch { /* ignore */ }
-        }, 180);
-    } catch (e) {
-        console.log("Audio play blocked:", e);
-    }
-};
+// Migrated to src/lib/audio.ts for global use
 
 export function DynamicPillNotification() {
     const { pendingNotification, pendingConversationId, dismissNotification, openMessageBox } = useMessages();
@@ -90,12 +18,12 @@ export function DynamicPillNotification() {
     const router = useRouter();
     const [visible, setVisible] = useState(false);
     const [expanded, setExpanded] = useState(false);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-
+    
     const [customNotification, setCustomNotification] = useState<{
         text: string;
         isNegotiation: boolean;
         hasImage: boolean;
+        imageUrl?: string;
         negotiation?: { productId: string; counterPrice: number; productName: string };
         route: string;
     } | null>(null);
@@ -106,12 +34,10 @@ export function DynamicPillNotification() {
             const sellerId = DemoStore.getCurrentSellerId();
             const currentUser = DemoStore.getCurrentUser();
             
-            // ─── Seller-side: new incoming negotiation offers ───
             if (sellerId) {
                 const negs = DemoStore.getNegotiations(sellerId);
                 const recentNeg = negs.find((n: NegotiationRequest) => {
                     const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
-                    // FILTER: Only show if I am the seller for this specific product
                     return ageMs < 3000 && n.status !== "accepted" && n.status !== "rejected" && n.seller_id === sellerId;
                 });
 
@@ -120,20 +46,19 @@ export function DynamicPillNotification() {
                     setCustomNotification({
                         text: `New negotiation offer for ${product?.name || 'Product'} at ₦${recentNeg.proposed_price.toLocaleString()}`,
                         isNegotiation: false,
-                        hasImage: false,
+                        hasImage: !!product?.imageUrl,
+                        imageUrl: product?.imageUrl,
                         route: "/seller/dashboard/messages?customer=" + (recentNeg.customer_id || "") + "&order=" + recentNeg.id
                     });
                     return;
                 }
             }
 
-            // ─── Buyer-side: seller accepted, rejected, or countered ───
             if (currentUser) {
                 const buyerNegs = DemoStore.getNegotiations(undefined, currentUser.id);
                 const recentBuyerNeg = buyerNegs.find((n: NegotiationRequest) => {
                     const ageMs = Date.now() - new Date((n as any).updated_at || n.created_at).getTime();
                     if (ageMs > 5000) return false;
-                    // FILTER: Only show if I am the customer/buyer for this specific negotiation
                     return (n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending") && n.customer_id === currentUser.id;
                 });
 
@@ -152,18 +77,17 @@ export function DynamicPillNotification() {
             const currentUser = DemoStore.getCurrentUser();
             const currentSellerId = DemoStore.getCurrentSellerId();
 
-            // FILTER: If I'm the buyer and this is my negotiation
             if (currentUser && neg.customer_id === currentUser.id) {
                 const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 triggerBuyerNotification(neg, product);
             }
-            // FILTER: If I'm the seller and this is a new offer from a customer
             else if (currentSellerId && neg.seller_id === currentSellerId && neg.status === 'pending' && !neg.counter_status) {
                 const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 setCustomNotification({
                     text: `New negotiation offer for ${product?.name || 'Product'} at ₦${neg.proposed_price.toLocaleString()}`,
                     isNegotiation: false,
-                    hasImage: false,
+                    hasImage: !!product?.imageUrl,
+                    imageUrl: product?.imageUrl,
                     route: "/seller/dashboard/messages?customer=" + (neg.customer_id || "") + "&order=" + neg.id
                 });
             }
@@ -176,19 +100,13 @@ export function DynamicPillNotification() {
                 setCustomNotification({
                     text: `Counter offer of ₦${neg.counter_price.toLocaleString()} for ${product?.name || 'Product'}`,
                     isNegotiation: true,
-                    hasImage: false,
+                    hasImage: !!product?.imageUrl,
+                    imageUrl: product?.imageUrl,
                     negotiation: {
                         productId: neg.product_id,
                         counterPrice: neg.counter_price,
                         productName: product?.name || "Product"
                     },
-                    route: "/account/negotiations"
-                });
-            } else if (neg.counter_status === "rejected") {
-                setCustomNotification({
-                    text: `You declined the counter-offer for "${product?.name || 'Product'}".`,
-                    isNegotiation: false,
-                    hasImage: false,
                     route: "/account/negotiations"
                 });
             } else {
@@ -197,7 +115,8 @@ export function DynamicPillNotification() {
                         ? `🎉 Your offer for "${product?.name || 'Product'}" was ACCEPTED!`
                         : `Your offer for "${product?.name || 'Product'}" was declined.`,
                     isNegotiation: false,
-                    hasImage: false,
+                    hasImage: !!product?.imageUrl,
+                    imageUrl: product?.imageUrl,
                     route: "/account/negotiations"
                 });
             }
@@ -215,33 +134,15 @@ export function DynamicPillNotification() {
     }, []);
 
     useEffect(() => {
-        if (typeof window !== "undefined" && !audioRef.current) {
-            audioRef.current = new Audio(NOTIFICATION_SOUND);
-        }
-
-        // Trigger on EITHER pendingNotification or customNotification
         const activeNotif = pendingNotification || customNotification;
         if (activeNotif) {
             setVisible(true);
-            
-            // Try playing sound
-            if (audioRef.current) {
-                audioRef.current.play().catch(() => {
-                    playDingSound();
-                });
-            } else {
-                playDingSound();
-            }
-            
-            // Trigger Haptic Feedback (equivalent to iOS Notification Haptics)
+            playDingSound();
             nativeBridge.hapticFeedback("heavy");
 
-            // If it's a negotiation, expand it slightly after a short delay
             const isNego = pendingNotification ? !!pendingNotification.negotiation : customNotification ? customNotification.isNegotiation : false;
-            if (isNego) {
+            if (isNego || (customNotification?.hasImage)) {
                 setTimeout(() => setExpanded(true), 400);
-            } else {
-                setExpanded(false);
             }
 
             const timer = setTimeout(() => {
@@ -262,12 +163,12 @@ export function DynamicPillNotification() {
     if (!pendingNotification && !customNotification) return null;
 
     const isNegotiation = pendingNotification ? !!pendingNotification.negotiation : customNotification?.isNegotiation || false;
-    const hasImage = pendingNotification ? !!pendingNotification.imageUrl : customNotification?.hasImage || false;
+    const imageUrl = pendingNotification?.imageUrl || customNotification?.imageUrl;
     const currentNegotiation = pendingNotification?.negotiation || customNotification?.negotiation;
 
     const handleAcceptOffer = (e: React.MouseEvent) => {
         e.stopPropagation();
-        const neg = pendingNotification?.negotiation || customNotification?.negotiation;
+        const neg = currentNegotiation;
         if (neg) {
             const product = DemoStore.getProducts().find(p => p.id === neg.productId);
             if (product) {
@@ -281,11 +182,10 @@ export function DynamicPillNotification() {
 
     const handleRenegotiate = (e: React.MouseEvent) => {
         e.stopPropagation();
-        const neg = pendingNotification?.negotiation || customNotification?.negotiation;
+        const neg = currentNegotiation;
         if (pendingConversationId) {
             openMessageBox(pendingConversationId);
         } else if (neg?.productId) {
-            // Force open the chat using the derived orderId
             openMessageBox(`neg_${neg.productId}`);
         }
         setVisible(false);
@@ -293,17 +193,15 @@ export function DynamicPillNotification() {
     };
 
     const handlePillClick = () => {
-        if (isNegotiation && !expanded) {
+        if (!expanded) {
             setExpanded(true);
             return;
         }
 
-        if (!isNegotiation) {
-            if (customNotification?.route) {
-                router.push(customNotification.route);
-            } else if (pendingConversationId) {
-                openMessageBox(pendingConversationId);
-            }
+        if (customNotification?.route) {
+            router.push(customNotification.route);
+        } else if (pendingConversationId) {
+            openMessageBox(pendingConversationId);
         }
         
         setVisible(false);
@@ -312,104 +210,105 @@ export function DynamicPillNotification() {
     };
 
     const displayText = pendingNotification ? pendingNotification.text : customNotification?.text || "New Notification";
+    const displayTitle = isNegotiation ? "Price Update" : "FairPrice.ng";
 
     return (
         <AnimatePresence>
             {visible && (
-                <div className="fixed top-2 md:top-4 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4">
+                <div className="fixed top-12 md:top-4 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pt-[env(safe-area-inset-top,0px)]">
                     <motion.div
                         layout
                         initial={{ opacity: 0, y: -50, scale: 0.8, filter: "blur(10px)" }}
                         animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
                         exit={{ opacity: 0, y: -50, scale: 0.8, filter: "blur(10px)" }}
-                        transition={{ 
-                            type: "spring", 
-                            damping: 25, 
-                            stiffness: 400, 
-                            mass: 0.8 
-                        }}
+                        transition={{ type: "spring", damping: 25, stiffness: 400, mass: 0.8 }}
                         drag="y"
                         dragConstraints={{ top: -100, bottom: 0 }}
                         dragElastic={0.2}
                         onDragEnd={(e, info) => {
-                            if (info.offset.y < -20) {
-                                // Swiped up (dismiss)
+                            if (info.offset.y < -30) {
                                 setVisible(false);
                                 dismissNotification();
                                 setCustomNotification(null);
                             }
                         }}
                         onClick={handlePillClick}
-                        className={`pointer-events-auto relative overflow-hidden bg-black/90 text-white shadow-2xl backdrop-blur-3xl cursor-pointer will-change-transform ${
-                            expanded && isNegotiation 
-                                ? "rounded-[32px] w-full max-w-[360px] p-4" 
-                                : "rounded-full p-2.5 w-auto pr-5"
+                        className={`pointer-events-auto relative overflow-hidden transition-all duration-[450px] ease-[cubic-bezier(0.23,1,0.32,1)] ${
+                            expanded 
+                                ? "bg-[#0c0c0c]/98 backdrop-blur-3xl rounded-[32px] w-full max-w-[400px] p-5 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] border border-white/10 text-white" 
+                                : "bg-black/95 backdrop-blur-2xl rounded-full p-2 w-auto pr-6 shadow-2xl text-white"
                         }`}
-                        style={{
-                            boxShadow: "0 20px 40px -10px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.2)",
-                        }}
                     >
                         {/* Compact/Collapsed View */}
-                        <motion.div 
-                            layout="position"
-                            className={`flex items-center gap-3 ${expanded && isNegotiation ? "mb-3" : ""}`}
-                        >
-                            {/* Icon / Avatar */}
-                            <motion.div layout="position" className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(52,211,153,0.4)]">
-                                {isNegotiation ? (
-                                    <Tag className="h-4 w-4 text-white" />
-                                ) : hasImage ? (
-                                    <ImageIcon className="h-4 w-4 text-white" />
-                                ) : (
-                                    <MessageCircle className="h-4 w-4 text-white fill-white/20" />
-                                )}
-                            </motion.div>
+                        <motion.div layout="position" className="flex items-center gap-3">
+                            {/* Product Image on Left (Alibaba style) */}
+                            {imageUrl ? (
+                                <motion.div 
+                                    layout="position" 
+                                    className={`relative shrink-0 overflow-hidden bg-gray-100 ${
+                                        expanded ? "w-16 h-16 rounded-xl" : "w-8 h-8 rounded-full"
+                                    }`}
+                                >
+                                    <img src={imageUrl} alt="Notification" className="w-full h-full object-cover" />
+                                </motion.div>
+                            ) : (
+                                <motion.div 
+                                    layout="position" 
+                                    className={`shrink-0 flex items-center justify-center bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)] ${
+                                        expanded ? "w-16 h-16 rounded-xl" : "w-8 h-8 rounded-full"
+                                    }`}
+                                >
+                                    <Tag className={`text-white ${expanded ? "h-6 w-6" : "h-4 w-4"}`} />
+                                </motion.div>
+                            )}
 
                             {/* Text Content */}
-                            <motion.div layout="position" className="flex flex-col min-w-0 pr-2">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider leading-none">
-                                        {isNegotiation ? "Counter Offer" : hasImage ? "Attachment" : "New Message"}
+                            <motion.div layout="position" className="flex flex-col min-w-0 flex-1">
+                                <div className="flex items-center justify-between">
+                                    <span className={`font-bold ${expanded ? "text-base text-white" : "text-xs text-emerald-400 uppercase tracking-wide"}`}>
+                                        {expanded ? displayTitle : displayTitle}
                                     </span>
+                                    {expanded && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setVisible(false); }}
+                                            className="p-1 -mr-1 text-gray-500 hover:text-white transition-colors"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    )}
                                 </div>
-                                <span className="text-sm font-medium text-white line-clamp-1 leading-tight mt-0.5">
+                                <span className={`font-medium leading-tight ${expanded ? "text-gray-400 text-sm mt-1" : "text-white text-sm line-clamp-1"}`}>
                                     {displayText}
                                 </span>
                             </motion.div>
+                            
+                            {!expanded && <ChevronRight className="h-4 w-4 text-white/30" />}
                         </motion.div>
 
-                        {/* Expanded Negotiaton View */}
-                        {expanded && isNegotiation && currentNegotiation && (
+                        {/* Expanded View Buttons (Alibaba-style) */}
+                        {expanded && (
                             <motion.div 
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: "auto" }}
-                                exit={{ opacity: 0, height: 0 }}
-                                transition={{ duration: 0.3, ease: "easeOut" }}
-                                className="overflow-hidden"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="mt-5 flex flex-col gap-2"
                             >
-                                <div className="bg-white/10 rounded-2xl p-3 mb-3 border border-white/5">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs text-white/70 font-medium truncate pr-3">{currentNegotiation.productName}</span>
-                                        <span className="text-sm font-black text-emerald-300">₦{currentNegotiation.counterPrice.toLocaleString()}</span>
-                                    </div>
-                                </div>
-
-                                <div className="flex gap-2 w-full mt-2">
-                                    <button
-                                        onClick={handleAcceptOffer}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-colors shadow-[0_0_20px_rgba(16,185,129,0.3)]"
-                                    >
-                                        <ShoppingCart className="h-3.5 w-3.5" />
-                                        Accept & Buy
-                                    </button>
+                                <button
+                                    onClick={isNegotiation ? handleAcceptOffer : handlePillClick}
+                                    className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white text-sm font-bold transition-all active:scale-[0.98] border border-white/5 flex items-center justify-center gap-2"
+                                >
+                                    {isNegotiation ? <ShoppingCart className="h-4 w-4" /> : null}
+                                    {isNegotiation ? "Seal the Deal" : "View Now"}
+                                </button>
+                                
+                                {isNegotiation && (
                                     <button
                                         onClick={handleRenegotiate}
-                                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors"
+                                        className="w-full py-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-black transition-all active:scale-[0.98] shadow-[0_8px_20px_-4px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2"
                                     >
-                                        <MessageSquare className="h-3.5 w-3.5" />
-                                        Counter Offer
+                                        <MessageSquare className="h-4 w-4" />
+                                        Negotiate Further
                                     </button>
-                                </div>
+                                )}
                             </motion.div>
                         )}
                     </motion.div>

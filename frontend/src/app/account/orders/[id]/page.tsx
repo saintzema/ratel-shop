@@ -493,8 +493,8 @@ export default function OrderDetailsPage() {
 
             {/* Dispute Modal */}
             <Dialog open={showDisputeModal} onOpenChange={setShowDisputeModal}>
-                <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-gray-100">
-                    <div className="p-6">
+                <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-gray-100 max-h-[90dvh]">
+                    <div className="p-6 overflow-y-auto max-h-[85dvh] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
                         <DialogHeader className="mb-4">
                             <DialogTitle className="text-lg font-black text-gray-900 flex items-center gap-2">
                                 <AlertTriangle className="h-5 w-5 text-rose-600" /> Report a Problem
@@ -535,6 +535,7 @@ export default function OrderDetailsPage() {
                                 <textarea
                                     value={disputeDesc}
                                     onChange={(e) => setDisputeDesc(e.target.value)}
+                                    onFocus={(e) => { setTimeout(() => e.target.scrollIntoView({ behavior: "smooth", block: "center" }), 300); }}
                                     className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
                                     placeholder="Provide details about what happened..."
                                 />

@@ -2,19 +2,6 @@
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
 export type { NegotiationRequest };
-// Lazy-import DEMO data as fallback when DB is offline
-let _demoFallbackLoaded = false;
-let _DEMO_PRODUCTS: any[] = [];
-let _DEMO_SELLERS: any[] = [];
-async function loadDemoFallbacks() {
-    if (_demoFallbackLoaded) return;
-    try {
-        const m = await import("@/lib/data");
-        _DEMO_PRODUCTS = m.DEMO_PRODUCTS || [];
-        _DEMO_SELLERS = m.DEMO_SELLERS || [];
-        _demoFallbackLoaded = true;
-    } catch { /* ignore */ }
-}
 import { resilientFetch } from "./offline-queue";
 
 export interface Category {
@@ -71,7 +58,11 @@ class DemoStoreService {
     // Track seller IDs with local edits (KYC approve/reject) not yet confirmed by DB
     private _pendingSellerEdits: Set<string> = new Set();
     private readonly _PENDING_SELLER_KEY = "fp_pending_seller_edits";
+    // Track negotiation IDs with local edits not confirmed by DB
+    private _pendingNegotiationEdits: Set<string> = new Set();
+    private readonly _PENDING_NEGOTIATION_KEY = "fp_pending_negotiations";
     private _isRegisteringSeller = false;
+    private _autoReleaseActive = false;
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -99,7 +90,50 @@ class DemoStoreService {
         PROMOTIONS: "fairprice_demo_promotions",
         AD_CREDITS: "fairprice_demo_ad_credits",
         DELETED_STUBS: "fp_deleted_stubs",
+        PENDING_NEGOTIATIONS: "fp_pending_negotiations",
     };
+
+    private selfHeal() {
+        if (typeof window === "undefined") return;
+        try {
+            const DEMO_PATTERNS = ["FP-DEMO-ORD", "complaint_FP-DEMO-ORD", "dispute_FP-DEMO-ORD", "TEST-", "mock_"];
+            const keysToClean = Object.values(this.STORAGE_KEYS);
+            
+            let healed = false;
+            keysToClean.forEach(key => {
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    try {
+                        const data = JSON.parse(stored);
+                        if (Array.isArray(data)) {
+                            const filtered = data.filter(item => {
+                                const itemStr = JSON.stringify(item).toLowerCase();
+                                return !DEMO_PATTERNS.some(p => 
+                                    itemStr.includes(p.toLowerCase()) || 
+                                    (item.id && String(item.id).startsWith(p)) ||
+                                    (item.order_id && String(item.order_id).startsWith(p))
+                                );
+                            });
+                            if (filtered.length !== data.length) {
+                                localStorage.setItem(key, JSON.stringify(filtered));
+                                healed = true;
+                            }
+                        }
+                    } catch (e) {
+                         localStorage.removeItem(key);
+                         healed = true;
+                    }
+                }
+            });
+
+            if (healed) {
+                console.log("🛠️ DemoStore self-heal: Purged all legacy demo entries.");
+                window.dispatchEvent(new Event("demo-store-update"));
+            }
+        } catch (e) {
+            console.error("Self-heal failed:", e);
+        }
+    }
 
     private get PROMO_KEY() {
         return this.STORAGE_KEYS.PROMOTIONS;
@@ -114,6 +148,8 @@ class DemoStoreService {
                 if (saved) this._pendingEdits = new Set(JSON.parse(saved));
                 const savedSellers = localStorage.getItem(this._PENDING_SELLER_KEY);
                 if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
+                const savedNegs = localStorage.getItem(this._PENDING_NEGOTIATION_KEY);
+                if (savedNegs) this._pendingNegotiationEdits = new Set(JSON.parse(savedNegs));
             } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
@@ -167,8 +203,8 @@ class DemoStoreService {
     private init() {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
-        // v10: LIVE-DB-ONLY — all mock/demo data removed, everything from Neon Postgres
-        const DATA_VERSION = "11";
+        // v17: Reset all stats, purge orphaned products/sellers/orders
+        const DATA_VERSION = "17";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -176,6 +212,8 @@ class DemoStoreService {
             Object.values(this.STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
             localStorage.setItem("fairprice_data_version", DATA_VERSION);
         }
+
+        this.selfHeal();
 
         if (!localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS)) {
             localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, "[]");
@@ -202,12 +240,7 @@ class DemoStoreService {
             localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
-            // Lazy load DEMO_DEALS to avoid circular dependencies during initialization
-            import("@/lib/data").then(m => {
-                if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
-                    localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(m.DEMO_DEALS || []));
-                }
-            }).catch(console.error);
+            localStorage.setItem(this.STORAGE_KEYS.DEALS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PROMOTIONS)) {
             localStorage.setItem(this.STORAGE_KEYS.PROMOTIONS, "[]");
@@ -215,6 +248,9 @@ class DemoStoreService {
         if (!localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS)) {
             localStorage.setItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
         }
+        
+        // Start auto-release worker
+        this.runAutoReleaseWorker();
     }
 
     private startRealtimeSync() {
@@ -266,20 +302,32 @@ class DemoStoreService {
             const fetchNegotiations = !collection || collection === "negotiations";
             const fetchNotifications = !collection || collection === "notifications";
             const fetchConversations = !collection || collection === "conversations";
+            const fetchDisputes = !collection || collection === "disputes";
+            const fetchComplaints = !collection || collection === "complaints";
+            const fetchKYC = !collection || collection === "kyc";
+            const fetchReviews = !collection || collection === "reviews";
 
             const lastSync = localStorage.getItem("fp_last_sync_time");
             const updatedAfter = lastSync ? `&updated_after=${lastSync}` : "";
 
             const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
 
-            const [productsResult, sellersResult, searchCacheResult, ordersResult, negotiationsResult, notificationsResult, conversationsResult] = await Promise.allSettled([
+            const [
+                productsResult, sellersResult, searchCacheResult, ordersResult, 
+                negotiationsResult, notificationsResult, conversationsResult,
+                disputesResult, complaintsResult, kycResult, reviewsResult
+            ] = await Promise.allSettled([
                 fetchProducts ? fetch(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSellers ? fetch(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSearchCache ? fetch("/api/search-cache") : mockUnfetched,
                 fetchOrders ? fetch("/api/orders?all=true") : mockUnfetched,
                 fetchNegotiations ? fetch("/api/negotiations?all=true") : mockUnfetched,
                 fetchNotifications && notificationUrl ? fetch(notificationUrl) : mockUnfetched,
-                fetchConversations && user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched
+                fetchConversations && user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
+                fetchDisputes ? fetch("/api/disputes?all=true") : mockUnfetched,
+                fetchComplaints ? fetch("/api/complaints?all=true") : mockUnfetched,
+                fetchKYC ? fetch("/api/kyc?all=true") : mockUnfetched,
+                fetchReviews ? fetch("/api/reviews?all=true") : mockUnfetched
             ]);
 
             if (!collection) {
@@ -289,7 +337,7 @@ class DemoStoreService {
             // ── Process Products ──
             if (productsResult.status === "fulfilled" && productsResult.value.ok) {
                 const dbProducts = await productsResult.value.json();
-                if (dbProducts.length > 0) {
+                if (Array.isArray(dbProducts)) {
                     const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
                     // MAP CamelCase to snake_case for senior tech lead consistency
                     const mappedDbProducts = dbProducts.map((p: any) => ({
@@ -311,9 +359,7 @@ class DemoStoreService {
                         const localVersion = localMap.get(pendingId);
                         if (localVersion) merged.set(pendingId, localVersion);
                     }
-                    for (const [id, product] of localMap) {
-                        if (!dbMap.has(id)) merged.set(id, product);
-                    }
+                    
                     const newDataStr = JSON.stringify(Array.from(merged.values()));
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
                         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
@@ -326,7 +372,7 @@ class DemoStoreService {
             // ── Process Sellers ──
             if (sellersResult.status === "fulfilled" && sellersResult.value.ok) {
                 const dbSellers = await sellersResult.value.json();
-                if (dbSellers.length > 0) {
+                if (Array.isArray(dbSellers)) {
                     const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
                     const dbMap = new Map<string, any>(dbSellers.map((s: any) => [s.id, s]));
                     const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
@@ -351,9 +397,6 @@ class DemoStoreService {
                         const localVersion = localMap.get(pendingSellerId);
                         if (localVersion) merged.set(pendingSellerId, localVersion);
                     }
-                    for (const [id, seller] of localMap) {
-                        if (!dbMap.has(id)) merged.set(id, seller);
-                    }
 
                     const sortedSellers = Array.from(merged.values()).sort((a, b) => a.id.localeCompare(b.id));
                     const newDataStr = JSON.stringify(sortedSellers);
@@ -368,14 +411,12 @@ class DemoStoreService {
             // ── Process Orders ──
             if (ordersResult.status === "fulfilled" && ordersResult.value.ok) {
                 const ordersData = await ordersResult.value.json();
-                const dbOrders: any[] = ordersData.orders || ordersData || [];
-                if (dbOrders.length > 0) {
-                    // For Orders, we overwrite with DB status but preserve local additions if DB is incomplete
-                    const dbMap = new Map(dbOrders.map((o: any) => [o.id, o]));
+                    const dbOrders: any[] = (ordersData.orders || ordersData || []).filter((o: any) => !String(o.id).startsWith("FP-DEMO-ORD"));
                     const localOrders: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || '[]');
-                    const localMap = new Map(localOrders.map((o: any) => [o.id, o]));
-
-                    for (const [id, dbOrder] of dbMap) {
+                    const dbOrderMap = new Map(dbOrders.map((o: any) => [o.id, o]));
+                    const mergedOrders = new Map<string, any>();
+                    
+                    for (const [id, dbOrder] of dbOrderMap) {
                         const mapped = {
                             id: dbOrder.id,
                             customer_id: dbOrder.customerId || dbOrder.customer_id,
@@ -390,6 +431,7 @@ class DemoStoreService {
                             customer_name: dbOrder.customerName || dbOrder.customer_name,
                             customer_email: dbOrder.customerEmail || dbOrder.customer_email,
                             seller_name: dbOrder.sellerName || dbOrder.seller_name,
+                            payout_status: dbOrder.payoutStatus || dbOrder.payout_status,
                             product: dbOrder.product ? {
                                 id: dbOrder.product.id,
                                 name: dbOrder.product.name,
@@ -399,18 +441,20 @@ class DemoStoreService {
                                 category: dbOrder.product.category,
                             } : undefined,
                         };
-                        // Always update local with DB version (Overwrites stale status)
-                        localMap.set(id, mapped);
+                        mergedOrders.set(id, mapped);
                     }
 
-                    const newDataStr = JSON.stringify(Array.from(localMap.values()));
+                    const newDataArray = Array.from(mergedOrders.values());
+                    const newDataStr = JSON.stringify(newDataArray);
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
                         localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("demo-store-update"));
                     }
+                    // Run auto-release check after syncing orders
+                    this.runAutoReleaseWorker();
                 }
-            }
+            
 
             // ── Process Negotiations ──
             if (negotiationsResult.status === "fulfilled" && negotiationsResult.value.ok) {
@@ -419,6 +463,7 @@ class DemoStoreService {
                 if (dbNegotiations.length > 0) {
                     const localNegotiations: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || '[]');
                     const localMap = new Map(localNegotiations.map((n: any) => [n.id, n]));
+                    const dbMap = new Map(dbNegotiations.map((n: any) => [n.id, n]));
 
                     let hasNewUpdate = false;
                     for (const dbNeg of dbNegotiations) {
@@ -484,6 +529,12 @@ class DemoStoreService {
                         if (justUpdatedType) {
                             window.dispatchEvent(new CustomEvent("negotiation-updated-remote", { detail: { type: justUpdatedType, negotiation: mapped } }));
                         }
+                    }
+
+                    // 🛡️ Apply pending local edits to ensure UI doesn't flicker/revert
+                    for (const pendingId of this._pendingNegotiationEdits) {
+                        const localVersion = localMap.get(pendingId);
+                        if (localVersion) localMap.set(pendingId, localVersion);
                     }
 
                     if (hasNewUpdate) {
@@ -557,18 +608,47 @@ class DemoStoreService {
                 }
             }
 
+            // ── Process Disputes ──
+            if (disputesResult.status === "fulfilled" && disputesResult.value.ok) {
+                const data = await disputesResult.value.json();
+                if (data.success && Array.isArray(data.disputes)) {
+                    localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
+                    window.dispatchEvent(new Event("storage"));
+                }
+            }
+
+            // ── Process Complaints ──
+            if (complaintsResult.status === "fulfilled" && complaintsResult.value.ok) {
+                const data = await complaintsResult.value.json();
+                if (data.success && Array.isArray(data.complaints)) {
+                    localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
+                    window.dispatchEvent(new Event("storage"));
+                }
+            }
+
+            // ── Process KYC ──
+            if (kycResult.status === "fulfilled" && kycResult.value.ok) {
+                const data = await kycResult.value.json();
+                if (data.success && Array.isArray(data.submissions)) {
+                    localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
+                    window.dispatchEvent(new Event("storage"));
+                }
+            }
+
+            // ── Process Reviews ──
+            if (reviewsResult.status === "fulfilled" && reviewsResult.value.ok) {
+                const data = await reviewsResult.value.json();
+                if (data.success && Array.isArray(data.reviews)) {
+                    // Reviews might be handled differently, check key
+                    localStorage.setItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
+                    window.dispatchEvent(new Event("storage"));
+                }
+            }
+
         } catch (error) {
             console.warn("Database sync failed quietly:", error);
         } finally {
             this.isSyncing = false;
-        }
-
-        // Fallback: seed with DEMO data if empty
-        const hasProducts = (localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]') !== '[]';
-        if (!hasProducts) {
-            await loadDemoFallbacks();
-            window.dispatchEvent(new Event("storage"));
-            window.dispatchEvent(new Event("demo-store-update"));
         }
     }
 
@@ -1185,6 +1265,10 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         const updatedNeg = updated.find(n => n.id === negId);
         
+        // Mark as pending to prevent sync overwrite
+        this._pendingNegotiationEdits.add(negId);
+        try { localStorage.setItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
+
         // Persist to Postgres
         fetch("/api/negotiations", {
             method: "PATCH",
@@ -1196,6 +1280,11 @@ class DemoStoreService {
                 counterMessage: null,
                 chatMessages: updatedNeg?.chat_messages
             })
+        }).then(res => {
+            if (res.ok) {
+                this._pendingNegotiationEdits.delete(negId);
+                try { localStorage.setItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
+            }
         }).catch(console.error);
 
         // Notify Seller
@@ -1469,13 +1558,13 @@ class DemoStoreService {
 
     /**
      * Dynamically recalculates a seller's trust score based on:
-     * - Confirmed/delivered orders (+2 each, capped at +30)
-     * - Average review rating (5★ = +15, 1★ = -10)
+     * - Confirmed/delivered orders (+2 each, capped at +20)
+     * - Average review rating (5★ = +10, 1★ = -15)
      * - Disputed orders (-5 each, capped at -20)
-     * Base is 50. Range is clamped to 0–100.
+     * Base is 80. Range is clamped to 0–100.
      */
     recalculateTrustScore(sellerId: string): number {
-        const BASE = 50;
+        const BASE = 80;
         const orders = this.getOrders().filter(o => o.seller_id === sellerId);
         const reviews: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.REVIEWS) || "[]");
 
@@ -1574,11 +1663,18 @@ class DemoStoreService {
 
         // By default, filter out products belonging to inactive/unverified sellers 
         // to prevent unapproved sellers from showing up in global search or catalogs.
-        // Match against both seller.id AND seller.user_id to catch ghost-account mismatches.
+        const user = this.getCurrentUser();
         const activeSellerIds = new Set<string>();
-        allSellers.filter(s => s.status === "active" || s.verified || s.kyc_status === "approved").forEach(s => {
-            if (s.id) activeSellerIds.add(s.id);
-            if (s.user_id) activeSellerIds.add(s.user_id);
+        
+        allSellers.forEach(s => {
+            const isVerified = s.status === "active" || s.verified || s.kyc_status === "approved";
+            const isOwner = user && (user.id === s.user_id || user.email === s.owner_email);
+            const isAdmin = user?.role === "admin";
+
+            if (isVerified || isOwner || isAdmin) {
+                if (s.id) activeSellerIds.add(s.id);
+                if (s.user_id) activeSellerIds.add(s.user_id);
+            }
         });
 
         return derivedProducts.filter((p: Product) => activeSellerIds.has(p.seller_id));
@@ -2126,7 +2222,6 @@ class DemoStoreService {
         // Notifications: route messages to the right participants
         if (sender !== 'system') {
             const order = orders.find(o => o.id === orderId);
-            const orderShortId = orderId.substring(0, 8);
             const msgPreview = text.length > 50 ? text.substring(0, 47) + '...' : text;
 
             if (sender === 'user') {
@@ -2134,14 +2229,14 @@ class DemoStoreService {
                 this.addNotification({
                     userId: 'admin',
                     type: 'order',
-                    message: `💬 Customer message on order #${orderShortId}: "${msgPreview}"`,
+                    message: `💬 Customer message on order #${orderId}: "${msgPreview}"`,
                     link: `/admin/inbox/orders?order=${orderId}`
                 });
                 if (order?.seller_id) {
                     this.addNotification({
                         userId: order.seller_id,
                         type: 'order',
-                        message: `💬 Customer message on order #${orderShortId}: "${msgPreview}"`,
+                        message: `💬 Customer message on order #${orderId}: "${msgPreview}"`,
                         link: `/seller/dashboard/messages?order=${orderId}`
                     });
                 }
@@ -2151,7 +2246,7 @@ class DemoStoreService {
                     this.addNotification({
                         userId: order.customer_id,
                         type: 'order',
-                        message: `💬 Admin replied to your order #${orderShortId}`,
+                        message: `💬 Admin replied to your order #${orderId}`,
                         link: `/account/orders`
                     });
                 }
@@ -2159,7 +2254,7 @@ class DemoStoreService {
                     this.addNotification({
                         userId: order.seller_id,
                         type: 'order',
-                        message: `💬 Admin message on order #${orderShortId}: "${msgPreview}"`,
+                        message: `💬 Admin message on order #${orderId}: "${msgPreview}"`,
                         link: `/seller/dashboard/messages?order=${orderId}`
                     });
                 }
@@ -2169,14 +2264,14 @@ class DemoStoreService {
                     this.addNotification({
                         userId: order.customer_id,
                         type: 'order',
-                        message: `💬 Seller replied to your order #${orderShortId}`,
+                        message: `💬 Seller replied to your order #${orderId}`,
                         link: `/account/orders`
                     });
                 }
                 this.addNotification({
                     userId: 'admin',
                     type: 'order',
-                    message: `💬 Seller replied on order #${orderShortId}: "${msgPreview}"`,
+                    message: `💬 Seller replied on order #${orderId}: "${msgPreview}"`,
                     link: `/admin/inbox/orders?order=${orderId}`
                 });
             } else if (sender === 'ziva') {
@@ -2436,7 +2531,6 @@ class DemoStoreService {
             if (!resolvedName) resolvedName = order.customer_id; // Final fallback
 
             const productName = order.product?.name || "your item";
-            const orderShortId = order.id.substring(0, 8);
 
             const sellers = this.getSellers();
             const seller = sellers.find(s => s.id === order.seller_id);
@@ -2458,7 +2552,7 @@ class DemoStoreService {
                     productName,
                     trackingUrl: `https://fairprice.ng/account/orders`
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} has been delivered.`, link: `/account/orders?id=${order.id}` });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has been delivered.`, link: `/account/orders?id=${order.id}` });
             }
 
             // 2. Cancelled
@@ -2469,7 +2563,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has been cancelled successfully.`, link: `/account/orders?id=${order.id}` });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has been cancelled successfully.`, link: `/account/orders?id=${order.id}` });
                 
                 // Notify Seller
                 dispatchEmail(sellerEmail, "ORDER_CANCELLED", {
@@ -2478,7 +2572,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                 });
-                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${orderShortId} for ${productName} was cancelled by the buyer.`, link: `/seller/orders?id=${order.id}` });
+                this.addNotification({ userId: order.seller_id, type: "order", message: `Order #${order.id} for ${productName} was cancelled by the buyer.`, link: `/seller/orders?id=${order.id}` });
             }
 
             // 3. Shipped
@@ -2488,7 +2582,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                 });
-                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${orderShortId} for ${productName} has shipped!`, link: `/account/orders?id=${order.id}` });
+                this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has shipped!`, link: `/account/orders?id=${order.id}` });
             }
 
             // 4. Return workflows
@@ -2498,7 +2592,7 @@ class DemoStoreService {
                     orderId: order.id,
                     productName,
                  });
-                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${orderShortId} (${productName}).`, link: `/seller/orders?id=${order.id}` });
+                 this.addNotification({ userId: order.seller_id, type: "order", message: `A return request was opened for Order #${order.id} (${productName}).`, link: `/seller/orders?id=${order.id}` });
             }
             if (status === 'return_approved' || status === 'return_rejected') {
                  const newStatusStr = status === 'return_approved' ? 'approved' : 'rejected';
@@ -2508,7 +2602,7 @@ class DemoStoreService {
                     productName,
                     newStatus: newStatusStr
                  });
-                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${orderShortId} (${productName}) was ${newStatusStr}.`, link: `/account/orders?id=${order.id}` });
+                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your return request for Order #${order.id} (${productName}) was ${newStatusStr}.`, link: `/account/orders?id=${order.id}` });
             }
         }
 
@@ -2566,7 +2660,7 @@ class DemoStoreService {
         this.addNotification({
             userId: order.customer_id,
             type: "order",
-            message: `Update for Order #${id.substring(0, 8)}: ${status} in ${location}.`,
+            message: `Update for Order #${id}: ${status} in ${location}.`,
             link: "/account/orders"
         });
 
@@ -2652,6 +2746,11 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("demo-store-update"));
+
+        // Dispatch global event for Push Notifications hook
+        window.dispatchEvent(new CustomEvent("fp-notification-received", {
+            detail: newNotif
+        }));
 
         // Also persist to database
         if (typeof window !== "undefined") {
@@ -3206,10 +3305,11 @@ class DemoStoreService {
     getAdminStats() {
         if (typeof window === "undefined") return { total_sales: 0, active_users: 0, dispute_rate: 0, total_revenue: 0 } as any;
 
-        const orders = this.getOrders();
+        const orders = this.getOrders().filter(o => !String(o.id).startsWith("FP-DEMO-ORD"));
         const products = this.getProducts();
         const sellers = this.getSellers();
-        const complaints = this.getComplaints();
+        const complaints = this.getComplaints().filter(c => !String(c.id).startsWith("complaint_FP-DEMO-ORD") && !String(c.order_id).startsWith("FP-DEMO-ORD"));
+        const disputes = this.getDisputes().filter(d => !String(d.order_id).startsWith("FP-DEMO-ORD"));
 
         const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const escrowBalance = orders.filter(o => !o.escrow_status || o.escrow_status === "held" || o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed").reduce((sum, o) => sum + (o.amount || 0), 0);
@@ -3223,6 +3323,7 @@ class DemoStoreService {
             active_sellers: sellers.length,
             flagged_products: products.filter(p => p.price_flag === "too_low" || p.price_flag === "overpriced").length,
             open_complaints: complaints.filter(c => c.status !== "resolved").length,
+            open_disputes: disputes.filter(d => d.status !== "resolved").length,
             total_orders: orders.length,
         };
     }
@@ -3437,11 +3538,35 @@ class DemoStoreService {
         window.dispatchEvent(new Event("storage"));
     }
 
-    /** Check if order is eligible for auto-release (3+ days since seller confirmed, no dispute) */
+    /** Check if order is eligible for auto-release (48 hours since seller confirmed, no dispute) */
     checkAutoReleaseEligible(order: Order): boolean {
         if (order.escrow_status !== "seller_confirmed" || !order.seller_confirmed_at) return false;
-        const daysSinceConfirm = (Date.now() - new Date(order.seller_confirmed_at).getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceConfirm >= 3;
+        const hoursSinceConfirm = (Date.now() - new Date(order.seller_confirmed_at).getTime()) / (1000 * 60 * 60);
+        return hoursSinceConfirm >= 48;
+    }
+
+    /** Background worker to process all eligible auto-releases */
+    public runAutoReleaseWorker() {
+        if (typeof window === "undefined" || this._autoReleaseActive) return;
+        this._autoReleaseActive = true;
+        try {
+            const orders = this.getOrders();
+            const eligible = orders.filter(o => this.checkAutoReleaseEligible(o));
+            if (eligible.length > 0) {
+                console.log(`🛠️ DemoStore: Auto-releasing ${eligible.length} eligible orders.`);
+                eligible.forEach(o => {
+                    // Check if already released in this batch to avoid redundant cycles
+                    const currentOrder = this.getOrders().find(co => co.id === o.id);
+                    if (currentOrder && currentOrder.escrow_status !== "released") {
+                        this.releaseEscrow(o.id);
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Auto-release worker failed:", e);
+        } finally {
+            this._autoReleaseActive = false;
+        }
     }
     // ─── Dispute Management ─────────────────────────────
     getDisputes(): Dispute[] {
@@ -3481,35 +3606,86 @@ class DemoStoreService {
         const updated = orders.map(o => o.id === orderId ? { ...o, escrow_status: "disputed" as const } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
-        // Create admin notification message
+        const productName = order.product?.name || `Product ${order.product_id}`;
+        const reasonLabel = reason.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
+        // Create admin support message (appears in admin support inbox)
         this.addSupportMessage({
             user_name: buyerName,
             user_email: buyerEmail,
-            subject: `Dispute Filed: ${reason.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} `,
-            message: `Buyer ${buyerName} raised a dispute on order #${orderId}.Reason: ${reason.replace(/_/g, " ")}.Description: ${description} `,
+            subject: `Dispute Filed: ${reasonLabel} — ${productName}`,
+            message: `Buyer ${buyerName} raised a dispute on order #${orderId} for "${productName}".\nReason: ${reasonLabel}.\nDescription: ${description}`,
             source: "order_issue",
             order_id: orderId,
         });
 
-        window.dispatchEvent(new Event("storage"));
+        // ── Bell Notifications ──────────────────────────────────
 
-        // Dispatch email to seller
+        // Seller bell notification
+        this.addNotification({
+            userId: order.seller_id,
+            type: "order",
+            message: `⚠️ Dispute filed on order #${orderId} for "${productName}". Reason: ${reasonLabel}. Payment is frozen.`,
+            link: `/seller/orders?filter=disputed`,
+        });
+
+        // Admin bell notification
+        this.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `🚨 New dispute: Order #${orderId} — "${productName}" (${seller?.business_name || "Unknown Seller"}). Reason: ${reasonLabel}.`,
+            link: "/admin/disputes",
+        });
+
+        // Buyer confirmation bell notification
+        this.addNotification({
+            userId: buyerId,
+            type: "order",
+            message: `Your dispute for "${productName}" (Order #${orderId}) has been filed. Our team will review within 24-48 hours.`,
+            link: `/account/orders/${orderId}`,
+        });
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("demo-store-update"));
+
+        // ── Email Notifications ─────────────────────────────────
+
+        // Email to seller (full order ID + product name)
         const sellerEmail = seller?.owner_email || this.getUser(order.seller_id)?.email || `seller_${order.seller_id}@fairprice.ng`;
         fetch("/api/email", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 to: sellerEmail,
-                subject: `Dispute Filed: Order #${(orderId).substring(0,8)}`,
+                subject: `Dispute Filed: Order #${orderId} — ${productName}`,
                 type: "NEW_DISPUTE",
                 payload: {
                     sellerName: seller?.business_name || "Seller",
                     orderId: orderId,
-                    message: reason.replace(/_/g, " "),
-                    dashboardUrl: `https://fairprice.ng/seller/orders?id=${orderId}`
+                    productName: productName,
+                    reason: reasonLabel,
+                    description: description,
+                    buyerName: buyerName,
+                    message: `A buyer has filed a dispute on order #${orderId} for "${productName}". Reason: ${reasonLabel}. Payment is frozen until resolved.`,
+                    dashboardUrl: `https://fairprice.ng/seller/orders?filter=disputed`
                 }
             })
         }).catch(console.error);
+
+        // Email to admin
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: "techzema@gmail.com",
+                subject: `🚨 New Dispute: Order #${orderId} — ${productName}`,
+                type: "security_alert",
+                data: {
+                    storeName: "FairPrice Admin",
+                    message: `Dispute filed by ${buyerName} on order #${orderId} for "${productName}" (${seller?.business_name || "Unknown Seller"}). Reason: ${reasonLabel}. Amount: ₦${order.amount.toLocaleString()}.`
+                }
+            })
+        }).catch(() => {});
 
         return dispute;
     }

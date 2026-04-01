@@ -17,6 +17,7 @@ import { DemoStore } from "@/lib/demo-store";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
 import { ProductCard } from "@/components/product/ProductCard";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
+import { ExitIntentModal } from "@/components/modals/ExitIntentModal";
 
 export default function CartPage() {
     const { location, deliveryDate } = useLocation();
@@ -32,6 +33,7 @@ export default function CartPage() {
 
     return (
         <div className="min-h-screen bg-white flex flex-col">
+            <ExitIntentModal />
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-8 pb-28 lg:pb-8 flex flex-col lg:flex-row gap-6 relative">

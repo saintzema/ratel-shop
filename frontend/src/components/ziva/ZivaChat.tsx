@@ -1159,7 +1159,7 @@ export function ZivaChat() {
     // When keyboard is open, place container exactly 8px above it
     const containerBottom = `calc(var(--kb-height, 0px) + ${(isDesktop ? desktopBottom : mobileBottom)}px)`;
 
-    const availableHeightStr = `calc(100% - var(--kb-height, 0px) - ${(isDesktop ? desktopBottom + 100 : mobileBottom + 100)}px)`;
+    const availableHeightStr = `calc(100dvh - var(--kb-height, 0px) - ${(isDesktop ? desktopBottom + 100 : mobileBottom + 100)}px)`;
 
     return (
         <div
@@ -1188,7 +1188,7 @@ export function ZivaChat() {
                             background: "rgba(15, 15, 20, 0.95)",
                             backdropFilter: "blur(40px) saturate(180%)",
                             height: availableHeightStr,
-                            maxHeight: 'none'
+                            maxHeight: '600px'
                         }}
                     >
                         {/* Header */}

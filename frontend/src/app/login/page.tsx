@@ -88,12 +88,30 @@ export default function UnifiedAuthPage() {
     const allPasswordChecksPassed = passwordChecks.every(c => c.pass);
     const passwordsMatch = password.length > 0 && password === confirmPassword;
 
-    // Background Image Carousel
     const bgImages = [
         "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=988&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop",
         "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000&auto=format&fit=crop"
     ];
+
+    const testimonials = [
+        {
+            quote: "As a FairPrice shopper, I get access to global deals securely, knowing my money is protected.",
+            author: "Amanda - Lagos, Nigeria",
+            role: "Customer"
+        },
+        {
+            quote: "FairPrice has scaled my business by connecting me with buyers I never could have reached otherwise.",
+            author: "Chidi - Onitsha Market",
+            role: "Verified Seller"
+        },
+        {
+            quote: "The speed of settlement and transparency makes this the gold standard for my electronics store.",
+            author: "Bolaji - Logistics Hub",
+            role: "Premium Seller"
+        }
+    ];
+
     const [currentBg, setCurrentBg] = useState(0);
 
     useEffect(() => {
@@ -101,7 +119,7 @@ export default function UnifiedAuthPage() {
             setCurrentBg((prev) => (prev + 1) % bgImages.length);
         }, 5000);
         return () => clearInterval(timer);
-    }, []);
+    }, [bgImages.length]);
 
     // --- Handlers ---
 
@@ -523,22 +541,41 @@ export default function UnifiedAuthPage() {
                     <div className="relative z-10 p-10 flex flex-col justify-between h-full w-full">
                         <Logo className="h-10 w-auto scale-125 origin-left" variant="light" />
 
-                        <div>
-                            <h2 className="text-white text-3xl font-bold leading-tight mb-4 max-w-sm">
-                                "As a FairPrice shopper, I get access to global deals securely, knowing my money is protected."
-                            </h2>
-                            <p className="text-white/80 font-medium">
-                                Amanda - Lagos, Nigeria
-                            </p>
+                        <div className="mb-2">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={currentBg}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.5 }}
+                                >
+                                    <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/20">
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full",
+                                            testimonials[currentBg].role?.includes("Seller") ? "bg-amber-400" : "bg-emerald-400"
+                                        )} />
+                                        <span className="text-xs font-bold text-white uppercase tracking-wider">
+                                            {testimonials[currentBg].role}
+                                        </span>
+                                    </div>
+                                    <h2 className="text-white text-3xl font-bold leading-tight mb-4 max-w-sm drop-shadow-md">
+                                        "{testimonials[currentBg].quote}"
+                                    </h2>
+                                    <p className="text-white/80 font-medium tracking-wide">
+                                        {testimonials[currentBg].author}
+                                    </p>
+                                </motion.div>
+                            </AnimatePresence>
 
                             {/* Carousel Indicators */}
-                            <div className="flex gap-2 mt-6">
+                            <div className="flex gap-2 mt-8">
                                 {bgImages.map((_, idx) => (
                                     <div
                                         key={idx}
                                         className={cn(
                                             "h-2 rounded-full transition-all duration-300",
-                                            idx === currentBg ? "w-6 bg-brand-green-400" : "w-2 bg-white/50"
+                                            idx === currentBg ? "w-8 bg-brand-green-400" : "w-2 bg-white/40"
                                         )}
                                     />
                                 ))}
@@ -585,9 +622,17 @@ export default function UnifiedAuthPage() {
                                                 type="text"
                                                 required
                                                 placeholder="you@email.com"
-                                                className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4"
+                                                className={cn(
+                                                    "w-full h-12 bg-white border text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl transition-all duration-300 px-4",
+                                                    error 
+                                                        ? "border-red-500 focus:ring-4 focus:ring-red-500/20 focus:shadow-[0_0_15px_rgba(239,68,68,0.2)]" 
+                                                        : "border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]"
+                                                )}
                                                 value={identifier}
-                                                onChange={(e) => setIdentifier(e.target.value)}
+                                                onChange={(e) => {
+                                                    setIdentifier(e.target.value);
+                                                    if (error) setError("");
+                                                }}
                                                 list="email-domains"
                                             />
                                             {mounted && identifier && !identifier.includes('@') && isNaN(Number(identifier.replace(/\D/g, ''))) && (
@@ -647,6 +692,17 @@ export default function UnifiedAuthPage() {
                                         </button>
                                     </div>
 
+                                    {error && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mb-5 p-3.5 bg-red-50 border border-red-100 rounded-xl flex gap-3 shadow-[0_2px_10px_rgba(239,68,68,0.05)]"
+                                        >
+                                            <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+                                            <p className="text-[14px] text-red-700 font-medium leading-tight">{error}</p>
+                                        </motion.div>
+                                    )}
+
                                     <form onSubmit={handleExistingLogin} className="space-y-5">
                                         <div className="space-y-1.5">
                                             <label className="text-[13px] font-semibold text-[#1d1d1f]">Password <span className="text-red-500">*</span></label>
@@ -655,11 +711,16 @@ export default function UnifiedAuthPage() {
                                                     ref={passwordInputRef}
                                                     type={showPassword ? "text" : "password"}
                                                     required
-                                                    className={`w-full h-12 bg-white border ${error ? 'border-red-500 focus:ring-red-500/10' : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]'} text-[15px] text-[#1d1d1f] rounded-xl transition-all duration-300 px-4 pr-12`}
+                                                    className={cn(
+                                                        "w-full h-12 bg-white border text-[15px] text-[#1d1d1f] rounded-xl transition-all duration-300 px-4 pr-12",
+                                                        error 
+                                                            ? "border-red-500 focus:ring-4 focus:ring-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.15)] focus:shadow-[0_0_20px_rgba(239,68,68,0.3)]" 
+                                                            : "border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]"
+                                                    )}
                                                     value={password}
                                                     onChange={(e) => {
                                                         setPassword(e.target.value);
-                                                        setError(""); // Clear error when typing
+                                                        if (error) setError(""); // Clear error when typing
                                                     }}
                                                 />
                                                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">

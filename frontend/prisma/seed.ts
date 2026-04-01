@@ -119,51 +119,51 @@ async function main() {
     }
 
     // 3. Create mock orders so Admin Dashboard stats aren't 0
-    console.log("Seeding mock orders...");
+    // console.log("Seeding mock orders...");
     
-    // Ensure a dummy buyer exists
-    await prisma.user.upsert({
-        where: { email: "buyer_test@example.com" },
-        update: {},
-        create: {
-            id: "buyer_123",
-            name: "Test Buyer",
-            email: "buyer_test@example.com",
-            role: "customer"
-        }
-    });
+    // // Ensure a dummy buyer exists
+    // await prisma.user.upsert({
+    //     where: { email: "buyer_test@example.com" },
+    //     update: {},
+    //     create: {
+    //         id: "buyer_123",
+    //         name: "Test Buyer",
+    //         email: "buyer_test@example.com",
+    //         role: "customer"
+    //     }
+    // });
 
-    const statusMap = [
-        { status: "delivered", escrow: "released" },
-        { status: "shipped", escrow: "held" },
-        { status: "pending", escrow: "held" },
-        { status: "delivered", escrow: "disputed" }
-    ];
+    // const statusMap = [
+    //     { status: "delivered", escrow: "released" },
+    //     { status: "shipped", escrow: "held" },
+    //     { status: "pending", escrow: "held" },
+    //     { status: "delivered", escrow: "disputed" }
+    // ];
 
-    for (let i = 0; i < 5; i++) {
-        const product = DEMO_PRODUCTS[i % DEMO_PRODUCTS.length];
-        const statusObj = statusMap[i % statusMap.length];
+    // for (let i = 0; i < 5; i++) {
+    //     const product = DEMO_PRODUCTS[i % DEMO_PRODUCTS.length];
+    //     const statusObj = statusMap[i % statusMap.length];
         
-        await prisma.order.upsert({
-            where: { id: `FP-DEMO-ORD-${i}` },
-            update: {},
-            create: {
-                id: `FP-DEMO-ORD-${i}`,
-                customerId: "buyer_123",
-                customerName: "Test Buyer",
-                productId: product.id,
-                sellerId: product.seller_id,
-                sellerName: product.seller_name,
-                amount: product.price,
-                quantity: 1,
-                shippingAddress: "123 Mock Street, Lagos",
-                paymentMethod: "paystack",
-                status: statusObj.status,
-                escrowStatus: statusObj.escrow,
-                createdAt: new Date(Date.now() - (i * 24 * 60 * 60 * 1000))
-            }
-        });
-    }
+    //     await prisma.order.upsert({
+    //         where: { id: `FP-DEMO-ORD-${i}` },
+    //         update: {},
+    //         create: {
+    //             id: `FP-DEMO-ORD-${i}`,
+    //             customerId: "buyer_123",
+    //             customerName: "Test Buyer",
+    //             productId: product.id,
+    //             sellerId: product.seller_id,
+    //             sellerName: product.seller_name,
+    //             amount: product.price,
+    //             quantity: 1,
+    //             shippingAddress: "123 Mock Street, Lagos",
+    //             paymentMethod: "paystack",
+    //             status: statusObj.status,
+    //             escrowStatus: statusObj.escrow,
+    //             createdAt: new Date(Date.now() - (i * 24 * 60 * 60 * 1000))
+    //         }
+    //     });
+    // }
 
     console.log("Seed complete!");
 }

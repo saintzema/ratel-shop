@@ -58,8 +58,31 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                             router.push("/");
                         });
                 } else {
-                    console.log("ProtectedRoute: Authorized");
-                    setIsAuthorized(true);
+                    // SECURITY LOCKDOWN: Even if local role IS allowed, if it's a high-privilege role (admin/seller), 
+                    // double-check with DB to prevent 'localStorage' tampering.
+                    if (user.role === "admin" || (user.role === "seller" && allowedRoles?.includes("seller"))) {
+                         fetch(`/api/users?email=${encodeURIComponent(user.email)}`)
+                            .then(res => res.json())
+                            .then(dbUser => {
+                                if (!dbUser || dbUser.role !== user.role) {
+                                    console.error("SECURITY: Local role mismatch detected! Reverting to DB state.");
+                                    if (dbUser && dbUser.role) {
+                                        updateUser({ role: dbUser.role });
+                                    } else {
+                                        router.push("/login");
+                                    }
+                                } else {
+                                    setIsAuthorized(true);
+                                }
+                            })
+                            .catch(e => {
+                                console.warn("Background security check failed. Assuming persistent session.");
+                                setIsAuthorized(true);
+                            });
+                    } else {
+                        console.log("ProtectedRoute: Authorized (Low Privilege)");
+                        setIsAuthorized(true);
+                    }
                 }
             }
         }

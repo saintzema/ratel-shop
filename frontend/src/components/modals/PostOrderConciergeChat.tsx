@@ -12,6 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
 import { ShoppingCart } from "lucide-react";
+import { playDingSound } from "@/lib/audio";
 
 interface Message {
     id: string;
@@ -170,7 +171,13 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages]);
+        
+        // Play chime for INCOMING messages (not from user)
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg && lastMsg.sender !== "user" && isOpen) {
+            playDingSound();
+        }
+    }, [messages, isOpen]);
 
     if (!isOpen) return null;
 
@@ -255,6 +262,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         setInput("");
         setIsTyping(true);
         setReplyingTo(null);
+        playDingSound(); // Quick feedback chime for sending
 
         // Smart Ziva Response
         setTimeout(() => {
@@ -428,6 +436,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const handleRate = (stars: number) => {
         if (reviewRating > 0 || !product) return;
         setReviewRating(stars);
+        playDingSound(); // Play chime for rating submission
 
         // Save the review instantly
         const currentUser = DemoStore.getCurrentUser();

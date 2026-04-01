@@ -331,7 +331,7 @@ const ChatInputBar = React.memo(({
 
 ChatInputBar.displayName = "ChatInputBar";
 
-import React from "react";
+
 
 export function MessageBox() {
     const {
@@ -676,8 +676,8 @@ export function MessageBox() {
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
                                     <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 overflow-hidden border border-white/30">
-                                        {selectedConversation.productImage ? (
-                                            <img src={selectedConversation.productImage} alt="" className="w-full h-full object-cover" />
+                                        {selectedConversation.productImage || (selectedConversation.product_id && DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === selectedConversation.product_id)?.image_url ? DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === selectedConversation.product_id)?.image_url : null) ? (
+                                            <img src={selectedConversation.productImage || DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === selectedConversation.product_id)?.image_url} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             <Package className="h-4 w-4 text-white/80" />
                                         )}

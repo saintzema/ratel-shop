@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 export function PwaManager() {
+    usePushNotifications(); // Initialize scheduled marketing & price drop alerts
+
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 

@@ -566,10 +566,10 @@ ${payload.daysRemaining === 0 ? `
             break;
 
         case 'ORDER_CANCELLED':
-            subject = `Order Cancelled — #${(payload.orderId || '').substring(0,8)}`;
+            subject = `Order Cancelled — #${payload.orderId || ''}`;
             html = BaseTemplate(subject, `
 <p style="margin:0 0 16px 0;">Hi ${payload.name || payload.sellerName || 'User'},</p>
-<p style="margin:0 0 16px 0;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` for <strong>${payload.productName}</strong>` : ''} has been successfully cancelled.</p>
+<p style="margin:0 0 16px 0;">Order <strong>#${payload.orderId || ''}</strong>${payload.productName ? ` for <strong>${payload.productName}</strong>` : ''} has been successfully cancelled.</p>
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">If a payment was made, your funds are safely returning from escrow to your original payment method immediately.</p>
 
 <div style="text-align:center;">
@@ -582,7 +582,7 @@ ${payload.daysRemaining === 0 ? `
             subject = 'Return Requested - Action Required';
             html = BaseTemplate(subject, `
 <p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
-<p style="margin:0 0 16px 0;">A return has been initiated by the buyer for Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
+<p style="margin:0 0 16px 0;">A return has been initiated by the buyer for Order <strong>#${payload.orderId || ''}</strong>.</p>
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Please check your dashboard to review the evidence provided by the buyer. Escrow funds are paused until this dispute is securely resolved.</p>
 
 <div style="text-align:center;">
@@ -595,7 +595,7 @@ ${payload.daysRemaining === 0 ? `
             subject = 'Return Request Update';
             html = BaseTemplate(subject, `
 <p style="margin:0 0 16px 0;">Hi ${payload.name || 'Customer'},</p>
-<p style="margin:0 0 16px 0;">Your return request for Order <strong>#${(payload.orderId || '').substring(0,8)}</strong> has been <strong>${payload.newStatus || 'updated'}</strong>.</p>
+<p style="margin:0 0 16px 0;">Your return request for Order <strong>#${payload.orderId || ''}</strong> has been <strong>${payload.newStatus || 'updated'}</strong>.</p>
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">If approved, your escrow funds will be fully refunded shortly.</p>
 
 <div style="text-align:center;">
@@ -605,10 +605,10 @@ ${payload.daysRemaining === 0 ? `
             break;
 
         case 'ORDER_SHIPPED':
-            subject = `Your order has shipped — #${(payload.orderId || '').substring(0,8)}`;
+            subject = `Your order has shipped — #${payload.orderId || ''}`;
             html = BaseTemplate(subject, `
 <p style="margin:0 0 16px 0;">Hi ${payload.name || 'Customer'},</p>
-<p style="margin:0 0 16px 0;">Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>${payload.productName ? ` — <strong>${payload.productName}</strong>` : ''} has left the merchant's warehouse and is currently in transit.</p>
+<p style="margin:0 0 16px 0;">Order <strong>#${payload.orderId || ''}</strong>${payload.productName ? ` — <strong>${payload.productName}</strong>` : ''} has left the merchant's warehouse and is currently in transit.</p>
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">You can track its live status below. Remember, your funds remain safe in escrow until delivery is confirmed.</p>
 
 <div style="text-align:center;">
@@ -621,7 +621,7 @@ ${payload.daysRemaining === 0 ? `
             subject = 'New Order Inquiry from Buyer';
             html = BaseTemplate(subject, `
 <p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
-<p style="margin:0 0 16px 0;">The buyer has an inquiry regarding Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
+<p style="margin:0 0 16px 0;">The buyer has an inquiry regarding Order <strong>#${payload.orderId || ''}</strong>.</p>
 <div style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:0 0 24px 0;" class="feature-box">
     <p style="font-size:15px;margin:0;font-style:italic;" class="text-main">"${payload.message || 'I have a question about this order.'}"</p>
 </div>
@@ -634,10 +634,10 @@ ${payload.daysRemaining === 0 ? `
             break;
 
         case 'NEW_DISPUTE':
-            subject = `Dispute Filed: Order #${(payload.orderId || '').substring(0,8)}`;
+            subject = `Dispute Filed: Order #${payload.orderId || ''} — ${payload.productName || 'Product'}`;
             html = BaseTemplate("Dispute Action Required ⚠️", `
 <p style="margin:0 0 16px 0;">Hi ${payload.sellerName || 'Seller'},</p>
-<p style="margin:0 0 16px 0;">A dispute was just filed by the customer on Order <strong>#${(payload.orderId || '').substring(0,8)}</strong>.</p>
+<p style="margin:0 0 16px 0;">A dispute was just filed by the customer on Order <strong>#${payload.orderId || ''}</strong>${payload.productName ? ` for <strong>${payload.productName}</strong>` : ''}.</p>
 <div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin:0 0 24px 0;">
     <p style="font-size:15px;margin:0;color:#dc2626;"><strong>Issue:</strong> "${payload.message || 'Issue not specified.'}"</p>
 </div>

@@ -118,7 +118,7 @@ export default function EscrowManagement() {
         : filter === "released"
             ? orders.filter(o => o.escrow_status === "released")
             : filter === "seller_confirmed"
-                ? orders.filter(o => o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed" || o.escrow_status === "auto_release_eligible")
+                ? orders.filter(o => o.escrow_status === "buyer_confirmed" || (o.escrow_status === "seller_confirmed" && DemoStore.checkAutoReleaseEligible(o)))
                 : filter === "disputed"
                     ? orders.filter(o => o.escrow_status === "disputed" || o.status === "cancelled")
                     : orders.filter(o => o.escrow_status === "held");
@@ -142,7 +142,7 @@ export default function EscrowManagement() {
     const paginatedOrders = sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const heldCount = orders.filter(o => o.escrow_status === "held").length;
-    const pendingReleaseCount = orders.filter(o => o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed").length;
+    const pendingReleaseCount = orders.filter(o => o.escrow_status === "buyer_confirmed" || (o.escrow_status === "seller_confirmed" && DemoStore.checkAutoReleaseEligible(o))).length;
     const releasedCount = orders.filter(o => o.escrow_status === "released").length;
     const disputedCount = orders.filter(o => o.escrow_status === "disputed").length;
     const totalHeldAmount = orders.filter(o => o.escrow_status !== "released" && o.escrow_status !== "refunded").reduce((sum, o) => sum + o.amount, 0);
@@ -572,7 +572,7 @@ export default function EscrowManagement() {
                 <div className="text-center md:text-left">
                     <h3 className="text-xl font-black tracking-tight">Escrow Release Protocol</h3>
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">
-                        Funds auto-eligible for release 3 days after seller confirms delivery if no dispute is raised. Final release requires admin approval.
+                        Funds auto-eligible for release 48 hours after seller confirms delivery if no dispute is raised. Final release requires admin approval.
                     </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -588,7 +588,7 @@ export default function EscrowManagement() {
                     <ArrowRight className="h-4 w-4 text-indigo-300" />
                     <div className="flex items-center gap-2 text-xs font-bold text-indigo-200">
                         <Timer className="h-4 w-4" />
-                        <span>3-5 Day Hold</span>
+                        <span>48 Hour Hold</span>
                     </div>
                     <ArrowRight className="h-4 w-4 text-indigo-300" />
                     <div className="flex items-center gap-2 text-xs font-bold text-white">

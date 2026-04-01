@@ -2,25 +2,42 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as { prisma_v2: PrismaClient | undefined };
+// --- NEON SERVERLESS DB CONFIGURATION (COMMENTED OUT) ---
+// If Neon Database is back online and you want to switch to it,
+// uncomment the following block and update your DATBASE_URL to the Neon string.
+// 
+// import { neonConfig, Pool as NeonPool } from "@neondatabase/serverless";
+// import { PrismaNeon } from "@prisma/adapter-neon";
+// import ws from "ws";
+// neonConfig.webSocketConstructor = ws;
+// 
+// function createNeonPrismaClient() {
+//     const pool = new NeonPool({ connectionString: process.env.DATABASE_URL });
+//     const adapter = new PrismaNeon(pool);
+//     return new PrismaClient({ adapter, log: ["error", "warn"] });
+// }
+// ---------------------------------------------------------
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
+    // Current Local Postgres Configuration
     const pool = new Pool({ 
         connectionString: process.env.DATABASE_URL,
-        max: 5, // Neon Free tier strict limit (15 max global)
-        idleTimeoutMillis: 30000, // Kill idle sockets gracefully before Neon proxy drops them
-        connectionTimeoutMillis: 5000, // Fail fast instead of hanging queries for 30+ seconds
+        max: 10, // Optimized for local dev with memory constraints
+        idleTimeoutMillis: 30000, 
+        connectionTimeoutMillis: 10000, // 10s fallback for slow context switching
     });
 
-    // Silently absorb idle connection drop exceptions instead of crashing Node.js
     pool.on('error', (err) => {
-        console.warn('Neon DB Pool connection silently closed:', err.message);
+        console.warn('Postgres connection pool error:', err.message);
     });
 
     const adapter = new PrismaPg(pool as any);
     return new PrismaClient({ adapter, log: ["error", "warn"] });
 }
 
-export const db = globalForPrisma.prisma_v2 ?? createPrismaClient();
+// export const db = globalForPrisma.prisma ?? createNeonPrismaClient(); // Use when Neon is enabled
+export const db = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma_v2 = db;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
