@@ -149,41 +149,41 @@ export async function POST(req: Request) {
             Return JSON:
             {
                 "productName": "The actual full specific name with year for vehicles, without store prefixes.",
-                "description": "A very detailed, 4-6 sentence description of the product.",
-                "image_url": "A direct URL to a high-quality image of this exact product. MUST be a direct .jpg/.png retail link. MUST NOT be a vertexaisearch.cloud.google.com or grounding-api-redirect link.",
+                "shortDescription": "A concise, 1-2 sentence overview focusing on the product's primary value proposition.",
+                "highlights": [
+                    "A detailed bulleted list of 5-8 unique selling points.",
+                    "Focus on quality, reliability, and specific premium features.",
+                    "Each highlight should be informative and valuable to a buyer."
+                ],
+                "image_url": "A direct URL to a high-quality image of this exact product.",
                 "marketAverage": number,
                 "marketLow": number,
                 "marketHigh": number,
                 "recommendedPrice": number,
                 "currency": "₦",
                 "sources": [
-                    { "source": "Global Stores (Direct Source)", "price": number, "type": "global", "url": "https://..." },
-                    { "source": "Local Vendor (Verified Local Vendor)", "price": number, "type": "local", "url": "https://..." }
+                    { "source": "Global Stores (Direct Source)", "price": number, "type": "global", "url": "https://..." }
                 ],
                 "priceDirection": "rising" | "stable" | "falling",
-                "justification": "Be TRANSPARENT but NEVER mention store names or specific price numbers. State whether FairPrice is competitive and WHY using relative language only.",
-                "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished" | "used",
-                "confidence": "high" | "medium" | "low",
+                "justification": "Transparency on FairPrice pricing compared to market.",
+                "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished",
+                "confidence": "high",
                 "category": "phones" | "computers" | "fashion" | "cars" | "energy" | "other",
                 "specs": {
-                    "Key1": "Value1",
-                    "Key2": "Value2"
+                    "Key": "Value"
                 }
             }
             
             SPECS TABLE (CRITICAL):
-            - Return a "specs" object with 8-15 key-value pairs of the most important specifications.
-            - For vehicles: Year, Engine, Horsepower, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating Capacity, Top Speed, Dimensions and every other information a buyer would want to know and is available for that particular searched product.
-            - For phones: Screen Size, Processor, RAM, Storage, Battery, Main Camera, Selfie Camera, OS and every other information a buyer would want to know and is available for that particular searched product.
-            - For electronics: Relevant technical specs for the product type and every other information a buyer would want to know and is available for that particular searched product.
-            - For fashion/general: Material, Size Range, Color Options, Origin, etc and every other information a buyer would want to know and is available for that particular searched product.
+            - Return a "specs" object with 15-25 key-value pairs for Vehicles/Electronics, and 10-15 for other categories.
+            - Provide EVERY detail a buyer would want (Power, dimensions, materials, certifications, etc.).
+            - For vehicles: Year, Engine, Horsepower, Torque, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating Capacity, Top Speed, Dimensions, Cargo Space, Safety Features, and any other unique technical details.
+            - For phones/laptops: Processor, Clock Speed, RAM Type, Storage Type, Display Resolution, Refresh Rate, Battery Wh/mAh, Charging Speed, Camera Sensors, OS Version, Build Materials, Ports, and any other technical value.
             
             CRITICAL:
-            - NEVER mention any store, vendor, website name, or vendor country in ANY field including justification, description, and sources.
-            - NEVER mention specific price numbers in the justification field.
-            - marketAverage MUST be a realistic non-zero number.
-            - Use "Global Stores" for international sources and "Verified Local Vendor" for local sources.
-            - Output ONLY raw, valid JSON. NO markdown. NO conversational text before or after the JSON. Start your response strictly with { and end with }. 
+            - NEVER mention store names or specific prices in justification.
+            - Ensure "shortDescription" is NOT just a repeat of the brand name or the "highlights".
+            - Output ONLY raw, valid JSON.
             `;
         }
 

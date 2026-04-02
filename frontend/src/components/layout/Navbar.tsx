@@ -271,12 +271,29 @@ export function Navbar() {
                 const isPhoneQuery = /\b(phone|iphone|samsung|galaxy|pixel|xiaomi|redmi|tecno|infinix|oppo|vivo|realme|oneplus|huawei)\b/i.test(qLower);
                 const isComputeQuery = /\b(macbook|laptop|hp|dell|lenovo|asus|acer|pc|computer|desktop)\b/i.test(qLower);
 
+                // Helper to add suggestions only if not already present
+                const addUniqueSuffix = (base: string, suffix: string) => {
+                    const cleanSuffix = suffix.trim();
+                    if (!base.toLowerCase().includes(cleanSuffix.toLowerCase())) {
+                        semanticSuggs.push(`${base} ${cleanSuffix}`);
+                    }
+                };
+
                 if (isCarQuery) {
-                    semanticSuggs.push(`${trimQ} 2024 Model`, `${trimQ} Tokunbo (Foreign Used)`, `${trimQ} Nigerian Used`, `Cheap ${trimQ}`);
+                    addUniqueSuffix(trimQ, `2024 Model`);
+                    addUniqueSuffix(trimQ, `Tokunbo (Foreign Used)`);
+                    addUniqueSuffix(trimQ, `Nigerian Used`);
+                    semanticSuggs.push(`Cheap ${trimQ}`);
                 } else if (isPhoneQuery || isComputeQuery) {
-                    semanticSuggs.push(`${trimQ} Brand New`, `${trimQ} UK Used`, `${trimQ} Refurbished`, `Cheap ${trimQ}`);
+                    addUniqueSuffix(trimQ, `Brand New`);
+                    addUniqueSuffix(trimQ, `UK Used`);
+                    addUniqueSuffix(trimQ, `Refurbished`);
+                    semanticSuggs.push(`Cheap ${trimQ}`);
                 } else {
-                    semanticSuggs.push(`${trimQ} Brand New`, `${trimQ} Used`, `Refurbished ${trimQ}`, `Best ${trimQ} Brands`);
+                    addUniqueSuffix(trimQ, `Brand New`);
+                    addUniqueSuffix(trimQ, `Used`);
+                    addUniqueSuffix(trimQ, `Refurbished`);
+                    semanticSuggs.push(`Best ${trimQ} Brands`);
                 }
             }
 
