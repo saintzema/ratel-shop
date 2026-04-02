@@ -28,14 +28,14 @@ interface SubCategory {
   href: string;
 }
 
-interface CategoryCard {
+export interface CategoryCard {
   title: string;
   link: string;
   linkText: string;
   subs: SubCategory[];
 }
 
-const CATEGORY_CARDS_ROW_1: CategoryCard[] = [
+export const CATEGORY_CARDS_ROW_1: CategoryCard[] = [
   {
     title: "Top in Phones",
     link: "/search?category=phones",
@@ -185,6 +185,7 @@ function HomeContent() {
   // Live products from DemoStore — load only on client to avoid SSR hydration mismatch
   const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
   const searchParams = useSearchParams();
 
   // ─── Referral Tracking System ───
@@ -197,13 +198,22 @@ function HomeContent() {
 
   useEffect(() => {
     const refresh = () => setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
+    const loadGrids = () => {
+      try {
+        const saved = localStorage.getItem("ratel_homepage_grids");
+        if (saved) setCategoryGrids(JSON.parse(saved));
+      } catch (e) { }
+    };
     refresh(); // Initial load on client
+    loadGrids();
     setMounted(true);
     window.addEventListener("storage", refresh);
     window.addEventListener("demo-store-update", refresh);
+    window.addEventListener("storage", loadGrids);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener("demo-store-update", refresh);
+      window.removeEventListener("storage", loadGrids);
     };
   }, []);
 
@@ -355,11 +365,12 @@ function HomeContent() {
           <div ref={productSectionRef} className="relative z-20">
 
             {/* ═══ Apple-Style Loading Skeletons (show while DB is loading or offline) ═══ */}
-            {allProducts.length === 0 && (
-              <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4">
+            {(!mounted || allProducts.length === 0) && (
+              <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4 mb-10">
                 <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
-                <ProductSlider title="Hottest Deals (GenZ Favorites)" link="#" products={[]} isLoading={true} icon={<Flame className="h-5 w-5 text-gray-300" />} />
-                <ProductSlider title="Verified Fair Prices" link="#" products={[]} isLoading={true} icon={<ShieldCheck className="h-5 w-5 text-gray-300" />} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                  {Array(4).fill(0).map((_, i) => <div key={i} className="h-80 bg-white rounded-lg shadow-sm animate-pulse" />)}
+                </div>
               </div>
             )}
 
@@ -403,27 +414,46 @@ function HomeContent() {
               </section>
             )}
 
+
+
             {/* ═══ Product Slider Sections ═══ */}
             {mounted && (
               <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
                 <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
+                
+
+
                 <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
                 <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
                 <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
                 <ProductSlider title="Verified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
                 <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
                 <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
+                
+
+
                 <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
                 <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
                 <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
               </section>
             )}
 
+            {/* ═══ CATEGORY 4-SQUARE BOXES ═══ */}
+            {mounted && (
+              <section className="container mx-auto px-1 md:px-2 my-12 pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {categoryGrids.map((card, i) => (
+                    <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* ═══ Global Recommended Products ═══ */}
             {mounted && allProducts.length > 0 && (
               <section className="w-full px-1 md:px-2 mb-20">
-                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id))} title="Recommended For You" />
+                <RecommendedProducts products={allProducts} title="Recommended For You" />
               </section>
             )}
           </div>
@@ -468,19 +498,19 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
                 loading="lazy"
               />
             </div>
-            <span className="text-xs font-medium text-gray-600 group-hover/tile:text-brand-green-600 transition-colors text-center leading-tight">
+            <span className="text-xs font-bold text-gray-900 group-hover/tile:text-indigo-600 transition-colors text-center leading-tight tracking-tight">
               {sub.label}
             </span>
           </Link>
         ))}
       </div>
 
-      {/* Bottom Link */}
       <Link
         href={card.link}
-        className="text-sm font-semibold text-blue-600 hover:text-brand-orange hover:underline mt-4 inline-block transition-colors"
+        className="group/link text-sm font-black text-indigo-600 tracking-tight hover:text-indigo-800 mt-5 flex items-center transition-colors"
       >
         {card.linkText}
+        <ChevronRight className="h-4 w-4 ml-0.5 group-hover/link:translate-x-1 transition-transform" />
       </Link>
     </motion.div>
   );
@@ -691,7 +721,7 @@ function ScrollerProductCard({ product }: { product: any }) {
           onClick={handleAddToCart}
           className={`w-full text-xs font-bold h-9 rounded-lg shadow-sm transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer active:scale-95 ${addedToCart
             ? "bg-emerald-600 text-white"
-            : "bg-brand-green-600 hover:bg-brand-green-700 text-white hover:shadow-md"
+            : "bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md"
             }`}
         >
           {addedToCart ? (

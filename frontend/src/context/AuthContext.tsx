@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 
 import { User } from "@/lib/types";
+import { DemoStore } from "@/lib/demo-store";
 
 interface AuthContextType {
     user: User | null;
@@ -21,6 +22,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     const { data: session, status: sessionStatus } = useSession();
+    const isFirstMount = React.useRef(true);
+
+    useEffect(() => {
+        // Initial sync on mount
+        DemoStore.syncWithDB();
+
+        // High frequency sync for specific collections on first load to get instant UX
+        if (isFirstMount.current) {
+            DemoStore.syncWithDB("products");
+            DemoStore.syncWithDB("sellers");
+            isFirstMount.current = false;
+        }
+
+        // Periodic sync every 5 minutes (300,000 ms) to balance freshness and Neon DB quotas
+        const syncInterval = setInterval(() => {
+            DemoStore.syncWithDB();
+        }, 300000);
+
+        return () => clearInterval(syncInterval);
+    }, []);
 
     useEffect(() => {
         // --- NextAuth Sync ---

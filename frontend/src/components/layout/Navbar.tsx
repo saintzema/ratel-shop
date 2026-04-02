@@ -9,6 +9,7 @@ import {
     User,
     MapPin,
     ChevronDown,
+    ChevronRight,
     X,
     Heart,
     Handshake,
@@ -218,7 +219,7 @@ export function Navbar() {
 
     // Predictive Search Logic — ranked
     const [activeIndex, setActiveIndex] = useState(-1);
-    const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
+    const [textSuggestions, setTextSuggestions] = useState<string[]>([]);
 
     // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
@@ -238,57 +239,48 @@ export function Navbar() {
                 })
                 .filter(s => s.score > 40) // slightly lowered threshold to capture more inventory overlaps
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 3); // increased max slice from 2 to 3 to show more matches
+                .slice(0, 5); // Increased from 3 to 5 to show more local matches first
             setSuggestions(scored.map(s => s.product));
 
-            // Category suggestions
-            const matchedCats = CATEGORIES.filter(c =>
-                c.label.toLowerCase().includes(q) || c.value.includes(q)
-            ).slice(0, 3).map(c => c.label);
-            setCategorySuggestions(matchedCats);
-
             // Generate smart, context-aware autocomplete suggestions (no API)
-            const autoSuggs: string[] = [];
+            const pool = new Set<string>();
+            allSearchProducts.forEach(p => {
+                if (p.name.toLowerCase().includes(q)) pool.add(p.name);
+                // Smart combination (First two words)
+                const words = p.name.split(' ');
+                if (words.length > 1 && words[0].toLowerCase().includes(q)) {
+                    pool.add(`${words[0]} ${words[1] || ''}`.trim());
+                }
+            });
+
+            const sortedSuggestions = Array.from(pool)
+                .sort((a, b) => {
+                    const aStartsWith = a.toLowerCase().startsWith(q) ? -1 : 1;
+                    const bStartsWith = b.toLowerCase().startsWith(q) ? -1 : 1;
+                    if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+                    return a.length - b.length;
+                })
+                .slice(0, 5); // Increased from 3 to 5 for better autocomplete coverage
+            
+            // Add smart semantic permutations for the query
+            const semanticSuggs: string[] = [];
             const trimQ = searchQuery.trim();
             if (trimQ.length >= 2) {
-                // Detect product type for smart suggestions
                 const qLower = trimQ.toLowerCase();
                 const isCarQuery = /\b(car|suv|sedan|truck|van|toyota|lexus|benz|bmw|honda|hyundai|kia|jetour|avatr|tesla|range rover|land cruiser|camry|corolla|rav4|highlander|prado|gwm|changan|geely|byd)\b/i.test(qLower);
                 const isPhoneQuery = /\b(phone|iphone|samsung|galaxy|pixel|xiaomi|redmi|tecno|infinix|oppo|vivo|realme|oneplus|huawei)\b/i.test(qLower);
-                const isElectronicsQuery = /\b(laptop|macbook|ps5|playstation|xbox|airpods|earbuds|headphone|speaker|tv|monitor|tablet|ipad)\b/i.test(qLower);
+                const isComputeQuery = /\b(macbook|laptop|hp|dell|lenovo|asus|acer|pc|computer|desktop)\b/i.test(qLower);
 
                 if (isCarQuery) {
-                    // Smart car suggestions with years and conditions
-                    const hasYear = /\b(20[1-2]\d)\b/.test(trimQ);
-                    if (!hasYear) {
-                        autoSuggs.push(`${trimQ} 2025 Brand New`);
-                        autoSuggs.push(`${trimQ} 2024 Foreign Used`);
-                    } else {
-                        autoSuggs.push(`${trimQ} Brand New`);
-                        autoSuggs.push(`${trimQ} Foreign Used (Tokunbo)`);
-                    }
-                    autoSuggs.push(`${trimQ} Nigerian Used`);
-                } else if (isPhoneQuery) {
-                    autoSuggs.push(`${trimQ} Brand New`);
-                    autoSuggs.push(`${trimQ} Refurbished`);
-                    autoSuggs.push(`${trimQ} best price Nigeria`);
-                } else if (isElectronicsQuery) {
-                    autoSuggs.push(`${trimQ} Brand New`);
-                    autoSuggs.push(`${trimQ} best deal`);
-                    autoSuggs.push(`Buy ${trimQ} online Nigeria`);
+                    semanticSuggs.push(`${trimQ} 2024 Model`, `${trimQ} Tokunbo (Foreign Used)`, `${trimQ} Nigerian Used`, `Cheap ${trimQ}`);
+                } else if (isPhoneQuery || isComputeQuery) {
+                    semanticSuggs.push(`${trimQ} Brand New`, `${trimQ} UK Used`, `${trimQ} Refurbished`, `Cheap ${trimQ}`);
                 } else {
-                    // Generic product suggestions
-                    const nameSuggs = allSearchProducts
-                        .filter(p => p.name.toLowerCase().includes(qLower) && !p.name.toLowerCase().includes('duty') && !p.name.toLowerCase().includes('levy') && !p.name.toLowerCase().includes('cif'))
-                        .map(p => p.name)
-                        .slice(0, 2);
-                    autoSuggs.push(...nameSuggs);
-                    if (autoSuggs.length < 4) autoSuggs.push(`${trimQ} brand new`);
-                    if (autoSuggs.length < 4) autoSuggs.push(`Buy ${trimQ} used`);
+                    semanticSuggs.push(`${trimQ} Brand New`, `${trimQ} Used`, `Refurbished ${trimQ}`, `Best ${trimQ} Brands`);
                 }
             }
-            setAutocompleteSuggestions(autoSuggs.slice(0, 4));
 
+            setTextSuggestions([...sortedSuggestions, ...semanticSuggs].slice(0, 5));
             // Instantly show fuzzy-matched cached results from past searches
             const scoredIds = new Set(scored.map(s => s.product.id));
             const cached = DemoStore.searchCacheFuzzyMatch(searchQuery);
@@ -298,11 +290,10 @@ export function Navbar() {
             setActiveIndex(-1);
         } else {
             setSuggestions([]);
-            setCategorySuggestions([]);
             setGlobalResults([]);
             setIsGlobalSearching(false);
-            setAutocompleteSuggestions([]);
             setCachedResults([]);
+            setTextSuggestions([]);
             setShowSuggestions(false);
         }
     }, [searchQuery]);
@@ -447,19 +438,20 @@ export function Navbar() {
         }
     };
 
-    const totalSuggestionItems = categorySuggestions.length + suggestions.length;
+    const totalSuggestionItems = textSuggestions.length + suggestions.length;
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
-            if (activeIndex >= 0 && activeIndex < categorySuggestions.length) {
-                // Navigate to category
+            if (activeIndex >= 0 && activeIndex < textSuggestions.length) {
+                // Perform search for text suggestion
                 setShowSuggestions(false);
-                const catMatch = CATEGORIES.find(c => c.label === categorySuggestions[activeIndex]);
+                setSearchQuery(textSuggestions[activeIndex]);
+                const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
                 const catValue = catMatch ? catMatch.value : "All";
-                router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
-            } else if (activeIndex >= categorySuggestions.length && activeIndex < totalSuggestionItems) {
+                router.push(`/search?q=${encodeURIComponent(textSuggestions[activeIndex])}&category=${catValue}`);
+            } else if (activeIndex >= textSuggestions.length && activeIndex < totalSuggestionItems) {
                 // Navigate to product
-                const product = suggestions[activeIndex - categorySuggestions.length];
+                const product = suggestions[activeIndex - textSuggestions.length];
                 setShowSuggestions(false);
                 router.push(`/product/${product.id}`);
             } else {
@@ -654,62 +646,33 @@ export function Navbar() {
                                         </div>
                                     )}
 
-                                    {/* Category Suggestions */}
-                                    {searchQuery.trim().length > 0 && categorySuggestions.length > 0 && (
-                                        <div className="border-b border-gray-100/50">
-                                            {categorySuggestions.map((catLabel, i) => {
-                                                const catValue = CATEGORIES.find(c => c.label === catLabel)?.value || "All";
-                                                return (
-                                                    <Link
-                                                        href={`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`}
-                                                        key={catLabel}
-                                                        onClick={() => setShowSuggestions(false)}
-                                                        className={cn(
-                                                            "flex items-center gap-3 px-4 py-3 transition-colors text-sm",
-                                                            activeIndex === i ? "bg-blue-50/50" : "hover:bg-gray-50/50"
-                                                        )}
-                                                    >
-                                                        <Search className="h-4 w-4 text-gray-400 shrink-0" />
-                                                        <span className="text-gray-900">{searchQuery}</span>
-                                                        <span className="text-xs text-gray-400">in</span>
-                                                        <span className="text-xs font-bold text-blue-600">{catLabel}</span>
-                                                    </Link>
-                                                );
-                                            })}
+                                    {/* Text Suggestions (Autocomplete) */}
+                                    {searchQuery.trim().length >= 2 && textSuggestions.length > 0 && (
+                                        <div className="border-b border-gray-100/50 py-2">
+                                            {textSuggestions.map((suggestion, idx) => (
+                                                <button
+                                                    key={`sug-${idx}`}
+                                                    onClick={() => {
+                                                        setSearchQuery(suggestion);
+                                                        document.querySelector('input')?.focus();
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-[13px] md:text-sm text-gray-700 transition-colors flex items-center justify-between group"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                                        <span dangerouslySetInnerHTML={{
+                                                            __html: suggestion.replace(new RegExp(searchQuery.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
+                                                        }} />
+                                                    </div>
+                                                    <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            ))}
                                         </div>
                                     )}
 
-                                    {/* Text Autocomplete Suggestions (instant, no API) */}
-                                    {searchQuery.trim().length > 0 && autocompleteSuggestions.length > 0 && suggestions.length === 0 && (
-                                        <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full pt-2">
-                                            {CATEGORIES.slice(0, 10).map((cat) => {
-                                                const popularCategories = ["Phones", "Computers", "Electronics", "Fashion", "Beauty", "Home", "Gym", "Office", "Furniture", "Grocery"];
-                                                const isPopular = popularCategories.includes(cat.label) || popularCategories.includes(cat.value.charAt(0).toUpperCase() + cat.value.slice(1));
-
-                                                return (
-                                                    <Link
-                                                        href={`/search?category=${cat.value}`}
-                                                        key={cat.label}
-                                                        className="group flex flex-col items-center gap-2 cursor-pointer transition-transform hover:-translate-y-1"
-                                                        onClick={() => setIsCategoryOpen(false)}
-                                                    >
-                                                        <div className={cn(
-                                                            "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm transition-all relative",
-                                                            isPopular ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] group-hover:shadow-[0_0_20px_rgba(16,185,129,0.7)]" : "bg-white/10 group-hover:bg-white/20 border border-white/5"
-                                                        )}>
-                                                            {CATEGORY_ICON_MAP[cat.label.toLowerCase()] || CATEGORY_ICON_MAP[cat.value.toLowerCase()] || <Package className="h-6 w-6" />}
-                                                        </div>
-                                                        <span className="text-[10px] sm:text-xs font-medium text-black text-center leading-tight">
-                                                            {cat.label}
-                                                        </span>
-                                                    </Link>
-                                                );
-                                            })}
-                                        </div>)}
-
                                     {/* Product Suggestions */}
                                     {suggestions.map((product, i) => {
-                                        const idx = categorySuggestions.length + i;
+                                        const idx = textSuggestions.length + i;
                                         return (
                                             <button
                                                 key={product.id}

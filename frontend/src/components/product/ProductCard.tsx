@@ -222,7 +222,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                 {product.price_flag === "overpriced" ? (
                     <div className="flex gap-1.5 overflow-hidden">
                         <Button
-                            className="flex-1 min-w-0 bg-brand-green-600 text-white font-black hover:bg-brand-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
+                            className="flex-1 min-w-0 bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();
@@ -250,7 +250,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                 ) : (
                     <>
                         <Button
-                            className="w-full bg-brand-green-600 text-white font-black hover:bg-brand-green-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
+                            className="w-full bg-emerald-600 text-white font-black hover:bg-emerald-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();

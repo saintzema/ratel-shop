@@ -372,6 +372,52 @@ function SearchContent() {
     return detectCategoryFromQuery(query);
   }, [query, selectedCategory]);
 
+  // Generate dynamic price brackets depending on detectedCategory
+  const priceBrackets = useMemo(() => {
+    switch(detectedCategory) {
+      case 'phones':
+      case 'computers':
+      case 'electronics':
+         return [
+           { label: 'Under ₦100k', min: 0, max: 100000 },
+           { label: '₦100k to ₦250k', min: 100000, max: 250000 },
+           { label: '₦250k to ₦500k', min: 250000, max: 500000 },
+           { label: '₦500k to ₦1M', min: 500000, max: 1000000 },
+           { label: 'Over ₦1M', min: 1000000, max: 50000000 }
+         ];
+      case 'cars':
+         return [
+           { label: 'Under ₦5M', min: 0, max: 5000000 },
+           { label: '₦5M to ₦15M', min: 5000000, max: 15000000 },
+           { label: '₦15M to ₦30M', min: 15000000, max: 30000000 },
+           { label: 'Over ₦30M', min: 30000000, max: 500000000 }
+         ];
+      case 'energy':
+         return [
+           { label: 'Under ₦250k', min: 0, max: 250000 },
+           { label: '₦250k to ₦1M', min: 250000, max: 1000000 },
+           { label: '₦1M to ₦5M', min: 1000000, max: 5000000 },
+           { label: 'Over ₦5M', min: 5000000, max: 500000000 }
+         ];
+      case 'fashion':
+      case 'beauty':
+      case 'grocery':
+         return [
+           { label: 'Under ₦5k', min: 0, max: 5000 },
+           { label: '₦5k to ₦15k', min: 5000, max: 15000 },
+           { label: '₦15k to ₦50k', min: 15000, max: 50000 },
+           { label: 'Over ₦50k', min: 50000, max: 5000000 }
+         ];
+      default:
+         return [
+           { label: 'Under ₦50k', min: 0, max: 50000 },
+           { label: '₦50k to ₦200k', min: 50000, max: 200000 },
+           { label: '₦200k to ₦500k', min: 200000, max: 500000 },
+           { label: 'Over ₦500k', min: 500000, max: 50000000 }
+         ];
+    }
+  }, [detectedCategory]);
+
   // Get dynamic filters for current category
   const categoryFilterGroups = useMemo(() => {
     return getFiltersForCategory(detectedCategory);
@@ -399,7 +445,8 @@ function SearchContent() {
 
   // Debounced global search for the search page
   useEffect(() => {
-    if (!query || query.trim().length <= 2) {
+    const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
+    if (!effectiveQuery || effectiveQuery.length <= 2) {
       setGlobalResults([]);
       setIsGlobalSearching(false);
       return;
@@ -410,7 +457,7 @@ function SearchContent() {
       fetch("/api/gemini-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: query, mode: "search" }),
+        body: JSON.stringify({ productName: effectiveQuery, mode: "search" }),
       })
         .then((res) => res.json())
         .then((data) => {
@@ -422,7 +469,7 @@ function SearchContent() {
         .finally(() => setIsGlobalSearching(false));
     }, 500);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, selectedCategory]);
 
   const [globalSearchCount, setGlobalSearchCount] = useState(0);
 
@@ -430,12 +477,13 @@ function SearchContent() {
     setShowGlobalResults(true);
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
-    if (query && query.trim().length > 2) {
+    const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
+    if (effectiveQuery && effectiveQuery.length > 2) {
       setIsGlobalSearching(true);
       fetch("/api/gemini-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: query, mode: "search", offset: globalSearchCount + 1 }),
+        body: JSON.stringify({ productName: effectiveQuery, mode: "search", offset: globalSearchCount + 1 }),
       })
         .then((res) => res.json())
         .then((data) => {
@@ -453,8 +501,76 @@ function SearchContent() {
     }
   };
 
+  const searchableProducts = useMemo(() => {
+    let locals = allProducts;
+    if (showGlobalResults && globalResults.length > 0) {
+      const mappedGlobal = globalResults.map((r, i) => {
+        // Create a stable, URL-safe ID from the product name, matching Navbar logic
+        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+        const descCategories = {
+          electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
+          phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
+          computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
+          default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
+        };
+        const catList = r.category ? r.category.toLowerCase() : "default";
+        let descBase = descCategories.default;
+        if (catList.includes("phone")) descBase = descCategories.phones;
+        else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
+        else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
+
+        const rawImg = r.image_url || "";
+        const fallback = "/assets/images/placeholder.png";
+        const hasValidPhoto = rawImg && 
+                              !rawImg.toLowerCase().includes('no photo') && 
+                              !rawImg.toLowerCase().includes('no image') && 
+                              !rawImg.toLowerCase().includes('n/a');
+
+        const product = {
+          id: stableId,
+          name: r.name,
+          price: r.approxPrice || 0,
+          original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+          category: r.category || "electronics",
+          description: descBase,
+          image_url: hasValidPhoto ? rawImg : fallback,
+          images: [hasValidPhoto ? rawImg : fallback],
+          stock: 100,
+          seller_id: "global-partners",
+          seller_name: "Global Stores",
+          price_flag: "fair" as const,
+          sold_count: Math.floor(Math.random() * 200) + 10,
+          review_count: Math.floor(Math.random() * 50) + 5,
+          avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          _source: "global",
+          specs: r.specs || {
+            "Sourcing": "Global Network",
+            "Shipping": "Air Freight (Tracked)",
+            "Warranty": "1 Year International",
+            "Condition": r.condition || "Brand New"
+          },
+        };
+        return product as import("@/lib/types").Product;
+      });
+
+      // Deduplicate globals
+      const uniqueGlobal: import("@/lib/types").Product[] = [];
+      const seenNames = new Set(locals.map(l => l.name.toLowerCase()));
+      for(const g of mappedGlobal) {
+         if (!seenNames.has(g.name.toLowerCase())) {
+             seenNames.add(g.name.toLowerCase());
+             uniqueGlobal.push(g);
+         }
+      }
+      return [...locals, ...uniqueGlobal];
+    }
+    return locals;
+  }, [allProducts, showGlobalResults, globalResults]);
+
   const filteredProducts = useMemo(() => {
-    return allProducts
+    return searchableProducts
       .filter((product) => {
         if (query) {
           const q = query.toLowerCase();
@@ -477,10 +593,15 @@ function SearchContent() {
         }
         if (
           selectedCategory &&
-          selectedCategory !== "All" &&
-          product.category?.toLowerCase() !== selectedCategory.toLowerCase()
-        )
-          return false;
+          selectedCategory !== "All"
+        ) {
+          const selCat = selectedCategory.toLowerCase();
+          const prodCat = (product.category || "").toLowerCase();
+          const prodName = (product.name || "").toLowerCase();
+          // Match if either the product category or name includes the selected category term
+          if (!prodCat.includes(selCat) && !selCat.includes(prodCat) && !prodName.includes(selCat))
+            return false;
+        }
         if (
           isVerified &&
           (!product.seller_name || (!product.seller_name.includes("TechHub") && !product.seller_name.includes("FairPrice")))
@@ -524,7 +645,7 @@ function SearchContent() {
     isVerified,
     priceRange,
     sortBy,
-    allProducts,
+    searchableProducts,
     attributeFilters,
   ]);
 
@@ -584,68 +705,8 @@ function SearchContent() {
       }
     }
 
-    if (showGlobalResults) {
-      const mappedGlobal = globalResults.map((r, i) => {
-        // Create a stable, URL-safe ID from the product name, matching Navbar logic
-        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
-        const descCategories = {
-          electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
-          phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
-          computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
-          default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
-        };
-        const catList = r.category ? r.category.toLowerCase() : "default";
-        let descBase = descCategories.default;
-        if (catList.includes("phone")) descBase = descCategories.phones;
-        else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
-        else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
-
-        const rawImg = r.image_url || "";
-        const fallback = "/assets/images/placeholder.png";
-        const hasValidPhoto = rawImg && 
-                              !rawImg.toLowerCase().includes('no photo') && 
-                              !rawImg.toLowerCase().includes('no image') && 
-                              !rawImg.toLowerCase().includes('n/a');
-
-        const product = {
-          id: stableId,
-          name: r.name,
-          price: r.approxPrice || 0,
-          original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
-          category: r.category || "electronics",
-          description: descBase,
-          image_url: hasValidPhoto ? rawImg : fallback,
-          seller_id: "global-partners",
-          seller_name: "Global Stores",
-          price_flag: "fair" as const,
-          sold_count: Math.floor(Math.random() * 200) + 10,
-          review_count: Math.floor(Math.random() * 50) + 5,
-          avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
-          is_active: true,
-          created_at: new Date().toISOString(),
-          _source: "global",
-          specs: r.specs || {
-            "Sourcing": "Global Network",
-            "Shipping": "Air Freight (Tracked)",
-            "Warranty": "1 Year International",
-            "Condition": r.condition || "Brand New"
-          },
-        };
-
-        return product;
-      });
-      // Deduplicate by both ID and name internally as well as externally
-      const uniqueGlobal: any[] = [];
-      for (const g of mappedGlobal) {
-        if (!seenIds.has(g.id) && !combined.some((c) => c.name.toLowerCase() === g.name.toLowerCase())) {
-          seenIds.add(g.id);
-          uniqueGlobal.push(g);
-        }
-      }
-      combined.push(...uniqueGlobal);
-    }
     return combined;
-  }, [navResults, paginatedProducts, showGlobalResults, globalResults, navClickedId]);
+  }, [navResults, paginatedProducts, navClickedId]);
 
   // Products are no longer auto-saved here. They get saved to DemoStore only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
@@ -734,6 +795,36 @@ function SearchContent() {
                 <option value="newest">Newest Arrivals</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Dynamic Price Pill */}
+            <div className="relative shrink-0 snap-start">
+              <select
+                value={(minPriceParam || maxPriceParam) ? `${minPriceParam || 0}-${maxPriceParam || 500000000}` : "all"}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "all") {
+                    updateFilters({ minPrice: null, maxPrice: null });
+                  } else {
+                    const [min, max] = val.split('-');
+                    updateFilters({ minPrice: min, maxPrice: max });
+                  }
+                }}
+                className={cn(
+                  "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
+                  (minPriceParam || maxPriceParam)
+                    ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
+                    : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                )}
+              >
+                <option value="all">Price: All</option>
+                {priceBrackets.map((bracket) => (
+                  <option key={bracket.label} value={`${bracket.min}-${bracket.max}`}>
+                    {bracket.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none mix-blend-difference opacity-50" />
             </div>
 
             {/* Category Dropdown as Pill (Native Select) */}
@@ -1055,7 +1146,7 @@ export default function SearchPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
         </div>
       }
     >

@@ -1576,6 +1576,7 @@ class DemoStoreService {
         // to prevent unapproved sellers from showing up in global search or catalogs.
         // Match against both seller.id AND seller.user_id to catch ghost-account mismatches.
         const activeSellerIds = new Set<string>();
+        activeSellerIds.add("global-partners"); // Always include global catalogue products
         allSellers.filter(s => s.status === "active" || s.verified || s.kyc_status === "approved").forEach(s => {
             if (s.id) activeSellerIds.add(s.id);
             if (s.user_id) activeSellerIds.add(s.user_id);

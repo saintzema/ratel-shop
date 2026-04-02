@@ -329,9 +329,6 @@ const ChatInputBar = React.memo(({
     );
 });
 
-ChatInputBar.displayName = "ChatInputBar";
-
-import React from "react";
 
 export function MessageBox() {
     const {
