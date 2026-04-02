@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Search, Clock, ChevronRight, X } from "lucide-react";
 import { DemoStore } from "@/lib/demo-store";
 import { cn } from "@/lib/utils";

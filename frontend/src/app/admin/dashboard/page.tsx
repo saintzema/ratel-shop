@@ -45,7 +45,7 @@ export default function AdminDashboard() {
 
         // Governance: merge complaints + disputed/cancelled orders
         const rawComplaints = DemoStore.getComplaints();
-        const allOrders = DemoStore.getOrders();
+        const allOrders = DemoStore.getOrders().filter(o => !String(o.id).startsWith("FP-DEMO-ORD"));
         const disputedOrders = allOrders
             .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
             .map(o => ({
@@ -75,7 +75,8 @@ export default function AdminDashboard() {
             }));
         setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
 
-        setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length + disputedOrders.length);
+        const actualDisputes = DemoStore.getDisputes().filter(d => !String(d.order_id).startsWith("FP-DEMO-ORD"));
+        setOpenDisputeCount(actualDisputes.filter(d => !d.status.startsWith("resolved")).length);
         setRecentReviews(dSort(DemoStore.getReviews()).slice(0, 5));
         setRecentOrders(dSort(allOrders).slice(0, 5));
     };

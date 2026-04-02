@@ -15,6 +15,7 @@ import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
 import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
+import { playDingSound } from "@/lib/audio";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -34,6 +35,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const [isSystemCalculated, setIsSystemCalculated] = useState(false);
     const { user } = useAuth();
     const { startConversation, openMessageBox } = useMessages();
+    const [showPushOptIn, setShowPushOptIn] = useState(false);
 
     // Max negotiation discount — admin-configurable via SystemSettings.
     // Default: 5% means users cannot offer less than 95% of the listing price.
@@ -159,6 +161,15 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             negMessageText,
             product.seller_name || "Global Store"
         );
+
+        playDingSound(); // Play the sweet glass chime on successful negotiation request
+        
+        // Show push opt-in if permission is not already granted/denied
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+            setTimeout(() => {
+                setShowPushOptIn(true);
+            }, 1500);
+        }
 
         setIsSubmitting(false);
         setSubmitted(true);
@@ -340,6 +351,41 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Push Notification Opt-in Prompt */}
+                {showPushOptIn && (
+                    <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 animate-in fade-in zoom-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex gap-4 items-center mb-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
+                                <Tag className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-black text-emerald-900">Get Offer Updates! 🔔</h4>
+                                <p className="text-[10px] text-emerald-700 leading-tight">Enable notifications to know the instant the seller responds.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button 
+                                size="sm" 
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] h-8"
+                                onClick={async () => {
+                                    try {
+                                        await Notification.requestPermission();
+                                    } catch {}
+                                    setShowPushOptIn(false);
+                                }}
+                            >
+                                Enable Now
+                            </Button>
+                            <button 
+                                className="px-3 text-[10px] font-bold text-emerald-600 hover:text-emerald-800"
+                                onClick={() => setShowPushOptIn(false)}
+                            >
+                                Maybe Later
+                            </button>
+                        </div>
                     </div>
                 )}
             </DialogContent>

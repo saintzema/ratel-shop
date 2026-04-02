@@ -20,6 +20,8 @@ import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { PostOrderConciergeChat } from "@/components/modals/PostOrderConciergeChat";
 import { Navbar } from "@/components/layout/Navbar";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { ExitIntentModal } from "@/components/modals/ExitIntentModal";
+import { playDingSound } from "@/lib/audio";
 
 // Helper: compute a future delivery date (5-7 business days from now)
 function getDeliveryDateRange(): string {
@@ -206,6 +208,7 @@ function DiscountSection({
 export default function CheckoutPage() {
     return (
         <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading checkout...</div>}>
+            <ExitIntentModal />
             <CheckoutContent />
         </Suspense>
     );
@@ -587,11 +590,19 @@ function CheckoutContent() {
             : Math.round(baseDoorFee * shippingMultiplier)
     );
 
-    const totalSavings = checkoutItems.reduce((acc, item) => {
-        const originalPrice = item.product.original_price || item.product.price;
-        const currentPrice = item.price;
-        return acc + (Math.max(0, originalPrice - currentPrice) * item.quantity);
-    }, 0) + (appliedCoupon?.amount || 0);
+    const productSavings = checkoutItems.reduce((acc, item) => {
+        const orig = item.product.original_price;
+        if (orig && orig > item.price) {
+            // Sanity Check: Cap savings at 2.5x the current price to avoid display errors from stale mock data
+            // Items like S24 Ultra might have a 1.4M MSRP in mock DB but 176k negotiated price, which looks like an error
+            const actualSave = Math.min(orig - item.price, item.price * 2.5);
+            return acc + (actualSave * item.quantity);
+        }
+        return acc;
+    }, 0);
+
+    const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier)) : 0;
+    const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
 
     const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
 
@@ -732,6 +743,7 @@ function CheckoutContent() {
     const finalizeOrder = (_reference?: string) => {
         setShowPaystack(false);
         setIsProcessing(true);
+        playDingSound(); // Play the sweet glass chime on successful order initiation/finalization
         setTimeout(() => {
             // Create and save the order(s)
             // Use the provided email as the user_id if not logged in
@@ -1445,7 +1457,22 @@ function CheckoutContent() {
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <span className="font-bold text-gray-900">Pay with Card</span>
-                                            <CreditCard className="h-4 w-4 text-gray-400" />
+                                            <div className="flex items-center gap-1.5 ml-1">
+                                                {/* Mastercard SVG */}
+                                                <svg className="w-6 h-4" viewBox="0 0 36 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <circle cx="12" cy="12" r="12" fill="#EB001B"/>
+                                                    <circle cx="24" cy="12" r="12" fill="#F79E1B"/>
+                                                    <path d="M18 20.4853C20.6698 18.6702 22.5 15.5422 22.5 12C22.5 8.45778 20.6698 5.32982 18 3.51472C15.3302 5.32982 13.5 8.45778 13.5 12C13.5 15.5422 15.3302 18.6702 18 20.4853Z" fill="#FF5F00"/>
+                                                </svg>
+                                                {/* Visa SVG */}
+                                                <svg className="w-8 h-4 rounded-sm bg-blue-800 flex items-center justify-center px-1" viewBox="0 0 36 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                    <path d="M14.6548 0.625366L9.61334 11.3752H6.26257L3.95544 3.12565C3.81848 2.50285 3.65588 2.2155 3.19702 1.95679C2.42255 1.51737 1.15112 1.0504 0 0.825226V0.625366H5.21045C5.86792 0.625366 6.45288 1.04543 6.61157 1.83186L7.91528 8.63229L11.3533 0.625366H14.6548ZM26.3779 7.64716C26.3989 4.79374 22.464 4.6346 22.4854 3.32832C22.4922 2.92345 22.8804 2.49352 23.7549 2.37895C24.1956 2.3168 25.4377 2.27453 26.4302 2.73463L27.0176 0.111816C26.4819 0.00976562 25.5459 0 24.4379 0C21.4324 0 19.4175 1.54719 19.3958 3.75087C19.3765 5.37839 20.9163 6.28822 22.072 6.83763C23.2644 7.40445 23.6655 7.765 23.6624 8.27211C23.6565 9.04753 22.6953 9.39558 21.8491 9.39558C20.3013 9.39558 19.4121 8.98036 18.7842 8.68205L18.1729 11.3653C18.7905 11.6462 20.071 11.875 21.4019 11.875C24.5886 11.875 26.3572 10.3343 26.3779 7.64716ZM34.2144 11.3752H37.0503L34.1866 0.625366H31.5496C30.9824 0.625366 30.5093 0.94101 30.292 1.45564L25.8601 11.3752H29.3093L29.9978 9.53535H34.2144V11.3752ZM30.9839 6.80531L32.656 2.36894L33.623 6.80531H30.9839ZM18.4233 11.3752L15.4243 0.625366H12.3552L15.3523 11.3752H18.4233Z" fill="white"/>
+                                                </svg>
+                                                {/* OPay Stylized Text */}
+                                                <div className="h-4 px-1.5 flex items-center justify-center bg-emerald-500 rounded-sm">
+                                                    <span className="text-[10px] font-black text-white italic tracking-tighter">OPay</span>
+                                                </div>
+                                            </div>
                                         </div>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
                                             <Lock className="h-3 w-3" /> Debit or credit card · Secured by Paystack
@@ -1726,28 +1753,22 @@ function CheckoutContent() {
                                 )}
                             </div>
 
-                            {/* You Save */}
-                            {(() => {
-                                const productSavings = checkoutItems.reduce((acc, item) => {
-                                    if (item.product.original_price && item.product.original_price > item.price) {
-                                        return acc + ((item.product.original_price - item.price) * item.quantity);
-                                    }
-                                    return acc;
-                                }, 0);
-                                const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * (hasGlobalProduct ? 1.5 : 1)) : Math.round(baseDoorFee * (hasGlobalProduct ? 1.5 : 1))) : 0;
-                                const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
-                                return totalSavings > 0 ? (
-                                    <div className="flex flex-col bg-emerald-50 -mx-4 px-4 py-2.5 rounded-xl border border-emerald-100 gap-0.5">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-emerald-700 font-bold text-sm flex items-center gap-1.5">
-                                                🎉 You Saved:
-                                            </span>
-                                            <span className="font-black text-emerald-600 text-sm">{formatPrice(totalSavings)}</span>
-                                        </div>
-                                        <span className="text-emerald-600/70 text-xs font-medium">From discounts & delivery</span>
+                            {/* Consolidated Order Savings */}
+                            {totalSavings > 0 ? (
+                                <div className="flex flex-col bg-emerald-50/80 -mx-4 px-4 py-3 rounded-2xl border border-emerald-100 shadow-sm mt-2">
+                                    <div className="flex justify-between items-center mb-0.5">
+                                        <span className="text-emerald-700 font-bold text-sm flex items-center gap-2">
+                                            <Sparkles className="h-4 w-4 text-emerald-500 animate-pulse" />
+                                            Order Savings:
+                                        </span>
+                                        <span className="font-black text-emerald-600 text-base">{formatPrice(totalSavings)}</span>
                                     </div>
-                                ) : null;
-                            })()}
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-emerald-600/60 text-[10px] uppercase font-bold tracking-wider">Discounts & Delivery</span>
+                                        <span className="text-emerald-500/80 text-[10px] font-bold italic">Exclusive Deal</span>
+                                    </div>
+                                </div>
+                            ) : null}
 
                             <div className="flex justify-between items-end border-t border-gray-200 pt-4 mt-2">
                                 <div className="space-y-1">
@@ -1759,9 +1780,6 @@ function CheckoutContent() {
                                                     Coupon: -₦{appliedCoupon.amount.toLocaleString()}
                                                 </span>
                                             )}
-                                            <span className="text-xs font-black text-white bg-gradient-to-r from-brand-orange to-orange-600 px-3 py-1 rounded-full shadow-sm w-fit flex items-center gap-1 animate-pulse">
-                                                <Sparkles className="h-3 w-3" /> YOU SAVE ₦{totalSavings.toLocaleString()}
-                                            </span>
                                         </div>
                                     )}
                                 </div>
@@ -1783,7 +1801,9 @@ function CheckoutContent() {
                                 <div className="flex flex-col items-end">
                                     <span className="font-black text-xl text-brand-orange">{formatPrice(total)}</span>
                                     {totalSavings > 0 && (
-                                        <span className="text-[10px] font-black text-emerald-600">You Save ₦{totalSavings.toLocaleString()}</span>
+                                        <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1">
+                                            <Sparkles className="h-2.5 w-2.5" /> SAVED ₦{totalSavings.toLocaleString()}
+                                        </span>
                                     )}
                                 </div>
                             </div>

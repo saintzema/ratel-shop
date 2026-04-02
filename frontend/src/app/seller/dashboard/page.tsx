@@ -41,43 +41,11 @@ export default function SellerDashboard() {
     useEffect(() => {
         let sellerId = DemoStore.getCurrentSellerId();
 
-        // If no seller session but user is logged in with seller role, auto-create seller record
-        if (!sellerId && user && user.role === "seller") {
-            const existingSeller = DemoStore.getSellers().find(s =>
-                s.owner_email === user.email || s.id === user.id
-            );
-
-            if (existingSeller) {
-                DemoStore.loginSeller(existingSeller.id);
-                sellerId = existingSeller.id;
-            } else if (!hasAttemptedCreation.current) {
-                hasAttemptedCreation.current = true;
-                // Create a deterministic seller record for this user to avoid duplicates if sync delays
-                const newSellerId = `seller_${user.id.replace(/[^a-z0-9]/gi, '_')}`;
-                const newSeller: Seller = {
-                    id: newSellerId,
-                    user_id: user.id,
-                    business_name: user.name || "My Store",
-                    owner_name: user.name || "",
-                    owner_email: user.email,
-                    description: "New seller on FairPrice",
-                    category: "general",
-                    location: "Lagos, Nigeria",
-                    verified: false,
-                    kyc_status: "pending",
-                    trust_score: 50,
-                    joined_at: "2024-01-01T00:00:00.000Z", // Deterministic timestamp to avoid loop triggers
-                };
-                DemoStore.addSeller(newSeller);
-                DemoStore.loginSeller(newSellerId);
-                sellerId = newSellerId;
-                // Redirect to onboarding for brand new sellers
-                router.push("/seller/onboarding");
-                return;
-            }
+        if (!sellerId) { 
+            // Give layout.tsx a moment to finish its DB sync before redirecting
+            // It might be doing a background fetch that will populate local storage.
+            return; 
         }
-
-        if (!sellerId) { router.push("/seller/login"); return; }
 
         const loadData = () => {
             const seller = DemoStore.getCurrentSeller();
@@ -210,7 +178,7 @@ export default function SellerDashboard() {
                         </p>
                         <p className="text-xs text-rose-600 mt-0.5">Payment is frozen until the admin resolves each dispute.</p>
                     </div>
-                    <Link href="/seller/orders" className="text-xs font-bold text-rose-700 hover:text-rose-800 bg-white px-3 py-1.5 rounded-lg border border-rose-200">
+                    <Link href="/seller/orders?filter=disputed" className="text-xs font-bold text-rose-700 hover:text-rose-800 bg-white px-3 py-1.5 rounded-lg border border-rose-200">
                         View Orders
                     </Link>
                 </div>

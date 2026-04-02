@@ -20,7 +20,7 @@ import {
     Inbox,
     Vault,
     Megaphone,
-    Wallet
+    Wallet as LucideWallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -56,8 +56,9 @@ export default function AdminLayout({
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
-        { label: "Payouts", href: "/admin/payouts", icon: Wallet },
+        { label: "Payouts", href: "/admin/payouts", icon: LucideWallet },
         { label: "Sponsored Ads", href: "/admin/ads", icon: Megaphone },
+        { label: "Push Alerts", href: "/admin/notifications", icon: Bell },
         { label: "Settings", href: "/admin/settings", icon: Settings },
     ];
 

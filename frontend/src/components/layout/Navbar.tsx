@@ -274,7 +274,14 @@ export function Navbar() {
                 // Helper to add suggestions only if not already present
                 const addUniqueSuffix = (base: string, suffix: string) => {
                     const cleanSuffix = suffix.trim();
-                    if (!base.toLowerCase().includes(cleanSuffix.toLowerCase())) {
+                    const bLower = base.toLowerCase();
+                    const sLower = cleanSuffix.toLowerCase();
+                    
+                    // Simple exclusion list for redundant terms in vehicle/electronic queries
+                    const redundantTerms = ['tokunbo', 'used', 'new', 'refurbished', 'foreign'];
+                    const hasRedundant = redundantTerms.some(term => bLower.includes(term) && sLower.includes(term));
+                    
+                    if (!bLower.includes(sLower) && !hasRedundant) {
                         semanticSuggs.push(`${base} ${cleanSuffix}`);
                     }
                 };

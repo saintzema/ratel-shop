@@ -71,6 +71,7 @@ export default function UniversalMessagesPage() {
     const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const chatInputFocusedRef = useRef(false);
 
     useEffect(() => {
         const sellerId = DemoStore.getCurrentSellerId();
@@ -96,8 +97,12 @@ export default function UniversalMessagesPage() {
             });
 
             negotiationsByGroup.forEach((customerNegs, groupId) => {
-                // Sort by newest first
-                customerNegs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                // Sort by newest first (latest activity)
+                customerNegs.sort((a, b) => {
+                    const timeA = new Date(a.updated_at || a.created_at).getTime();
+                    const timeB = new Date(b.updated_at || b.created_at).getTime();
+                    return timeB - timeA;
+                });
                 const latestNeg = customerNegs[0];
                 const custId = latestNeg.customer_id;
                 const prod = allProds.find(p => p.id === latestNeg.product_id);
@@ -261,10 +266,14 @@ export default function UniversalMessagesPage() {
             const directCustomer = params.get('customer');
             
             if (orderFromUrl) {
-                // Try to find existing concierge conversation
-                const concThread = convos.find(c => c.orderId === orderFromUrl || c.id === `conc-${orderFromUrl}`);
-                if (concThread) {
-                    // Will be auto-selected below
+                // Try to find existing concierge or dispute/order conversation
+                const existingThread = convos.find(c =>
+                    c.orderId === orderFromUrl ||
+                    c.id === `conc-${orderFromUrl}` ||
+                    c.id === `ord-${orderFromUrl}`
+                );
+                if (existingThread) {
+                    // Will be auto-selected by the useEffect below
                 } else {
                     // Create a concierge entry for this order if it has no chat yet
                     const targetOrder = orders.find(o => o.id === orderFromUrl);
@@ -300,12 +309,13 @@ export default function UniversalMessagesPage() {
         loadData();
         window.addEventListener("storage", loadData);
         window.addEventListener("demo-store-update", loadData);
-        // Polling for cross-browser/device realtime sync
+        // Background polling — only fires when chat input is NOT focused
+        // to prevent re-render cascade from freezing the UI mid-keystroke.
         const pollInterval = setInterval(() => {
+            if (chatInputFocusedRef.current) return; // ← Guard: skip while typing
             loadData();
-            // Background sync from DB as safety fallback for hot-receive
             DemoStore.syncWithDB();
-        }, 3000);
+        }, 8000);
         return () => {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("demo-store-update", loadData);
@@ -339,15 +349,20 @@ export default function UniversalMessagesPage() {
         }
     }, [conversations, selectedId]);
 
-    // Auto-select concierge from ?order= URL
+    // Auto-select conversation from ?order= URL (concierge, dispute, or order thread)
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const orderFromUrl = params.get('order');
         if (orderFromUrl && !selectedId && conversations.length > 0) {
-            const concThread = conversations.find(c => c.orderId === orderFromUrl || c.id === `conc-${orderFromUrl}`);
-            if (concThread) {
-                setSelectedId(concThread.id);
-                setFilter('concierge');
+            // Try concierge first, then dispute/order thread
+            const thread = conversations.find(c =>
+                c.orderId === orderFromUrl ||
+                c.id === `conc-${orderFromUrl}` ||
+                c.id === `ord-${orderFromUrl}`
+            );
+            if (thread) {
+                setSelectedId(thread.id);
+                setFilter(thread.type === 'dispute' ? 'dispute' : thread.type === 'concierge' ? 'concierge' : 'all');
             }
         }
     }, [conversations, selectedId]);
@@ -543,7 +558,7 @@ export default function UniversalMessagesPage() {
 
             {/* Sidebar List */}
             <div className={cn(
-                "w-full md:w-[320px] lg:w-[380px] bg-gray-50/50 border-r border-gray-200 flex flex-col",
+                "w-full md:w-[320px] lg:w-[380px] bg-gray-50/50 border-r border-gray-200 flex flex-col min-h-0",
                 selectedId ? "hidden md:flex" : "flex"
             )}>
                 <div className="p-4 border-b border-gray-200 bg-white">
@@ -627,7 +642,7 @@ export default function UniversalMessagesPage() {
 
             {/* Main Chat Area */}
             <div className={cn(
-                "flex-1 bg-white flex flex-col relative",
+                "flex-1 min-h-0 bg-white flex flex-col relative",
                 !selectedId ? "hidden md:flex items-center justify-center bg-gray-50/50" : "flex"
             )}>
                 {!activeConvo ? (
@@ -688,7 +703,19 @@ export default function UniversalMessagesPage() {
                         {activeProduct && (
                             <div className="p-3 bg-gray-50/80 border-b border-gray-100 flex gap-4 items-center shrink-0">
                                 <div className="h-12 w-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center p-1 shrink-0 shadow-sm">
-                                    <img src={activeProduct.image_url || (activeProduct as any).imageUrl || activeProduct.images?.[0] || undefined} alt="" className="max-w-full max-h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                    <img 
+                                        src={
+                                            activeProduct.image_url || 
+                                            (activeProduct as any).imageUrl || 
+                                            (typeof activeProduct.images?.[0] === 'string' ? activeProduct.images[0] : (activeProduct.images?.[0] as any)?.url) ||
+                                            undefined
+                                        } 
+                                        alt="" 
+                                        className="max-w-full max-h-full mix-blend-multiply" 
+                                        onError={e => { 
+                                            e.currentTarget.src = "https://images.unsplash.com/photo-1584036561566-baf2f5f14a4c?q=80&w=200&auto=format&fit=crop";
+                                        }} 
+                                    />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-[13px] font-bold text-gray-900 truncate">{activeProduct.name}</h4>
@@ -890,7 +917,7 @@ export default function UniversalMessagesPage() {
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20">
+                        <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20 shrink-0">
 
                             {replyingTo && (
                                 <div className="mb-3 px-3 py-2 bg-indigo-50/50 border border-indigo-100 rounded-lg flex items-center justify-between">
@@ -917,19 +944,31 @@ export default function UniversalMessagesPage() {
                                 </div>
                             )}
 
-                            {activeConvo.type === "negotiation" && activeNeg && activeNeg.status === "pending" && !activeNeg.counter_status && (
+                            {activeConvo.type === "negotiation" && activeNeg && activeNeg.status !== "accepted" && activeNeg.status !== "rejected" && (
                                 <div className="mb-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 shadow-inner">
-                                    <div className="flex gap-2 justify-center sm:justify-start mb-4">
-                                        <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
-                                            <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {formatPrice(activeNeg.proposed_price)}
-                                        </Button>
-                                        <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
-                                            Reject
-                                        </Button>
+                                    <div className="flex flex-col gap-2 justify-center sm:justify-start mb-4 bg-white p-3 rounded-xl border border-indigo-50 shadow-sm">
+                                        {activeNeg.counter_status === "pending" ? (
+                                            <>
+                                                <p className="text-xs font-bold text-gray-500 mb-1">Waiting for buyer to respond to your counter offer of {formatPrice(activeNeg.counter_price || 0)}.</p>
+                                                <p className="text-[11px] text-gray-400 mb-2">You can still accept their last proposed price to close the deal now.</p>
+                                                <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm">
+                                                    <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {formatPrice(activeNeg.proposed_price)}
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <div className="flex gap-2 w-full">
+                                                <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
+                                                    <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {activeNeg.status === 'pending' && activeNeg.proposed_price !== activeProduct.price ? 'Counter Offer' : 'Offer'} {formatPrice(activeNeg.proposed_price)}
+                                                </Button>
+                                                <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
+                                                    Reject
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="relative flex items-center mb-4 opacity-70">
                                         <div className="absolute inset-x-0 h-px bg-gray-200"></div>
-                                        <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR NEGOTIATE</span>
+                                        <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR {activeNeg.counter_status === "pending" ? "UPDATE COUNTER" : "NEGOTIATE"}</span>
                                     </div>
                                     <form onSubmit={handleCounterOffer} className="p-1">
                                         <div className="flex flex-col sm:flex-row gap-2">
@@ -952,7 +991,7 @@ export default function UniversalMessagesPage() {
                                                     placeholder="Add a message to your counter offer..."
                                                 />
                                                 <Button type="submit" className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
-                                                    Send Offer
+                                                    {activeNeg.counter_status === "pending" ? "Update Offer" : "Send Offer"}
                                                 </Button>
                                             </div>
                                         </div>
@@ -980,7 +1019,9 @@ export default function UniversalMessagesPage() {
                                 <Input
                                     value={chatMessage}
                                     onChange={(e) => setChatMessage(e.target.value)}
-                                    className="flex-1 bg-gray-50 border-gray-100 rounded-full h-12 px-6 text-[13.px] font-medium shadow-inner focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-all placeholder:text-gray-400"
+                                    onFocus={() => { chatInputFocusedRef.current = true; }}
+                                    onBlur={() => { chatInputFocusedRef.current = false; }}
+                                    className="flex-1 bg-gray-50 border-gray-100 rounded-full h-12 px-6 text-[13px] font-medium shadow-inner focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-all placeholder:text-gray-400"
                                     placeholder="Type your message..."
                                 />
                                 <Button

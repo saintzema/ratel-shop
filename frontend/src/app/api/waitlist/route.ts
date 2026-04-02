@@ -23,8 +23,9 @@ async function sendWelcomeEmail(email: string, waitlistPosition: number | string
     const logoUrl = "https://fairprice-ten.vercel.app/logo.png";
 
     const data = await resend.emails.send({
-      from: "Ziva from FairPrice <hello@fairprice.zemaai.com>",
+      from: "FairPrice Support <hello@fairprice.zemaai.com>",
       to: email,
+      replyTo: process.env.ESCALATION_EMAIL || "fairprice2026@gmail.com",
       subject: "Welcome to FairPrice — You're officially on the list! 🍾",
       html: `
 <!DOCTYPE html>
