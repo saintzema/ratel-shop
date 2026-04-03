@@ -397,20 +397,14 @@ export default function SellerDashboard() {
                         {formatPrice(availableBalance)}
                     </h3>
                     <p className="text-[11px] text-gray-500 mt-1 mb-4">After {COMMISSION_RATE * 100}% platform commission fees</p>
-                    {cashoutSuccess ? (
-                        <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-100">
-                            <CheckCircle className="h-4 w-4" />
-                            Cashout request submitted!
-                        </div>
-                    ) : (
+                    <Link href="/seller/wallet">
                         <Button
-                            onClick={handleCashout}
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-sm"
                         >
                             <ArrowUpRight className="h-4 w-4 mr-2" />
-                            Request Cashout
+                            Manage Wallet & Payout
                         </Button>
-                    )}
+                    </Link>
                 </div>
 
                 {/* In Escrow */}

@@ -196,7 +196,7 @@ export default function SellerLayout({
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
-        { label: "Payouts", href: "/seller/dashboard/payouts", icon: Wallet },
+        { label: "Wallet & Payouts", href: "/seller/wallet", icon: Wallet },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
     ];

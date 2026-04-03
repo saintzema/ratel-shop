@@ -186,8 +186,10 @@ function HomeContent() {
   // Live products from DemoStore — load only on client to avoid SSR hydration mismatch
   const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   // ─── Referral Tracking System ───
   useEffect(() => {
@@ -198,7 +200,20 @@ function HomeContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    const refresh = () => setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
+    const refresh = () => {
+      setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
+      
+      let hasSellerRole = false;
+      try {
+        const userStr = localStorage.getItem("fp_user");
+        if (userStr) {
+          const userObj = JSON.parse(userStr);
+          hasSellerRole = userObj?.role === "seller";
+        }
+      } catch (e) {}
+
+      setIsSeller(!!DemoStore.getCurrentSellerId() || hasSellerRole);
+    };
     const loadGrids = () => {
       try {
         const saved = localStorage.getItem("ratel_homepage_grids");
@@ -348,7 +363,7 @@ function HomeContent() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
-                className="flex justify-center"
+                className="flex flex-col sm:flex-row justify-center items-center gap-4"
               >
                 <Button
                   size="lg"
@@ -357,6 +372,16 @@ function HomeContent() {
                   onClick={() => setIsPriceModalOpen(true)}
                 >
                   <span className="font-extrabold tracking-wide">Calculate Fair Price</span> <span className="ml-2 animate-bounce">✨</span>
+                </Button>
+
+                <Button
+                  size="lg"
+                  variant="apple-glass"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-white/20 bg-white/10 text-white hover:bg-white/20 hover:scale-[1.02] shadow-sm transition-all duration-300 group"
+                  onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
+                >
+                  <span className="font-extrabold tracking-wide">{isSeller ? "View Store" : "Start Selling"}</span>
+                  <StoreIcon className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
                 </Button>
               </motion.div>
             </div>

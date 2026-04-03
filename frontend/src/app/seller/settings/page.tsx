@@ -21,7 +21,8 @@ import {
     ShieldAlert,
     Copy,
     Lock,
-    Check
+    Check,
+    Wallet
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -398,6 +399,20 @@ export default function SellerSettingsPage() {
                         </div>
                     </div>
                 </div >
+
+                {/* Payout & Bank Settings Quick Link */}
+                <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">
+                    <div className="flex items-center gap-2 mb-2 text-amber-600">
+                        <Wallet className="h-5 w-5" />
+                        <h2 className="font-bold uppercase tracking-widest text-xs">Payout & Banking Settings</h2>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-6 font-medium">Manage your NUBAN details, view payout history, and request withdrawals.</p>
+                    <Link href="/seller/settings/payouts">
+                        <Button type="button" variant="outline" className="w-full sm:w-auto font-bold rounded-xl h-10 border-amber-200 text-amber-700 hover:bg-amber-50">
+                            Configure Bank Details
+                        </Button>
+                    </Link>
+                </div>
 
                 {/* Save Button */}
                 <AnimatePresence>
