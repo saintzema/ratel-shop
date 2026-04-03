@@ -617,7 +617,8 @@ export default function KYCOnboarding() {
                                             <option value="Zenith Bank">Zenith Bank</option>
                                         </select>
                                     </div>
-
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Account Number *</label>
                                         <Input
                                             placeholder="0123456789"
                                             maxLength={10}

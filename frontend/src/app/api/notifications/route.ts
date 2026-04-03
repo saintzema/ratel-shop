@@ -24,12 +24,16 @@ async function safeFetch(url: string, options?: RequestInit): Promise<any> {
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
-    const user_email = searchParams.get("user_email");
+    const user_email = searchParams.get("user_email") || searchParams.get("userId");
     const unread_only = searchParams.get("unread_only") || "false";
+    const user_id = searchParams.get("userId"); // Extra capture for logging/alias
 
-    if (!user_email) {
-        return NextResponse.json({ error: "user_email is required" }, { status: 400 });
+    if (!user_email && !user_id) {
+        return NextResponse.json({ error: "user_email or userId is required" }, { status: 400 });
     }
+    
+    // Resolve email if userId was provided but email is needed for DB lookups
+    const effective_email = user_email; 
 
     const count_only = searchParams.get("count_only") === "true";
     const endpoint = count_only ? `${API_PREFIX}/unread-count` : API_PREFIX;

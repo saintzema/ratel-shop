@@ -49,6 +49,7 @@ export interface Seller {
     rating?: number;
     trust_score: number;
     commission_rate?: number;
+    tier?: "Gold" | "Silver" | "Bronze" | "Standard";
     status?: "pending" | "active" | "frozen" | "banned";
     kyc_status: "not_submitted" | "pending" | "approved" | "rejected";
     cover_image_url?: string;

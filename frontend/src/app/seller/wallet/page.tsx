@@ -23,7 +23,8 @@ import {
     ArrowLeft,
     X,
     BuildingIcon,
-    TrendingUp
+    TrendingUp,
+    RefreshCw
 } from "lucide-react";
 
 export default function SellerWalletPage() {
@@ -191,8 +192,7 @@ export default function SellerWalletPage() {
                 </motion.div>
             )}
 
-                </div>
-            </div>
+
 
             {/* Payout Lifecycle Tracking - Premium Component */}
             <motion.div 
