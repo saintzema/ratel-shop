@@ -12,8 +12,8 @@ import { CheckCircle, AlertCircle, Trash2, ShoppingBag, Plus, Heart, ChevronDown
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
-import { DEMO_PRODUCTS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
 import { ProductCard } from "@/components/product/ProductCard";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
@@ -81,7 +81,7 @@ export default function CartPage() {
                                                 <div className="font-bold text-lg text-emerald-600">{formatPrice(product.price)}</div>
                                                 {/* Show original price if this is a negotiated deal */}
                                                 {(() => {
-                                                    const masterProduct = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === product.id);
+                                                    const masterProduct = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === product.id);
                                                     if (masterProduct && masterProduct.price > product.price) {
                                                         return (
                                                             <div className="text-sm text-gray-400 line-through font-medium">
@@ -186,7 +186,7 @@ export default function CartPage() {
                     <div className="mt-8 pt-4 border-t">
                         <h3 className="font-bold text-sm mb-3">Recommended for you</h3>
                         <div className="space-y-3">
-                            {DEMO_PRODUCTS.slice(3, 5).map(p => (
+                            {SEED_PRODUCTS.slice(3, 5).map(p => (
                                 <div key={p.id} className="flex gap-2 group items-center">
                                     <Link href={`/product/${p.id}`} className="flex gap-2 flex-1 min-w-0">
                                         <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden shrink-0">

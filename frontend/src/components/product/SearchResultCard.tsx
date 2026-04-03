@@ -10,7 +10,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { nativeBridge } from "@/lib/native-bridge";
 
 // Category icon map for product image fallback
@@ -58,7 +58,7 @@ export function SearchResultCard({
     const [imgError, setImgError] = useState(false);
 
     // Fetch seller dynamically
-    const seller = DemoStore.getSellers().find(s => s.id === product.seller_id);
+    const seller = DataSyncService.getSellers().find(s => s.id === product.seller_id);
 
     const handleDoubleTap = () => {
         const now = Date.now();

@@ -10,7 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff, Loader2, ArrowRight, Check, X, AlertCircle } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
@@ -221,7 +221,7 @@ export default function UnifiedAuthPage() {
                 login(dbUser);
                 saveRegisteredUser(dbUser.email, dbUser.name, dbUser.role);
 
-                DemoStore.addNotification({
+                DataSyncService.addNotification({
                     userId: dbUser.email,
                     type: "system",
                     message: `Welcome back, ${dbUser.name}! 👋 Happy shopping.`,
@@ -293,7 +293,7 @@ export default function UnifiedAuthPage() {
             login(finalUser);
             saveRegisteredUser(finalUser.email, finalUser.name, finalUser.role);
 
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: userEmail,
                 type: "system",
                 message: `Welcome back, ${userName}! 👋 Happy shopping.`,
@@ -364,8 +364,8 @@ export default function UnifiedAuthPage() {
             console.error("Email fetch failed:", err);
         }
 
-        DemoStore.addNotification({
-            userId: DemoStore.getCurrentUserId() || "guest",
+        DataSyncService.addNotification({
+            userId: DataSyncService.getCurrentUserId() || "guest",
             message: `Verification Email Sent: A code has been sent to ${targetEmail}`,
             type: "system",
             link: "#"
@@ -441,7 +441,7 @@ export default function UnifiedAuthPage() {
             }).catch(console.error);
 
             // Add Welcome Notification
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: regEmail,
                 message: `Welcome to FairPrice, ${firstName.trim()}! 🎉 Your account is created. Explore top global and local deals.`,
                 type: "system",

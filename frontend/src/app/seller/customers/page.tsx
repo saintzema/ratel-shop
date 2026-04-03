@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -32,11 +32,11 @@ export default function CustomersCRMPage() {
     const ITEMS_PER_PAGE = 5;
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         // Aggregate orders by customer to create the CRM list
-        const allOrders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+        const allOrders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
         const cusMap = new Map<string, any>();
 
         allOrders.forEach(order => {

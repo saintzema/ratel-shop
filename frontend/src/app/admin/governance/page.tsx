@@ -20,7 +20,7 @@ import {
     ShoppingBag,
     Plus
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -32,11 +32,11 @@ export default function GovernanceCenter() {
 
     useEffect(() => {
         const load = () => {
-            setKycs(DemoStore.getKYCSubmissions());
+            setKycs(DataSyncService.getKYCSubmissions());
             
             // Mirror logic from Admin Dashboard: merge complaints + disputed/cancelled orders
-            const rawComplaints = DemoStore.getComplaints();
-            const allOrders = DemoStore.getOrders();
+            const rawComplaints = DataSyncService.getComplaints();
+            const allOrders = DataSyncService.getOrders();
             const disputedOrders = allOrders
                 .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
                 .map(o => ({
@@ -66,7 +66,7 @@ export default function GovernanceCenter() {
 
     const handleSendMessage = () => {
         if (!composeText.trim()) return;
-        DemoStore.addSupportMessage({
+        DataSyncService.addSupportMessage({
             user_name: "Admin",
             user_email: "admin@globalstores.shop",
             subject: `Re: Case #${msgModal.caseId} — Message to ${msgModal.userName}`,
@@ -190,14 +190,14 @@ export default function GovernanceCenter() {
                                                     {kyc.status === "pending" && (
                                                         <>
                                                             <Button
-                                                                onClick={() => { DemoStore.updateKYCStatus(kyc.id, "approved"); setKycs(DemoStore.getKYCSubmissions()); }}
+                                                                onClick={() => { DataSyncService.updateKYCStatus(kyc.id, "approved"); setKycs(DataSyncService.getKYCSubmissions()); }}
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-widest"
                                                             >
                                                                 Approve
                                                             </Button>
                                                             <Button
-                                                                onClick={() => { DemoStore.updateKYCStatus(kyc.id, "rejected"); setKycs(DemoStore.getKYCSubmissions()); }}
+                                                                onClick={() => { DataSyncService.updateKYCStatus(kyc.id, "rejected"); setKycs(DataSyncService.getKYCSubmissions()); }}
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-[10px] uppercase tracking-widest"
@@ -288,14 +288,14 @@ export default function GovernanceCenter() {
                                                                 {c.status !== "resolved" && (
                                                                     <>
                                                                         <button
-                                                                            onClick={() => { DemoStore.updateComplaintStatus(c.id, "investigating"); setComplaints(DemoStore.getComplaints()); }}
+                                                                            onClick={() => { DataSyncService.updateComplaintStatus(c.id, "investigating"); setComplaints(DataSyncService.getComplaints()); }}
                                                                             className="h-8 w-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors"
                                                                             title="Investigate"
                                                                         >
                                                                             <Search className="h-3.5 w-3.5 text-white" />
                                                                         </button>
                                                                         <button
-                                                                            onClick={() => { DemoStore.updateComplaintStatus(c.id, "resolved"); setComplaints(DemoStore.getComplaints()); }}
+                                                                            onClick={() => { DataSyncService.updateComplaintStatus(c.id, "resolved"); setComplaints(DataSyncService.getComplaints()); }}
                                                                             className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors"
                                                                             title="Resolve"
                                                                         >

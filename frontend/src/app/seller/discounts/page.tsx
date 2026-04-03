@@ -34,7 +34,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
 
 export default function DiscountsPage() {
@@ -51,7 +51,7 @@ export default function DiscountsPage() {
     const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
     const loadDiscounts = async () => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         setLoading(true);
@@ -82,7 +82,7 @@ export default function DiscountsPage() {
 
     const handleCreate = async () => {
         if (!newDiscount.code || !newDiscount.value) return;
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         try {

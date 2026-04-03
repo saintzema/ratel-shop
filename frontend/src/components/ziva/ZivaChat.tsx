@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { getDemoPriceComparison } from "@/lib/data";
@@ -212,7 +212,7 @@ export function ZivaChat() {
         const match = pathname.match(/\/product\/(.+)/);
         if (match) {
             const productId = decodeURIComponent(match[1]);
-            const allProducts = DemoStore.getProducts();
+            const allProducts = DataSyncService.getProducts();
             const found = allProducts.find(p => p.id === productId);
             setCurrentProduct(found || null);
         } else {
@@ -296,7 +296,7 @@ export function ZivaChat() {
                     message: userInput,
                     history: recentHistory,
                     userName: user?.name || "Guest",
-                    catalogue: DemoStore.getProducts().map(p => ({
+                    catalogue: DataSyncService.getProducts().map(p => ({
                         id: p.id,
                         name: p.name,
                         price: p.price,
@@ -309,14 +309,14 @@ export function ZivaChat() {
                         price_flag: p.price_flag,
                         specs: p.specs
                     })),
-                    searchCache: DemoStore.getAllCachedProducts().slice(0, 20).map(p => ({
+                    searchCache: DataSyncService.getAllCachedProducts().slice(0, 20).map(p => ({
                         id: p.id,
                         name: p.name,
                         price: p.price,
                         category: p.category,
                         specs: p.specs
                     })),
-                    browsingHistory: (DemoStore.getSearchHistoryProducts?.() || []).slice(0, 5).map((p: any) => ({
+                    browsingHistory: (DataSyncService.getSearchHistoryProducts?.() || []).slice(0, 5).map((p: any) => ({
                         name: p.name,
                         price: p.price,
                         category: p.category
@@ -400,15 +400,15 @@ export function ZivaChat() {
                     })
                 }).catch(console.error);
 
-                // Also persist to admin inbox (DemoStore)
-                const currentUserId = user?.id || DemoStore.getCurrentUserId() || "guest_session";
-                const conv = DemoStore.getOrCreateConversation(
+                // Also persist to admin inbox (DataSyncService)
+                const currentUserId = user?.id || DataSyncService.getCurrentUserId() || "guest_session";
+                const conv = DataSyncService.getOrCreateConversation(
                     "admin",
                     currentUserId,
                     { admin: "FairPrice Admin", [currentUserId]: user?.name || "Guest" },
                     { type: "ziva_escalation" }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
                     currentUserId,
                     user?.name || "Guest",
@@ -416,7 +416,7 @@ export function ZivaChat() {
                 );
 
                 // Add notification for admin
-                DemoStore.addNotification({
+                DataSyncService.addNotification({
                     userId: "admin",
                     type: "system",
                     message: `Ziva Escalation: ${user?.name || "Guest"} requested human support`,
@@ -434,8 +434,8 @@ export function ZivaChat() {
             // Handle Product Suggestions (search catalog + cache)
             let suggestedProducts: any[] = [];
             if (data.intent === "product_search" || data.intent === "comparison" || data.intent === "price_check" || (data.suggestedProducts && data.suggestedProducts.length > 0)) {
-                const catalogProducts = DemoStore.getProducts();
-                const cacheProducts = DemoStore.getAllCachedProducts();
+                const catalogProducts = DataSyncService.getProducts();
+                const cacheProducts = DataSyncService.getAllCachedProducts();
                 const allProducts = [...catalogProducts, ...cacheProducts.filter((cp: any) => !catalogProducts.some(p => p.id === cp.id))];
 
                 if (data.suggestedProducts && data.suggestedProducts.length > 0) {
@@ -489,12 +489,12 @@ export function ZivaChat() {
                     const requestKey = `fp_img_req_${product.id}_${buyerEmail}`;
                     if (typeof window !== "undefined" && sessionStorage.getItem(requestKey)) return;
 
-                    const conv = DemoStore.getOrCreateConversation(
+                    const conv = DataSyncService.getOrCreateConversation(
                         buyerEmail, sellerId,
                         { [buyerEmail]: buyerName, [sellerId]: product.seller_name || "Seller" },
                         { type: "buyer_seller", product_id: product.id }
                     );
-                    DemoStore.sendChatMessage(
+                    DataSyncService.sendChatMessage(
                         conv.id,
                         buyerEmail,
                         buyerName,
@@ -598,12 +598,12 @@ export function ZivaChat() {
             if (isHumanRequest) {
                 // Save escalation to admin inbox
                 const userIdLog = user?.id || user?.email || "guest@globalstores.shop";
-                const conv = DemoStore.getOrCreateConversation(
+                const conv = DataSyncService.getOrCreateConversation(
                     "admin", userIdLog,
                     { admin: "FairPrice Admin", [userIdLog]: user?.name || "Guest" },
                     { type: "ziva_escalation" }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
                     userIdLog,
                     user?.name || "Guest",
@@ -611,7 +611,7 @@ export function ZivaChat() {
                 );
 
                 // Add notification for admin
-                DemoStore.addNotification({
+                DataSyncService.addNotification({
                     userId: "admin",
                     type: "system",
                     message: "Ziva Escalation: Customer requested human support",
@@ -653,12 +653,12 @@ export function ZivaChat() {
                 // Send request to seller's DM inbox
                 const buyerEmailLocal = user?.id || user?.email || "customer@fairprice.ng";
                 const sellerIdLocal = currentProduct.seller_id || "admin";
-                const conv = DemoStore.getOrCreateConversation(
+                const conv = DataSyncService.getOrCreateConversation(
                     buyerEmailLocal, sellerIdLocal,
                     { [buyerEmailLocal]: user?.name || "Customer", [sellerIdLocal]: currentProduct.seller_name || "Seller" },
                     { type: "buyer_seller", product_id: currentProduct.id }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
                     buyerEmailLocal,
                     user?.name || "Customer",
@@ -667,7 +667,7 @@ export function ZivaChat() {
 
                 // Also notify the seller
                 if (currentProduct.seller_id) {
-                    DemoStore.addNotification({
+                    DataSyncService.addNotification({
                         userId: currentProduct.seller_id,
                         type: "system",
                         message: `📷 A customer requested real photos of "${currentProduct.name}". Check your messages to respond.`,
@@ -697,7 +697,7 @@ export function ZivaChat() {
             const trackMatch = resolvedText.match(/\b(track|tracking|order\s*status|where.s?\s*my\s*order|order\s*#?)\s*:?\s*([A-Za-z0-9_-]{6,})?/i);
             const isTrackQuery = /\b(track|tracking|order status|where.s?\s*my\s*order|about my order|my order)\b/i.test(resolvedText);
             if (isTrackQuery || trackMatch) {
-                const allOrders = DemoStore.getOrders();
+                const allOrders = DataSyncService.getOrders();
                 // Filter by current user — never show other users' orders
                 const userOrders = user
                     ? allOrders.filter(o => o.customer_id === user.email || o.customer_id === user.id)
@@ -748,10 +748,10 @@ export function ZivaChat() {
                         const negMessageText = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${amount.toLocaleString()}\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
 
                         // Save as proper negotiation entry (shows on /account/negotiations)
-                        DemoStore.addNegotiation({
+                        DataSyncService.addNegotiation({
                             id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                             product_id: matchProduct.id,
-                            customer_id: user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session",
+                            customer_id: user?.id || user?.email || DataSyncService.getCurrentUserId() || "guest_session",
                             customer_name: user?.name || "Guest Customer",
                             proposed_price: amount,
                             message: `Offer submitted via Ziva AI`,
@@ -799,7 +799,7 @@ export function ZivaChat() {
             const hasConcretePrice = /[₦#N]?\s*\d[\d,]+/.test(resolvedText) && /\b(offer|pay|give|bargain)\b/i.test(resolvedText);
             const isNegotiate = !hasConcretePrice && /\b(negotiate|make.*offer|bargain|lower.*price|offer.*price|can.*you.*reduce|price.*too.*high|counter.*offer)\b/i.test(resolvedText);
             if (isNegotiate) {
-                const allProducts = DemoStore.getProducts();
+                const allProducts = DataSyncService.getProducts();
                 // Try to extract product name from the message
                 const words = resolvedText.replace(/\b(negotiate|make|offer|bargain|lower|price|reduce|for|the|a|an|on|can|you|i|want|to|of|current|is|at)\b/gi, '').replace(/₦[\d,]+/g, '').trim();
                 const searchTerms = words.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
@@ -884,7 +884,7 @@ export function ZivaChat() {
                 // Remove trailing articles/determiners from product query
                 productQuery = productQuery.replace(/^the\s+/i, '').trim();
 
-                const allProducts = DemoStore.getProducts();
+                const allProducts = DataSyncService.getProducts();
 
                 // First try exact match
                 let matchProduct = allProducts.find(p => p.name.toLowerCase() === productQuery.toLowerCase());
@@ -927,10 +927,10 @@ export function ZivaChat() {
                     const negMessageText = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${offerAmount.toLocaleString()}\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
 
                     // Save as proper negotiation entry (shows on /account/negotiations)
-                    DemoStore.addNegotiation({
+                    DataSyncService.addNegotiation({
                         id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         product_id: matchProduct.id,
-                        customer_id: user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session",
+                        customer_id: user?.id || user?.email || DataSyncService.getCurrentUserId() || "guest_session",
                         customer_name: user?.name || "Guest Customer",
                         proposed_price: offerAmount,
                         message: `Offer submitted via Ziva AI`,
@@ -1034,7 +1034,7 @@ export function ZivaChat() {
             setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
 
             // Send image to admin inbox so support can see it
-            DemoStore.addSupportMessage({
+            DataSyncService.addSupportMessage({
                 user_name: user?.name || "Guest",
                 user_email: user?.email || "guest@fairprice.ng",
                 subject: `📷 Image uploaded in Ziva Chat${currentProduct ? ` — Re: ${currentProduct.name}` : ''}`,
@@ -1289,7 +1289,7 @@ export function ZivaChat() {
                                                     <div className="space-y-2 mt-2">
                                                         {msg.products.map(product => {
                                                             // Check for active negotiations for this product
-                                                            const negotiations = DemoStore.getNegotiations(undefined, user?.id || user?.email || DemoStore.getCurrentUserId() || "guest_session");
+                                                            const negotiations = DataSyncService.getNegotiations(undefined, user?.id || user?.email || DataSyncService.getCurrentUserId() || "guest_session");
                                                             const activeNeg = negotiations.find(n => n.product_id === product.id && (n.status === "accepted" || n.counter_status === "accepted" || (n.status === "countered" && n.counter_status === "pending")));
                                                             const isPurchased = negotiations.some(n => n.product_id === product.id && (n.status === "purchased" || n.purchased));
                                                             
@@ -1346,7 +1346,7 @@ export function ZivaChat() {
                                                                                         e.stopPropagation();
                                                                                         if (hasCounter && activeNeg) {
                                                                                             // Accept counter offer first
-                                                                                            DemoStore.updateNegotiationStatus(activeNeg.id, "accepted");
+                                                                                            DataSyncService.updateNegotiationStatus(activeNeg.id, "accepted");
                                                                                         }
                                                                                         addToCart(product, 1, dealPrice || product.price);
                                                                                         

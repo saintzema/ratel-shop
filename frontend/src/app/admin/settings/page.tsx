@@ -320,8 +320,8 @@ export default function AdminSettings() {
                                     setAiScanResults([]);
                                     try {
                                         // Scan 3 random products from catalogue
-                                        const { DemoStore } = await import('@/lib/demo-store');
-                                        const products = DemoStore.getProducts().sort(() => Math.random() - 0.5).slice(0, 3);
+                                        const { DataSyncService } = await import('@/lib/sync-store');
+                                        const products = DataSyncService.getProducts().sort(() => Math.random() - 0.5).slice(0, 3);
                                         const results: typeof aiScanResults = [];
                                         for (const p of products) {
                                             try {

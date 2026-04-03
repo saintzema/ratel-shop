@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ShieldCheck, ArrowRight, Store, Star, Handshake } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Seller } from "@/lib/types";
 import { motion } from "framer-motion";
 
@@ -12,7 +12,7 @@ export function StoreDiscoveryRail() {
 
     useEffect(() => {
         const loadSellers = () => {
-            const allSellers = DemoStore.getSellers();
+            const allSellers = DataSyncService.getSellers();
             // Filter for verified/active sellers and sort by trust score
             const sorted = allSellers
                 .filter(s => s.status === "active")

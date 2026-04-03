@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { NegotiationRequest, Product, Order, SupportMessage } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -74,15 +74,15 @@ export default function UniversalMessagesPage() {
     const chatInputFocusedRef = useRef(false);
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         const loadData = () => {
-            const allProds = DemoStore.getProducts({ includeInactiveSellers: true });
+            const allProds = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(allProds);
 
-            const negs = DemoStore.getNegotiations(sellerId);
-            const orders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+            const negs = DataSyncService.getNegotiations(sellerId);
+            const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
 
             const convos: Conversation[] = [];
 
@@ -218,7 +218,7 @@ export default function UniversalMessagesPage() {
             });
 
             // Load real DM conversations
-            const seller = DemoStore.getCurrentSeller();
+            const seller = DataSyncService.getCurrentSeller();
             const sellerMatchIds = new Set<string>([sellerId]);
             if (seller) {
                 if (seller.id) sellerMatchIds.add(seller.id);
@@ -226,7 +226,7 @@ export default function UniversalMessagesPage() {
                 if (seller.owner_email) sellerMatchIds.add(seller.owner_email);
             }
             
-            const dmConvs = DemoStore.getConversations(sellerId);
+            const dmConvs = DataSyncService.getConversations(sellerId);
             dmConvs.forEach((conv: any) => {
                 const isImageRequest = conv.context?.type === "buyer_seller" && conv.context?.product_id;
                 const otherParticipantId = conv.participants.find((p: string) => !sellerMatchIds.has(p)) || "";
@@ -239,7 +239,7 @@ export default function UniversalMessagesPage() {
                 }
 
                 // Map to unified conversation type
-                const mappedMsgs: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[] = DemoStore.getChatMessages(conv.id).map((m: any) => ({
+                const mappedMsgs: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[] = DataSyncService.getChatMessages(conv.id).map((m: any) => ({
                     sender: sellerMatchIds.has(m.sender_id) ? "seller" as const : "buyer" as const,
                     text: m.text,
                     timestamp: new Date(m.timestamp),
@@ -278,7 +278,7 @@ export default function UniversalMessagesPage() {
                     // Create a concierge entry for this order if it has no chat yet
                     const targetOrder = orders.find(o => o.id === orderFromUrl);
                     if (targetOrder) {
-                        DemoStore.addOrderMessage(orderFromUrl, 'system', 'Seller joined the concierge chat.');
+                        DataSyncService.addOrderMessage(orderFromUrl, 'system', 'Seller joined the concierge chat.');
                         // Re-fetch
                         window.dispatchEvent(new Event('storage'));
                     }
@@ -301,24 +301,24 @@ export default function UniversalMessagesPage() {
                 }
             }
 
-            const deletedStubs = DemoStore.getDeletedStubs();
+            const deletedStubs = DataSyncService.getDeletedStubs();
             const filteredConvos = convos.filter(c => !deletedStubs.includes(c.id));
             setConversations(filteredConvos.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime()));
         };
 
         loadData();
         window.addEventListener("storage", loadData);
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
         // Background polling — only fires when chat input is NOT focused
         // to prevent re-render cascade from freezing the UI mid-keystroke.
         const pollInterval = setInterval(() => {
             if (chatInputFocusedRef.current) return; // ← Guard: skip while typing
             loadData();
-            DemoStore.syncWithDB();
+            DataSyncService.syncWithDB();
         }, 8000);
         return () => {
             window.removeEventListener("storage", loadData);
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
             clearInterval(pollInterval);
         };
     }, []);
@@ -400,22 +400,22 @@ export default function UniversalMessagesPage() {
     // Mark as read when active conversation changes
     useEffect(() => {
         if (selectedId) {
-            const sellerId = DemoStore.getCurrentSellerId();
+            const sellerId = DataSyncService.getCurrentSellerId();
             if (!sellerId) return;
 
             if (selectedId.startsWith("neg-group-")) {
                 const groupId = selectedId.replace("neg-group-", "");
                 const [custId, prodId] = groupId.split("_");
-                const negs = DemoStore.getNegotiations(sellerId).filter(n => n.customer_id === custId && n.product_id === prodId);
-                negs.forEach(n => DemoStore.markNegotiationRead(n.id));
+                const negs = DataSyncService.getNegotiations(sellerId).filter(n => n.customer_id === custId && n.product_id === prodId);
+                negs.forEach(n => DataSyncService.markNegotiationRead(n.id));
             } else if (!selectedId.startsWith("ord-") && !selectedId.startsWith("sup-") && !selectedId.startsWith("chat-") && !selectedId.startsWith("conc-")) {
-                DemoStore.markConversationRead(selectedId, sellerId);
+                DataSyncService.markConversationRead(selectedId, sellerId);
             }
         }
     }, [selectedId]);
 
     const handleAction = (negId: string, status: "accepted" | "rejected") => {
-        DemoStore.updateNegotiationStatus(negId, status);
+        DataSyncService.updateNegotiationStatus(negId, status);
         // Force reload by triggering a storage event manually or just state update
         window.dispatchEvent(new Event("storage"));
     };
@@ -423,7 +423,7 @@ export default function UniversalMessagesPage() {
     const handleCounterOffer = (e: React.FormEvent) => {
         e.preventDefault();
         if (!activeNeg || !counterPrice) return;
-        DemoStore.sendCounterOffer(activeNeg.id, Number(counterPrice), counterMessage);
+        DataSyncService.sendCounterOffer(activeNeg.id, Number(counterPrice), counterMessage);
         setCounterPrice("");
         setCounterMessage("");
         window.dispatchEvent(new Event("storage"));
@@ -447,34 +447,34 @@ export default function UniversalMessagesPage() {
         e.preventDefault();
         if (!activeConvo || (!chatMessage.trim() && !selectedImagePreview)) return;
 
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
-        const sellerObj = DemoStore.getSellers().find(s => s.id === sellerId);
+        const sellerObj = DataSyncService.getSellers().find(s => s.id === sellerId);
         const sellerName = sellerObj?.business_name || "Seller";
 
-        // In a real app, logic branches based on conversation type (DemoStore handles negotiations)
+        // In a real app, logic branches based on conversation type (DataSyncService handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
-            DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage, selectedImagePreview || undefined, replyingTo || undefined);
+            DataSyncService.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage, selectedImagePreview || undefined, replyingTo || undefined);
         } else if (activeConvo.id.startsWith("ord-")) {
             const orderId = activeConvo.id.replace("ord-", "");
-            DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
+            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
         } else if (activeConvo.id.startsWith("conc-")) {
             // Concierge chat — seller sends via order message system
             const orderId = activeConvo.orderId || activeConvo.id.replace("conc-", "");
-            DemoStore.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
+            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
             // If Ziva was active, take over
             if (activeConvo.zivaActive) {
-                DemoStore.updateOrder(orderId, { zivaActive: false });
-                DemoStore.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
+                DataSyncService.updateOrder(orderId, { zivaActive: false });
+                DataSyncService.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
             }
         } else if (activeConvo.id.startsWith("chat-")) {
             // New direct chat created from stub
-            const newConv = DemoStore.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
-            DemoStore.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""), replyingTo || undefined);
+            const newConv = DataSyncService.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
+            DataSyncService.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""), replyingTo || undefined);
             setSelectedId(newConv.id);
         } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-")) {
             // It's a real DM conversation
-            DemoStore.sendChatMessage(
+            DataSyncService.sendChatMessage(
                 activeConvo.id,
                 sellerId,
                 sellerName,
@@ -497,7 +497,7 @@ export default function UniversalMessagesPage() {
         // Send email notification to the customer
         if (activeConvo.customer_id) {
             const customerEmail = activeConvo.customer_id; // customer_id is often the email
-            const sellerObj2 = DemoStore.getSellers().find(s => s.id === sellerId);
+            const sellerObj2 = DataSyncService.getSellers().find(s => s.id === sellerId);
             const sellerBusinessName = sellerObj2?.business_name || "Seller";
             fetch('/api/email', {
                 method: 'POST',
@@ -554,25 +554,25 @@ export default function UniversalMessagesPage() {
     const handleZivaTakeover = () => {
         if (!activeConvo?.orderId) return;
         const orderId = activeConvo.orderId;
-        const sellerId = DemoStore.getCurrentSellerId();
-        const sellerObj = sellerId ? DemoStore.getSellers().find(s => s.id === sellerId) : null;
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const sellerObj = sellerId ? DataSyncService.getSellers().find(s => s.id === sellerId) : null;
         const sellerName = sellerObj?.business_name || "Seller";
-        DemoStore.updateOrder(orderId, { zivaActive: false });
-        DemoStore.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
+        DataSyncService.updateOrder(orderId, { zivaActive: false });
+        DataSyncService.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
         window.dispatchEvent(new Event("storage"));
     };
 
     const handleZivaHandback = () => {
         if (!activeConvo?.orderId) return;
         const orderId = activeConvo.orderId;
-        DemoStore.updateOrder(orderId, { zivaActive: true });
-        DemoStore.addOrderMessage(orderId, "system", "Chat has been handed back to Ziva AI.");
+        DataSyncService.updateOrder(orderId, { zivaActive: true });
+        DataSyncService.addOrderMessage(orderId, "system", "Chat has been handed back to Ziva AI.");
         window.dispatchEvent(new Event("storage"));
     };
 
     const handleDeleteChat = () => {
         if (!selectedId) return;
-        DemoStore.deleteConversation(selectedId);
+        DataSyncService.deleteConversation(selectedId);
         setConversations(prev => prev.filter(c => c.id !== selectedId));
         setSelectedId(null);
         window.dispatchEvent(new Event("storage"));

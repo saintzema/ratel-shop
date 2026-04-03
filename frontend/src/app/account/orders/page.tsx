@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, NegotiationRequest, Product } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,7 +71,7 @@ function OrdersContent() {
 
     const loadData = () => {
         if (!user) return;
-        const allOrders = DemoStore.getOrders();
+        const allOrders = DataSyncService.getOrders();
         const userOrders = allOrders.filter(o =>
             o.customer_id === user.email ||
             o.customer_id === user.id
@@ -79,14 +79,14 @@ function OrdersContent() {
         const sortedOrders = userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setOrders(sortedOrders);
 
-        const allNegs = DemoStore.getNegotiations();
+        const allNegs = DataSyncService.getNegotiations();
         setNegotiations(allNegs.filter(n =>
             n.customer_id === user.email ||
             n.customer_id === user.id ||
             n.customer_name === user.name
         ));
 
-        setProducts(DemoStore.getProducts());
+        setProducts(DataSyncService.getProducts());
     };
 
     useEffect(() => { loadData(); }, [user]);
@@ -96,7 +96,7 @@ function OrdersContent() {
         if (successHandledRef.current) return;
         if (searchParams.get("success") === "true" && user) {
             successHandledRef.current = true;
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             const userOrders = allOrders
                 .filter(o => o.customer_id === user.email || o.customer_id === user.id)
                 .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -113,18 +113,18 @@ function OrdersContent() {
         loadData();
         const handleStorageChange = () => loadData();
         window.addEventListener("storage", handleStorageChange);
-        window.addEventListener("demo-store-update", handleStorageChange);
+        window.addEventListener("sync-store-update", handleStorageChange);
         return () => {
             window.removeEventListener("storage", handleStorageChange);
-            window.removeEventListener("demo-store-update", handleStorageChange);
+            window.removeEventListener("sync-store-update", handleStorageChange);
         };
     }, []);
 
     const handleConfirmDelivery = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
-        DemoStore.updateOrderStatus(orderId, "delivered");
-        DemoStore.releaseEscrow(orderId);
-        DemoStore.addNotification({
+        DataSyncService.updateOrderStatus(orderId, "delivered");
+        DataSyncService.releaseEscrow(orderId);
+        DataSyncService.addNotification({
             userId: user?.email || "guest",
             type: "order",
             message: `Delivery Confirmed! 🎉 Your order has been delivered. Leave a review to help other shoppers!`,
@@ -159,11 +159,11 @@ function OrdersContent() {
     };
 
     const handleReturnOrder = (order: Order) => {
-        DemoStore.updateOrderStatus(order.id, "return_requested");
-        DemoStore.updateOrder(order.id, { escrow_status: "disputed" });
+        DataSyncService.updateOrderStatus(order.id, "return_requested");
+        DataSyncService.updateOrder(order.id, { escrow_status: "disputed" });
         
         // Notify customer
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             userId: user?.email || "guest",
             type: "order",
             message: `Return requested for ${order.product?.name || 'your order'}. The seller will review your request.`,
@@ -171,7 +171,7 @@ function OrdersContent() {
         });
         
         // Notify admin
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             userId: "admin",
             type: "order",
             message: `⚠️ Return requested on order #${order.id.substring(0, 8)} — ${order.product?.name || 'Product'} by ${order.customer_name || 'Customer'}`,
@@ -180,7 +180,7 @@ function OrdersContent() {
         
         // Notify seller
         if (order.seller_id) {
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: order.seller_id,
                 type: "order",
                 message: `⚠️ Return requested on order #${order.id.substring(0, 8)} — ${order.product?.name || 'Product'}`,
@@ -188,7 +188,7 @@ function OrdersContent() {
             });
             
             // Email seller
-            const seller = DemoStore.getSellers().find(s => s.id === order.seller_id);
+            const seller = DataSyncService.getSellers().find(s => s.id === order.seller_id);
             if (seller?.owner_email) {
                 fetch('/api/email', {
                     method: 'POST',
@@ -630,7 +630,7 @@ function OrdersContent() {
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         {(() => {
-                            const allProds = DemoStore.getProducts();
+                            const allProds = DataSyncService.getProducts();
                             // Fair visibility: shuffle with time-based seed so every product gets equal exposure
                             const seed = Math.floor(Date.now() / (1000 * 60 * 5)); // changes every 5 min
                             const shuffled = [...allProds].sort((a, b) => {

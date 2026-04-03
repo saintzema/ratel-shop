@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Seller, Order } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,7 +64,7 @@ export default function PayoutsSettingsPage() {
     });
 
     useEffect(() => {
-        const s = DemoStore.getCurrentSeller();
+        const s = DataSyncService.getCurrentSeller();
         if (!s) {
             router.push("/seller/login");
             return;
@@ -77,7 +77,7 @@ export default function PayoutsSettingsPage() {
         });
 
         // Get orders for this seller
-        const sellerOrders = DemoStore.getOrders().filter(
+        const sellerOrders = DataSyncService.getOrders().filter(
             (o) => o.seller_id === s.id
         );
         setOrders(sellerOrders);
@@ -91,8 +91,8 @@ export default function PayoutsSettingsPage() {
         setSaving(true);
         await new Promise((r) => setTimeout(r, 600));
 
-        DemoStore.updateSeller(seller.id, bankData);
-        const refreshed = DemoStore.getCurrentSeller();
+        DataSyncService.updateSeller(seller.id, bankData);
+        const refreshed = DataSyncService.getCurrentSeller();
         if (refreshed) setSeller(refreshed as Seller);
 
         setSaving(false);
@@ -145,15 +145,15 @@ export default function PayoutsSettingsPage() {
         )).catch(console.error);
 
         // Update local state and trigger sync
-        const allOrders: Order[] = DemoStore.getOrders();
+        const allOrders: Order[] = DataSyncService.getOrders();
         const updatedOrders = allOrders.map(o =>
             pendingIds.includes(o.id) ? { ...o, payout_status: "cashed_out" as const } : o
         );
         localStorage.setItem("fp_orders", JSON.stringify(updatedOrders));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Notify seller
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             userId: seller.owner_email || seller.id,
             type: "order",
             message: `💰 Payout of ${formatPrice(
@@ -178,7 +178,7 @@ export default function PayoutsSettingsPage() {
         }).catch(() => {});
 
         // Refresh
-        const refreshedOrders = DemoStore.getOrders().filter(
+        const refreshedOrders = DataSyncService.getOrders().filter(
             (o) => o.seller_id === seller.id
         );
         setOrders(refreshedOrders);

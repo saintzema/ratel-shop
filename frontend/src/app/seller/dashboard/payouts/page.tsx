@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Order, Seller } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { DEMO_SELLER_STATS } from "@/lib/data";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,16 +25,16 @@ export default function PayoutsPage() {
     const [accountName, setAccountName] = useState("");
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
         const loadData = () => {
-            setOrders(DemoStore.getOrders().filter(o => o.seller_id === sellerId));
-            const s = DemoStore.getCurrentSeller();
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+            const s = DataSyncService.getCurrentSeller();
             setSeller(s);
             setBankName(s?.bank_name || "");
             setAccountNumber(s?.account_number || "");
             setAccountName(s?.account_name || "");
-            const allPayouts = DemoStore.getPayouts();
+            const allPayouts = DataSyncService.getPayouts();
             setPayouts(allPayouts.filter(p => p.seller_id === sellerId).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         };
         loadData();
@@ -54,7 +54,7 @@ export default function PayoutsPage() {
         if (!seller) return;
         setSavingBank(true);
         await new Promise(r => setTimeout(r, 800));
-        DemoStore.updateSeller(seller.id, { bank_name: bankName, account_number: accountNumber, account_name: accountName });
+        DataSyncService.updateSeller(seller.id, { bank_name: bankName, account_number: accountNumber, account_name: accountName });
         setSavingBank(false);
         setEditingBank(false);
     };
@@ -85,7 +85,7 @@ export default function PayoutsPage() {
                         <p className="text-[10px] text-emerald-200 mt-1 flex items-center gap-1">
                             <ShieldCheck className="h-3 w-3" />
                             {amountAvailable > 0
-                                ? `After 5% platform comm. (Est. ${formatPrice(DemoStore.getSellerPayout(amountAvailable).payout)})`
+                                ? `After 5% platform comm. (Est. ${formatPrice(DataSyncService.getSellerPayout(amountAvailable).payout)})`
                                 : "No delivered orders available for cashout"}
                         </p>
                         <Link href="/seller/orders" className="mt-4 flex items-center justify-center bg-white text-emerald-700 hover:bg-emerald-50 font-bold rounded-xl h-10 shadow-md">

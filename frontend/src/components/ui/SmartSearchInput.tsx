@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { Search, Clock, ChevronRight, X } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
 
 interface SmartSearchInputProps {
@@ -60,7 +60,7 @@ export function SmartSearchInput({
         }
 
         const q = actualQuery.toLowerCase();
-        const catalog = DemoStore.getApprovedProducts();
+        const catalog = DataSyncService.getApprovedProducts();
         
         // Extract names, categories, and tags
         const pool = new Set<string>();

@@ -2,8 +2,8 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { DEMO_PRODUCTS, DEMO_DEALS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS, SEED_DEALS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -16,11 +16,11 @@ export default function DealsPage() {
     // Get active deals with their products
     const activeDeals = useMemo(() => {
         const now = new Date();
-        const allDeals = typeof window !== "undefined" ? DemoStore.getDeals() : DEMO_DEALS;
+        const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
         return allDeals
             .filter(d => d.is_active && new Date(d.end_at) > now)
             .map(deal => {
-                const product = DEMO_PRODUCTS.find(p => p.id === deal.product_id);
+                const product = SEED_PRODUCTS.find(p => p.id === deal.product_id);
                 if (!product) return null;
                 const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
                 return {
@@ -33,7 +33,7 @@ export default function DealsPage() {
             .filter(Boolean) as Array<{
                 id: string;
                 product_id: string;
-                product: typeof DEMO_PRODUCTS[0];
+                product: typeof SEED_PRODUCTS[0];
                 discount_pct: number;
                 discountedPrice: number;
                 savings: number;
@@ -46,7 +46,7 @@ export default function DealsPage() {
     // Also find products with significant price drops (original > price) that aren't already in deals
     const priceDropProducts = useMemo(() => {
         const dealProductIds = new Set(activeDeals.map(d => d.product_id));
-        return DEMO_PRODUCTS
+        return SEED_PRODUCTS
             .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
             .map(p => ({
                 product: p,

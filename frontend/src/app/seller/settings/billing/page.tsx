@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, Crown, Zap, TrendingUp, ShieldCheck, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 
 const PLANS = [
@@ -85,7 +85,7 @@ export default function BillingPage() {
     const [paystackPlan, setPaystackPlan] = useState("");
 
     useEffect(() => {
-        const seller = DemoStore.getCurrentSeller();
+        const seller = DataSyncService.getCurrentSeller();
         if (seller?.subscription_plan) {
             setCurrentPlan(seller.subscription_plan);
         }
@@ -93,9 +93,9 @@ export default function BillingPage() {
 
     const handleUpgrade = (planName: string, priceStr: string) => {
         if (priceStr === "Free") {
-            const sellerId = DemoStore.getCurrentSellerId();
+            const sellerId = DataSyncService.getCurrentSellerId();
             if (sellerId) {
-                DemoStore.updateSeller(sellerId, { subscription_plan: planName as any });
+                DataSyncService.updateSeller(sellerId, { subscription_plan: planName as any });
                 setCurrentPlan(planName);
                 window.dispatchEvent(new Event("storage"));
             }
@@ -111,17 +111,17 @@ export default function BillingPage() {
     };
 
     const handlePaystackSuccess = (reference: string) => {
-        const sellerId = DemoStore.getCurrentSellerId();
-        const seller = DemoStore.getCurrentSeller();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const seller = DataSyncService.getCurrentSeller();
         if (sellerId) {
-            DemoStore.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
+            DataSyncService.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
             setCurrentPlan(paystackPlan);
             window.dispatchEvent(new Event("storage"));
-            window.dispatchEvent(new Event("demo-store-update")); // Ensure global sync
+            window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
             
             // Send Notification
             if (seller) {
-                DemoStore.addNotification({
+                DataSyncService.addNotification({
                      userId: seller.owner_email || seller.id,
                      type: "order", // Using order icon for billing/admin messages
                      message: `🚀 Congratulations! Your store has been upgraded to the ${paystackPlan} plan. Enjoy your new premium features!`,
@@ -272,7 +272,7 @@ export default function BillingPage() {
             {showPaystack && (
                 <PaystackCheckout
                     amount={paystackAmount}
-                    email={DemoStore.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    email={DataSyncService.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
                     onSuccess={handlePaystackSuccess}
                     onClose={() => setShowPaystack(false)}
                     autoStart={true}

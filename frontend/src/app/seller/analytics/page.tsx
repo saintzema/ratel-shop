@@ -13,7 +13,7 @@ import {
     Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -26,8 +26,8 @@ export default function AnalyticsPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
-        const seller = DemoStore.getCurrentSeller();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const seller = DataSyncService.getCurrentSeller();
         if (seller) {
             setSellerName(seller.business_name);
             setSellerPlan(seller.subscription_plan || "Starter");
@@ -35,7 +35,7 @@ export default function AnalyticsPage() {
         if (!sellerId) return;
 
         const loadData = () => {
-            const orders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+            const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
             const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
             const totalOrders = orders.length;
             const simulatedVisits = totalOrders === 0 ? 0 : totalOrders * 12 + Math.floor(Math.random() * 50);

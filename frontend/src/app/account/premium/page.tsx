@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { AnimatePresence } from "framer-motion";
 export default function PremiumPage() {
     const { user, login } = useAuth();
@@ -16,9 +16,9 @@ export default function PremiumPage() {
 
     const handleSuccess = (reference: string) => {
         if (user) {
-            DemoStore.addPremiumSubscription(user.id);
+            DataSyncService.addPremiumSubscription(user.id);
             // Refresh auth state to get new premium flag
-            const updatedUser = DemoStore.getUser(user.email);
+            const updatedUser = DataSyncService.getUser(user.email);
             if (updatedUser) login(updatedUser);
             window.dispatchEvent(new Event("storage"));
             setShowPaystack(false);

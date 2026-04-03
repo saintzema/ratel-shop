@@ -27,7 +27,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 export default function UserDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
@@ -44,7 +44,7 @@ export default function UserDirectory() {
         const load = async () => {
             setLoading(true);
             try {
-                // Try API first, fall back to DemoStore
+                // Try API first, fall back to DataSyncService
                 let sellers: any[] = [];
                 let buyers: any[] = [];
 
@@ -58,15 +58,15 @@ export default function UserDirectory() {
                     sellers = Array.isArray(sellersData) ? sellersData : [];
                     buyers = Array.isArray(usersData) ? usersData : [];
                 } catch {
-                    // API down — use DemoStore
+                    // API down — use DataSyncService
                 }
 
-                // Always merge with DemoStore so newly registered sellers appear
-                const dsSellers = DemoStore.getSellers();
-                const dsOrders = DemoStore.getOrders();
-                const dsUsers = DemoStore.getAllUsers ? DemoStore.getAllUsers() : [];
+                // Always merge with DataSyncService so newly registered sellers appear
+                const dsSellers = DataSyncService.getSellers();
+                const dsOrders = DataSyncService.getOrders();
+                const dsUsers = DataSyncService.getAllUsers ? DataSyncService.getAllUsers() : [];
 
-                // Merge sellers: DemoStore is authoritative for recent registrations  
+                // Merge sellers: DataSyncService is authoritative for recent registrations  
                 const sellerIdSet = new Set(sellers.map((s: any) => s.id));
                 for (const ds of dsSellers) {
                     if (!sellerIdSet.has(ds.id)) {
@@ -97,7 +97,7 @@ export default function UserDirectory() {
                 const sellerIds = new Set(mappedSellers.map((s: any) => s.id));
                 const sellerEmails = new Set(mappedSellers.map((s: any) => s.owner_email || s.email).filter(Boolean));
 
-                // Merge buyers from API + DemoStore
+                // Merge buyers from API + DataSyncService
                 const buyerIdSet = new Set<string>();
                 const allBuyers: any[] = [];
 
@@ -142,10 +142,10 @@ export default function UserDirectory() {
             }
         };
         load();
-        window.addEventListener("demo-store-update", load);
+        window.addEventListener("sync-store-update", load);
         window.addEventListener("storage", load);
         return () => {
-            window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("sync-store-update", load);
             window.removeEventListener("storage", load);
         };
     }, []);
@@ -168,7 +168,7 @@ export default function UserDirectory() {
 
         const rate = parseFloat(commissionInput) / 100;
         if (!isNaN(rate)) {
-            DemoStore.updateSeller(editingCommissionSeller.id, { commission_rate: rate });
+            DataSyncService.updateSeller(editingCommissionSeller.id, { commission_rate: rate });
 
             // Update local state to reflect change immediately
             setParticipants(prev => prev.map(p =>
@@ -298,12 +298,12 @@ export default function UserDirectory() {
                                                     size="sm"
                                                     className="h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"
                                                     onClick={() => {
-                                                        DemoStore.updateSeller(p.id, { status: "active", verified: true, kyc_status: "approved" });
+                                                        DataSyncService.updateSeller(p.id, { status: "active", verified: true, kyc_status: "approved" });
                                                         setParticipants(prev => prev.map(participant =>
                                                             participant.id === p.id ? { ...participant, status: "active", verified: true, kyc_status: "approved" } : participant
                                                         ));
                                                         alert(`Seller ${p.display_name} has been approved.`);
-                                                        window.dispatchEvent(new Event("demo-store-update"));
+                                                        window.dispatchEvent(new Event("sync-store-update"));
                                                     }}
                                                 >
                                                     Approve

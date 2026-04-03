@@ -12,7 +12,7 @@ import {
     PowerOff
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -86,8 +86,8 @@ export default function IntegrationsPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
-        const seller = DemoStore.getCurrentSeller();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const seller = DataSyncService.getCurrentSeller();
         if (seller) {
             setIsStarterPlan(!seller.subscription_plan || seller.subscription_plan === "Starter");
         }
@@ -109,7 +109,7 @@ export default function IntegrationsPage() {
             return;
         }
 
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         setConnecting(intId);

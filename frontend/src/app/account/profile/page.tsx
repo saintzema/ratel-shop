@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { useLocation } from "@/context/LocationContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 export default function ProfilePage() {
     const { user, updateUser, logout } = useAuth();
@@ -106,7 +106,7 @@ export default function ProfilePage() {
         updateUser({ password: newPassword } as any);
         
         if (user?.id) {
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: user.id,
                 type: "system",
                 title: "Security Alert: Password Changed",

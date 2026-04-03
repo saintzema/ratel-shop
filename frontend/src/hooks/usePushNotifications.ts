@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Capacitor } from '@capacitor/core';
-import { DemoStore } from '@/lib/demo-store';
+import { DataSyncService } from '@/lib/sync-store';
 import { useAuth } from '@/context/AuthContext';
 
 interface NotificationTemplate {
@@ -58,9 +58,9 @@ export function usePushNotifications() {
             const { product, newPrice, oldPrice } = e.detail;
             
             // @ts-ignore
-            const cart = DemoStore.getCart ? DemoStore.getCart() : [];
+            const cart = DataSyncService.getCart ? DataSyncService.getCart() : [];
             // @ts-ignore
-            const favorites = DemoStore.getFavorites ? DemoStore.getFavorites() : [];
+            const favorites = DataSyncService.getFavorites ? DataSyncService.getFavorites() : [];
             
             const isInCart = cart.some((item: any) => item.product.id === product.id);
             const isFavorited = favorites.some((fav: any) => fav.id === product.id);
@@ -68,7 +68,7 @@ export function usePushNotifications() {
             if (!isInCart && !isFavorited) return;
 
             if (user?.id) {
-                DemoStore.addNotification({
+                DataSyncService.addNotification({
                     userId: user.id,
                     type: "promo",
                     title: "Price Drop Alert! 📉",
@@ -133,7 +133,7 @@ export function usePushNotifications() {
                             notification.userId === user?.email;
             
             if (!isForMe && user?.role === 'seller') {
-                const seller = DemoStore.getSellers().find(s => s.user_id === user.id);
+                const seller = DataSyncService.getSellers().find(s => s.user_id === user.id);
                 if (seller && notification.userId === seller.id) {
                     // It's for my store!
                 } else {

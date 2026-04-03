@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -30,7 +30,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
 
                 // Self-healing check for legacy customers who already own a store but the DB missed their role upgrade
                 if (!isRoleAllowed && allowedRoles?.includes("seller") && user.role === "customer") {
-                    const allSellers = DemoStore.getSellers();
+                    const allSellers = DataSyncService.getSellers();
                     const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
                     if (myStore) {
                         console.log("ProtectedRoute: Auto-healing legacy customer to seller role");

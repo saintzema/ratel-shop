@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Order, ReturnRequest } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,21 +47,21 @@ export default function SellerOrders() {
     }, [searchParams]);
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         const loadOrders = () => {
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             setOrders(allOrders.filter(o => o.seller_id === sellerId));
-            setReturnRequests(DemoStore.getReturnRequests(sellerId));
+            setReturnRequests(DataSyncService.getReturnRequests(sellerId));
         };
 
         loadOrders();
         window.addEventListener("storage", loadOrders);
-        window.addEventListener("demo-store-update", loadOrders);
+        window.addEventListener("sync-store-update", loadOrders);
         return () => {
             window.removeEventListener("storage", loadOrders);
-            window.removeEventListener("demo-store-update", loadOrders);
+            window.removeEventListener("sync-store-update", loadOrders);
         };
     }, []);
 
@@ -74,26 +74,26 @@ export default function SellerOrders() {
     }, [searchParams, orders]);
 
     const handleStatusUpdate = (orderId: string, newStatus: Order["status"]) => {
-        DemoStore.updateOrderStatus(orderId, newStatus);
+        DataSyncService.updateOrderStatus(orderId, newStatus);
         // Reload
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (sellerId) {
-            setOrders(DemoStore.getOrders().filter(o => o.seller_id === sellerId));
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
         }
         // Hot update across the app
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     };
 
     const handleRequestPayout = (order: Order) => {
-        const seller = DemoStore.getCurrentSeller();
+        const seller = DataSyncService.getCurrentSeller();
         if (!seller || !seller.bank_name || !seller.account_number) {
             alert("Please set up your Bank details in the Payouts dashboard before requesting a cashout.");
             return;
         }
 
-        const payoutInfo = DemoStore.getSellerPayout(order.amount);
+        const payoutInfo = DataSyncService.getSellerPayout(order.amount);
 
-        DemoStore.requestPayout(
+        DataSyncService.requestPayout(
             seller.id,
             [order.id],
             payoutInfo.payout,
@@ -106,7 +106,7 @@ export default function SellerOrders() {
 
         // Reload to show pending layout
         if (seller.id) {
-            setOrders(DemoStore.getOrders().filter(o => o.seller_id === seller.id));
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === seller.id));
         }
     };
 
@@ -401,19 +401,19 @@ export default function SellerOrders() {
                                                                     return;
                                                                 }
 
-                                                                DemoStore.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
+                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
                                                                 handleStatusUpdate(order.id, "shipped");
 
                                                                 // Send notification to admin with driver details
-                                                                DemoStore.addNotification({
+                                                                DataSyncService.addNotification({
                                                                     userId: "admin",
                                                                     type: "order",
-                                                                    message: `📦 Order ${order.id} shipped by ${DemoStore.getCurrentSeller()?.business_name}. Driver: ${driverName} (${driverPhone}). Carrier: ${carrier}. Tracking: ${trackingId || 'N/A'}`,
+                                                                    message: `📦 Order ${order.id} shipped by ${DataSyncService.getCurrentSeller()?.business_name}. Driver: ${driverName} (${driverPhone}). Carrier: ${carrier}. Tracking: ${trackingId || 'N/A'}`,
                                                                     link: "/admin/orders"
                                                                 });
 
                                                                 // Notify buyer
-                                                                DemoStore.addNotification({
+                                                                DataSyncService.addNotification({
                                                                     userId: order.customer_id,
                                                                     type: "order",
                                                                     message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${driverName}. Tracking: ${trackingId || carrier}.`,
@@ -432,7 +432,7 @@ export default function SellerOrders() {
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
-                                                                DemoStore.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
+                                                                DataSyncService.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
                                                                 handleStatusUpdate(order.id, "processing");
                                                             }}
                                                             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold h-9"
@@ -450,11 +450,11 @@ export default function SellerOrders() {
                                                                 );
                                                                 if (!confirmed) return;
 
-                                                                DemoStore.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
+                                                                DataSyncService.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
                                                                 handleStatusUpdate(order.id, "delivered");
 
                                                                 // Notify buyer
-                                                                DemoStore.addNotification({
+                                                                DataSyncService.addNotification({
                                                                     userId: order.customer_id,
                                                                     type: "order",
                                                                     message: `✅ Your order "${order.product?.name}" has been delivered! Please confirm receipt in your orders page.`,
@@ -462,10 +462,10 @@ export default function SellerOrders() {
                                                                 });
 
                                                                 // Notify admin
-                                                                DemoStore.addNotification({
+                                                                DataSyncService.addNotification({
                                                                     userId: "admin",
                                                                     type: "order",
-                                                                    message: `✅ Order ${order.id} marked as delivered by seller ${DemoStore.getCurrentSeller()?.business_name}.`,
+                                                                    message: `✅ Order ${order.id} marked as delivered by seller ${DataSyncService.getCurrentSeller()?.business_name}.`,
                                                                     link: "/admin/orders"
                                                                 });
                                                             }}
@@ -534,9 +534,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "approved");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "approved");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold h-9 flex-1"
@@ -549,9 +549,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "rejected");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "rejected");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-bold h-9 flex-1"
@@ -573,9 +573,9 @@ export default function SellerOrders() {
                                                                 onClick={() => {
                                                                     const req = returnRequests.find(r => r.order_id === order.id);
                                                                     if (req) {
-                                                                        DemoStore.updateReturnRequestStatus(req.id, "refunded");
-                                                                        setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                        setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        DataSyncService.updateReturnRequestStatus(req.id, "refunded");
+                                                                        setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                        setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                     }
                                                                 }}
                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold h-9"
@@ -672,7 +672,7 @@ export default function SellerOrders() {
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    DemoStore.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
+                                                                    DataSyncService.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
                                                                     handleStatusUpdate(order.id, "processing");
                                                                 }}
                                                                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold h-7 w-full"
@@ -685,7 +685,7 @@ export default function SellerOrders() {
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    DemoStore.updateTrackingStatus(order.id, "Shipped from Warehouse", "In transit", "Logistics", "TRK000");
+                                                                    DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", "In transit", "Logistics", "TRK000");
                                                                     handleStatusUpdate(order.id, "shipped");
                                                                 }}
                                                                 className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold h-7 w-full"
@@ -698,7 +698,7 @@ export default function SellerOrders() {
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    DemoStore.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
+                                                                    DataSyncService.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
                                                                     handleStatusUpdate(order.id, "delivered");
                                                                 }}
                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold h-7 w-full"
@@ -753,9 +753,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "approved");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "approved");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
@@ -768,9 +768,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "rejected");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "rejected");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="text-gray-700 border-gray-200 hover:bg-gray-50 rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
@@ -786,9 +786,9 @@ export default function SellerOrders() {
                                                                 onClick={() => {
                                                                     const req = returnRequests.find(r => r.order_id === order.id);
                                                                     if (req) {
-                                                                        DemoStore.updateReturnRequestStatus(req.id, "refunded");
-                                                                        setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                        setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        DataSyncService.updateReturnRequestStatus(req.id, "refunded");
+                                                                        setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                        setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                     }
                                                                 }}
                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold h-7 w-full mt-2 shadow-sm"

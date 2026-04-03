@@ -6,7 +6,7 @@ import { CreditCard, Trash2, Building, ShieldCheck, Eye, EyeOff, Receipt, X, Pac
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { formatPrice } from "@/lib/utils";
 import { Order } from "@/lib/types";
@@ -64,7 +64,7 @@ export default function PaymentsPage() {
         if (saved) setMethods(JSON.parse(saved));
 
         if (user) {
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             const userOrders = allOrders.filter(o =>
                 (o.customer_id === user.email || o.customer_id === user.id) &&
                 o.status !== "cancelled"

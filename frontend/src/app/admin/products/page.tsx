@@ -28,7 +28,7 @@ import {
     Timer, // Added Timer icon
     ArrowLeft, Upload, Star, Image as ImageIcon, Shield, AlertTriangle, Sparkles, Wand2, FileOutput // Added other icons from instruction
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -85,7 +85,7 @@ export default function CatalogControl() {
 
     useEffect(() => {
         const load = () => {
-            const all = DemoStore.getProducts();
+            const all = DataSyncService.getProducts();
             console.log("Admin Catalog detected update. Items:", all.length);
             all.sort((a, b) => {
                 const da = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -93,18 +93,18 @@ export default function CatalogControl() {
                 return db - da;
             });
             setProducts(all);
-            setTrendingIds(new Set(DemoStore.getTrendingIds())); // Load trending IDs
+            setTrendingIds(new Set(DataSyncService.getTrendingIds())); // Load trending IDs
         };
         load();
-        const loadCache = () => setCachedProducts(DemoStore.getAllCachedProducts());
+        const loadCache = () => setCachedProducts(DataSyncService.getAllCachedProducts());
         loadCache();
         window.addEventListener("storage", load);
-        window.addEventListener("demo-store-update", load);
-        window.addEventListener("demo-store-update", loadCache);
+        window.addEventListener("sync-store-update", load);
+        window.addEventListener("sync-store-update", loadCache);
         return () => {
             window.removeEventListener("storage", load);
-            window.removeEventListener("demo-store-update", load);
-            window.removeEventListener("demo-store-update", loadCache);
+            window.removeEventListener("sync-store-update", load);
+            window.removeEventListener("sync-store-update", loadCache);
         };
     }, []);
 
@@ -135,13 +135,13 @@ export default function CatalogControl() {
 
     const handleDelete = (id: string) => {
         if (confirm("Are you sure you want to remove this product from the platform? This action cannot be undone.")) {
-            DemoStore.deleteProduct(id);
+            DataSyncService.deleteProduct(id);
         }
     };
 
     const handleEditSave = async () => {
         if (editingProduct) {
-            await DemoStore.updateProduct(editingProduct.id, {
+            await DataSyncService.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
                 category: editCategory || editingProduct.category,
                 subcategory: editSubcategory,
@@ -224,11 +224,11 @@ export default function CatalogControl() {
             if (item) {
                 // Round to nearest hundred
                 const roundedPrice = Math.ceil(item.suggestedPrice / 100) * 100;
-                await DemoStore.updateProduct(id, { price: roundedPrice });
+                await DataSyncService.updateProduct(id, { price: roundedPrice });
             }
         }
         setIsSyncModalOpen(false);
-        setProducts(DemoStore.getProducts());
+        setProducts(DataSyncService.getProducts());
         alert("Selected global product prices successfully synced and updated.");
     };
 
@@ -242,7 +242,7 @@ export default function CatalogControl() {
         const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
         const startAt = new Date().toISOString();
         
-        DemoStore.addDeal({
+        DataSyncService.addDeal({
             product_id: dealProduct.id,
             product: dealProduct,
             discount_pct: discountPct,
@@ -253,10 +253,10 @@ export default function CatalogControl() {
         });
 
         // Notify the product's seller about the deal
-        const sellers = DemoStore.getSellers();
+        const sellers = DataSyncService.getSellers();
         const productSeller = sellers.find(s => s.id === dealProduct.seller_id || s.user_id === dealProduct.seller_id);
         if (productSeller) {
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: productSeller.owner_email || productSeller.id,
                 type: "promo",
                 message: `🔥 Your product "${dealProduct.name}" has been promoted to Hottest Deals by the Admin! ${discountPct}% off for ${hours} hours.`,
@@ -279,7 +279,7 @@ export default function CatalogControl() {
         }
 
         // Dispatch event so homepage picks up the new deal immediately
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         setIsDealModalOpen(false);
         setDealProduct(null);
@@ -376,11 +376,11 @@ export default function CatalogControl() {
                                     <button
                                         onClick={() => {
                                             if (confirm(`Are you sure you want to delete ${selectedCacheIds.length} items from the cache?`)) {
-                                                // Re-fetch properly using DemoStore
+                                                // Re-fetch properly using DataSyncService
                                                 for (let id of selectedCacheIds) {
-                                                    DemoStore.removeFromSearchCache(id);
+                                                    DataSyncService.removeFromSearchCache(id);
                                                 }
-                                                setCachedProducts(DemoStore.getAllCachedProducts());
+                                                setCachedProducts(DataSyncService.getAllCachedProducts());
                                                 setSelectedCacheIds([]);
                                             }
                                         }}
@@ -446,13 +446,13 @@ export default function CatalogControl() {
                                                     <Edit2 className="h-3 w-3 inline mr-1" />Edit
                                                 </button>
                                                 <button
-                                                    onClick={() => { DemoStore.promoteFromCache(p.id); DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); }}
+                                                    onClick={() => { DataSyncService.promoteFromCache(p.id); DataSyncService.removeFromSearchCache(p.id); setCachedProducts(DataSyncService.getAllCachedProducts()); }}
                                                     className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
                                                 >
                                                     <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
                                                 </button>
                                                 <button
-                                                    onClick={() => { if (confirm('Remove from cache?')) { DemoStore.removeFromSearchCache(p.id); setCachedProducts(DemoStore.getAllCachedProducts()); } }}
+                                                    onClick={() => { if (confirm('Remove from cache?')) { DataSyncService.removeFromSearchCache(p.id); setCachedProducts(DataSyncService.getAllCachedProducts()); } }}
                                                     className="px-2 py-1.5 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
@@ -479,13 +479,13 @@ export default function CatalogControl() {
                                 <DialogFooter className="gap-2">
                                     <Button variant="outline" onClick={() => setEditingCacheProduct(null)}>Cancel</Button>
                                     <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={() => {
-                                        DemoStore.updateSearchCacheProduct(editingCacheProduct.id, {
+                                        DataSyncService.updateSearchCacheProduct(editingCacheProduct.id, {
                                             name: cacheEditFields.name,
                                             price: parseFloat(cacheEditFields.price.replace(/,/g, '')) || 0,
                                             image_url: cacheEditFields.image_url,
                                             description: cacheEditFields.description,
                                         });
-                                        setCachedProducts(DemoStore.getAllCachedProducts());
+                                        setCachedProducts(DataSyncService.getAllCachedProducts());
                                         setEditingCacheProduct(null);
                                     }}>Save Changes</Button>
                                 </DialogFooter>
@@ -532,12 +532,12 @@ export default function CatalogControl() {
                                                                     autoFocus
                                                                     onKeyDown={(e) => {
                                                                         if (e.key === 'Enter') {
-                                                                            DemoStore.updateProduct(p.id, { name: inlineEditName });
+                                                                            DataSyncService.updateProduct(p.id, { name: inlineEditName });
                                                                             setInlineEditId(null);
                                                                         } else if (e.key === 'Escape') setInlineEditId(null);
                                                                     }}
                                                                 />
-                                                                <button onClick={() => { DemoStore.updateProduct(p.id, { name: inlineEditName }); setInlineEditId(null); }} className="text-emerald-600 hover:text-emerald-700">
+                                                                <button onClick={() => { DataSyncService.updateProduct(p.id, { name: inlineEditName }); setInlineEditId(null); }} className="text-emerald-600 hover:text-emerald-700">
                                                                     <CheckCircle2 className="h-4 w-4" />
                                                                 </button>
                                                                 <button onClick={() => setInlineEditId(null)} className="text-gray-400 hover:text-gray-600">
@@ -597,8 +597,8 @@ export default function CatalogControl() {
                                                     <Button
                                                         variant="ghost" size="icon"
                                                         onClick={async () => {
-                                                            await DemoStore.toggleTrending(p.id);
-                                                            setTrendingIds(new Set(DemoStore.getTrendingIds()));
+                                                            await DataSyncService.toggleTrending(p.id);
+                                                            setTrendingIds(new Set(DataSyncService.getTrendingIds()));
                                                         }}
                                                         className={cn("h-8 w-8 rounded-xl", trendingIds.has(p.id) ? "text-orange-500 bg-orange-50 hover:bg-orange-100" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50")}
                                                         title={trendingIds.has(p.id) ? "Remove from Trending" : "Pin to Trending"}

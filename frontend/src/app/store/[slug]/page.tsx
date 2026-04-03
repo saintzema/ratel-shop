@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
-import { DemoStore } from "@/lib/demo-store";
-import { DEMO_PRODUCTS, DEMO_SELLERS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
+import { SEED_PRODUCTS, SEED_SELLERS } from "@/lib/data";
 import { Product, Seller } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -55,8 +55,8 @@ export default function StoreProfile() {
         if (!slug) return;
 
         const loadStore = () => {
-            const allSellers = [...DemoStore.getSellers(), ...DEMO_SELLERS];
-            // Deduplicate by id, preferring DemoStore version
+            const allSellers = [...DataSyncService.getSellers(), ...SEED_SELLERS];
+            // Deduplicate by id, preferring DataSyncService version
             const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
             // find by store_url OR by ID OR by slugified business name
             const foundSeller = uniqueSellers.find(s =>
@@ -65,7 +65,7 @@ export default function StoreProfile() {
 
             if (foundSeller) {
                 setSeller(foundSeller);
-                const allProducts = [...DemoStore.getProducts(), ...DEMO_PRODUCTS];
+                const allProducts = [...DataSyncService.getProducts(), ...SEED_PRODUCTS];
                 // Deduplicate by id
                 const uniqueProducts = allProducts.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
                 setProducts(uniqueProducts.filter(p => p.seller_id === foundSeller.id));
@@ -98,7 +98,7 @@ export default function StoreProfile() {
             const currentImages = seller.cover_image_urls || (seller.cover_image_url ? [seller.cover_image_url] : []);
             const newImages = [...currentImages, newUrl].slice(-3); // Keep only the latest 3
 
-            DemoStore.updateSeller(seller.id, { cover_image_urls: newImages, cover_image_url: newImages[0] });
+            DataSyncService.updateSeller(seller.id, { cover_image_urls: newImages, cover_image_url: newImages[0] });
             setSeller(prev => prev ? { ...prev, cover_image_urls: newImages, cover_image_url: newImages[0] } : null);
             setIsUpdatingCover(false);
         }, 1000);
@@ -108,7 +108,7 @@ export default function StoreProfile() {
         if (!seller || !e.target.files?.[0]) return;
         const file = e.target.files[0];
         const newUrl = URL.createObjectURL(file);
-        DemoStore.updateSeller(seller.id, { logo_url: newUrl });
+        DataSyncService.updateSeller(seller.id, { logo_url: newUrl });
         setSeller(prev => prev ? { ...prev, logo_url: newUrl } : null);
     };
 

@@ -6,8 +6,8 @@ import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Star, ChevronDown } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { DEMO_PRODUCTS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 
 interface YouMayAlsoLikeProps {
@@ -20,9 +20,9 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
     const { addToCart } = useCart();
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
 
-    // Combine DEMO_PRODUCTS + DemoStore approved products for wider pool
-    const storeProducts = DemoStore.getApprovedProducts();
-    const allPool = [...DEMO_PRODUCTS, ...storeProducts.filter(sp => !DEMO_PRODUCTS.some(dp => dp.id === sp.id))];
+    // Combine SEED_PRODUCTS + DataSyncService approved products for wider pool
+    const storeProducts = DataSyncService.getApprovedProducts();
+    const allPool = [...SEED_PRODUCTS, ...storeProducts.filter(sp => !SEED_PRODUCTS.some(dp => dp.id === sp.id))];
 
     // Category-matched products (not already in cart/current)
     let allSimilar = allPool.filter(p => (cartCategories.includes(p.category) || p.is_sponsored) && !cartIds.has(p.id));

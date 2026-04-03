@@ -4,7 +4,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { MessageSquare, Send, ArrowLeft, CheckCheck, Bell, BellOff, Package, ShieldCheck, Star as StarIcon, AlertTriangle, Info } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,15 +25,15 @@ export default function MessagesPage() {
 
     const loadConversations = useCallback(() => {
         if (!userId) return;
-        const convs = DemoStore.getConversations(userId);
+        const convs = DataSyncService.getConversations(userId);
         convs.sort((a: any, b: any) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
         setConversations(convs);
     }, [userId]);
 
     const loadMessages = (convId: string) => {
-        const msgs = DemoStore.getChatMessages(convId);
+        const msgs = DataSyncService.getChatMessages(convId);
         setMessages(msgs);
-        if (userId) DemoStore.markConversationRead(convId, userId);
+        if (userId) DataSyncService.markConversationRead(convId, userId);
         loadConversations();
     };
 
@@ -41,14 +41,14 @@ export default function MessagesPage() {
         loadConversations();
         const handleUpdate = () => {
             loadConversations();
-            if (userId) setNotifications(DemoStore.getNotifications(userId));
+            if (userId) setNotifications(DataSyncService.getNotifications(userId));
         };
         window.addEventListener("storage", handleUpdate);
-        window.addEventListener("demo-store-update", handleUpdate);
+        window.addEventListener("sync-store-update", handleUpdate);
         const poll = setInterval(handleUpdate, 10000);
         return () => {
             window.removeEventListener("storage", handleUpdate);
-            window.removeEventListener("demo-store-update", handleUpdate);
+            window.removeEventListener("sync-store-update", handleUpdate);
             clearInterval(poll);
         };
     }, [loadConversations]);
@@ -65,7 +65,7 @@ export default function MessagesPage() {
 
     const handleSend = () => {
         if (!inputText.trim() || !activeConv || !userId) return;
-        DemoStore.sendChatMessage(activeConv.id, userId, userName, inputText.trim());
+        DataSyncService.sendChatMessage(activeConv.id, userId, userName, inputText.trim());
         setInputText("");
         loadMessages(activeConv.id);
     };
@@ -205,8 +205,8 @@ export default function MessagesPage() {
                                             <button
                                                 onClick={() => {
                                                     if (userId) {
-                                                        DemoStore.markAllNotificationsRead(userId);
-                                                        setNotifications(DemoStore.getNotifications(userId));
+                                                        DataSyncService.markAllNotificationsRead(userId);
+                                                        setNotifications(DataSyncService.getNotifications(userId));
                                                     }
                                                 }}
                                                 className="text-[10px] font-bold text-indigo-600 hover:text-indigo-700 uppercase tracking-wider flex items-center gap-1"
@@ -228,7 +228,7 @@ export default function MessagesPage() {
                                                     <button
                                                         key={notif.id}
                                                         onClick={() => {
-                                                            DemoStore.markNotificationRead(notif.id);
+                                                            DataSyncService.markNotificationRead(notif.id);
                                                             setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, read: true } : n));
                                                             if (notif.link) window.location.href = notif.link;
                                                         }}

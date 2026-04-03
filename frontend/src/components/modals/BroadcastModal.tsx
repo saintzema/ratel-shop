@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Users, Sparkles, Loader2 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 interface BroadcastModalProps {
     open: boolean;
@@ -58,14 +58,14 @@ export function BroadcastModal({ open, onOpenChange, selectedCustomerIds, onSucc
         setIsSending(true);
 
         setTimeout(() => {
-            const sellerId = DemoStore.getCurrentSellerId();
+            const sellerId = DataSyncService.getCurrentSellerId();
             if (sellerId) {
-                DemoStore.sendBroadcastMessage(selectedCustomerIds, message);
+                DataSyncService.sendBroadcastMessage(selectedCustomerIds, message);
 
                 // Fire promotional emails to selected customers via Resend
                 try {
                     const allUsers = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
-                    const sellerName = DemoStore.getSellers().find(s => s.id === sellerId)?.business_name || "FairPrice Partner";
+                    const sellerName = DataSyncService.getSellers().find(s => s.id === sellerId)?.business_name || "FairPrice Partner";
 
                     selectedCustomerIds.forEach(cid => {
                         // Attempt to find actual email via registered users, fallback to a mock one if guest

@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { DEMO_DEALS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_DEALS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
@@ -183,7 +183,7 @@ function HomeContent() {
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const productSectionRef = useRef<HTMLDivElement>(null);
 
-  // Live products from DemoStore — load only on client to avoid SSR hydration mismatch
+  // Live products from DataSyncService — load only on client to avoid SSR hydration mismatch
   const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
   const [mounted, setMounted] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
@@ -201,7 +201,7 @@ function HomeContent() {
 
   useEffect(() => {
     const refresh = () => {
-      setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
+      setAllProducts(DataSyncService.getApprovedProducts().filter(p => p.is_active));
       
       let hasSellerRole = false;
       try {
@@ -212,7 +212,7 @@ function HomeContent() {
         }
       } catch (e) {}
 
-      setIsSeller(!!DemoStore.getCurrentSellerId() || hasSellerRole);
+      setIsSeller(!!DataSyncService.getCurrentSellerId() || hasSellerRole);
     };
     const loadGrids = () => {
       try {
@@ -224,11 +224,11 @@ function HomeContent() {
     loadGrids();
     setMounted(true);
     window.addEventListener("storage", refresh);
-    window.addEventListener("demo-store-update", refresh);
+    window.addEventListener("sync-store-update", refresh);
     window.addEventListener("storage", loadGrids);
     return () => {
       window.removeEventListener("storage", refresh);
-      window.removeEventListener("demo-store-update", refresh);
+      window.removeEventListener("sync-store-update", refresh);
       window.removeEventListener("storage", loadGrids);
     };
   }, []);
@@ -270,7 +270,7 @@ function HomeContent() {
   // 3. Deals (Flash deals from DB/Demo + General Price Drops)
   const dealProducts = useMemo(() => {
     const now = new Date();
-    const allDeals = typeof window !== "undefined" ? DemoStore.getDeals() : DEMO_DEALS;
+    const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
     const active = allDeals
       .filter(d => d.is_active && new Date(d.end_at) > now)
       .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
@@ -319,7 +319,7 @@ function HomeContent() {
   const { favoriteStores } = useFavorites();
   const followedStoreProducts = mounted ? (() => {
     if (favoriteStores.length === 0) return [];
-    const sellers = DemoStore.getSellers();
+    const sellers = DataSyncService.getSellers();
     const followedSellerIds = new Set(favoriteStores);
     return allProducts.filter(p => {
       const seller = sellers.find(s => s.id === p.seller_id);

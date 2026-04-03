@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { DEMO_PRODUCTS } from '@/lib/data';
+import { SEED_PRODUCTS } from '@/lib/data';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
@@ -217,7 +217,7 @@ export async function POST(req: Request) {
     try {
         const { message, history, userName, catalogue, searchCache, browsingHistory } = await req.json();
 
-        const productsToUse = catalogue || DEMO_PRODUCTS;
+        const productsToUse = catalogue || SEED_PRODUCTS;
         const cacheToUse = searchCache || [];
 
         // Build product context summary (compact)

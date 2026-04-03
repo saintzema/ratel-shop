@@ -146,7 +146,7 @@ class OfflineQueueService {
         } else {
             console.log("✅ Offline queue fully flushed!");
             // Trigger sync to refresh local state from DB
-            window.dispatchEvent(new Event("demo-store-update"));
+            window.dispatchEvent(new Event("sync-store-update"));
         }
     }
 

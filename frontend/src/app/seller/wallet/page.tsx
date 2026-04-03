@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Order, Seller } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -42,23 +42,23 @@ export default function SellerWalletPage() {
 
     useEffect(() => {
         const loadFinanceData = () => {
-            const s = DemoStore.getCurrentSeller();
+            const s = DataSyncService.getCurrentSeller();
             if (!s) {
                 router.push("/seller/login");
                 return;
             }
             setSeller(s);
             
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             const sellerOrders = allOrders.filter(o => o.seller_id === s.id);
             setOrders(sellerOrders);
             
-            const allPayouts = DemoStore.getPayouts();
+            const allPayouts = DataSyncService.getPayouts();
             setPayouts(allPayouts.filter((p: any) => p.seller_id === s.id));
 
             // Calculate Balances
             const EARNINGS_ELIGIBLE_STATES = ["released", "buyer_confirmed", "auto_release_eligible"];
-            const rate = DemoStore.getSellerCommissionRate(s);
+            const rate = DataSyncService.getSellerCommissionRate(s);
             setCommissionRate(rate);
 
             const available = sellerOrders
@@ -71,11 +71,11 @@ export default function SellerWalletPage() {
 
         loadFinanceData();
         window.addEventListener("storage", loadFinanceData);
-        window.addEventListener("demo-store-update", loadFinanceData);
+        window.addEventListener("sync-store-update", loadFinanceData);
 
         return () => {
             window.removeEventListener("storage", loadFinanceData);
-            window.removeEventListener("demo-store-update", loadFinanceData);
+            window.removeEventListener("sync-store-update", loadFinanceData);
         };
     }, [router]);
 
@@ -110,7 +110,7 @@ export default function SellerWalletPage() {
         const acctNum = seller.account_number || "xxxxxxxxx";
         const last4 = acctNum.slice(-4);
 
-        DemoStore.requestPayout(
+        DataSyncService.requestPayout(
             seller.id,
             eligibleOrders.map(o => o.id),
             payoutAmount,
@@ -122,7 +122,7 @@ export default function SellerWalletPage() {
         setTimeout(() => {
             setIsSubmitting(false);
             setIsPayoutModalOpen(false);
-            window.dispatchEvent(new Event("demo-store-update"));
+            window.dispatchEvent(new Event("sync-store-update"));
         }, 800);
     };
 

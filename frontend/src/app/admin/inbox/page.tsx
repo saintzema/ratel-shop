@@ -11,7 +11,7 @@ import {
     CheckCheck,
     X
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useSearchParams } from "next/navigation";
@@ -33,7 +33,7 @@ function AdminInboxContent() {
 
     // Load conversations
     const loadConversations = () => {
-        const convs = DemoStore.getConversations(ADMIN_ID);
+        const convs = DataSyncService.getConversations(ADMIN_ID);
         // Sort by last_message_at descending
         convs.sort((a: any, b: any) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime());
         setConversations(convs);
@@ -41,9 +41,9 @@ function AdminInboxContent() {
 
     // Load messages for active conversation
     const loadMessages = (convId: string) => {
-        const msgs = DemoStore.getChatMessages(convId);
+        const msgs = DataSyncService.getChatMessages(convId);
         setMessages(msgs);
-        DemoStore.markConversationRead(convId, ADMIN_ID);
+        DataSyncService.markConversationRead(convId, ADMIN_ID);
         loadConversations(); // Refresh unread counts
     };
 
@@ -54,16 +54,16 @@ function AdminInboxContent() {
         const userId = searchParams?.get("user_id");
         if (userId) {
             // Resolve user name
-            const sellers = DemoStore.getSellers();
+            const sellers = DataSyncService.getSellers();
             const seller = sellers.find((s: any) => s.id === userId || s.user_id === userId || s.owner_email === userId);
-            const allUsers = DemoStore.getAllUsers();
+            const allUsers = DataSyncService.getAllUsers();
             const dsUser = allUsers.find((u: any) => u.id === userId || u.email === userId);
             
             // Crucial fix: prioritize the proper store ID, fallback to given ID
             const targetId = dsUser?.id || seller?.id || userId;
             const targetName = dsUser?.name || seller?.business_name || seller?.owner_name || userId;
 
-            const conv = DemoStore.getOrCreateConversation(
+            const conv = DataSyncService.getOrCreateConversation(
                 ADMIN_ID, targetId,
                 { [ADMIN_ID]: ADMIN_NAME, [targetId]: targetName },
                 { type: "admin_dm" }
@@ -75,10 +75,10 @@ function AdminInboxContent() {
 
         const handleUpdate = () => loadConversations();
         window.addEventListener("storage", handleUpdate);
-        window.addEventListener("demo-store-update", handleUpdate);
+        window.addEventListener("sync-store-update", handleUpdate);
         return () => {
             window.removeEventListener("storage", handleUpdate);
-            window.removeEventListener("demo-store-update", handleUpdate);
+            window.removeEventListener("sync-store-update", handleUpdate);
         };
     }, [searchParams]);
 
@@ -94,7 +94,7 @@ function AdminInboxContent() {
 
     const handleSend = () => {
         if (!inputText.trim() || !activeConv) return;
-        DemoStore.sendChatMessage(activeConv.id, ADMIN_ID, ADMIN_NAME, inputText.trim());
+        DataSyncService.sendChatMessage(activeConv.id, ADMIN_ID, ADMIN_NAME, inputText.trim());
         setInputText("");
         loadMessages(activeConv.id);
     };
@@ -108,16 +108,16 @@ function AdminInboxContent() {
 
     const handleNewConversation = () => {
         if (!composeTo.trim()) return;
-        const sellers = DemoStore.getSellers();
+        const sellers = DataSyncService.getSellers();
         const seller = sellers.find((s: any) => s.id === composeTo || s.user_id === composeTo || s.owner_email === composeTo);
-        const allUsers = DemoStore.getAllUsers();
+        const allUsers = DataSyncService.getAllUsers();
         const dsUser = allUsers.find((u: any) => u.id === composeTo || u.email === composeTo);
         
         // Ensure consistent ID usage across the platform to avoid duplicates
         const targetId = dsUser?.id || seller?.id || composeTo;
         const targetName = dsUser?.name || seller?.business_name || seller?.owner_name || composeTo;
 
-        const conv = DemoStore.getOrCreateConversation(
+        const conv = DataSyncService.getOrCreateConversation(
             ADMIN_ID, targetId,
             { [ADMIN_ID]: ADMIN_NAME, [targetId]: targetName },
             { type: "admin_dm" }
@@ -134,10 +134,10 @@ function AdminInboxContent() {
         let resolvedName = conv.participant_names?.[otherId] || otherId;
         let resolvedEmail = otherId.includes("@") ? otherId : "user@globalstores.shop";
 
-        // Attempt to enrich from DemoStore
+        // Attempt to enrich from DataSyncService
         if (typeof window !== "undefined") {
-            const allUsers = DemoStore.getAllUsers();
-            const sellers = DemoStore.getSellers();
+            const allUsers = DataSyncService.getAllUsers();
+            const sellers = DataSyncService.getSellers();
             const userMatch = allUsers.find((u: any) => u.id === otherId || u.email === otherId);
             const sellerMatch = sellers.find((s: any) => s.id === otherId || s.owner_email === otherId);
 

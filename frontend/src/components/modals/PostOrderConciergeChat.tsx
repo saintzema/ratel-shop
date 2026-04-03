@@ -6,7 +6,7 @@ import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, Aler
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Product, Order } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Keyboard } from "@capacitor/keyboard";
 import { Capacitor } from "@capacitor/core";
 import { useCart } from "@/context/CartContext";
@@ -78,7 +78,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     useEffect(() => {
         if (!isOpen || !product || !orderId) return;
 
-        const orderMsgs = DemoStore.getOrderMessages(orderId);
+        const orderMsgs = DataSyncService.getOrderMessages(orderId);
         
         // Track whether we need to inject the context prompt
         let initialMessages: Message[] = [];
@@ -102,7 +102,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 timestamp: new Date(),
             };
             initialMessages.push(zivaMsg);
-            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
         } else if (mode === "review" && !initialMessages.some(m => m.text.includes("Your delivery for"))) {
             const zivaMsg: Message = {
                  id: Date.now().toString(),
@@ -111,7 +111,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                  timestamp: new Date(),
             };
             initialMessages.push(zivaMsg);
-            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
         } else if (mode === "return" && !initialMessages.some(m => m.text.includes("I understand you'd like to initiate a return"))) {
             const zivaMsg: Message = {
                  id: Date.now().toString(),
@@ -120,7 +120,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                  timestamp: new Date(),
             };
             initialMessages.push(zivaMsg);
-            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
         } else if (initialMessages.length === 0) {
             const statusText = orderStatus === "shipped" || orderStatus === "delivered"
                 ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
@@ -133,17 +133,17 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 timestamp: new Date(),
             };
             initialMessages.push(zivaMsg);
-            DemoStore.addOrderMessage(orderId, "ziva", zivaMsg.text);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
         }
 
         setMessages(initialMessages);
     }, [isOpen, product, orderId, messages.length, mode]);
 
-    // Listen for DemoStore updates (e.g. admin replies)
+    // Listen for DataSyncService updates (e.g. admin replies)
     useEffect(() => {
         if (!isOpen || !orderId) return;
         const handleUpdate = () => {
-            const orderMsgs = DemoStore.getOrderMessages(orderId);
+            const orderMsgs = DataSyncService.getOrderMessages(orderId);
             if (orderMsgs && orderMsgs.length > 0) {
                 setMessages(orderMsgs.map(m => ({
                     id: m.id,
@@ -156,12 +156,12 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             }
         };
         window.addEventListener("storage", handleUpdate);
-        window.addEventListener("demo-store-update", handleUpdate);
+        window.addEventListener("sync-store-update", handleUpdate);
         // Polling for cross-browser/device realtime sync
         const pollInterval = setInterval(handleUpdate, 3000);
         return () => {
             window.removeEventListener("storage", handleUpdate);
-            window.removeEventListener("demo-store-update", handleUpdate);
+            window.removeEventListener("sync-store-update", handleUpdate);
             clearInterval(pollInterval);
         };
     }, [isOpen, orderId]);
@@ -196,14 +196,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             replyTo: replyingTo || undefined
         };
 
-        DemoStore.addOrderMessage(orderId!, "user", userMsg.text, imageUrl, replyingTo || undefined);
+        DataSyncService.addOrderMessage(orderId!, "user", userMsg.text, imageUrl, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
         setReplyingTo(null);
 
         // Notify seller about image upload
         if (product && product.seller_id) {
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: product.seller_id,
                 type: "order",
                 message: `📷 Buyer uploaded a product image for Order ${trackingId}. Please review in the Concierge Inbox.`,
@@ -217,8 +217,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 const lastHumanMsg = messages.slice().reverse().find(m => m.sender === "admin" || m.sender === "seller");
                 // Wait 60 seconds before Ziva automatically jumps back in
                 if (!lastHumanMsg || (Date.now() - new Date(lastHumanMsg.timestamp).getTime()) < 60000) return;
-                DemoStore.updateOrder(orderId!, { zivaActive: true });
-                DemoStore.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
+                DataSyncService.updateOrder(orderId!, { zivaActive: true });
+                DataSyncService.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
             }
 
             const zivaText = mode === "return"
@@ -231,7 +231,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 text: zivaText,
                 timestamp: new Date()
             };
-            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            DataSyncService.addOrderMessage(orderId!, "ziva", zivaText);
             setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1500);
@@ -257,7 +257,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             replyTo: replyingTo || undefined
         };
 
-        DemoStore.addOrderMessage(orderId!, "user", text, undefined, replyingTo || undefined);
+        DataSyncService.addOrderMessage(orderId!, "user", text, undefined, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
@@ -270,8 +270,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 const lastHumanMsg = messages.slice().reverse().find(m => m.sender === "admin" || m.sender === "seller");
                 // Wait 60 seconds before Ziva automatically jumps back in
                 if (!lastHumanMsg || (Date.now() - new Date(lastHumanMsg.timestamp).getTime()) < 60000) return;
-                DemoStore.updateOrder(orderId!, { zivaActive: true });
-                DemoStore.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
+                DataSyncService.updateOrder(orderId!, { zivaActive: true });
+                DataSyncService.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
             }
 
             let zivaText = "I've noted your concern and notified the merchant. Our support team is also monitoring this request and will step in shortly if needed.";
@@ -284,14 +284,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
             if (isHumanRequest) {
                 // Save escalation to admin inbox
-                const currentUser = DemoStore.getCurrentUser();
+                const currentUser = DataSyncService.getCurrentUser();
                 const userIdLog = currentUser?.id || "guest_session";
-                const conv = DemoStore.getOrCreateConversation(
+                const conv = DataSyncService.getOrCreateConversation(
                     "admin", userIdLog,
                     { admin: "FairPrice Admin", [userIdLog]: currentUser?.name || "Customer" },
                     { type: "ziva_escalation", order_id: trackingId }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
                     userIdLog,
                     currentUser?.name || "Customer",
@@ -299,7 +299,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 );
 
                 // Add notification for admin
-                DemoStore.addNotification({
+                DataSyncService.addNotification({
                     userId: "admin",
                     type: "system",
                     message: `Order Escalation: Customer requested human support for ${trackingId}`,
@@ -308,7 +308,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
                 // Add notification for seller
                 if (product && product.seller_id) {
-                    DemoStore.addNotification({
+                    DataSyncService.addNotification({
                         userId: product.seller_id,
                         type: "order",
                         message: `🚨 Buyer requested human support for Order ${trackingId}. Please take over from Ziva.`,
@@ -321,9 +321,9 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 if (orderStatus === "pending" || orderStatus === "processing") {
                     if (orderId) {
                         try {
-                            DemoStore.updateOrderStatus(orderId, "cancelled");
-                            DemoStore.addNotification({
-                                userId: DemoStore.getCurrentUserId() || "guest",
+                            DataSyncService.updateOrderStatus(orderId, "cancelled");
+                            DataSyncService.addNotification({
+                                userId: DataSyncService.getCurrentUserId() || "guest",
                                 type: "order",
                                 message: `Order Cancelled — Your order #${trackingId.substring(0, 8)} has been cancelled. Reason: ${text}`,
                                 link: "/account/orders"
@@ -331,7 +331,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         } catch(e) { console.error("Cancel failed:", e); }
                     }
                     zivaText = `I have successfully cancelled your order **${trackingId}**. Your full payment will be refunded immediately. If there's anything else, feel free to ask.`;
-                    window.dispatchEvent(new Event("demo-store-update"));
+                    window.dispatchEvent(new Event("sync-store-update"));
                 } else {
                     zivaText = `Your order **${trackingId}** has already been **${orderStatus}** and can no longer be cancelled. However, you can initiate a return if needed.`;
                 }
@@ -358,12 +358,12 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     // --- Send bell notification + email to seller ---
                     if (product) {
                         const sellerId = product.seller_id;
-                        const seller = DemoStore.getSellers().find(s => s.id === sellerId);
-                        const currentUser = DemoStore.getCurrentUser();
+                        const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DataSyncService.getCurrentUser();
                         const buyerName = currentUser?.name || "A Buyer";
 
                         // In-app bell notification for seller
-                        DemoStore.addNotification({
+                        DataSyncService.addNotification({
                             userId: sellerId,
                             type: "order",
                             message: `📸 ${buyerName} has requested product images for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please upload photos from your dashboard.`,
@@ -372,14 +372,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
                         // Initiate or continue DM conversation with seller
                         const sellerDisplayName = seller?.business_name || product.seller_name || "Seller";
-                        const conv = DemoStore.getOrCreateConversation(
+                        const conv = DataSyncService.getOrCreateConversation(
                             currentUser?.id || "guest_session",
                             sellerId,
                             { [currentUser?.id || "guest"]: buyerName, [sellerId]: sellerDisplayName },
                             { type: "buyer_seller", product_id: product.id }
                         );
                         if (conv) {
-                            DemoStore.sendChatMessage(
+                            DataSyncService.sendChatMessage(
                                 conv.id,
                                 currentUser?.id || "guest",
                                 buyerName,
@@ -427,7 +427,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 text: zivaText,
                 timestamp: new Date()
             };
-            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            DataSyncService.addOrderMessage(orderId!, "ziva", zivaText);
             setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1500);
@@ -439,8 +439,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         playDingSound(); // Play chime for rating submission
 
         // Save the review instantly
-        const currentUser = DemoStore.getCurrentUser();
-        DemoStore.addReview({
+        const currentUser = DataSyncService.getCurrentUser();
+        DataSyncService.addReview({
             product_id: product.id,
             user_id: currentUser?.id || "guest",
             user_name: currentUser?.name || "Guest User",
@@ -458,7 +458,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             text: `⭐ Rating: ${stars} Stars`,
             timestamp: new Date()
         };
-        DemoStore.addOrderMessage(orderId!, "user", userMsg.text);
+        DataSyncService.addOrderMessage(orderId!, "user", userMsg.text);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
 
@@ -470,7 +470,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 text: zivaText,
                 timestamp: new Date()
             };
-            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            DataSyncService.addOrderMessage(orderId!, "ziva", zivaText);
             setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1000);

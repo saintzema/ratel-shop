@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 
 import { User } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 interface AuthContextType {
     user: User | null;
@@ -26,18 +26,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Initial sync on mount
-        DemoStore.syncWithDB();
+        DataSyncService.syncWithDB();
 
         // High frequency sync for specific collections on first load to get instant UX
         if (isFirstMount.current) {
-            DemoStore.syncWithDB("products");
-            DemoStore.syncWithDB("sellers");
+            DataSyncService.syncWithDB("products");
+            DataSyncService.syncWithDB("sellers");
             isFirstMount.current = false;
         }
 
         // Periodic sync every 5 minutes (300,000 ms) to balance freshness and Neon DB quotas
         const syncInterval = setInterval(() => {
-            DemoStore.syncWithDB();
+            DataSyncService.syncWithDB();
         }, 300000);
 
         return () => clearInterval(syncInterval);
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const handleStorageChange = () => {
             const updatedUser = localStorage.getItem("fp_user");
             if (updatedUser) {
-                // To avoid redundant re-renders from frequent "storage" events (e.g. from DemoStore sync),
+                // To avoid redundant re-renders from frequent "storage" events (e.g. from DataSyncService sync),
                 // we only update if the string value has actually changed.
                 const currentUserStr = localStorage.getItem("fp_user_last_synced");
                 if (updatedUser !== currentUserStr) {

@@ -10,7 +10,7 @@ import { Textarea } from "../ui/textarea";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
 import { useMessages } from "@/context/MessageContext";
@@ -44,7 +44,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const minAllowedPrice = Math.round(product.price * (1 - maxDiscountPct / 100));
 
     // Get 3 similar products to suggest
-    const similarProducts = DemoStore.getProducts()
+    const similarProducts = DataSyncService.getProducts()
         .filter(p => p.category === product.category && p.id !== product.id && p.price < product.price)
         .sort((a, b) => b.sold_count - a.sold_count)
         .slice(0, 3);
@@ -130,7 +130,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             }
         }
 
-        const currentUserId = user?.id || DemoStore.getCurrentUserId() || "guest_session";
+        const currentUserId = user?.id || DataSyncService.getCurrentUserId() || "guest_session";
 
         // Create a conversation thread message string
         const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
@@ -152,7 +152,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             }]
         };
 
-        DemoStore.addNegotiation(newNegotiation);
+        DataSyncService.addNegotiation(newNegotiation);
 
         startConversation(
             `neg_${product.id}`,

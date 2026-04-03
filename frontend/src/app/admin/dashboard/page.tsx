@@ -21,7 +21,7 @@ import {
     Star,
     Trash2
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn, formatDateExact } from "@/lib/utils";
@@ -41,11 +41,11 @@ export default function AdminDashboard() {
         const dSort = (arr: any[], dateField = "created_at") =>
             arr.sort((a, b) => new Date(b[dateField] || 0).getTime() - new Date(a[dateField] || 0).getTime());
 
-        setStats(DemoStore.getAdminStats());
+        setStats(DataSyncService.getAdminStats());
 
         // Governance: merge complaints + disputed/cancelled orders
-        const rawComplaints = DemoStore.getComplaints();
-        const allOrders = DemoStore.getOrders().filter(o => !String(o.id).startsWith("FP-DEMO-ORD"));
+        const rawComplaints = DataSyncService.getComplaints();
+        const allOrders = DataSyncService.getOrders().filter(o => !String(o.id).startsWith("FP-DEMO-ORD"));
         const disputedOrders = allOrders
             .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
             .map(o => ({
@@ -60,8 +60,8 @@ export default function AdminDashboard() {
         setComplaints(dSort(mergedComplaints).slice(0, 5));
 
         // Trust & Verify: merge explicit KYC submissions + sellers with pending/unverified kyc_status
-        const kycSubmissions = DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending");
-        const allSellers = DemoStore.getSellers();
+        const kycSubmissions = DataSyncService.getKYCSubmissions().filter((k: any) => k.status === "pending");
+        const allSellers = DataSyncService.getSellers();
         const pendingSellers = allSellers
             .filter(s => (!s.kyc_status || (s.kyc_status as string) === "pending" || (s.kyc_status as string) === "submitted") && !kycSubmissions.some((k: any) => k.seller_id === s.id))
             .map(s => ({
@@ -75,22 +75,22 @@ export default function AdminDashboard() {
             }));
         setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
 
-        const actualDisputes = DemoStore.getDisputes().filter(d => !String(d.order_id).startsWith("FP-DEMO-ORD"));
+        const actualDisputes = DataSyncService.getDisputes().filter(d => !String(d.order_id).startsWith("FP-DEMO-ORD"));
         setOpenDisputeCount(actualDisputes.filter(d => !d.status.startsWith("resolved")).length);
-        setRecentReviews(dSort(DemoStore.getReviews()).slice(0, 5));
+        setRecentReviews(dSort(DataSyncService.getReviews()).slice(0, 5));
         setRecentOrders(dSort(allOrders).slice(0, 5));
     };
 
     const handleKycAction = (kycId: string, sellerId: string, status: "approved" | "rejected") => {
         // 1. If it's a real KYC submission (starts with kyc_), update it
         if (!kycId.startsWith("kyc_auto_")) {
-            DemoStore.updateKYCStatus(kycId, status);
+            DataSyncService.updateKYCStatus(kycId, status);
         }
         
         // 2. Always update the underlying seller
         // SellerStatus enum: pending | active | frozen | banned
         const realStatus = status === "approved" ? "active" : "frozen";
-        DemoStore.updateSeller(sellerId, {
+        DataSyncService.updateSeller(sellerId, {
             kyc_status: status,
             verified: status === "approved",
             status: realStatus as any
@@ -102,10 +102,10 @@ export default function AdminDashboard() {
     useEffect(() => {
         loadData();
         window.addEventListener("storage", loadData);
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
         return () => {
             window.removeEventListener("storage", loadData);
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
         };
     }, []);
 
@@ -309,7 +309,7 @@ export default function AdminDashboard() {
                                                     variant="ghost"
                                                     onClick={(e) => {
                                                         e.preventDefault();
-                                                        DemoStore.updateComplaintStatus(c.id, "investigating");
+                                                        DataSyncService.updateComplaintStatus(c.id, "investigating");
                                                         // Navigate to the appropriate page
                                                         if (c.id.startsWith('dispute_')) {
                                                             const orderId = c.id.replace('dispute_', '');
@@ -327,7 +327,7 @@ export default function AdminDashboard() {
                                                     variant="ghost"
                                                     onClick={(e) => {
                                                         e.preventDefault();
-                                                        DemoStore.updateComplaintStatus(c.id, "resolved");
+                                                        DataSyncService.updateComplaintStatus(c.id, "resolved");
                                                     }}
                                                     className="h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold text-[10px] uppercase"
                                                 >
@@ -374,7 +374,7 @@ export default function AdminDashboard() {
                                         <div className="flex items-center gap-2 mt-2 text-[10px] font-bold text-gray-400 uppercase">
                                             <span>By {review.user_name}</span>
                                             <span>•</span>
-                                            <span>{(() => { const p = DemoStore.getProducts().find(p => p.id === review.product_id); return p?.name || review.product_id; })()}</span>
+                                            <span>{(() => { const p = DataSyncService.getProducts().find(p => p.id === review.product_id); return p?.name || review.product_id; })()}</span>
                                             <span>•</span>
                                             <span>{new Date(review.created_at).toLocaleDateString()}</span>
                                         </div>
@@ -386,7 +386,7 @@ export default function AdminDashboard() {
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 if (confirm('Are you sure you want to delete this review?')) {
-                                                    DemoStore.deleteReview(review.id);
+                                                    DataSyncService.deleteReview(review.id);
                                                 }
                                             }}
                                             className="h-8 w-8 p-0 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 font-bold"
@@ -435,7 +435,7 @@ export default function AdminDashboard() {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {recentOrders.map((order) => {
-                                    const buyer = DemoStore.getUser(order.customer_id);
+                                    const buyer = DataSyncService.getUser(order.customer_id);
                                     const buyerName = buyer?.name || buyer?.email?.split('@')[0] || order.customer_name || order.customer_id.split('@')[0];
 
                                     return (
@@ -498,7 +498,7 @@ export default function AdminDashboard() {
                 <div className="flex flex-wrap justify-center gap-3">
                     <Button 
                         onClick={() => {
-                            const sent = DemoStore.simulateWhatsAppFollowups();
+                            const sent = DataSyncService.simulateWhatsAppFollowups();
                             alert(`Simulated WhatsApp follow-up SMS triggered for ${sent} abandoned negotiations.`);
                         }}
                         className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6"
@@ -539,9 +539,9 @@ export default function AdminDashboard() {
                             <Button
                                 onClick={() => {
                                     if (!broadcastMessage.trim()) return;
-                                    const sellers = DemoStore.getSellers();
+                                    const sellers = DataSyncService.getSellers();
                                     sellers.forEach(s => {
-                                        DemoStore.addNotification({
+                                        DataSyncService.addNotification({
                                             userId: s.user_id || s.id,
                                             type: "system",
                                             message: `📢 System Update: ${broadcastMessage}`,

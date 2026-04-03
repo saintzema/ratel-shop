@@ -18,8 +18,8 @@ import { RequestDepositModal } from "./RequestDepositModal";
 import { PriceEngine, PriceAnalysis, PriceData, ProductSuggestion } from "@/lib/price-engine";
 import { formatPrice } from "@/lib/utils";
 import { Product } from "@/lib/types";
-import { DEMO_PRODUCTS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 
 // ─── Constants ──────────────────────────────────────────────
@@ -372,7 +372,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
 
         try {
             // Local Match
-            const local = DEMO_PRODUCTS.filter(p =>
+            const local = SEED_PRODUCTS.filter(p =>
                 p.name.toLowerCase().includes(query.toLowerCase()) ||
                 p.category.toLowerCase().includes(query.toLowerCase())
             );
@@ -418,7 +418,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
 
         try {
             // Find matched product locally if possible for "Buy Now"
-            let matchedProduct = product || DemoStore.getProducts().find(p => p.name.toLowerCase() === productName.toLowerCase()) || null;
+            let matchedProduct = product || DataSyncService.getProducts().find(p => p.name.toLowerCase() === productName.toLowerCase()) || null;
 
             // Use the product's actual price as anchor if we have a catalog match
             const anchorPrice = product?.price || approxPrice;
@@ -527,7 +527,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     external_url: sourceUrl || undefined,
                     specs: intel.specs
                 };
-                DemoStore.addRawProduct(newGlobalProduct);
+                DataSyncService.addRawProduct(newGlobalProduct);
                 matchedProduct = newGlobalProduct; // Attach it so they can buy it directly!
                 intel.matchedProduct = newGlobalProduct;
             }
@@ -827,8 +827,8 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         <div className="-mx-6 px-6 pt-4 pb-2 border-t border-gray-100 bg-gray-50/50">
                                             <RecommendedProducts
                                                 products={[
-                                                    ...DEMO_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 4),
-                                                    ...DEMO_PRODUCTS.filter(p => p.category !== result.category && p.is_active).sort((a, b) => b.sold_count - a.sold_count).slice(0, 4)
+                                                    ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 4),
+                                                    ...SEED_PRODUCTS.filter(p => p.category !== result.category && p.is_active).sort((a, b) => b.sold_count - a.sold_count).slice(0, 4)
                                                 ].slice(0, 8)}
                                                 title="Customers Also Bought"
                                                 subtitle="Similar products and trending items"
@@ -927,7 +927,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
         const timer = setTimeout(async () => {
             if (value.length >= 2) {
                 // 1. Local Search
-                const local = DEMO_PRODUCTS.filter(p =>
+                const local = SEED_PRODUCTS.filter(p =>
                     p.name.toLowerCase().includes(value.toLowerCase()) ||
                     p.category.toLowerCase().includes(value.toLowerCase())
                 ).slice(0, 7);

@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 // ─── Types ───────────────────────────────────────────────
 export interface ChatMessage {
@@ -168,7 +168,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
 
         // ─── AGGRESSIVE DUAL-LAYER SYNC LOOP ───
         // Extract Layer 2 logic into a reusable function for real-time reactivity
-        const syncFromDemoStore = () => {
+        const syncFromDataSyncService = () => {
              if (typeof window === "undefined") return;
              try {
                  const rawNegs = localStorage.getItem("fp_negotiations");
@@ -188,7 +188,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
 
                          if (!nextConvs.some(c => c.orderId === orderId)) {
                              // Find product to enrich conversation UI
-                             const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+                             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
                              const product = allProducts.find(p => p.id === neg.product_id);
                              
                              const newConv: Conversation = {
@@ -221,7 +221,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                          let patchedConv = conv;
                          // Retrospectively patch missing metadata for older conversations
                          if (!patchedConv.storeName || patchedConv.productName === "Negotiated Item" || !patchedConv.productImage) {
-                             const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+                             const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
                              const product = allProducts.find(p => p.id === productId);
                              if (product) {
                                  patchedConv = {
@@ -370,17 +370,17 @@ export function MessageProvider({ children }: { children: ReactNode }) {
         // Layer 1: Pull from Postgres (cross-device) & trigger sync
         const pollInterval = setInterval(() => {
             if (typeof window === "undefined") return;
-            DemoStore.syncNegotiations();
-            syncFromDemoStore();
+            DataSyncService.syncNegotiations();
+            syncFromDataSyncService();
         }, 12000);
 
-        // React to demo-store-update (e.g. triggered by SSE)
-        window.addEventListener("demo-store-update", syncFromDemoStore);
+        // React to sync-store-update (e.g. triggered by SSE)
+        window.addEventListener("sync-store-update", syncFromDataSyncService);
 
         return () => {
             window.removeEventListener("storage", handleStorage);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationSync);
-            window.removeEventListener("demo-store-update", syncFromDemoStore);
+            window.removeEventListener("sync-store-update", syncFromDataSyncService);
             clearInterval(pollInterval);
         };
     }, [mounted]);
@@ -407,7 +407,7 @@ export function MessageProvider({ children }: { children: ReactNode }) {
                 return { ...c, messages: [...c.messages, newMsg], lastUpdated: new Date().toISOString() };
             });
 
-            // Dispatch event to DemoStore to sync local floating chats to backend Postgres schema
+            // Dispatch event to DataSyncService to sync local floating chats to backend Postgres schema
             if (typeof window !== "undefined" && conv.orderId.startsWith("neg_")) {
                 const productId = conv.orderId.replace("neg_", "");
                 window.dispatchEvent(new CustomEvent("buyer-negotiation-message-sent", {

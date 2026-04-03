@@ -1,8 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { DEMO_PRODUCTS, DEMO_SELLERS, DEMO_REVIEWS, DEMO_DEALS, getDemoPriceComparison } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -82,7 +82,7 @@ function getDeliveryDateRange(minDays: number, maxDays: number): { start: string
 }
 
 // ─── Ask Ziva AI helper ──────────────────────────────────────
-function generateZivaAnswers(product: typeof DEMO_PRODUCTS[0]): { question: string; answer: string }[] {
+function generateZivaAnswers(product: typeof SEED_PRODUCTS[0]): { question: string; answer: string }[] {
     const specs = product.specs || {};
     const qa: { question: string; answer: string }[] = [];
 
@@ -150,16 +150,16 @@ export default function ProductDetailPage() {
         return () => window.removeEventListener("storage", handleStorageChange);
     }, []);
 
-    // Use DemoStore for live product data (includes seller-added products)
+    // Use DataSyncService for live product data (includes seller-added products)
     // eslint-disable-next-line react-hooks/exhaustive-deps
     // ID-based unique product list to prevent duplicate cards
-    const rawProducts = DemoStore.getProducts(); 
+    const rawProducts = DataSyncService.getProducts(); 
     const allProducts = Array.from(new Map(rawProducts.map(p => [p.id, p])).values());
-    const allSellers = DemoStore.getSellers();
+    const allSellers = DataSyncService.getSellers();
 
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
     const decodedId = id ? decodeURIComponent(id) : id;
-    let product = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || DEMO_PRODUCTS.find((p) => p.id === decodedId) || DEMO_PRODUCTS.find((p) => p.id === id) || DEMO_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
+    let product = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
 
     // Auto-hydrate global product from URL if missing from store cache
     if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
@@ -167,8 +167,8 @@ export default function ProductDetailPage() {
         const namePart = decodedId.replace(/^global[-_]/, '').replace(/[-_]/g, ' ');
         const nameTokens = namePart.toLowerCase().split(' ').filter(Boolean);
 
-        // Try to find a matching product already stored in DemoStore by name similarity
-        const allStored = DemoStore.getProducts();
+        // Try to find a matching product already stored in DataSyncService by name similarity
+        const allStored = DataSyncService.getProducts();
         const matchByName = allStored.find(p => {
             const pName = p.name.toLowerCase();
             // Match if all significant tokens from the ID appear in the product name
@@ -287,7 +287,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             };
 
             // Check search cache for this product (has real price from global search)
-            const cachedProducts = DemoStore.getAllCachedProducts();
+            const cachedProducts = DataSyncService.getAllCachedProducts();
             const cachedMatch = cachedProducts.find((p: any) => p.id === decodedId) ||
                 cachedProducts.find((p: any) => {
                     const pName = p.name?.toLowerCase() || '';
@@ -356,9 +356,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         }
     }
 
-    let seller = allSellers.find((s) => s.id === product?.seller_id) || DEMO_SELLERS.find((s) => s.id === product?.seller_id);
+    let seller = allSellers.find((s) => s.id === product?.seller_id) || SEED_SELLERS.find((s) => s.id === product?.seller_id);
 
-    // Fallback for global sourcing products if global-partners isn't in older localStorage DemoStore caches
+    // Fallback for global sourcing products if global-partners isn't in older localStorage DataSyncService caches
     if (!seller && product?.seller_id === "global-partners") {
         seller = {
             id: "global-partners",
@@ -451,8 +451,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         .filter((p) => p.id !== product?.id && !similarProducts.some(s => s.id === p.id))
         .sort((a, b) => b.sold_count - a.sold_count);
 
-    // Fetch Real Reviews from DemoStore
-    const realReviews = DemoStore.getReviews(product?.id);
+    // Fetch Real Reviews from DataSyncService
+    const realReviews = DataSyncService.getReviews(product?.id);
 
     // Always generate deterministic seeded reviews for UI bulk
     const pName = product?.name || "this item";
@@ -546,7 +546,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         if (!user) return false;
         if (user.role === "seller" && product?.seller_id === user.id) return false;
 
-        const orders = DemoStore.getOrders();
+        const orders = DataSyncService.getOrders();
         return orders.some(o =>
             (o.customer_id === user.id || o.customer_email === user.email) &&
             o.status === "delivered" &&
@@ -583,18 +583,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     useEffect(() => {
         setMounted(true);
         if (product) {
-            // Persist global products to DemoStore AFTER render (avoids setState-during-render)
+            // Persist global products to DataSyncService AFTER render (avoids setState-during-render)
             const isGlobal = product.id?.startsWith('global-') || product.id?.startsWith('global_') || product.seller_id === 'global-partners';
             if (isGlobal) {
-                const existing = DemoStore.getProducts().find(p => p.id === product.id);
+                const existing = DataSyncService.getProducts().find(p => p.id === product.id);
                 if (!existing) {
-                    DemoStore.addRawProduct(product as any);
+                    DataSyncService.addRawProduct(product as any);
                 }
             }
 
             // Save to Browsing History
             try {
-                DemoStore.addToHistory(product);
+                DataSyncService.addToHistory(product);
             } catch (e) {
                 console.error("Failed to save browsing history", e);
             }
@@ -621,9 +621,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     const bestMatch = data.suggestions?.[0];
                     if (bestMatch && bestMatch.approxPrice) {
                         const validImageUrl = bestMatch.image_url && !bestMatch.image_url.toLowerCase().includes('no photo') && !bestMatch.image_url.toLowerCase().includes('n/a') ? bestMatch.image_url : null;
-                        // Update existing product in DemoStore (addRawProduct skips if ID exists)
+                        // Update existing product in DataSyncService (addRawProduct skips if ID exists)
                         try {
-                            const products = DemoStore.getProducts();
+                            const products = DataSyncService.getProducts();
                             const idx = products.findIndex((p: any) => p.id === productId);
                             if (idx >= 0) {
                                 products[idx] = {
@@ -644,7 +644,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     specs: bestMatch.specs || product.specs,
                                     ...(validImageUrl ? { image_url: validImageUrl } : {}),
                                 };
-                                DemoStore.addRawProduct(updatedProduct as any);
+                                DataSyncService.addRawProduct(updatedProduct as any);
                             }
                             window.dispatchEvent(new Event("storage"));
                             setStoreVersion(v => v + 1);
@@ -808,7 +808,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        DemoStore.addReview({
+        DataSyncService.addReview({
             product_id: product.id,
             user_id: user.id,
             user_name: user.name,

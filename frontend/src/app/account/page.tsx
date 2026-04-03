@@ -6,7 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useState, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
@@ -19,11 +19,14 @@ export default function AccountPage() {
     const [isSeller, setIsSeller] = useState(false);
     useEffect(() => {
         if (user) {
+            // Background sync for the buyer's orders/negotiations
+            DataSyncService.autoSync();
+
             if (user.role === 'seller' || user.role === 'admin') {
                 setIsSeller(true);
                 return;
             }
-            const sellers = DemoStore.getSellers();
+            const sellers = DataSyncService.getSellers();
             const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
             if (localMatch) {
                 setIsSeller(true);
@@ -103,7 +106,7 @@ export default function AccountPage() {
 
     useEffect(() => {
         if (user) {
-            const coupons = DemoStore.getActiveCoupons(user.id || user.email || "");
+            const coupons = DataSyncService.getActiveCoupons(user.id || user.email || "");
             const total = coupons.reduce((sum, c) => sum + c.amount, 0);
             setCouponBalance(total);
         }

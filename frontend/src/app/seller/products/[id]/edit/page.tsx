@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Product } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +50,7 @@ export default function EditProduct() {
 
     useEffect(() => {
         if (!productId) return;
-        const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+        const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
         const found = allProducts.find(p => p.id === productId);
         if (found) {
             setProduct(found);
@@ -187,7 +187,7 @@ export default function EditProduct() {
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
 
-        await DemoStore.updateProduct(product.id, {
+        await DataSyncService.updateProduct(product.id, {
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,

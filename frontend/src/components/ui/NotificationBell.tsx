@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 interface LocalNotification {
     id: string;
@@ -27,14 +27,14 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
     const dropdownRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
-    // Load notifications from DemoStore (localStorage) as primary source
+    // Load notifications from DataSyncService (localStorage) as primary source
     const refreshNotifications = useCallback(() => {
         if (!user?.email && !user?.id) {
             setNotifications([]);
             return;
         }
         const userId = user.id || user.email;
-        const local = DemoStore.getNotifications(userId);
+        const local = DataSyncService.getNotifications(userId);
         // Sort newest first
         local.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
         setNotifications(local);
@@ -43,17 +43,17 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
     useEffect(() => {
         refreshNotifications();
 
-        // Listen for real-time updates from DemoStore
+        // Listen for real-time updates from DataSyncService
         const handler = () => refreshNotifications();
         window.addEventListener("storage", handler);
-        window.addEventListener("demo-store-update", handler);
+        window.addEventListener("sync-store-update", handler);
 
         // Also poll every 5s for cross-browser/device realtime sync
         const poll = setInterval(refreshNotifications, 5000);
 
         return () => {
             window.removeEventListener("storage", handler);
-            window.removeEventListener("demo-store-update", handler);
+            window.removeEventListener("sync-store-update", handler);
             clearInterval(poll);
         };
     }, [refreshNotifications]);
@@ -80,14 +80,14 @@ export function NotificationBell({ variant = "light" }: { variant?: "light" | "d
         if (!user?.email && !user?.id) return;
         setIsLoading(true);
         const userId = user.id || user.email;
-        DemoStore.markAllNotificationsRead(userId);
+        DataSyncService.markAllNotificationsRead(userId);
         refreshNotifications();
         setIsLoading(false);
     };
 
     const handleNotificationClick = (n: LocalNotification) => {
         if (!n.read) {
-            DemoStore.markNotificationRead(n.id);
+            DataSyncService.markNotificationRead(n.id);
             refreshNotifications();
         }
         setIsOpen(false);

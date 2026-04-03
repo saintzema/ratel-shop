@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Package, Search, MessageSquare, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
@@ -14,16 +14,16 @@ export default function AdminOrdersPage() {
     const [searchQuery, setSearchQuery] = useState("");
 
     const loadOrders = () => {
-        setOrders(DemoStore.getOrders().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        setOrders(DataSyncService.getOrders().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
     };
 
     useEffect(() => {
         loadOrders();
         window.addEventListener("storage", loadOrders);
-        window.addEventListener("demo-store-update", loadOrders);
+        window.addEventListener("sync-store-update", loadOrders);
         return () => {
             window.removeEventListener("storage", loadOrders);
-            window.removeEventListener("demo-store-update", loadOrders);
+            window.removeEventListener("sync-store-update", loadOrders);
         };
     }, []);
 

@@ -7,7 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Coupon } from "@/lib/types";
 
 export default function CouponsPage() {
@@ -17,7 +17,7 @@ export default function CouponsPage() {
 
     useEffect(() => {
         if (user) {
-            setCoupons(DemoStore.getCoupons(user.id));
+            setCoupons(DataSyncService.getCoupons(user.id));
         }
     }, [user]);
 

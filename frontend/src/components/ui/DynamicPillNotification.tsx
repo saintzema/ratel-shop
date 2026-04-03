@@ -6,7 +6,7 @@ import { MessageCircle, ShoppingCart, MessageSquare, Tag, Image as ImageIcon, Ch
 import { useMessages } from "@/context/MessageContext";
 import { useCart } from "@/context/CartContext";
 import { useNotification } from "@/components/ui/NotificationProvider";
-import { DemoStore, NegotiationRequest } from "@/lib/demo-store";
+import { DataSyncService, NegotiationRequest } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
 import { playDingSound } from "@/lib/audio";
 
@@ -39,11 +39,11 @@ export function DynamicPillNotification() {
     // Monitor for global Seller and Buyer notifications
     useEffect(() => {
         const checkGlobalNotifications = () => {
-            const sellerId = DemoStore.getCurrentSellerId();
-            const currentUser = DemoStore.getCurrentUser();
+            const sellerId = DataSyncService.getCurrentSellerId();
+            const currentUser = DataSyncService.getCurrentUser();
             
             if (sellerId) {
-                const negs = DemoStore.getNegotiations(sellerId);
+                const negs = DataSyncService.getNegotiations(sellerId);
                 const recentNeg = negs.find((n: NegotiationRequest) => {
                     const updatedAt = new Date((n as any).updated_at || n.created_at).getTime();
                     const ageMs = Date.now() - updatedAt;
@@ -59,7 +59,7 @@ export function DynamicPillNotification() {
                 });
 
                 if (recentNeg) {
-                    const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentNeg.product_id);
+                    const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentNeg.product_id);
                     const notifyKey = `seller_${recentNeg.id}_${recentNeg.proposed_price}`;
                     notifiedHistory.current.set(notifyKey, Date.now());
                     
@@ -83,7 +83,7 @@ export function DynamicPillNotification() {
             }
 
             if (currentUser) {
-                const buyerNegs = DemoStore.getNegotiations(undefined, currentUser.id);
+                const buyerNegs = DataSyncService.getNegotiations(undefined, currentUser.id);
                 const recentBuyerNeg = buyerNegs.find((n: NegotiationRequest) => {
                     const updatedAt = new Date((n as any).updated_at || n.created_at).getTime();
                     const ageMs = Date.now() - updatedAt;
@@ -97,7 +97,7 @@ export function DynamicPillNotification() {
                 });
 
                 if (recentBuyerNeg) {
-                    const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
+                    const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
                     const notifyKey = `buyer_${recentBuyerNeg.id}_${recentBuyerNeg.status}_${(recentBuyerNeg as any).counter_status}`;
                     notifiedHistory.current.set(notifyKey, Date.now());
                     triggerBuyerNotification(recentBuyerNeg, product);
@@ -110,15 +110,15 @@ export function DynamicPillNotification() {
             const neg = customEvent.detail?.negotiation;
             if (!neg) return;
 
-            const currentUser = DemoStore.getCurrentUser();
-            const currentSellerId = DemoStore.getCurrentSellerId();
+            const currentUser = DataSyncService.getCurrentUser();
+            const currentSellerId = DataSyncService.getCurrentSellerId();
 
             if (currentUser && neg.customer_id === currentUser.id) {
-                const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
+                const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 triggerBuyerNotification(neg, product);
             }
             else if (currentSellerId && neg.seller_id === currentSellerId && neg.status === 'pending' && !neg.counter_status) {
-                const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
+                const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 setCustomNotification({
                     id: neg.id + "_" + neg.proposed_price, 
                     text: `Buyer counter-offered ₦${neg.proposed_price.toLocaleString()} for ${product?.name || 'Product'}`,
@@ -171,12 +171,12 @@ export function DynamicPillNotification() {
             }
         };
 
-        window.addEventListener("demo-store-update", checkGlobalNotifications);
+        window.addEventListener("sync-store-update", checkGlobalNotifications);
         window.addEventListener("storage", checkGlobalNotifications);
         window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
         
         return () => {
-            window.removeEventListener("demo-store-update", checkGlobalNotifications);
+            window.removeEventListener("sync-store-update", checkGlobalNotifications);
             window.removeEventListener("storage", checkGlobalNotifications);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
         };
@@ -232,14 +232,14 @@ export function DynamicPillNotification() {
         if (neg) {
             const negId = (neg as any).id;
             if (isSellerAction && negId) {
-                DemoStore.updateNegotiationStatus(negId, "accepted");
+                DataSyncService.updateNegotiationStatus(negId, "accepted");
                 window.dispatchEvent(new Event("storage"));
                 setVisible(false);
                 dismissNotification();
                 setCustomNotification(null);
                 router.push('/seller/dashboard/messages?negotiation=' + negId);
             } else {
-                const product = DemoStore.getProducts().find(p => p.id === neg.productId);
+                const product = DataSyncService.getProducts().find(p => p.id === neg.productId);
                 if (product) {
                     addToCart({ ...product, price: (neg as any).proposedPrice || (neg as any).counterPrice || 0 });
                 }

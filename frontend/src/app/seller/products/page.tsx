@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Product } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,14 +60,14 @@ export default function SellerProducts() {
     const [loading, setLoading] = useState(true);
 
     const loadProducts = async () => {
-        const sellerId = DemoStore.getCurrentSellerId();
-        const sellerInfo = DemoStore.getCurrentSeller();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const sellerInfo = DataSyncService.getCurrentSeller();
         if (!sellerId) {
             router.push("/seller/login");
             return;
         }
 
-        setActiveDeals(DemoStore.getDeals());
+        setActiveDeals(DataSyncService.getDeals());
         setLoading(true);
         try {
             // Fetch products for this specific seller
@@ -77,12 +77,12 @@ export default function SellerProducts() {
                 all = await res.json();
             }
             if (!all || all.length === 0) {
-                all = DemoStore.getProducts({ includeInactiveSellers: true });
+                all = DataSyncService.getProducts({ includeInactiveSellers: true });
             }
             setProducts(all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
         } catch (error) {
             console.error("Failed to load products:", error);
-            const fallback = DemoStore.getProducts({ includeInactiveSellers: true });
+            const fallback = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(fallback.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
         } finally {
             setLoading(false);
@@ -91,8 +91,8 @@ export default function SellerProducts() {
 
     useEffect(() => {
         loadProducts();
-        window.addEventListener("demo-store-update", loadProducts);
-        return () => window.removeEventListener("demo-store-update", loadProducts);
+        window.addEventListener("sync-store-update", loadProducts);
+        return () => window.removeEventListener("sync-store-update", loadProducts);
     }, []);
 
     const handleDelete = async (id: string) => {
@@ -140,8 +140,8 @@ export default function SellerProducts() {
     };
 
     const handlePromoteSuccess = (reference: string) => {
-        const sellerId = DemoStore.getCurrentSellerId();
-        const sellerInfo = DemoStore.getCurrentSeller();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const sellerInfo = DataSyncService.getCurrentSeller();
         
         if (sellerId) {
             // Check which flow triggered the payment
@@ -152,7 +152,7 @@ export default function SellerProducts() {
                 const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
                 const startAt = new Date().toISOString();
                 
-                DemoStore.addDeal({
+                DataSyncService.addDeal({
                     product_id: dealModalOpen.product.id,
                     product: dealModalOpen.product,
                     discount_pct: discountPct,
@@ -162,7 +162,7 @@ export default function SellerProducts() {
                 });
 
                 if (sellerInfo) {
-                    DemoStore.addNotification({
+                    DataSyncService.addNotification({
                         userId: sellerInfo.owner_email || sellerInfo.id,
                         type: "promo",
                         message: `🔥 Your paid deal for "${dealModalOpen.product.name}" is now live! ${discountPct}% off for ${hours} hours.`,
@@ -184,16 +184,16 @@ export default function SellerProducts() {
                     }).catch(() => {});
                 }
                 
-                window.dispatchEvent(new Event("demo-store-update"));
-                setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
+                window.dispatchEvent(new Event("sync-store-update"));
+                setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
                 
                 setDealModalOpen({ isOpen: false, product: null });
             } else if (promoteModalOpen.isOpen && promoteModalOpen.product) {
                 // It was a Paid Sponsored promotion
-                DemoStore.createPromotion(promoteModalOpen.product.id, sellerId, selectedAdPlan);
+                DataSyncService.createPromotion(promoteModalOpen.product.id, sellerId, selectedAdPlan);
                 
                 if (sellerInfo) {
-                    DemoStore.addNotification({
+                    DataSyncService.addNotification({
                         userId: sellerInfo.owner_email || sellerInfo.id,
                         type: "promo",
                         message: `🚀 Your product "${promoteModalOpen.product.name}" is now sponsored! Delivery expected within minutes to the homepage.`,
@@ -215,8 +215,8 @@ export default function SellerProducts() {
                     }).catch(() => {});
                 }
 
-                window.dispatchEvent(new Event("demo-store-update"));
-                setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
+                window.dispatchEvent(new Event("sync-store-update"));
+                setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
                 
                 setPromoteModalOpen({ isOpen: false, product: null });
             }
@@ -231,13 +231,13 @@ export default function SellerProducts() {
         // This function now only handles FREE deal creation (from plan slots)
         if (!dealModalOpen.product) return;
 
-        const seller = DemoStore.getCurrentSeller();
+        const seller = DataSyncService.getCurrentSeller();
         const discountPct = parseInt(dealDiscount) || 15;
         const hours = parseInt(dealDurationHours) || 24;
         const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
         const startAt = new Date().toISOString();
         
-        DemoStore.addDeal({
+        DataSyncService.addDeal({
             product_id: dealModalOpen.product.id,
             product: dealModalOpen.product,
             discount_pct: discountPct,
@@ -248,7 +248,7 @@ export default function SellerProducts() {
 
         // Notify seller that the deal is live
         if (seller) {
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: seller.owner_email || seller.id,
                 type: "promo",
                 message: `🔥 Your free deal slot for "${dealModalOpen.product.name}" has been activated! ${discountPct}% off for ${hours} hours.`,
@@ -271,7 +271,7 @@ export default function SellerProducts() {
         }
 
         // Dispatch event so homepage picks up the new deal immediately
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         setDealModalOpen({ isOpen: false, product: null });
         setSaveSuccess(true);
@@ -695,7 +695,7 @@ export default function SellerProducts() {
             {showPaystack && promoteModalOpen.product && (
                 <PaystackCheckout
                     amount={(selectedAdPlan === "3_day" ? 500000 : selectedAdPlan === "10_day" ? 999900 : 2000000)}
-                    email={DemoStore.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    email={DataSyncService.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
                     onSuccess={handlePromoteSuccess}
                     onClose={() => setShowPaystack(false)}
                     autoStart={true}
@@ -709,15 +709,15 @@ export default function SellerProducts() {
                         <DialogTitle className="text-xl font-black flex items-center gap-2"><Timer className="text-purple-600" /> Promote to Deals</DialogTitle>
                     </DialogHeader>
                     {dealModalOpen.product && (() => {
-                        const currentSeller = DemoStore.getCurrentSeller();
+                        const currentSeller = DataSyncService.getCurrentSeller();
                         const currentPlan = currentSeller?.subscription_plan || "Starter";
                         
                         // Calculate free deal slots based on plan
                         const maxFreeDeals = currentPlan === "Scale" ? 2 : currentPlan === "Growth" ? 2 : currentPlan === "Pro" ? 1 : 0;
-                        const activeDealsCount = (DemoStore.getDeals() || []).filter(d => 
+                        const activeDealsCount = (DataSyncService.getDeals() || []).filter(d => 
                             d.is_active && 
                             new Date(d.end_at) > new Date() &&
-                            DemoStore.getProducts().find(p => p.id === d.product_id)?.seller_id === currentSeller?.id
+                            DataSyncService.getProducts().find(p => p.id === d.product_id)?.seller_id === currentSeller?.id
                         ).length;
 
                         const availableFreeDeals = Math.max(0, maxFreeDeals - activeDealsCount);
@@ -779,13 +779,13 @@ export default function SellerProducts() {
                         <Button variant="ghost" onClick={() => setDealModalOpen({ isOpen: false, product: null })}>Cancel</Button>
                         <Button 
                             onClick={() => {
-                                const currentSeller = DemoStore.getCurrentSeller();
+                                const currentSeller = DataSyncService.getCurrentSeller();
                                 const currentPlan = currentSeller?.subscription_plan || "Starter";
                                 const maxFreeDeals = currentPlan === "Scale" ? 2 : currentPlan === "Growth" ? 2 : currentPlan === "Pro" ? 1 : 0;
-                                const activeDealsCount = (DemoStore.getDeals() || []).filter(d => 
+                                const activeDealsCount = (DataSyncService.getDeals() || []).filter(d => 
                                     d.is_active && 
                                     new Date(d.end_at) > new Date() &&
-                                    DemoStore.getProducts().find(p => p.id === d.product_id)?.seller_id === currentSeller?.id
+                                    DataSyncService.getProducts().find(p => p.id === d.product_id)?.seller_id === currentSeller?.id
                                 ).length;
                                 
                                 const availableFreeDeals = Math.max(0, maxFreeDeals - activeDealsCount);

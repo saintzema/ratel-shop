@@ -46,8 +46,8 @@ import { NotificationBell } from "@/components/ui/NotificationBell";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
-import { DEMO_PRODUCTS } from "@/lib/data"; // Import products for search
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS } from "@/lib/data"; // Import products for search
+import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
@@ -76,7 +76,7 @@ export function Navbar() {
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
-    const [suggestions, setSuggestions] = useState<typeof DEMO_PRODUCTS>([]); // State for suggestions
+    const [suggestions, setSuggestions] = useState<typeof SEED_PRODUCTS>([]); // State for suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
     const [priceIntelQuery, setPriceIntelQuery] = useState("");
@@ -105,7 +105,7 @@ export function Navbar() {
                 setIsSeller(true);
                 return;
             }
-            const sellers = DemoStore.getSellers();
+            const sellers = DataSyncService.getSellers();
             const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
             if (localMatch) {
                 setIsSeller(true);
@@ -132,15 +132,15 @@ export function Navbar() {
         const loadNotifs = async () => {
             if (!user?.email && !user?.id) { setUnreadNotifs(0); return; }
 
-            // Always include local DemoStore notification unread count
-            const localNotifs = DemoStore.getNotifications(user.id || user.email);
+            // Always include local DataSyncService notification unread count
+            const localNotifs = DataSyncService.getNotifications(user.id || user.email);
             let localUnread = localNotifs.filter(n => !n.read).length;
 
             // If user is a seller, also fetch notifications addressed to their seller store ID
             if (isSeller) {
-                const sellerId = DemoStore.getCurrentSellerId();
+                const sellerId = DataSyncService.getCurrentSellerId();
                 if (sellerId && sellerId !== user.id && sellerId !== user.email) {
-                    const sellerNotifs = DemoStore.getNotifications(sellerId);
+                    const sellerNotifs = DataSyncService.getNotifications(sellerId);
                     localUnread += sellerNotifs.filter(n => !n.read).length;
                 }
             }
@@ -161,11 +161,11 @@ export function Navbar() {
         };
         loadNotifs();
         const poll = setInterval(loadNotifs, 30000);
-        // Also listen for DemoStore changes
+        // Also listen for DataSyncService changes
         const onStorageChange = () => loadNotifs();
-        window.addEventListener("demo-store-update", onStorageChange);
+        window.addEventListener("sync-store-update", onStorageChange);
         window.addEventListener("storage", onStorageChange);
-        return () => { clearInterval(poll); window.removeEventListener("demo-store-update", onStorageChange); window.removeEventListener("storage", onStorageChange); };
+        return () => { clearInterval(poll); window.removeEventListener("sync-store-update", onStorageChange); window.removeEventListener("storage", onStorageChange); };
     }, [user, isSeller]);
 
     // Trigger bounce when cart count increases
@@ -183,7 +183,7 @@ export function Navbar() {
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
     // Search scoring algorithm
-    const scoreProduct = (product: typeof DEMO_PRODUCTS[0], query: string): number => {
+    const scoreProduct = (product: typeof SEED_PRODUCTS[0], query: string): number => {
         const q = query.toLowerCase();
         const name = product.name.toLowerCase();
         const cat = product.category.toLowerCase();
@@ -226,8 +226,8 @@ export function Navbar() {
         if (searchQuery.trim().length > 0) {
             const q = searchQuery.toLowerCase();
             // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
-            const storeProducts = DemoStore.getProducts({ includeInactiveSellers: true });
-            const allSearchProducts = [...storeProducts, ...DEMO_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
+            const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
+            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
@@ -307,7 +307,7 @@ export function Navbar() {
             setTextSuggestions([...sortedSuggestions, ...semanticSuggs].slice(0, 5));
             // Instantly show fuzzy-matched cached results from past searches
             const scoredIds = new Set(scored.map(s => s.product.id));
-            const cached = DemoStore.searchCacheFuzzyMatch(searchQuery);
+            const cached = DataSyncService.searchCacheFuzzyMatch(searchQuery);
             setCachedResults(cached.filter(c => !scoredIds.has(c.id)));
 
             setShowSuggestions(true);
@@ -395,7 +395,7 @@ export function Navbar() {
 
         // Save ALL results to search cache (for fast future retrieval)
         if (globalAsProducts.length > 0) {
-            DemoStore.addToSearchCache(searchQuery, globalAsProducts);
+            DataSyncService.addToSearchCache(searchQuery, globalAsProducts);
         }
 
         // Resolve __global_ prefix to actual product ID
@@ -405,15 +405,15 @@ export function Navbar() {
             if (globalAsProducts[idx]) {
                 resolvedClickedId = globalAsProducts[idx].id;
                 // ONLY promote the clicked product from cache to catalog
-                DemoStore.promoteFromCache(resolvedClickedId) ||
-                    DemoStore.addRawProduct(globalAsProducts[idx] as any);
+                DataSyncService.promoteFromCache(resolvedClickedId) ||
+                    DataSyncService.addRawProduct(globalAsProducts[idx] as any);
             }
         } else if (clickedProductId.startsWith('__cached_')) {
             const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
             if (cachedResults[idx]) {
                 resolvedClickedId = cachedResults[idx].id;
                 // Promote the cached result to catalog
-                DemoStore.promoteFromCache(resolvedClickedId);
+                DataSyncService.promoteFromCache(resolvedClickedId);
             }
         }
 

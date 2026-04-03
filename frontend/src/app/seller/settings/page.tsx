@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Seller } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +53,7 @@ export default function SellerSettingsPage() {
     });
 
     useEffect(() => {
-        const s = DemoStore.getCurrentSeller();
+        const s = DataSyncService.getCurrentSeller();
         if (!s) {
             router.push("/seller/login");
             return;
@@ -83,10 +83,10 @@ export default function SellerSettingsPage() {
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        DemoStore.updateSeller(seller.id, formData);
+        DataSyncService.updateSeller(seller.id, formData);
 
         // Refresh local seller state so logo/cover image preview updates immediately
-        const refreshed = DemoStore.getCurrentSeller();
+        const refreshed = DataSyncService.getCurrentSeller();
         if (refreshed) setSeller(refreshed as Seller);
 
         setSaving(false);

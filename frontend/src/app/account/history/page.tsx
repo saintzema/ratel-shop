@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { History, ChevronLeft, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,8 @@ export default function BrowsingHistoryPage() {
 
     useEffect(() => {
         setMounted(true);
-        // Load history purely from DemoStore which handles the logic
-        const history = DemoStore.getSearchHistoryProducts();
+        // Load history purely from DataSyncService which handles the logic
+        const history = DataSyncService.getSearchHistoryProducts();
         setHistoryProducts(history);
     }, []);
 

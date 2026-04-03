@@ -24,7 +24,7 @@ import {
     ArrowUpDown,
     ChevronDown
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateExact } from "@/lib/utils";
 import { Order } from "@/lib/types";
@@ -64,7 +64,7 @@ export default function EscrowManagement() {
     // Load and poll chat messages for the open chat modal
     const loadChatMessages = useCallback(() => {
         if (!chatModal.orderId) return;
-        const msgs = DemoStore.getOrderMessages(chatModal.orderId);
+        const msgs = DataSyncService.getOrderMessages(chatModal.orderId);
         setChatMessages(msgs || []);
     }, [chatModal.orderId]);
 
@@ -93,22 +93,22 @@ export default function EscrowManagement() {
 
     useEffect(() => {
         const load = () => {
-            const all = DemoStore.getOrders();
+            const all = DataSyncService.getOrders();
             setAllOrders(all);
             setOrders(all);
         };
         load();
         
         // Initial sync and periodic heartbeat for Admin freshness
-        DemoStore.syncWithDB();
-        const interval = setInterval(() => DemoStore.syncWithDB(), 10000);
+        DataSyncService.syncWithDB();
+        const interval = setInterval(() => DataSyncService.syncWithDB(), 10000);
 
         window.addEventListener("storage", load);
-        window.addEventListener("demo-store-update", load);
+        window.addEventListener("sync-store-update", load);
 
         return () => {
             window.removeEventListener("storage", load);
-            window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("sync-store-update", load);
             clearInterval(interval);
         };
     }, []);
@@ -118,7 +118,7 @@ export default function EscrowManagement() {
         : filter === "released"
             ? orders.filter(o => o.escrow_status === "released")
             : filter === "seller_confirmed"
-                ? orders.filter(o => o.escrow_status === "buyer_confirmed" || (o.escrow_status === "seller_confirmed" && DemoStore.checkAutoReleaseEligible(o)))
+                ? orders.filter(o => o.escrow_status === "buyer_confirmed" || (o.escrow_status === "seller_confirmed" && DataSyncService.checkAutoReleaseEligible(o)))
                 : filter === "disputed"
                     ? orders.filter(o => o.escrow_status === "disputed" || o.status === "cancelled")
                     : orders.filter(o => o.escrow_status === "held");
@@ -142,7 +142,7 @@ export default function EscrowManagement() {
     const paginatedOrders = sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const heldCount = orders.filter(o => o.escrow_status === "held").length;
-    const pendingReleaseCount = orders.filter(o => o.escrow_status === "buyer_confirmed" || (o.escrow_status === "seller_confirmed" && DemoStore.checkAutoReleaseEligible(o))).length;
+    const pendingReleaseCount = orders.filter(o => o.escrow_status === "buyer_confirmed" || (o.escrow_status === "seller_confirmed" && DataSyncService.checkAutoReleaseEligible(o))).length;
     const releasedCount = orders.filter(o => o.escrow_status === "released").length;
     const disputedCount = orders.filter(o => o.escrow_status === "disputed").length;
     const totalHeldAmount = orders.filter(o => o.escrow_status !== "released" && o.escrow_status !== "refunded").reduce((sum, o) => sum + o.amount, 0);
@@ -165,41 +165,41 @@ export default function EscrowManagement() {
         const { type, orderId } = actionModal;
 
         if (type === "release") {
-            DemoStore.releaseEscrow(orderId);
+            DataSyncService.releaseEscrow(orderId);
         } else if (type === "refund") {
-            const dispute = DemoStore.getDisputeByOrderId(orderId);
+            const dispute = DataSyncService.getDisputeByOrderId(orderId);
             if (dispute) {
-                DemoStore.resolveDispute(dispute.id, "resolved_refund", "Admin issued refund");
+                DataSyncService.resolveDispute(dispute.id, "resolved_refund", "Admin issued refund");
             } else {
-                const orders = DemoStore.getOrders();
+                const orders = DataSyncService.getOrders();
                 const updated = orders.map(o => o.id === orderId ? { ...o, escrow_status: "refunded" as const } : o);
-                localStorage.setItem(DemoStore.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+                localStorage.setItem(DataSyncService.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
             }
         } else if (type === "releaseDisputed") {
-            const dispute = DemoStore.getDisputeByOrderId(orderId);
+            const dispute = DataSyncService.getDisputeByOrderId(orderId);
             if (dispute) {
-                DemoStore.resolveDispute(dispute.id, "resolved_release", "Admin released funds to seller");
+                DataSyncService.resolveDispute(dispute.id, "resolved_release", "Admin released funds to seller");
             } else {
-                DemoStore.releaseEscrow(orderId);
+                DataSyncService.releaseEscrow(orderId);
             }
         }
 
-        setOrders(DemoStore.getOrders());
+        setOrders(DataSyncService.getOrders());
         setActionModal({ isOpen: false, type: null, orderId: null, message: "" });
     };
 
     const handleSellerConfirm = (orderId: string) => {
-        DemoStore.sellerConfirmDelivery(orderId);
-        setOrders(DemoStore.getOrders());
+        DataSyncService.sellerConfirmDelivery(orderId);
+        setOrders(DataSyncService.getOrders());
     };
 
     const handleBuyerConfirm = (orderId: string) => {
-        DemoStore.buyerConfirmReceipt(orderId);
-        setOrders(DemoStore.getOrders());
+        DataSyncService.buyerConfirmReceipt(orderId);
+        setOrders(DataSyncService.getOrders());
     };
 
     const getStatusBadge = (order: Order) => {
-        const isAutoEligible = DemoStore.checkAutoReleaseEligible(order);
+        const isAutoEligible = DataSyncService.checkAutoReleaseEligible(order);
         const status = isAutoEligible ? "auto_release_eligible" : order.escrow_status;
 
         const styles: Record<string, { bg: string; text: string; icon: any; label: string }> = {
@@ -228,7 +228,7 @@ export default function EscrowManagement() {
     };
 
     const getSellerName = (sellerId: string) => {
-        const sellers = DemoStore.getSellers();
+        const sellers = DataSyncService.getSellers();
         const seller = sellers.find(s => s.id === sellerId);
         return seller?.business_name || "Unknown Seller";
     };
@@ -351,9 +351,9 @@ export default function EscrowManagement() {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {paginatedOrders.map(order => {
-                                    const isAutoEligible = DemoStore.checkAutoReleaseEligible(order);
+                                    const isAutoEligible = DataSyncService.checkAutoReleaseEligible(order);
                                     const days = getDaysSinceOrder(order.created_at);
-                                    const dispute = order.escrow_status === "disputed" ? DemoStore.getDisputeByOrderId(order.id) : null;
+                                    const dispute = order.escrow_status === "disputed" ? DataSyncService.getDisputeByOrderId(order.id) : null;
                                     return (
                                         <Fragment key={order.id}>
                                             <tr className="hover:bg-gray-50/30 transition-colors group cursor-pointer" onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}>
@@ -687,7 +687,7 @@ export default function EscrowManagement() {
                             <div ref={chatScrollRef} className="flex-1 p-5 overflow-y-auto space-y-4 min-h-[300px]">
                                 {chatMessages.length > 0 ? (
                                     (() => {
-                                        const order = DemoStore.getOrders().find(o => o.id === chatModal.orderId);
+                                        const order = DataSyncService.getOrders().find(o => o.id === chatModal.orderId);
                                         const sellerId = order?.seller_id;
                                         return chatMessages.map((msg, i) => {
                                             const isCustomer = msg.sender === "user";
@@ -732,7 +732,7 @@ export default function EscrowManagement() {
                                 <form onSubmit={(e) => {
                                     e.preventDefault();
                                     if ((adminMessage.trim() || chatImagePreview) && chatModal.orderId) {
-                                        DemoStore.addOrderMessage(chatModal.orderId, "admin", adminMessage.trim() || "[Image]", chatImagePreview || undefined);
+                                        DataSyncService.addOrderMessage(chatModal.orderId, "admin", adminMessage.trim() || "[Image]", chatImagePreview || undefined);
                                         setAdminMessage("");
                                         setChatImagePreview(null);
                                         loadChatMessages();

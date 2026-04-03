@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, DisputeReason, Dispute, SupportMessage } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,12 +41,12 @@ export default function OrderDetailsPage() {
     useEffect(() => {
         const id = params.id as string;
         if (id) {
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             const foundOrder = allOrders.find(o => o.id === id);
             setOrder(foundOrder || null);
             if (foundOrder) {
-                setExistingDispute(DemoStore.getDisputeByOrderId(foundOrder.id));
-                setAdminMessages(DemoStore.getAdminMessagesForOrder(foundOrder.id));
+                setExistingDispute(DataSyncService.getDisputeByOrderId(foundOrder.id));
+                setAdminMessages(DataSyncService.getAdminMessagesForOrder(foundOrder.id));
             }
         }
     }, [params.id]);
@@ -56,20 +56,20 @@ export default function OrderDetailsPage() {
         const handleSync = () => {
             const id = params.id as string;
             if (id) {
-                const allOrders = DemoStore.getOrders();
+                const allOrders = DataSyncService.getOrders();
                 const foundOrder = allOrders.find(o => o.id === id);
                 setOrder(foundOrder || null);
                 if (foundOrder) {
-                    setExistingDispute(DemoStore.getDisputeByOrderId(foundOrder.id));
-                    setAdminMessages(DemoStore.getAdminMessagesForOrder(foundOrder.id));
+                    setExistingDispute(DataSyncService.getDisputeByOrderId(foundOrder.id));
+                    setAdminMessages(DataSyncService.getAdminMessagesForOrder(foundOrder.id));
                 }
             }
         };
         window.addEventListener("storage", handleSync);
-        window.addEventListener("demo-store-update", handleSync);
+        window.addEventListener("sync-store-update", handleSync);
         return () => {
             window.removeEventListener("storage", handleSync);
-            window.removeEventListener("demo-store-update", handleSync);
+            window.removeEventListener("sync-store-update", handleSync);
         };
     }, [params.id]);
 
@@ -89,9 +89,9 @@ export default function OrderDetailsPage() {
     }
 
     const handleReleaseEscrow = () => {
-        DemoStore.updateOrderEscrow(order.id, "released");
+        DataSyncService.updateOrderEscrow(order.id, "released");
         // Re-read order from store to get updated status and tracking steps
-        const updatedOrders = DemoStore.getOrders();
+        const updatedOrders = DataSyncService.getOrders();
         const updatedOrder = updatedOrders.find(o => o.id === order.id);
         if (updatedOrder) {
             setOrder(updatedOrder);
@@ -166,7 +166,7 @@ export default function OrderDetailsPage() {
 
     const handleBuyerResolve = () => {
         if (!existingDispute) return;
-        DemoStore.buyerResolveDispute(existingDispute.id);
+        DataSyncService.buyerResolveDispute(existingDispute.id);
         setOrder({ ...order, escrow_status: "released" });
         setExistingDispute({ ...existingDispute, status: "resolved_release", resolved_at: new Date().toISOString() });
         setStatusMsg("Dispute resolved! Payment has been released to the seller.");
@@ -182,7 +182,7 @@ export default function OrderDetailsPage() {
 
     const handleSubmitDispute = () => {
         if (!user || !disputeDesc.trim()) return;
-        DemoStore.raiseDispute(
+        DataSyncService.raiseDispute(
             order.id,
             user.email || user.id,
             user.name || "Customer",
@@ -191,7 +191,7 @@ export default function OrderDetailsPage() {
             disputeDesc
         );
         setOrder({ ...order, escrow_status: "disputed" });
-        setExistingDispute(DemoStore.getDisputeByOrderId(order.id));
+        setExistingDispute(DataSyncService.getDisputeByOrderId(order.id));
         setShowDisputeModal(false);
         setDisputeDesc("");
         setStatusMsg("Dispute filed. Our team will review your case within 24-48 hours.");

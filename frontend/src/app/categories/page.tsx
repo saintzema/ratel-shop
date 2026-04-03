@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Camera, Check, ChevronRight, ShoppingCart, Star, ChevronDown } from "lucide-react";
 import { SmartSearchInput } from "@/components/ui/SmartSearchInput";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -275,7 +275,7 @@ export default function CategoriesPage() {
     const [globalSearchDone, setGlobalSearchDone] = useState(false);
 
     useEffect(() => {
-        const allProducts = DemoStore.getApprovedProducts();
+        const allProducts = DataSyncService.getApprovedProducts();
         let filtered = allProducts;
 
         // 1. Filter by Active Sidebar Category FIRST

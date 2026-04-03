@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NegotiationRequest, Product } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,30 +39,30 @@ export default function NegotiationsPage() {
         const userId = user?.id || user?.email || "";
 
         const loadData = () => {
-            const all = DemoStore.getNegotiations(undefined, userId);
+            const all = DataSyncService.getNegotiations(undefined, userId);
             setNegotiations(all);
-            setProducts(DemoStore.getProducts({ includeInactiveSellers: true }));
+            setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }));
         };
 
         loadData();
         const syncTimer = setInterval(() => {
-            DemoStore.syncNegotiations();
+            DataSyncService.syncNegotiations();
         }, 5000); // 5 sec heartbeat for real-time buyer sync
 
         window.addEventListener("storage", loadData);
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
         return () => {
             clearInterval(syncTimer);
             window.removeEventListener("storage", loadData);
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
         };
     }, [user]);
 
     const handleAction = (id: string, status: "accepted" | "rejected") => {
-        DemoStore.updateNegotiationStatus(id, status);
+        DataSyncService.updateNegotiationStatus(id, status);
 
         const userId = user?.id || user?.email || "";
-        const all = DemoStore.getNegotiations(undefined, userId);
+        const all = DataSyncService.getNegotiations(undefined, userId);
         setNegotiations(all);
     };
 
@@ -88,7 +88,7 @@ export default function NegotiationsPage() {
         if (filter === "purchased") return s === "purchased" || n.purchased === true;
         return s === filter;
     });
-    const userTier = DemoStore.getUserTier(user?.id || user?.email || "");
+    const userTier = DataSyncService.getUserTier(user?.id || user?.email || "");
 
     return (
         <div className="min-h-screen bg-gray-50 text-gray-900">
@@ -325,7 +325,7 @@ export default function NegotiationsPage() {
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         {(() => {
-                            const allProds = DemoStore.getProducts();
+                            const allProds = DataSyncService.getProducts();
                             // Use negotiated product categories to find related items
                             const negCategories = new Set(
                                 negotiations.map(n => products.find(p => p.id === n.product_id)?.category).filter(Boolean)

@@ -50,8 +50,8 @@ export const INITIAL_CATEGORIES: Category[] = [
     },
 ];
 
-class DemoStoreService {
-    private static instance: DemoStoreService;
+class DataSyncServiceService {
+    private static instance: DataSyncServiceService;
     // Track product IDs with local edits not yet confirmed by DB
     private _pendingEdits: Set<string> = new Set();
     private readonly _PENDING_KEY = "fp_pending_product_edits";
@@ -127,8 +127,8 @@ class DemoStoreService {
             });
 
             if (healed) {
-                console.log("🛠️ DemoStore self-heal: Purged all legacy demo entries.");
-                window.dispatchEvent(new Event("demo-store-update"));
+                console.log("🛠️ DataSyncService self-heal: Purged all legacy demo entries.");
+                window.dispatchEvent(new Event("sync-store-update"));
             }
         } catch (e) {
             console.error("Self-heal failed:", e);
@@ -193,11 +193,11 @@ class DemoStoreService {
         }
     }
 
-    public static getInstance(): DemoStoreService {
-        if (!DemoStoreService.instance) {
-            DemoStoreService.instance = new DemoStoreService();
+    public static getInstance(): DataSyncServiceService {
+        if (!DataSyncServiceService.instance) {
+            DataSyncServiceService.instance = new DataSyncServiceService();
         }
-        return DemoStoreService.instance;
+        return DataSyncServiceService.instance;
     }
 
     private init() {
@@ -381,7 +381,7 @@ class DemoStoreService {
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
                         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("demo-store-update"));
+                        window.dispatchEvent(new Event("sync-store-update"));
                     }
                 }
             }
@@ -426,7 +426,7 @@ class DemoStoreService {
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.SELLERS)) {
                         localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("demo-store-update"));
+                        window.dispatchEvent(new Event("sync-store-update"));
                     }
                 }
             }
@@ -475,7 +475,7 @@ class DemoStoreService {
                 if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
                     localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
                     window.dispatchEvent(new Event("storage"));
-                    window.dispatchEvent(new Event("demo-store-update"));
+                    window.dispatchEvent(new Event("sync-store-update"));
                 }
                 // Run auto-release check after syncing orders
                 this.runAutoReleaseWorker();
@@ -566,7 +566,7 @@ class DemoStoreService {
                     if (hasNewUpdate) {
                         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
                         window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("demo-store-update"));
+                        window.dispatchEvent(new Event("sync-store-update"));
                         window.dispatchEvent(new Event("negotiation-updated-remote"));
                     }
                 }
@@ -599,7 +599,7 @@ class DemoStoreService {
                     if (changed) {
                         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
                         window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("demo-store-update"));
+                        window.dispatchEvent(new Event("sync-store-update"));
                     }
                 }
             }
@@ -769,7 +769,7 @@ class DemoStoreService {
                     if (newDataStr !== oldDataStr) {
                         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("demo-store-update"));
+                        window.dispatchEvent(new Event("sync-store-update"));
                     }
                 }
             // Success: reset breaker
@@ -822,7 +822,7 @@ class DemoStoreService {
 
     setCategories(categories: Category[]) {
         localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -873,6 +873,12 @@ class DemoStoreService {
     }
 
     // --- Negotiations ---
+    /** Returns all negotiations from local cache without any filtering. Used for upsert operations. */
+    getNegotiationsRaw(): any[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+    }
+
     getNegotiations(sellerId?: string, buyerId?: string): NegotiationRequest[] {
         if (typeof window === "undefined") return [];
         const all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
@@ -987,7 +993,7 @@ class DemoStoreService {
 
         // Also trigger storage event for other tabs
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased") {
@@ -1107,7 +1113,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     // --- Returns ---
@@ -1139,7 +1145,7 @@ class DemoStoreService {
         this.updateOrderStatus(orderId, "return_requested");
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         return newReq;
     }
@@ -1179,7 +1185,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     sendCounterOffer(id: string, price: number, message: string) {
@@ -1210,7 +1216,7 @@ class DemoStoreService {
 
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Push to local API to ensure sync loop doesn't overwrite it
         resilientFetch(`/api/negotiations?id=${id}`, {
@@ -1361,7 +1367,7 @@ class DemoStoreService {
         });
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     /**
@@ -1451,7 +1457,7 @@ class DemoStoreService {
         });
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     // --- Login ---
@@ -1554,7 +1560,7 @@ class DemoStoreService {
 
         // 🛡️ INFINITE LOOP GUARD: Dirty check for trust_score
         // If we're only updating trust_score and it hasn't changed, skip everything.
-        // This stops the recalculateTrustScore -> updateSeller -> demo-store-update -> loadData loop.
+        // This stops the recalculateTrustScore -> updateSeller -> sync-store-update -> loadData loop.
         const keys = Object.keys(updates);
         if (keys.length === 1 && keys[0] === 'trust_score' && updatedSeller.trust_score === updates.trust_score) {
             return;
@@ -1571,7 +1577,7 @@ class DemoStoreService {
         
         // Only dispatch if something actually changed (beyond the guard above)
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Persist to Postgres and clear pending on success
         fetch("/api/sellers", {
@@ -1693,7 +1699,7 @@ class DemoStoreService {
         const updated = [newDeal, ...current];
         localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update")); // Ensure global sync
+        window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
     }
 
     removeDeal(dealId: string) {
@@ -1822,7 +1828,7 @@ class DemoStoreService {
         if (product) {
             product.is_trending = !product.is_trending;
             newStatus = product.is_trending;
-            window.dispatchEvent(new Event("demo-store-update"));
+            window.dispatchEvent(new Event("sync-store-update"));
         }
 
         // DB Update
@@ -1833,20 +1839,20 @@ class DemoStoreService {
                 if (product) {
                     product.is_trending = data.isTrending;
                     newStatus = data.isTrending;
-                    window.dispatchEvent(new Event("demo-store-update"));
+                    window.dispatchEvent(new Event("sync-store-update"));
                 }
             } else {
                 // Revert on failure
                 if (product) {
                     product.is_trending = !newStatus;
-                    window.dispatchEvent(new Event("demo-store-update"));
+                    window.dispatchEvent(new Event("sync-store-update"));
                 }
             }
         } catch (error) {
             console.error("Failed to toggle trending", error);
             if (product) {
                 product.is_trending = !newStatus;
-                window.dispatchEvent(new Event("demo-store-update"));
+                window.dispatchEvent(new Event("sync-store-update"));
             }
         }
         return newStatus;
@@ -1913,7 +1919,7 @@ class DemoStoreService {
             );
         });
         localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     /** Promote a cached product into the main catalog */
@@ -1942,7 +1948,7 @@ class DemoStoreService {
             if (cache[q].length === 0) delete cache[q];
         });
         localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     private _getSearchCache(): Record<string, any[]> {
@@ -2005,7 +2011,7 @@ class DemoStoreService {
         sellers.push(seller);
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         try {
             await resilientFetch("/api/sellers", { method: "POST", body: seller, type: "registration" });
@@ -2033,7 +2039,7 @@ class DemoStoreService {
         } catch (e) { }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     getOrders(): Order[] {
@@ -2263,7 +2269,7 @@ class DemoStoreService {
 
         window.dispatchEvent(new Event("storage"));
         // Custom event so we can listen specifically for this
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         return newOrder;
     }
 
@@ -2386,7 +2392,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     markOrderReadAsAdmin(orderId: string) {
@@ -2394,7 +2400,7 @@ class DemoStoreService {
         const updated = orders.map(o => o.id === orderId ? { ...o, unread_admin: false } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     // --- Product CRUD ---
@@ -2428,7 +2434,7 @@ class DemoStoreService {
         const updated = [newProduct, ...products];
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         return newProduct;
     }
 
@@ -2459,7 +2465,7 @@ class DemoStoreService {
         } catch (e) { }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         return product;
     }
 
@@ -2493,7 +2499,7 @@ class DemoStoreService {
 
         // Dispatch events IMMEDIATELY so UI updates right away
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Persist to Postgres — AWAIT so the DB has the latest data
         try {
@@ -2532,7 +2538,7 @@ class DemoStoreService {
             const centralCache = JSON.parse(centralCacheStr);
             centralCache[normalizedQuery] = products;
             localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(centralCache));
-            window.dispatchEvent(new Event("demo-store-update"));
+            window.dispatchEvent(new Event("sync-store-update"));
         } catch (e) {
             console.error("Failed to update central search cache for admin", e);
         }
@@ -2579,17 +2585,192 @@ class DemoStoreService {
         const products = this.getProducts();
         const updated = products.filter(p => p.id !== id);
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+
+        // Sync deletion to Postgres
+        resilientFetch(`/api/products?id=${id}`, { method: "DELETE", type: "product_update" });
+
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    // --- Sync Engine ---
+
+    /** 
+     * Automated Full Sync: Pulls all relevant entities from the DB and merges them locally.
+     * Designed to be called on page mount or periodically.
+     */
+    async autoSync() {
+        if (typeof window === "undefined") return;
+        
+        const sellerId = this.getCurrentSellerId();
+        const userId = this.getCurrentUser()?.id;
+        const identity = sellerId || userId;
+
+        if (!identity) return;
+
+        try {
+            console.log(`🔄 AutoSync started for ${identity}...`);
+            
+            const queries = [];
+            if (sellerId) {
+                queries.push(
+                    fetch(`/api/orders?sellerId=${sellerId}`).then(r => r.json()),
+                    fetch(`/api/negotiations?sellerId=${sellerId}`).then(r => r.json()),
+                    fetch(`/api/payouts?sellerId=${sellerId}`).then(r => r.json()),
+                    fetch(`/api/notifications?userId=${sellerId}`).then(r => r.json())
+                );
+            } else if (userId) {
+                queries.push(
+                    fetch(`/api/orders?customerId=${userId}`).then(r => r.json()),
+                    fetch(`/api/negotiations?customerId=${userId}`).then(r => r.json()),
+                    fetch(`/api/notifications?userId=${userId}`).then(r => r.json())
+                );
+            }
+
+            const results = await Promise.allSettled(queries);
+            
+            // 1. Process Orders
+            const ordersRes = results[0];
+            if (ordersRes.status === "fulfilled" && ordersRes.value?.orders) {
+                ordersRes.value.orders.forEach((o: any) => {
+                    this.upsertOrder({
+                        id: o.id,
+                        product_id: o.productId,
+                        seller_id: o.sellerId,
+                        customer_id: o.customerId,
+                        customer_name: o.customerName || "",
+                        seller_name: o.sellerName || "",
+                        amount: o.amount,
+                        quantity: o.quantity,
+                        status: o.status,
+                        escrow_status: o.escrowStatus,
+                        payout_status: o.payoutStatus || "none",
+                        shipping_address: o.shippingAddress,
+                        payment_method: o.paymentMethod,
+                        tracking_id: o.trackingId,
+                        carrier: o.carrier,
+                        tracking_steps: o.trackingSteps || [],
+                        created_at: o.createdAt,
+                        updated_at: o.updatedAt
+                    });
+                });
+            }
+
+            // 2. Process Negotiations
+            const negsRes = results[1];
+            if (negsRes.status === "fulfilled" && negsRes.value?.negotiations) {
+                negsRes.value.negotiations.forEach((n: any) => {
+                    this.upsertNegotiation({
+                        id: n.id,
+                        product_id: n.productId,
+                        customer_id: n.customerId,
+                        customer_name: n.customerName,
+                        seller_id: n.sellerId,
+                        proposed_price: n.proposedPrice,
+                        message: n.message,
+                        status: n.status,
+                        counter_price: n.counterPrice,
+                        counter_message: n.counterMessage,
+                        chat_messages: n.chatMessages || [],
+                        created_at: n.createdAt,
+                        updated_at: n.updatedAt
+                    });
+                });
+            }
+
+            // 3. Process Payouts if seller
+            if (sellerId) {
+                const payoutsRes = results[2];
+                if (payoutsRes.status === "fulfilled" && payoutsRes.value?.payouts) {
+                    localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payoutsRes.value.payouts));
+                }
+            }
+
+            // 4. Force financial recalculation after data merge
+            if (sellerId) this.recalculateSellerBalances(sellerId);
+
+            localStorage.setItem("fp_last_sync", new Date().toISOString());
+            window.dispatchEvent(new Event("sync-store-update"));
+            console.log("✅ AutoSync complete.");
+
+        } catch (e) {
+            console.warn("⚠️ AutoSync failed (offline or server error). Using local cache.", e);
+        }
+    }
+
+    /** 
+     * Recalculates available balance, escrow, and total revenue for a seller.
+     * Ensures absolute data integrity especially after refunds/returns.
+     */
+    recalculateSellerBalances(sellerId: string) {
+        const orders = this.getOrders().filter(o => o.seller_id === sellerId);
+        const seller = this.getSellers().find(s => s.id === sellerId || s.user_id === sellerId);
+        if (!seller) return;
+
+        const ELIGIBLE = ["released", "buyer_confirmed", "auto_release_eligible"];
+        const ESCROW = ["held", "seller_confirmed"];
+        const COMMISSION = this.getSellerCommissionRate(seller);
+
+        const escrowAmount = orders
+            .filter(o => ESCROW.includes(o.escrow_status as string))
+            .reduce((sum, o) => sum + o.amount, 0);
+
+        const availableBalance = orders
+            .filter(o => ELIGIBLE.includes(o.escrow_status as string) && (o.payout_status === "none" || !o.payout_status))
+            .reduce((sum, o) => sum + (o.amount * (1 - COMMISSION)), 0);
+
+        const totalRevenue = orders
+            .filter(o => o.status !== "cancelled" && o.status !== "returned")
+            .reduce((sum, o) => sum + o.amount, 0);
+
+        // Update local seller object with recalculated values
+        this.updateSeller(sellerId, {
+            payoutable_amount: availableBalance, // Using common field names
+            trust_score: this.recalculateTrustScore(sellerId) // Fresh score
+        } as any);
+
+        // Persistent stats cache for dashboard
+        localStorage.setItem(`fp_stats_${sellerId}`, JSON.stringify({
+            escrowAmount,
+            availableBalance,
+            totalRevenue,
+            lastCalculated: new Date().toISOString()
+        }));
     }
 
     // --- Order Management ---
+
+    /** Upsert an order into the local cache (used by DB sync). If it exists, merge; if not, add. */
+    upsertOrder(order: Partial<Order> & { id: string }) {
+        const orders = this.getOrders();
+        const idx = orders.findIndex(o => o.id === order.id);
+        if (idx >= 0) {
+            orders[idx] = { ...orders[idx], ...order };
+        } else {
+            orders.unshift(order as Order);
+        }
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        // Don't dispatch events here to avoid infinite loops during batch upserts
+    }
+
+    /** Upsert a negotiation into the local cache (used by DB sync). */
+    upsertNegotiation(neg: Partial<NegotiationRequest> & { id: string }) {
+        const negs = this.getNegotiationsRaw();
+        const idx = negs.findIndex((n: any) => n.id === neg.id);
+        if (idx >= 0) {
+            negs[idx] = { ...negs[idx], ...neg };
+        } else {
+            negs.unshift(neg);
+        }
+        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+    }
+
     updateOrder(id: string, updates: Partial<Order>) {
         const orders = this.getOrders();
         const updated = orders.map(o => o.id === id ? { ...o, ...updates } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     updateOrderStatus(id: string, status: Order["status"]) {
@@ -2599,6 +2780,9 @@ class DemoStoreService {
 
         const updated = orders.map(o => o.id === id ? { ...o, status } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Trigger balance recalculation if it impacts financials
+        this.recalculateSellerBalances(order.seller_id);
 
         // Trigger Emails & Notifications based on status change
         if (order.status !== status) {
@@ -2701,6 +2885,9 @@ class DemoStoreService {
         const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
+        // Financial Integrity: Recalculate balance on escrow state change
+        this.recalculateSellerBalances(order.seller_id);
+
         // Notify Seller if released
         if (escrow_status === "released") {
             this.addNotification({
@@ -2712,7 +2899,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     updateTrackingStatus(id: string, status: string, location: string, carrier?: string, tracking_id?: string) {
@@ -2765,7 +2952,7 @@ class DemoStoreService {
         }).catch(console.error);
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     // --- Notifications ---
@@ -2829,7 +3016,7 @@ class DemoStoreService {
         const updated = [newNotif, ...current];
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Dispatch global event for Push Notifications hook
         window.dispatchEvent(new CustomEvent("fp-notification-received", {
@@ -2870,7 +3057,7 @@ class DemoStoreService {
         const updated = all.map(n => n.id === notifId ? { ...n, read: true } : n);
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Sync to backend
         fetch(`/api/notifications?id=${notifId}`, { method: "PATCH" }).catch(() => {});
@@ -2902,7 +3089,7 @@ class DemoStoreService {
         );
         localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // Sync to backend
         if (user?.email) {
@@ -2987,7 +3174,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     sendAdminMessageToUser(userId: string, subject: string, message: string) {
@@ -3086,7 +3273,7 @@ class DemoStoreService {
 
         localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         const negotiation = negs[idx];
         const product = this.getProducts().find(p => p.id === negotiation.product_id);
@@ -3208,7 +3395,7 @@ class DemoStoreService {
             link: "/seller/dashboard/promotions",
         });
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update")); // Ensure global sync
+        window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
         return promo;
     }
 
@@ -3381,8 +3568,8 @@ class DemoStoreService {
     static PLATFORM_COMMISSION = 0.05; // 5% commission
 
     getSellerPayout(orderAmount: number) {
-        const commission = orderAmount * DemoStoreService.PLATFORM_COMMISSION;
-        return { commission, payout: orderAmount - commission, rate: DemoStoreService.PLATFORM_COMMISSION };
+        const commission = orderAmount * DataSyncServiceService.PLATFORM_COMMISSION;
+        return { commission, payout: orderAmount - commission, rate: DataSyncServiceService.PLATFORM_COMMISSION };
     }
 
     // --- Admin & Governance ---
@@ -3436,7 +3623,7 @@ class DemoStoreService {
                     currentPayout.order_ids.includes(o.id) ? { ...o, payout_status: "cashed_out" } : o
                 );
                 localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
-                window.dispatchEvent(new Event("demo-store-update"));
+                window.dispatchEvent(new Event("sync-store-update"));
             }
         }
     }
@@ -3447,7 +3634,7 @@ class DemoStoreService {
         if (!seller) return;
 
         const newPayout = {
-            id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 6)} `,
+            id: `pay_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
             seller_id: sellerId,
             seller_name: seller.business_name,
             amount,
@@ -3468,11 +3655,25 @@ class DemoStoreService {
         );
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
 
+        // Background Sync to Postgres
+        resilientFetch("/api/payouts", { 
+            method: "POST", 
+            body: {
+                seller_id: sellerId,
+                amount,
+                bank_name: bank,
+                account_number: account_last4, // Fallback to last4 if full number isn't passed here
+                account_name: seller.business_name,
+                order_ids: orderIds
+            }, 
+            type: "general" 
+        });
+
         // Add a notification to the admin dashboard
         this.addNotification({
             userId: "admin",
             type: "system",
-            message: `New Payout Request: ${seller.business_name} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')} `,
+            message: `New Payout Request: ${seller.business_name} requested a payout of ₦${amount.toLocaleString()} for order(s): ${orderIds.join(', ')}`,
             link: "/admin/payouts"
         });
 
@@ -3483,6 +3684,7 @@ class DemoStoreService {
         }).catch(err => console.warn("Error triggering payout email:", err));
 
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     addKYCSubmission(submission: any) {
@@ -3490,7 +3692,7 @@ class DemoStoreService {
         const existing = this.getKYCSubmissions();
         existing.push(submission);
         localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(existing));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     getKYCSubmissions(): KYCSubmission[] {
@@ -3637,7 +3839,7 @@ class DemoStoreService {
             const orders = this.getOrders();
             const eligible = orders.filter(o => this.checkAutoReleaseEligible(o));
             if (eligible.length > 0) {
-                console.log(`🛠️ DemoStore: Auto-releasing ${eligible.length} eligible orders.`);
+                console.log(`🛠️ DataSyncService: Auto-releasing ${eligible.length} eligible orders.`);
                 eligible.forEach(o => {
                     // Check if already released in this batch to avoid redundant cycles
                     const currentOrder = this.getOrders().find(co => co.id === o.id);
@@ -3730,7 +3932,7 @@ class DemoStoreService {
         });
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
 
         // ── Email Notifications ─────────────────────────────────
 
@@ -3840,7 +4042,7 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     getAdminMessagesForUser(userEmail: string): SupportMessage[] {
@@ -3872,7 +4074,7 @@ class DemoStoreService {
         });
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     // ─── Coupon System ──────────────────────────────────────
@@ -4031,7 +4233,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         return newReview;
     }
 
@@ -4057,7 +4259,7 @@ class DemoStoreService {
         }
 
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     // ─── Chat / DM System ────────────────────────────────────
@@ -4110,7 +4312,7 @@ class DemoStoreService {
         conversations.unshift(conv);
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         return conv;
     }
 
@@ -4154,7 +4356,7 @@ class DemoStoreService {
         });
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         return msg;
     }
 
@@ -4211,7 +4413,7 @@ class DemoStoreService {
             }).catch(console.error);
 
             window.dispatchEvent(new Event("storage"));
-            window.dispatchEvent(new Event("demo-store-update"));
+            window.dispatchEvent(new Event("sync-store-update"));
         }
     }
 
@@ -4243,8 +4445,8 @@ class DemoStoreService {
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(remainingConvs));
         
         window.dispatchEvent(new Event("storage"));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 }
 
-export const DemoStore = DemoStoreService.getInstance();
+export const DataSyncService = DataSyncServiceService.getInstance();

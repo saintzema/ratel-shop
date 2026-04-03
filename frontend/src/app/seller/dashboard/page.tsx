@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { DEMO_SELLER_STATS } from "@/lib/data";
 import { NegotiationRequest, Order, Product, Seller } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,25 +52,25 @@ export default function SellerDashboard() {
 
     useEffect(() => {
         const loadData = () => {
-            const sellerId = DemoStore.getCurrentSellerId();
+            const sellerId = DataSyncService.getCurrentSellerId();
             if (!sellerId) return;
 
-            const seller = DemoStore.getCurrentSeller();
+            const seller = DataSyncService.getCurrentSeller();
             if (seller) {
                 // Recalculate and persist dynamic trust score
-                const dynamicScore = DemoStore.recalculateTrustScore(seller.id);
+                const dynamicScore = DataSyncService.recalculateTrustScore(seller.id);
                 const enrichedSeller = { ...seller, trust_score: dynamicScore };
                 setCurrentSeller(enrichedSeller);
 
-                const allNegs = DemoStore.getNegotiations(seller.id);
+                const allNegs = DataSyncService.getNegotiations(seller.id);
                 setNegotiations(allNegs);
 
-                const allOrders = DemoStore.getOrders();
+                const allOrders = DataSyncService.getOrders();
                 setOrders(allOrders.filter(o => o.seller_id === seller.id));
 
-                const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+                const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
                 // Also include AI-generated products that are assigned to this seller
-                const cachedProducts = DemoStore.getAllCachedProducts();
+                const cachedProducts = DataSyncService.getAllCachedProducts();
                 const combinedProducts = [...allProducts, ...cachedProducts];
 
                 // deduplicate just in case 
@@ -84,7 +84,7 @@ export default function SellerDashboard() {
                         // Check if they just got verified and have 0 products
                         const myProducts = allProducts.filter(p => p.seller_id === seller.id);
                         if (myProducts.length === 0) {
-                            DemoStore.addNotification({
+                            DataSyncService.addNotification({
                                 userId: seller.id,
                                 type: "system",
                                 message: `🎉 Congratulations! Your store "${seller.business_name}" is now verified. You can start uploading products!`,
@@ -98,15 +98,20 @@ export default function SellerDashboard() {
         };
 
         loadData();
+        DataSyncService.autoSync(); // Trigger initial DB sync immediately on mount
 
         // Register listeners IMMEDIATELY to catch the first sync
         window.addEventListener("storage", loadData);
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
+
+        // Periodically sync in the background (every 2 minutes)
+        const syncInterval = setInterval(() => {
+            DataSyncService.autoSync();
+        }, 120000);
 
         // Polling fallback: If no seller is found, try again every 2 seconds for a bit
-        // This handles cases where syncWithDB is still running on mount
         const pollInterval = setInterval(() => {
-            if (!DemoStore.getCurrentSellerId()) {
+            if (!DataSyncService.getCurrentSellerId()) {
                 loadData();
             } else {
                 clearInterval(pollInterval);
@@ -115,20 +120,32 @@ export default function SellerDashboard() {
 
         return () => {
             window.removeEventListener("storage", loadData);
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
             clearInterval(pollInterval);
-        }
+            clearInterval(syncInterval);
+        };
     }, [router, user?.id, user?.email]); // Added user.email for better detection
 
-    const handleNegAction = (id: string, status: "accepted" | "rejected") => {
-        DemoStore.updateNegotiationStatus(id, status);
-        const sellerId = DemoStore.getCurrentSellerId();
+    const handleNegAction = async (id: string, status: "accepted" | "rejected") => {
+        // 1. Update local state immediately for fast UI
+        DataSyncService.updateNegotiationStatus(id, status);
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (sellerId) {
-            setNegotiations(DemoStore.getNegotiations(sellerId));
+            setNegotiations(DataSyncService.getNegotiations(sellerId));
+        }
+        // 2. Sync to PostgreSQL database
+        try {
+            await fetch("/api/negotiations", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, status }),
+            });
+        } catch (e) {
+            console.warn("DB sync for negotiation failed — will retry on next refresh", e);
         }
     };
 
-    const handleCashout = () => {
+    const handleCashout = async () => {
         // Check if seller has payout info set up
         const payoutInfo = localStorage.getItem(`fp_payout_${currentSeller?.id}`);
         if (!payoutInfo) {
@@ -138,14 +155,52 @@ export default function SellerDashboard() {
             }
             return;
         }
+
+        // Parse bank details for the payout request
+        let bankName = "N/A", accountNumber = "N/A", accountName = "N/A";
+        try {
+            const parsed = JSON.parse(payoutInfo);
+            bankName = parsed.bank_name || "N/A";
+            accountNumber = parsed.account_number || "N/A";
+            accountName = parsed.account_name || "N/A";
+        } catch {}
+
+        // Collect eligible order IDs for this payout
+        const EARNINGS_ELIGIBLE = ["released", "buyer_confirmed", "auto_release_eligible"];
+        const eligibleOrders = orders.filter(
+            o => EARNINGS_ELIGIBLE.includes(o.escrow_status as string) && (o.payout_status === "none" || !o.payout_status)
+        );
+        const orderIds = eligibleOrders.map(o => o.id);
+
         setCashoutSuccess(true);
-        DemoStore.addNotification({
+
+        // 1. Notify locally
+        DataSyncService.addNotification({
             userId: currentSeller?.id || "",
             type: "system",
             message: `💰 Cashout request of ${formatPrice(availableBalance)} submitted! Funds will be transferred within 24-48 hours.`,
-            link: "/seller/settings/payouts"
+            link: "/seller/wallet"
         });
-        window.dispatchEvent(new Event("demo-store-update"));
+
+        // 2. Write payout to PostgreSQL database
+        try {
+            await fetch("/api/payouts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    seller_id: currentSeller?.id,
+                    amount: availableBalance,
+                    bank_name: bankName,
+                    account_number: accountNumber,
+                    account_name: accountName,
+                    order_ids: orderIds,
+                }),
+            });
+        } catch (e) {
+            console.warn("DB sync for payout failed — saved locally", e);
+        }
+
+        window.dispatchEvent(new Event("sync-store-update"));
         setTimeout(() => setCashoutSuccess(false), 3000);
     };
 
@@ -182,7 +237,7 @@ export default function SellerDashboard() {
     const totalRevenue = releasedAmount + escrowAmount;
 
     // Platform takes dynamic commission on all released funds based on tier
-    const COMMISSION_RATE = DemoStore.getSellerCommissionRate(currentSeller);
+    const COMMISSION_RATE = DataSyncService.getSellerCommissionRate(currentSeller);
     const platformFee = releasedAmount * COMMISSION_RATE;
     const availableBalance = orders
         .filter(o => EARNINGS_ELIGIBLE_STATES.includes(o.escrow_status as string) && (o.payout_status === "none" || !o.payout_status))
@@ -225,12 +280,10 @@ export default function SellerDashboard() {
                         variant="outline" 
                         size="sm" 
                         className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold px-5 h-10 transition-all hover:scale-105 active:scale-95"
-                        onClick={() => {
+                        onClick={async () => {
                             setIsRefreshing(true);
-                            setTimeout(() => {
-                                setIsRefreshing(false);
-                                window.dispatchEvent(new Event("demo-store-update"));
-                            }, 800);
+                            await DataSyncService.autoSync();
+                            setIsRefreshing(false);
                         }}
                     >
                         <TrendingUp className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
@@ -246,8 +299,8 @@ export default function SellerDashboard() {
             >
                 <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={revenueTrend} color="emerald" href="/seller/orders?filter=delivered" delay={0.1} />
                 <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" delay={0.2} />
-                <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} />
-                <StatCard icon={<Star />} label="Trust Score" value={`${currentSeller.trust_score || 50}%`} color="purple" delay={0.4} />
+                <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} tooltip="Accept more reasonable counter-offers and avoid letting negotiations expire to boost your success rate." />
+                <StatCard icon={<Star />} label="Trust Score" value={`${currentSeller.trust_score || 50}%`} color="purple" delay={0.4} tooltip="Ship orders on time, avoid return disputes, and keep your inventory accurate to maintain a high trust score." />
             </motion.div>
 
             {/* Premium Payout Tracker - Emerald & Gold Theme */}
@@ -514,7 +567,7 @@ export default function SellerDashboard() {
                             <div className="p-8 text-center text-gray-400 text-sm font-medium h-full flex items-center justify-center">No pending negotiations</div>
                         ) : (
                             pendingNegs.slice(0, 3).map((neg) => {
-                                const product = products.find(p => p.id === neg.product_id) || DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
+                                const product = products.find(p => p.id === neg.product_id) || DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                                 if (!product) return null;
 
                                 return (
@@ -607,11 +660,11 @@ export default function SellerDashboard() {
                                             size="sm"
                                             className="bg-white text-blue-600 hover:bg-blue-600 hover:text-white border border-blue-200 h-8 text-xs font-bold rounded-lg transition-colors"
                                             onClick={() => {
-                                                DemoStore.updateProduct(item.id, { price: Math.round(item.price * 0.95) });
+                                                DataSyncService.updateProduct(item.id, { price: Math.round(item.price * 0.95) });
                                                 // Reload products
-                                                const sellerId = DemoStore.getCurrentSellerId();
+                                                const sellerId = DataSyncService.getCurrentSellerId();
                                                 if (sellerId) {
-                                                    setProducts(DemoStore.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId));
+                                                    setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId));
                                                 }
                                             }}
                                         >
@@ -680,7 +733,7 @@ function PayoutStep({ label, amount, status, icon, description, active }: Payout
 }
 
 // ─── StatCard ───
-function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0 }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string; href?: string; delay?: number }) {
+function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, tooltip }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string; href?: string; delay?: number; tooltip?: string }) {
     const colors: Record<string, string> = {
         emerald: "bg-emerald-50 text-emerald-600 border border-emerald-100",
         amber: "bg-amber-50 text-amber-600 border border-amber-100",
@@ -713,12 +766,22 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0 }
                 )}
             </div>
             <h3 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-2">{value}</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative">
                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{label}</p>
                 {href && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
+                
+                {tooltip && (
+                    <div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-2.5 rounded-xl opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 z-50 shadow-2xl leading-relaxed">
+                        <div className="flex items-center gap-1.5 mb-1 text-gray-400">
+                            <span className="font-bold text-white uppercase tracking-wider text-[9px]">Insight</span>
+                        </div>
+                        {tooltip}
+                        <div className="absolute left-6 -bottom-1 w-2 h-2 bg-gray-900 border-b border-r border-gray-700 rotate-45" />
+                    </div>
+                )}
             </div>
         </motion.div>
     );
 
-    return href ? <Link href={href}>{content}</Link> : content;
+    return href ? <Link href={href} className="group outline-none">{content}</Link> : <div className="group">{content}</div>;
 }

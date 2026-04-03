@@ -9,7 +9,7 @@ export async function GET(req: Request) {
             take: 50 // Limit to last 50 queries to prevent payload bloat
         });
 
-        // Format as Record<string, Product[]> so DemoStore can ingest it directly
+        // Format as Record<string, Product[]> so DataSyncService can ingest it directly
         const formattedCache: Record<string, any[]> = {};
         caches.forEach(cache => {
             formattedCache[cache.query] = cache.products as any[];

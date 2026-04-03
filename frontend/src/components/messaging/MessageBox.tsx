@@ -11,7 +11,7 @@ import { useMessages, Conversation, ChatMessage } from "@/context/MessageContext
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 
@@ -357,7 +357,7 @@ export function MessageBox() {
     const [counterPrice, setCounterPrice] = useState("");
     const [counterMessage, setCounterMessage] = useState("");
 
-    // Load notifications from database API, with DemoStore fallback
+    // Load notifications from database API, with DataSyncService fallback
     const loadNotifications = useCallback(async () => {
         const email = user?.email;
         const userId = user?.id || user?.email || "";
@@ -376,10 +376,10 @@ export function MessageBox() {
             // Backend unavailable
         }
 
-        // Always fallback and merge with DemoStore
-        const demoNotifs = DemoStore.getNotifications(userId);
+        // Always fallback and merge with DataSyncService
+        const demoNotifs = DataSyncService.getNotifications(userId);
         
-        // Map DemoStore notifs first layout, updating read status from API if present
+        // Map DataSyncService notifs first layout, updating read status from API if present
         const mergedNotifs = demoNotifs.map((n: any) => {
             const apiMatch = apiNotifs.find((a: any) => String(a.id) === String(n.id));
             return {
@@ -392,7 +392,7 @@ export function MessageBox() {
             };
         });
 
-        // Add any additional notifications from the API not present in DemoStore locally
+        // Add any additional notifications from the API not present in DataSyncService locally
         apiNotifs.forEach((a: any) => {
             if (!mergedNotifs.find((m: any) => String(m.id) === String(a.id))) {
                 mergedNotifs.push({
@@ -435,9 +435,9 @@ export function MessageBox() {
                     });
                 } catch { /* ignore */ }
             }
-            // Also mark in DemoStore
+            // Also mark in DataSyncService
             if (userId) {
-                DemoStore.markAllNotificationsRead(userId);
+                DataSyncService.markAllNotificationsRead(userId);
             }
             await loadNotifications();
         }
@@ -450,8 +450,8 @@ export function MessageBox() {
             try {
                 await fetch(`/api/notifications?id=${notif.id}`, { method: "PATCH" });
             } catch { /* ignore */ }
-            // Also mark in DemoStore
-            DemoStore.markNotificationRead(notif.id);
+            // Also mark in DataSyncService
+            DataSyncService.markNotificationRead(notif.id);
             await loadNotifications();
         }
         if (notif.link && typeof window !== "undefined") {
@@ -497,7 +497,7 @@ export function MessageBox() {
                 }
 
                 if (productId) {
-                    const negs = DemoStore.getNegotiations(undefined, user.id);
+                    const negs = DataSyncService.getNegotiations(undefined, user.id);
                     // Match IF (status=countered OR counter_price exists) AND counter_status is pending
                     const active = negs.find(n => 
                         n.product_id === productId && 
@@ -514,12 +514,12 @@ export function MessageBox() {
         updateActiveNegotiation();
         
         // Listen for real-time updates to negotiations
-        window.addEventListener("demo-store-update", updateActiveNegotiation);
+        window.addEventListener("sync-store-update", updateActiveNegotiation);
         window.addEventListener("storage", updateActiveNegotiation);
         window.addEventListener("negotiation-updated-remote", updateActiveNegotiation);
 
         return () => {
-            window.removeEventListener("demo-store-update", updateActiveNegotiation);
+            window.removeEventListener("sync-store-update", updateActiveNegotiation);
             window.removeEventListener("storage", updateActiveNegotiation);
             window.removeEventListener("negotiation-updated-remote", updateActiveNegotiation);
         };
@@ -565,7 +565,7 @@ export function MessageBox() {
 
         // If this is a negotiation thread, sync the message to the negotiation history
         if (activeNegotiation) {
-            DemoStore.addNegotiationMessage(
+            DataSyncService.addNegotiationMessage(
                 activeNegotiation.id, 
                 "buyer", 
                 input.trim(), 
@@ -587,9 +587,9 @@ export function MessageBox() {
         const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
         const targetNeg = negs.find((n: any) => n.product_id === productId && n.counter_price);
         if (targetNeg) {
-            DemoStore.updateCounterStatus(targetNeg.id, "accepted");
+            DataSyncService.updateCounterStatus(targetNeg.id, "accepted");
         }
-        const product = DemoStore.getProducts().find(p => p.id === productId);
+        const product = DataSyncService.getProducts().find(p => p.id === productId);
         if (product) {
             addToCart({ ...product, price });
             router.push("/cart");
@@ -601,7 +601,7 @@ export function MessageBox() {
         const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
         const targetNeg = negs.find((n: any) => n.product_id === productId && n.counter_price);
         if (targetNeg) {
-            DemoStore.updateCounterStatus(targetNeg.id, "rejected");
+            DataSyncService.updateCounterStatus(targetNeg.id, "rejected");
         }
     }, []);
 
@@ -609,7 +609,7 @@ export function MessageBox() {
         const negs = JSON.parse(localStorage.getItem("fp_negotiations") || "[]");
         const targetNeg = negs.find((n: any) => n.product_id === productId);
         if (targetNeg) {
-            DemoStore.sendBuyerCounterOffer(targetNeg.id, price);
+            DataSyncService.sendBuyerCounterOffer(targetNeg.id, price);
             sendMessage(selectedConvId!, {
                 sender: "user",
                 text: `I'd like to propose ₦${price.toLocaleString()} instead.`
@@ -674,8 +674,8 @@ export function MessageBox() {
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
                                     <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 overflow-hidden border border-white/30">
-                                        {(selectedConversation as any).productImage || ((selectedConversation as any).product_id && DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url ? DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url : null) ? (
-                                            <img src={(selectedConversation as any).productImage || DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url} alt="" className="w-full h-full object-cover" />
+                                        {(selectedConversation as any).productImage || ((selectedConversation as any).product_id && DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url ? DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url : null) ? (
+                                            <img src={(selectedConversation as any).productImage || DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             <Package className="h-4 w-4 text-white/80" />
                                         )}
@@ -708,8 +708,8 @@ export function MessageBox() {
                                         <div className="flex gap-2 justify-center mb-4">
                                             <Button 
                                                 onClick={() => {
-                                                    DemoStore.updateCounterStatus(activeNegotiation.id, "accepted");
-                                                    const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === activeNegotiation.product_id);
+                                                    DataSyncService.updateCounterStatus(activeNegotiation.id, "accepted");
+                                                    const product = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === activeNegotiation.product_id);
                                                     if (product) {
                                                         addToCart(product, 1, activeNegotiation.counter_price);
                                                         router.push("/cart");
@@ -722,7 +722,7 @@ export function MessageBox() {
                                             </Button>
                                             <Button 
                                                 onClick={() => {
-                                                    DemoStore.updateCounterStatus(activeNegotiation.id, "rejected");
+                                                    DataSyncService.updateCounterStatus(activeNegotiation.id, "rejected");
                                                     setActiveNegotiation(null);
                                                 }} 
                                                 variant="outline" 
@@ -740,7 +740,7 @@ export function MessageBox() {
                                                 e.preventDefault();
                                                 const price = Number(counterPrice);
                                                 if (!price) return;
-                                                DemoStore.sendBuyerCounterOffer(activeNegotiation.id, price, counterMessage);
+                                                DataSyncService.sendBuyerCounterOffer(activeNegotiation.id, price, counterMessage);
                                                 sendMessage(selectedConvId!, { 
                                                     sender: "user", 
                                                     text: `🤝 Counter-Offer: ₦${price.toLocaleString()}${counterMessage ? `\n\n"${counterMessage}"` : ""}` 

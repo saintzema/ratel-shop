@@ -22,6 +22,7 @@ import { SwipeToBack } from "@/components/ui/SwipeToBack";
 import { SessionProvider } from "@/context/SessionProvider";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 
 // Standalone component to handle popup closing without forcing the whole layout to be client-side
 import { PopupCloser } from "@/components/auth/PopupCloser";
@@ -122,6 +123,7 @@ export default function RootLayout({
                   <FloatingCart />
                   <PwaManager />
                   <WaitlistModal />
+                  <OfflineIndicator />
                 </CartProvider>
               </AuthProvider>
             </LocationProvider>

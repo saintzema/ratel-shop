@@ -8,7 +8,7 @@ import { Heart, Store, Star, ChevronRight, ChevronLeft, Home, ShoppingCart, X, P
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useFavorites } from "@/context/FavoritesContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product, Seller } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -24,19 +24,19 @@ export default function ListsPage() {
 
     // Load favorited products
     const favProducts: Product[] = mounted
-        ? favorites.map(id => DemoStore.getProducts().find(p => p.id === id)).filter(Boolean) as Product[]
+        ? favorites.map(id => DataSyncService.getProducts().find(p => p.id === id)).filter(Boolean) as Product[]
         : [];
 
     // Load favorited stores
     const favSellers: Seller[] = mounted
-        ? favoriteStores.map(id => DemoStore.getSellers().find(s => s.id === id)).filter(Boolean) as Seller[]
+        ? favoriteStores.map(id => DataSyncService.getSellers().find(s => s.id === id)).filter(Boolean) as Seller[]
         : [];
 
     // Get products from favorited stores
     const storeProducts: Record<string, Product[]> = {};
     if (mounted) {
         for (const seller of favSellers) {
-            storeProducts[seller.id] = DemoStore.getProducts()
+            storeProducts[seller.id] = DataSyncService.getProducts()
                 .filter(p => p.seller_id === seller.id && p.is_active)
                 .slice(0, 4);
         }

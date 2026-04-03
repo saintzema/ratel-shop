@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Check, ChevronRight, Upload, Building, User, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Seller } from "@/lib/types";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 
@@ -95,7 +95,7 @@ export default function KYCOnboarding() {
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const currentSeller = DemoStore.getCurrentSeller();
+        const currentSeller = DataSyncService.getCurrentSeller();
         // Force the seller ID to match the user's custom store URL input for aesthetic links, falling back to user ID or random
         const sellerId = currentSeller?.id || storeUrl || user?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -129,10 +129,10 @@ export default function KYCOnboarding() {
         };
 
         if (currentSeller) {
-            DemoStore.updateSeller(sellerId, sellerUpdates);
+            DataSyncService.updateSeller(sellerId, sellerUpdates);
         } else {
             // New seller onboarding
-            DemoStore.addSeller({
+            DataSyncService.addSeller({
                 ...sellerUpdates,
                 id: sellerId,
                 user_id: user?.id || sellerId,
@@ -140,11 +140,11 @@ export default function KYCOnboarding() {
                 owner_name: user?.name || businessName,
                 created_at: new Date().toISOString()
             } as Seller);
-            DemoStore.loginSeller(sellerId);
+            DataSyncService.loginSeller(sellerId);
         }
 
         // Create KYC submission so admin sees it in dashboard
-        DemoStore.addKYCSubmission({
+        DataSyncService.addKYCSubmission({
             id: `kyc_${sellerId}`,
             seller_id: sellerId,
             seller_name: businessName || "New Seller",
@@ -154,7 +154,7 @@ export default function KYCOnboarding() {
             status: "pending",
         });
 
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             userId: sellerId,
             type: "system",
             message: `Welcome to FairPrice! Your KYC details are currently under review. While you wait for verification, you can already start uploading products to your store.`,
@@ -178,7 +178,7 @@ export default function KYCOnboarding() {
         } catch (e) { }
 
         // Admin notification (in-app bell) for KYC review
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             type: "system",
             title: "New Seller KYC Submitted",
             message: `${businessName || "A new seller"} has completed onboarding and is awaiting approval.`,

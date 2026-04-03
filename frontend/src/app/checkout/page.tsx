@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { DEMO_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
+import { SEED_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "@/context/CartContext";
 import { Product, Coupon } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
@@ -63,7 +63,7 @@ function DiscountSection({
 
         setMsg("Validating...");
 
-        // First check DemoStore defined coupons
+        // First check DataSyncService defined coupons
         const validCoupon = availableCoupons.find(c => c.code.toUpperCase() === targetCode.toUpperCase());
 
         if (validCoupon) {
@@ -73,7 +73,7 @@ function DiscountSection({
             return;
         }
 
-        // If not found in DemoStore, check the database via the API
+        // If not found in DataSyncService, check the database via the API
         try {
             const res = await fetch(`/api/discounts/validate?code=${targetCode.toUpperCase()}`);
             if (res.ok) {
@@ -295,7 +295,7 @@ function CheckoutContent() {
     useEffect(() => {
         setIsClient(true);
         if (user) {
-            setAvailableCoupons(DemoStore.getActiveCoupons(user.id));
+            setAvailableCoupons(DataSyncService.getActiveCoupons(user.id));
         }
     }, [user]);
 
@@ -543,7 +543,7 @@ function CheckoutContent() {
         // Buy Now / Negotiation Flow
         const negotiation = DEMO_NEGOTIATIONS.find(n => n.id === negotiationId);
         if (negotiation) {
-            const negotiatedProduct = DEMO_PRODUCTS.find(p => p.id === negotiation.product_id);
+            const negotiatedProduct = SEED_PRODUCTS.find(p => p.id === negotiation.product_id);
             if (negotiatedProduct) {
                 checkoutItems = [{
                     product: negotiatedProduct,
@@ -752,7 +752,7 @@ function CheckoutContent() {
 
             const createdOrders: any[] = [];
             checkoutItems.forEach(item => {
-                const newOrder = DemoStore.addOrder({
+                const newOrder = DataSyncService.addOrder({
                     product_id: item.product.id,
                     customer_id: orderUserId,
                     customer_name: fullName || address.firstName || "Customer",
@@ -774,13 +774,13 @@ function CheckoutContent() {
 
             if (negotiationId) {
                 // Mark negotiation as purchased to clear notification
-                DemoStore.updateNegotiationStatus(negotiationId, "purchased");
+                DataSyncService.updateNegotiationStatus(negotiationId, "purchased");
             } else {
                 clearCart();
             }
 
             if (appliedCoupon && user) {
-                DemoStore.useCoupon(appliedCoupon.code, user.id);
+                DataSyncService.useCoupon(appliedCoupon.code, user.id);
             }
 
             // ─── Referral Rewards Dispensation ───
@@ -790,7 +790,7 @@ function CheckoutContent() {
                     const referrerId = atob(refCode);
                     // Prevent self-referral abuse and null IDs
                     if (referrerId && referrerId !== user?.id) {
-                        DemoStore.addCoupon({
+                        DataSyncService.addCoupon({
                             amount: 5000,
                             userId: referrerId,
                             issuedBy: "referral",
@@ -876,12 +876,12 @@ function CheckoutContent() {
             // Fire off Order Alert Email & Notification to SELLER(s)
             const sellerGroups = new Map<string, { sellerEmail: string, sellerName: string, orders: typeof createdOrders }>();
             createdOrders.forEach(co => {
-                const sellers = DemoStore.getSellers();
+                const sellers = DataSyncService.getSellers();
                 const seller = sellers.find(s => s.id === co.product.seller_id);
                 
                 if (seller) {
                     // Send In-App Dashboard Notification to Seller
-                    DemoStore.addNotification({
+                    DataSyncService.addNotification({
                         userId: seller.user_id || seller.id, // Notification targets the seller's user ID
                         type: "order",
                         message: `New Order Received! A customer just purchased ${co.product.name}.`,
@@ -1829,14 +1829,14 @@ function CheckoutContent() {
             {isClient && (
                 <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
                     <RecommendedProducts
-                        products={DemoStore.getApprovedProducts().slice(8, 16)}
+                        products={DataSyncService.getApprovedProducts().slice(8, 16)}
                         title="Frequently Bought Together"
                         subtitle="Customers also added these items"
                     />
                     <div className="text-center mt-4">
                         {/* You May Also Like — more products from the same or related categories */}
                         {visibleProductsCount > 8 && (() => {
-                            const youMayLike = DemoStore.getApprovedProducts()
+                            const youMayLike = DataSyncService.getApprovedProducts()
                                 .filter(p => !checkoutItems.map(i => i.product.id).includes(p.id))
                                 .sort(() => Math.random() - 0.5)
                                 .slice(0, visibleProductsCount - 8);

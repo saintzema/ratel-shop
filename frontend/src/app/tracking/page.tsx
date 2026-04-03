@@ -7,7 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
 import { Order } from "@/lib/types";
 import { Search, Package, ArrowRight, Truck } from "lucide-react";
@@ -36,7 +36,7 @@ export default function TrackingPage() {
 
         setError("");
         setSearched(true);
-        const foundOrder = DemoStore.getOrderByTrackingId(trackingId.trim());
+        const foundOrder = DataSyncService.getOrderByTrackingId(trackingId.trim());
 
         if (foundOrder) {
             setOrder(foundOrder);

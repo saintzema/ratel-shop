@@ -4,7 +4,7 @@ import { generateMoreDemoProducts } from "./demo-data-nigeria";
 
 // ─── Sellers ────────────────────────────────────────────────
 
-export const DEMO_SELLERS: Seller[] = [
+export const SEED_SELLERS: Seller[] = [
     {
         id: "s1",
         user_id: "u2",
@@ -247,7 +247,7 @@ export const DEMO_PAYOUTS = [
 
 // ─── Products ───────────────────────────────────────────────
 
-export const DEMO_PRODUCTS: Product[] = [
+export const SEED_PRODUCTS: Product[] = [
     ...TEMU_PRODUCTS,
     ...generateMoreDemoProducts(),
     // Phones & Electronics
@@ -2274,12 +2274,12 @@ export const DEMO_PRODUCTS: Product[] = [
 const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 const in3days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
 
-export const DEMO_DEALS: Deal[] = [
-    { id: "d1", product_id: "p1", product: DEMO_PRODUCTS[0], discount_pct: 15, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
-    { id: "d2", product_id: "p5", product: DEMO_PRODUCTS[8], discount_pct: 20, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p5 index changes
-    { id: "d3", product_id: "p8", product: DEMO_PRODUCTS[4], discount_pct: 13, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true }, // p8 index changes
-    { id: "d4", product_id: "p10", product: DEMO_PRODUCTS[6], discount_pct: 16, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p10 index changes
-    { id: "d5", product_id: "p12", product: DEMO_PRODUCTS[11], discount_pct: 31, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
+export const SEED_DEALS: Deal[] = [
+    { id: "d1", product_id: "p1", product: SEED_PRODUCTS[0], discount_pct: 15, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
+    { id: "d2", product_id: "p5", product: SEED_PRODUCTS[8], discount_pct: 20, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p5 index changes
+    { id: "d3", product_id: "p8", product: SEED_PRODUCTS[4], discount_pct: 13, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true }, // p8 index changes
+    { id: "d4", product_id: "p10", product: SEED_PRODUCTS[6], discount_pct: 16, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p10 index changes
+    { id: "d5", product_id: "p12", product: SEED_PRODUCTS[11], discount_pct: 31, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
 ];
 
 // ─── Reviews ────────────────────────────────────────────────
@@ -2399,14 +2399,14 @@ export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
 ];
 
 export function getDemoPriceComparison(productId: string): PriceComparison {
-    const product = DEMO_PRODUCTS.find((p) => p.id === productId);
+    const product = SEED_PRODUCTS.find((p) => p.id === productId);
     if (!product) {
         return { market_low: 0, market_high: 0, market_avg: 0, fp_best: 0, current_price: 0, flag: "none", savings: 0 };
     }
     const avgPrice = product.recommended_price || product.price;
     const marketLow = Math.round(avgPrice * 0.9);
     const marketHigh = Math.round(avgPrice * 1.35);
-    const fpBest = DEMO_PRODUCTS
+    const fpBest = SEED_PRODUCTS
         .filter((p) => p.name.split("—")[0].trim() === product.name.split("—")[0].trim() && p.id !== product.id)
         .reduce((best, p) => (p.price < best ? p.price : best), product.price);
 

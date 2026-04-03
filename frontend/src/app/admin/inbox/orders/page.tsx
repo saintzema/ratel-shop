@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useNotification } from "@/components/ui/NotificationProvider";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Order } from "@/lib/types";
 import { formatDateExact } from "@/lib/utils";
 
@@ -27,7 +27,7 @@ export default function AdminOrdersTakeoverPage() {
 
     useEffect(() => {
         const load = () => {
-            const all = DemoStore.getOrders();
+            const all = DataSyncService.getOrders();
 
             // Build list: all orders with chat messages
             let chatOrders = all.filter(o => o.chat_messages && o.chat_messages.length > 0);
@@ -38,25 +38,25 @@ export default function AdminOrdersTakeoverPage() {
                 if (targetOrder) {
                     // Initialize chat if this order has no messages yet
                     if (!targetOrder.chat_messages || targetOrder.chat_messages.length === 0) {
-                        DemoStore.addOrderMessage(
+                        DataSyncService.addOrderMessage(
                             targetOrder.id,
                             "system",
                             "Concierge session started by Admin."
                         );
                         // Re-fetch after initializing
-                        const refreshed = DemoStore.getOrders();
+                        const refreshed = DataSyncService.getOrders();
                         chatOrders = refreshed.filter(o => o.chat_messages && o.chat_messages.length > 0);
                     }
 
                     // Ensure it's in the list (deduplicate)
                     if (!chatOrders.find(o => o.id === targetOrder.id)) {
-                        const freshTarget = DemoStore.getOrders().find(o => o.id === orderIdFromUrl);
+                        const freshTarget = DataSyncService.getOrders().find(o => o.id === orderIdFromUrl);
                         if (freshTarget) chatOrders.unshift(freshTarget);
                     }
 
                     // Auto-select it on first load
                     if (!hasAutoSelected) {
-                        const freshTarget = DemoStore.getOrders().find(o => o.id === orderIdFromUrl);
+                        const freshTarget = DataSyncService.getOrders().find(o => o.id === orderIdFromUrl);
                         if (freshTarget) {
                             setSelectedOrder(freshTarget);
                             setHasAutoSelected(true);
@@ -69,25 +69,25 @@ export default function AdminOrdersTakeoverPage() {
 
             // Update selected order if it exists
             if (selectedOrder) {
-                const updated = DemoStore.getOrders().find(o => o.id === selectedOrder.id);
+                const updated = DataSyncService.getOrders().find(o => o.id === selectedOrder.id);
                 if (updated) setSelectedOrder(updated);
                 // Mark as read when selected
-                DemoStore.markOrderReadAsAdmin(selectedOrder.id);
+                DataSyncService.markOrderReadAsAdmin(selectedOrder.id);
             }
         };
         load();
-        window.addEventListener("demo-store-update", load);
+        window.addEventListener("sync-store-update", load);
         window.addEventListener("storage", load);
         return () => {
-            window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("sync-store-update", load);
             window.removeEventListener("storage", load);
         };
     }, [selectedOrder?.id, orderIdFromUrl, hasAutoSelected]);
 
     const handleTakeover = () => {
         if (!selectedOrder) return;
-        DemoStore.addOrderMessage(selectedOrder.id, "system", "Human agent (Superadmin) has joined the chat.");
-        DemoStore.updateOrder(selectedOrder.id, { zivaActive: false });
+        DataSyncService.addOrderMessage(selectedOrder.id, "system", "Human agent (Superadmin) has joined the chat.");
+        DataSyncService.updateOrder(selectedOrder.id, { zivaActive: false });
         showNotification({
             type: "success",
             title: "Chat Taken Over",
@@ -97,8 +97,8 @@ export default function AdminOrdersTakeoverPage() {
 
     const handleHandback = () => {
         if (!selectedOrder) return;
-        DemoStore.updateOrder(selectedOrder.id, { zivaActive: true });
-        DemoStore.addOrderMessage(selectedOrder.id, "system", "Chat has been handed back to Ziva AI.");
+        DataSyncService.updateOrder(selectedOrder.id, { zivaActive: true });
+        DataSyncService.addOrderMessage(selectedOrder.id, "system", "Chat has been handed back to Ziva AI.");
         showNotification({
             type: "info",
             title: "Handed Back",
@@ -115,7 +115,7 @@ export default function AdminOrdersTakeoverPage() {
             handleTakeover();
         }
         
-        DemoStore.addOrderMessage(selectedOrder.id, "admin", chatInput, undefined, replyingTo || undefined);
+        DataSyncService.addOrderMessage(selectedOrder.id, "admin", chatInput, undefined, replyingTo || undefined);
         setChatInput("");
         setReplyingTo(null);
     };
@@ -131,7 +131,7 @@ export default function AdminOrdersTakeoverPage() {
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64String = reader.result as string;
-            DemoStore.addOrderMessage(selectedOrder.id, "admin", "Sent an image", base64String, replyingTo || undefined);
+            DataSyncService.addOrderMessage(selectedOrder.id, "admin", "Sent an image", base64String, replyingTo || undefined);
             setReplyingTo(null);
         };
         reader.readAsDataURL(file);
@@ -174,7 +174,7 @@ export default function AdminOrdersTakeoverPage() {
                                     key={order.id}
                                     onClick={() => {
                                         setSelectedOrder(order);
-                                        DemoStore.markOrderReadAsAdmin(order.id);
+                                        DataSyncService.markOrderReadAsAdmin(order.id);
                                     }}
                                     className={`p-4 rounded-xl cursor-pointer border transition-all ${selectedOrder?.id === order.id ? "border-black shadow-md bg-gray-50" : "border-gray-100 hover:border-gray-300 hover:shadow-sm"} relative`}
                                 >

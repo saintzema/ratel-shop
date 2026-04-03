@@ -21,7 +21,7 @@ import {
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { CATEGORIES } from "@/lib/types";
 import { formatPrice, cn } from "@/lib/utils";
 import {
@@ -428,7 +428,7 @@ function SearchContent() {
     return getFiltersForCategory(detectedCategory);
   }, [detectedCategory]);
 
-  // Live products from DemoStore
+  // Live products from DataSyncService
   const [allProducts, setAllProducts] = useState<
     import("@/lib/types").Product[]
   >([]);
@@ -441,11 +441,11 @@ function SearchContent() {
   useEffect(() => {
     const refresh = () =>
       setAllProducts(
-        DemoStore.getApprovedProducts().filter((p) => p.is_active),
+        DataSyncService.getApprovedProducts().filter((p) => p.is_active),
       );
     refresh();
-    window.addEventListener("demo-store-update", refresh);
-    return () => window.removeEventListener("demo-store-update", refresh);
+    window.addEventListener("sync-store-update", refresh);
+    return () => window.removeEventListener("sync-store-update", refresh);
   }, []);
 
   // Debounced global search for the search page
@@ -717,7 +717,7 @@ function SearchContent() {
     return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
   }, [navResults, paginatedProducts, navClickedId, priceRange]);
 
-  // Products are no longer auto-saved here. They get saved to DemoStore only when a user clicks
+  // Products are no longer auto-saved here. They get saved to DataSyncService only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
 
   // History tracking logic: Shift to "Customers Also Bought" when query changes

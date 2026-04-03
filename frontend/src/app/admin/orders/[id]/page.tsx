@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { 
     ChevronLeft, 
     Package, 
@@ -38,7 +38,7 @@ export default function AdminOrderDetailPage() {
     const [loading, setLoading] = useState(true);
 
     const loadOrder = () => {
-        const found = DemoStore.getOrders().find(o => o.id === orderId);
+        const found = DataSyncService.getOrders().find(o => o.id === orderId);
         if (found) {
             setOrder(found);
         }
@@ -47,17 +47,17 @@ export default function AdminOrderDetailPage() {
 
     useEffect(() => {
         loadOrder();
-        window.addEventListener("demo-store-update", loadOrder);
+        window.addEventListener("sync-store-update", loadOrder);
         window.addEventListener("storage", loadOrder);
         return () => {
-            window.removeEventListener("demo-store-update", loadOrder);
+            window.removeEventListener("sync-store-update", loadOrder);
             window.removeEventListener("storage", loadOrder);
         };
     }, [orderId]);
 
     const handleStatusUpdate = (newStatus: string) => {
         if (!order) return;
-        DemoStore.updateOrderStatus(order.id, newStatus as any);
+        DataSyncService.updateOrderStatus(order.id, newStatus as any);
         setOrder((prev: any) => prev ? { ...prev, status: newStatus } : null);
         alert(`Order status updated to ${newStatus}`);
     };
@@ -65,10 +65,10 @@ export default function AdminOrderDetailPage() {
     const handleEscrowUpdate = (newEscrow: string) => {
         if (!order) return;
         
-        const orders = DemoStore.getOrders();
+        const orders = DataSyncService.getOrders();
         const updated = orders.map(o => o.id === order.id ? { ...o, escrow_status: newEscrow } : o);
         localStorage.setItem("fp_orders", JSON.stringify(updated));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
         
         setOrder((prev: any) => prev ? { ...prev, escrow_status: newEscrow } : null);
         alert(`Escrow status updated to ${newEscrow}`);

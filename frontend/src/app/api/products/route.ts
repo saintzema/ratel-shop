@@ -60,7 +60,7 @@ export async function GET(req: Request) {
         return NextResponse.json(mappedProducts);
     } catch (error: any) {
         console.error("Database fetch error:", error);
-        // Return empty array instead of 500 so the client falls back to DEMO_PRODUCTS
+        // Return empty array instead of 500 so the client falls back to SEED_PRODUCTS
         return NextResponse.json([], {
             status: 200,
             headers: { "X-DB-Status": "offline" }

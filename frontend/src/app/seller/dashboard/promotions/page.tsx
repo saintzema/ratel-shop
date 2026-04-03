@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { AlertCircle, TrendingUp, BarChart3, Clock, Target, CreditCard, ChevronRight, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -21,26 +21,26 @@ export default function PromotionsPage() {
 
     const loadData = () => {
         setIsLoading(true);
-        const currentId = DemoStore.getCurrentSellerId();
+        const currentId = DataSyncService.getCurrentSellerId();
         if (currentId) {
-            const sellers = DemoStore.getSellers();
+            const sellers = DataSyncService.getSellers();
             setSeller(sellers.find((s) => s.id === currentId));
-            const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
+            const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(allProducts.filter(p => p.seller_id === currentId || (seller && p.seller_id === seller.user_id)));
             
-            const promos = DemoStore.getPromotions(currentId);
+            const promos = DataSyncService.getPromotions(currentId);
             setActivePromotions(promos.filter((p: any) => p.status === "active"));
-            setAdCredits(DemoStore.getAdCredits(currentId));
+            setAdCredits(DataSyncService.getAdCredits(currentId));
         }
         setIsLoading(false);
     };
 
     useEffect(() => {
         loadData();
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
         window.addEventListener("storage", loadData);
         return () => {
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
             window.removeEventListener("storage", loadData);
         };
     }, []);
@@ -54,8 +54,8 @@ export default function PromotionsPage() {
 
     const handlePaystackSuccess = (amount: number) => {
         if (!seller) return;
-        DemoStore.updateAdCredits(seller.id, amount);
-        setAdCredits(DemoStore.getAdCredits(seller.id));
+        DataSyncService.updateAdCredits(seller.id, amount);
+        setAdCredits(DataSyncService.getAdCredits(seller.id));
         setShowTopUp(false);
         setCustomAmount("");
     };
@@ -240,7 +240,7 @@ export default function PromotionsPage() {
                                                 size="sm"
                                                 className="border-gray-200 text-gray-600 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-100 rounded-xl font-bold transition-all text-[11px] uppercase tracking-wider h-8"
                                                 onClick={() => {
-                                                    DemoStore.endPromotion(promo.id);
+                                                    DataSyncService.endPromotion(promo.id);
                                                     loadData();
                                                 }}
                                             >

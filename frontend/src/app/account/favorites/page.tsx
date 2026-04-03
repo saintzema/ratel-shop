@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Product } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useFavorites } from "@/context/FavoritesContext";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Heart, ShoppingBag, ArrowRight, Share2, Check, ChevronLeft, Home } from "lucide-react";
@@ -28,11 +28,11 @@ function FavoritesContent() {
     const [isCopied, setIsCopied] = useState(false);
 
     useEffect(() => {
-        const all = DemoStore.getProducts();
+        const all = DataSyncService.getProducts();
         setProducts(all);
 
-        const update = () => setProducts(DemoStore.getProducts());
-        window.addEventListener("demo-store-update", update);
+        const update = () => setProducts(DataSyncService.getProducts());
+        window.addEventListener("sync-store-update", update);
 
         // Mock loading a shared wishlist if shared_by exists
         if (isSharedView) {
@@ -47,7 +47,7 @@ function FavoritesContent() {
             if (sharedUserId === "u3") setSharedUserName("Emily");
         }
 
-        return () => window.removeEventListener("demo-store-update", update);
+        return () => window.removeEventListener("sync-store-update", update);
     }, [isSharedView, sharedUserId]);
 
     const activeFavoritesList = isSharedView ? sharedFavorites : favorites;

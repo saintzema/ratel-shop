@@ -9,7 +9,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 export function MobileBottomNav() {
     const pathname = usePathname();
@@ -28,7 +28,7 @@ export function MobileBottomNav() {
     useEffect(() => {
         const loadCounts = () => {
             const userId = user?.email;
-            const notifs = DemoStore.getNotifications(userId);
+            const notifs = DataSyncService.getNotifications(userId);
             setUnreadNotifs(notifs.filter(n => !n.read).length);
         };
         loadCounts();
