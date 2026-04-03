@@ -334,7 +334,7 @@ export default function SellerDashboard() {
                         Request Instant Payout
                     </Button>
                 </div>
-            </div>
+            </motion.div>
 
             {/* Dispute Alert */}
             {disputedOrders.length > 0 && (
@@ -649,7 +649,7 @@ export default function SellerDashboard() {
                     </div>
                 );
             })()}
-        </div>
+        </motion.div>
     );
 }
 

@@ -1620,35 +1620,52 @@ class DemoStoreService {
      * - Disputed orders (-5 each, capped at -20)
      * Base is 80. Range is clamped to 0–100.
      */
+    /**
+     * Re-calculate trust score based on:
+     * - Order success/delivery (+2 each, cap +30)
+     * - Average review stars (-10 to +15)
+     * - Disputed orders (-5 each, cap -20)
+     * - Negotiation Acceptance Rate (+5 for >80%, -5 for <40%)
+     * Base is 75. Range is clamped to 0–100.
+     */
     recalculateTrustScore(sellerId: string): number {
-        const BASE = 80;
+        const BASE = 75;
         const orders = this.getOrders().filter(o => o.seller_id === sellerId);
         const reviews: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.REVIEWS) || "[]");
+        const negotiations = this.getNegotiations().filter(n => n.seller_id === sellerId);
 
-        // +2 per confirmed delivery, capped at +30
+        // 1. Delivery Bonus (+2 per confirmed delivery, capped at +30)
         const confirmedOrders = orders.filter(o =>
-            o.status === "delivered" || o.escrow_status === "released"
+            o.status === "delivered" || o.escrow_status === "released" || o.status === "shipped"
         );
         const deliveryBonus = Math.min(confirmedOrders.length * 2, 30);
 
-        // Average star rating bonus: maps 1–5★ to -10 to +15
-        const sellerProducts = this.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId);
-        const sellerProductIds = new Set(sellerProducts.map(p => p.id));
-        const sellerReviews = reviews.filter((r: any) => sellerProductIds.has(r.product_id));
+        // 2. Rating Bonus (Scale: 1★ → -10, 3★ → 0, 5★ → +15)
+        const products = this.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId);
+        const productIds = new Set(products.map(p => p.id));
+        const sellerReviews = reviews.filter((r: any) => productIds.has(r.product_id));
         let ratingBonus = 0;
         if (sellerReviews.length > 0) {
             const avgRating = sellerReviews.reduce((sum: number, r: any) => sum + (r.rating || 0), 0) / sellerReviews.length;
-            // Scale: 1★ → -10, 3★ → 0, 5★ → +15
-            ratingBonus = Math.round((avgRating - 3) * 6.25);
+            ratingBonus = Math.max(-10, Math.min(15, Math.round((avgRating - 3) * 7.5)));
         }
 
-        // -5 per disputed order, capped at -20
+        // 3. Dispute Penalty (-5 per disputed order, capped at -20)
         const disputedOrders = orders.filter(o => o.escrow_status === "disputed");
         const disputePenalty = Math.min(disputedOrders.length * 5, 20);
 
-        const score = Math.max(0, Math.min(100, BASE + deliveryBonus + ratingBonus - disputePenalty));
+        // 4. Negotiation Acceptance Bonus/Penalty
+        let negotiationBonus = 0;
+        if (negotiations.length >= 5) {
+            const accepted = negotiations.filter(n => n.status === "accepted").length;
+            const acceptanceRate = (accepted / negotiations.length) * 100;
+            if (acceptanceRate >= 80) negotiationBonus = 5;
+            else if (acceptanceRate < 40) negotiationBonus = -5;
+        }
 
-        // Persist the updated score back to the seller record
+        const score = Math.max(0, Math.min(100, BASE + deliveryBonus + ratingBonus + negotiationBonus - disputePenalty));
+
+        // Persist the updated score back to the local record
         this.updateSeller(sellerId, { trust_score: score });
 
         return score;

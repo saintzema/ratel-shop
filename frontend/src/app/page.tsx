@@ -12,6 +12,7 @@ import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldChec
 import { motion } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 import { useRouter } from "next/navigation";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -448,6 +449,11 @@ function HomeContent() {
                   ))}
                 </div>
               </section>
+            )}
+
+            {/* ═══ Store Discovery Rail ═══ */}
+            {mounted && (
+              <StoreDiscoveryRail />
             )}
 
             {/* ═══ Global Recommended Products ═══ */}

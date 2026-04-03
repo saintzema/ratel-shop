@@ -47,18 +47,14 @@ export const viewport = {
   interactiveWidget: "resizes-content",
 };
 
-export default async function RootLayout({
+import { Suspense } from "react";
+import { SessionWrapper } from "@/components/auth/SessionWrapper";
+
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  let session = null;
-  try {
-      session = await getServerSession(authOptions);
-  } catch (error) {
-      console.warn("Failed to get server session (likely DB offline):", error);
-  }
-
   return (
     <html lang="en" className="light" suppressHydrationWarning>
       <head>
@@ -76,6 +72,18 @@ export default async function RootLayout({
           @keyframes fp-spin{to{transform:rotate(360deg)}}
           #fp-splash.fp-hide{opacity:0;pointer-events:none}
         `}} />
+        {/* Fail-safe: dismiss splash even if hydration hangs due to DB timeouts */}
+        <script dangerouslySetInnerHTML={{
+          __html: `
+            setTimeout(function() {
+              var s = document.getElementById("fp-splash");
+              if (s && !s.classList.contains("fp-hide")) {
+                 s.classList.add("fp-hide");
+                 setTimeout(function() { s.style.display = "none"; }, 400);
+              }
+            }, 8000);
+          `
+        }} />
       </head>
       <body
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}
@@ -92,28 +100,30 @@ export default async function RootLayout({
         <SwipeToBack />
         <ClientImageFallback />
         <PopupCloser />
-        <SessionProvider session={session}>
-          <LocationProvider>
-            <AuthProvider>
-              <CartProvider>
-                <FavoritesProvider>
-                  <MessageProvider>
-                    <NotificationProvider>
-                      {children}
-                      <ZivaChat />
-                      <DynamicPillNotification />
-                      <MessageBox />
-                    </NotificationProvider>
-                    <MobileBottomNav />
-                  </MessageProvider>
-                </FavoritesProvider>
-                <FloatingCart />
-                <PwaManager />
-                <WaitlistModal />
-              </CartProvider>
-            </AuthProvider>
-          </LocationProvider>
-        </SessionProvider>
+        <Suspense fallback={<div className="min-h-screen bg-white" />}>
+          <SessionWrapper>
+            <LocationProvider>
+              <AuthProvider>
+                <CartProvider>
+                  <FavoritesProvider>
+                    <MessageProvider>
+                      <NotificationProvider>
+                        {children}
+                        <ZivaChat />
+                        <DynamicPillNotification />
+                        <MessageBox />
+                      </NotificationProvider>
+                      <MobileBottomNav />
+                    </MessageProvider>
+                  </FavoritesProvider>
+                  <FloatingCart />
+                  <PwaManager />
+                  <WaitlistModal />
+                </CartProvider>
+              </AuthProvider>
+            </LocationProvider>
+          </SessionWrapper>
+        </Suspense>
       </body>
     </html>
   );

@@ -1479,22 +1479,37 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             ) : "Add to cart"}
                                         </div>
                                     </Button>
-                                    <Button
-                                        variant="outline"
-                                        className="w-full rounded-full border-amber-500 text-amber-600 hover:bg-amber-50 font-black py-6 text-base transition-all hover:scale-[1.02] shadow-sm"
-                                        onClick={() => setIsNegotiationOpen(true)}
-                                    >
-                                        <Handshake className="h-5 w-5 mr-2" /> Negotiate Price
-                                    </Button>
+                                    <div className="flex flex-col items-center">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full rounded-full border-amber-500 text-amber-600 hover:bg-amber-50 font-black py-6 text-base transition-all hover:scale-[1.02] shadow-sm"
+                                            onClick={() => setIsNegotiationOpen(true)}
+                                        >
+                                            <Handshake className="h-5 w-5 mr-2" /> Negotiate Price
+                                        </Button>
+                                        <p className="mt-2 text-sm font-semibold text-gray-500 flex items-center gap-1.5">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                            85% Acceptance Rate
+                                        </p>
+                                    </div>
 
                                 </div>
 
                                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-100 text-[11px] text-gray-500">
-                                    <div className="flex items-start gap-2">
+                                    <div className="flex items-center gap-3 bg-emerald-50/50 border border-emerald-100 p-3 rounded-2xl">
+                                        <div className="h-10 w-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-200 shrink-0">
+                                            <ShieldCheck className="h-6 w-6 text-white" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest">Verified Seller Trust</p>
+                                            <p className="text-sm font-bold text-emerald-900">{seller?.trust_score || 85}% Reliability Score</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-start gap-2 px-1">
                                         <Truck className="h-4 w-4 shrink-0 text-gray-400" />
                                         <p>Estimated delivery: <span className="font-bold text-gray-700">{deliveryDates.start} – {deliveryDates.end}</span> to <span className="font-bold text-emerald-600 underline decoration-dashed cursor-pointer hover:text-emerald-700">{location}</span></p>
                                     </div>
-                                    <div className="flex items-start gap-2">
+                                    <div className="flex items-start gap-2 px-1">
                                         <ShieldCheck className="h-4 w-4 shrink-0 text-gray-400" />
                                         <p>Safe payments & Secure logistics. Protected by <span className="font-bold text-gray-700">FairPrice Escrow</span>.</p>
                                     </div>

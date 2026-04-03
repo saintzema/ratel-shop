@@ -18,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 
 import { DemoStore } from "@/lib/demo-store";
 import { CATEGORIES } from "@/lib/types";
@@ -1100,26 +1102,14 @@ function SearchContent() {
                   </div>
                 ))}
 
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {customersAlsoBought
-                    .slice(0, customersAlsoBoughtCount)
-                    .map((product: any) => (
-                      <SearchGridCard
-                        key={`recommended-${product.id}`}
-                        product={product}
-                      />
-                    ))}
+                {/* Phase 5: High-Fidelity Discovery & Personalization */}
+                <div className="mt-12 space-y-12">
+                   <StoreDiscoveryRail />
+                   <RecommendedProducts 
+                      title="Recommended For You" 
+                      products={allProducts} 
+                   />
                 </div>
-                {customersAlsoBoughtCount < customersAlsoBought.length && (
-                  <div className="flex justify-center mt-8 mb-8">
-                    <button
-                      onClick={() => setCustomersAlsoBoughtCount(c => c + 12)}
-                      className="px-8 py-3 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm flex items-center gap-2"
-                    >
-                      <ChevronDown className="h-4 w-4" /> View More
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 

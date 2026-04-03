@@ -162,6 +162,17 @@ export const SearchGridCard = ({
           </span>
         </div>
 
+        {/* Phase 5: Compact Trust & Negotiation Indicators */}
+        <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Trust Score: 85%">
+                <ShieldCheck className="h-2.5 w-2.5 text-emerald-600" />
+                <span className="text-[9px] font-bold text-emerald-700">85%</span>
+            </div>
+            <div className="text-[9px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md">
+                80% Accept
+            </div>
+        </div>
+
         <div className="flex items-baseline gap-2 mb-4 flex-wrap">
           <p className="text-2xl font-black tracking-tight text-gray-900">
             ₦{(product.price || product.approxPrice || 0).toLocaleString()}

@@ -23,10 +23,10 @@ const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefi
 function createPrismaClient() {
     // Current Local Postgres Configuration
     const pool = new Pool({ 
-        connectionString: process.env.DATABASE_URL,
-        max: 10, // Optimized for local dev with memory constraints
+        connectionString: process.env.DATABASE_URL + (process.env.DATABASE_URL?.includes('?') ? '&' : '?') + 'statement_timeout=15000', // 15s hard query timeout
+        max: 10,
         idleTimeoutMillis: 30000, 
-        connectionTimeoutMillis: 10000, // 10s fallback for slow context switching
+        connectionTimeoutMillis: 30000,
     });
 
     pool.on('error', (err) => {

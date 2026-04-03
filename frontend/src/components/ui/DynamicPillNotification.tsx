@@ -404,7 +404,6 @@ export function DynamicPillNotification() {
                         </AnimatePresence>
                     </motion.div>
                 </div>
-                </div>
             )}
         </AnimatePresence>
     );

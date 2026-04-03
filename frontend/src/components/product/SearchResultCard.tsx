@@ -173,8 +173,20 @@ export function SearchResultCard({
                         {product.name}
                     </h2>
                 </Link>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-3 text-xs text-gray-500 mb-1">
                     <span>by <span className="text-blue-600 hover:underline cursor-pointer font-medium">{product.seller_name}</span></span>
+                    
+                    {/* Phase 5: Trust Shield & Acceptance Rate */}
+                    <div className="flex items-center gap-1.5 ml-1">
+                        <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full" title={`Trust Score: ${seller?.trust_score || 80}%`}>
+                           <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                           <span className="text-[10px] font-bold text-emerald-700">{seller?.trust_score || 80}%</span>
+                        </div>
+                        <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                            85% Acceptance
+                        </span>
+                    </div>
+
                     {seller?.verified && (
                         <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
                     )}

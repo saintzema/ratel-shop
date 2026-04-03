@@ -89,9 +89,9 @@ export default function UnifiedAuthPage() {
     const passwordsMatch = password.length > 0 && password === confirmPassword;
 
     const bgImages = [
-        "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=988&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000&auto=format&fit=crop"
+        "https://images.unsplash.com/photo-1611432579402-7037e3e2c1e4?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8QkxBQ0slMjBXT01BTnxlbnwwfHwwfHx8MA%3D%3D",
+        "https://images.unsplash.com/photo-1614890085618-0e1054da74f8?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8QkxBQ0slMjBNQU58ZW58MHx8MHx8fDA%3D",
+        "https://images.unsplash.com/photo-1589156191108-c762ff4b96ab?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8N3x8QkxBQ0slMjBXT01BTnxlbnwwfHwwfHx8MA%3D%3D"
     ];
 
     const testimonials = [
@@ -102,7 +102,7 @@ export default function UnifiedAuthPage() {
         },
         {
             quote: "FairPrice has scaled my business by connecting me with buyers I never could have reached otherwise.",
-            author: "Chidi - Onitsha Market",
+            author: "Chinedu - Onitsha Market",
             role: "Verified Seller"
         },
         {
@@ -111,6 +111,14 @@ export default function UnifiedAuthPage() {
             role: "Premium Seller"
         }
     ];
+
+    // Preload background images
+    useEffect(() => {
+        bgImages.forEach(src => {
+            const img = new Image();
+            img.src = src;
+        });
+    }, []);
 
     const [currentBg, setCurrentBg] = useState(0);
 
