@@ -359,10 +359,25 @@ export default function UniversalMessagesPage() {
         }
     }, [conversations, selectedId]);
 
-    // Auto-select conversation from ?order= URL (concierge, dispute, or order thread)
+    // Auto-select conversation from ?order= or ?negotiation= URL
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const orderFromUrl = params.get('order');
+        const negotiationFromUrl = params.get('negotiation');
+
+        if (negotiationFromUrl && !selectedId && conversations.length > 0) {
+            // Find the neg-group that contains this specific negotiation ID
+            const thread = conversations.find(c => 
+                c.type === 'negotiation' && 
+                c.negotiations?.some(n => n.id === negotiationFromUrl)
+            );
+            if (thread) {
+                setSelectedId(thread.id);
+                setFilter('negotiation');
+                return;
+            }
+        }
+
         if (orderFromUrl && !selectedId && conversations.length > 0) {
             // Try concierge first, then dispute/order thread
             const thread = conversations.find(c =>

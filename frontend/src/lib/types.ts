@@ -57,6 +57,7 @@ export interface Seller {
     account_number?: string;
     account_name?: string;
     store_url?: string;
+    slug?: string;
     location?: string;
     street_address?: string;
     city?: string;
@@ -113,7 +114,7 @@ export interface Order {
     delivery_method?: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
     tracking_id?: string;
-    payout_status?: "pending_payout" | "cashed_out" | "none";
+    payout_status?: "pending_payout" | "cashed_out" | "paid" | "none";
     carrier?: string;
     tracking_steps?: {
         status: string;

@@ -695,7 +695,7 @@ function ScrollerProductCard({ product }: { product: any }) {
           )}
         </div>
         <div className="flex flex-col flex-1 pb-1 pt-1.5">
-          <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6 mb-1 min-h-[40px]">
+          <p className="text-sm text-gray-900 line-clamp-2 font-bold leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6 mb-1 min-h-[40px]">
             {product.name}
           </p>
 

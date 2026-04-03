@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { DEMO_SELLER_STATS } from "@/lib/data";
 import { NegotiationRequest, Order, Product, Seller } from "@/lib/types";
 import { DemoStore } from "@/lib/demo-store";
@@ -270,10 +271,10 @@ export default function SellerDashboard() {
                     </div>
                     <div className="text-right">
                         <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-1">Available to Cashout</p>
-                        <p className="text-2xl font-black text-emerald-600 flex items-center justify-end gap-1.5">
+                        <div className="text-2xl font-black text-emerald-600 flex items-center justify-end gap-1.5">
                             {formatPrice(availableBalance)}
                             <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-                        </p>
+                        </div>
                     </div>
                 </div>
 

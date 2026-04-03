@@ -60,14 +60,16 @@ export default function RootLayout({
       <head>
         <meta name="google-site-verification" content="_BT79N3Ti1Smba1864DQYGqrtDIwFamIygQqu6R9Xxc" />
         <link rel="preload" href="/logo.png" as="image" />
+        <link rel="preload" href="https://images.unsplash.com/photo-1611432579402-7037e3e2c1e4?w=900&auto=format&fit=crop&q=60" as="image" />
         {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
         <style dangerouslySetInnerHTML={{
           __html: `
           #fp-splash{position:fixed;top:0;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
           body { background-color: #ffffff; }
           #fp-splash img{width:80px;height:80px;border-radius:20px;margin-bottom:16px;animation:fp-pulse 2s ease-in-out infinite}
-          #fp-splash .fp-name{color:#fff;font-size:16px;font-weight:600;letter-spacing:1px;opacity:.9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
-          #fp-splash .fp-spin{margin-top:24px;width:32px;height:32px;border-radius:50%;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;animation:fp-spin .8s linear infinite}
+          #fp-splash .fp-name{color:#FFD700;font-size:24px;font-weight:900;letter-spacing:-0.02em;margin-top:16px;font-family:system-ui,-apple-system,sans-serif}
+          #fp-splash .fp-tagline{color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;font-family:system-ui,-apple-system,sans-serif;text-align:center;max-width:280px}
+          #fp-splash .fp-spin{margin-top:32px;width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.15);border-top-color:#FFD700;animation:fp-spin .8s linear infinite}
           @keyframes fp-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(.97)}}
           @keyframes fp-spin{to{transform:rotate(360deg)}}
           #fp-splash.fp-hide{opacity:0;pointer-events:none}
@@ -91,8 +93,9 @@ export default function RootLayout({
       >
         {/* ─── Branded Splash (raw HTML — renders before React/JS) ─── */}
         <div id="fp-splash" suppressHydrationWarning>
-          <img src="/logo.png" alt="FairPrice" width={80} height={80} fetchPriority="high" decoding="sync" />
+          <img src="/logo.png" alt="FairPrice" width={100} height={100} fetchPriority="high" decoding="sync" />
           <p className="fp-name">FairPrice</p>
+          <p className="fp-tagline">VERIFY REAL MARKET PRICES | NEGOTIATE BEST DEALS</p>
           <div className="fp-spin" />
         </div>
         <SplashDismiss />

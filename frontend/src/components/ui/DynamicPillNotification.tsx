@@ -22,17 +22,17 @@ export function DynamicPillNotification() {
     const [expanded, setExpanded] = useState(false);
     const [longPressActive, setLongPressActive] = useState(false);
     
-    // Track last notified ID to avoid duplicate "dings" and "haptics" from sync loops
-    const lastNotifiedId = useRef<string | null>(null);
-    const lastNotifiedTime = useRef<number>(0);
+    // Using a Ref to store notified IDs with their last-seen timestamp
+    const notifiedHistory = useRef<Map<string, number>>(new Map());
 
     const [customNotification, setCustomNotification] = useState<{
         id: string;
         text: string;
         isNegotiation: boolean;
+        isSellerAction: boolean;
         hasImage: boolean;
         imageUrl?: string;
-        negotiation?: { productId: string; counterPrice: number; productName: string };
+        negotiation?: { id: string; productId: string; proposedPrice: number; productName: string };
         route: string;
     } | null>(null);
 
@@ -44,29 +44,39 @@ export function DynamicPillNotification() {
             
             if (sellerId) {
                 const negs = DemoStore.getNegotiations(sellerId);
-                // Widen window to 12s for reliable detection across background syncs
                 const recentNeg = negs.find((n: NegotiationRequest) => {
                     const updatedAt = new Date((n as any).updated_at || n.created_at).getTime();
                     const ageMs = Date.now() - updatedAt;
                     
-                    // If it's a buyer counter-offer (status 'pending' and no counter fields), notify seller
                     const isNewOffer = n.status === "pending" && !n.counter_status && !n.counter_price;
+                    const notifyKey = `seller_${n.id}_${n.proposed_price}`;
+                    const lastTime = notifiedHistory.current.get(notifyKey) || 0;
+
+                    const isRecent = ageMs < 12000;
+                    const isNewToUs = Date.now() - lastTime > 15000; // 15s window
                     
-                    return ageMs < 12000 && isNewOffer && n.seller_id === sellerId && (n.id + "_" + n.proposed_price) !== lastNotifiedId.current;
+                    return isRecent && isNewOffer && n.seller_id === sellerId && isNewToUs;
                 });
 
                 if (recentNeg) {
                     const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentNeg.product_id);
-                    lastNotifiedId.current = recentNeg.id;
-                    lastNotifiedTime.current = Date.now();
+                    const notifyKey = `seller_${recentNeg.id}_${recentNeg.proposed_price}`;
+                    notifiedHistory.current.set(notifyKey, Date.now());
                     
                     setCustomNotification({
                         id: recentNeg.id,
                         text: `New offer of ₦${recentNeg.proposed_price.toLocaleString()} for ${product?.name || 'Product'}`,
-                        isNegotiation: false,
+                        isNegotiation: true,
+                        isSellerAction: true,
                         hasImage: !!product?.image_url,
                         imageUrl: product?.image_url,
-                        route: "/seller/dashboard/messages?customer=" + (recentNeg.customer_id || "") + "&order=" + recentNeg.id
+                        negotiation: {
+                            id: recentNeg.id,
+                            productId: recentNeg.product_id,
+                            proposedPrice: recentNeg.proposed_price,
+                            productName: product?.name || "Product"
+                        },
+                        route: "/seller/dashboard/messages?negotiation=" + recentNeg.id
                     });
                     return;
                 }
@@ -80,12 +90,16 @@ export function DynamicPillNotification() {
                     if (ageMs > 12000) return false;
                     
                     const isSignificantChange = (n.status === "accepted" || n.status === "rejected" || (n as any).counter_status === "pending");
-                    return isSignificantChange && n.customer_id === currentUser.id && n.id + "_" + n.status + "_" + (n as any).counter_status !== lastNotifiedId.current;
+                    const notifyKey = `buyer_${n.id}_${n.status}_${(n as any).counter_status}`;
+                    const lastTime = notifiedHistory.current.get(notifyKey) || 0;
+
+                    return isSignificantChange && n.customer_id === currentUser.id && (Date.now() - lastTime > 15000);
                 });
 
                 if (recentBuyerNeg) {
                     const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === recentBuyerNeg.product_id);
-                    lastNotifiedId.current = recentBuyerNeg.id + "_" + recentBuyerNeg.status + "_" + (recentBuyerNeg as any).counter_status;
+                    const notifyKey = `buyer_${recentBuyerNeg.id}_${recentBuyerNeg.status}_${(recentBuyerNeg as any).counter_status}`;
+                    notifiedHistory.current.set(notifyKey, Date.now());
                     triggerBuyerNotification(recentBuyerNeg, product);
                 }
             }
@@ -106,12 +120,19 @@ export function DynamicPillNotification() {
             else if (currentSellerId && neg.seller_id === currentSellerId && neg.status === 'pending' && !neg.counter_status) {
                 const product = DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === neg.product_id);
                 setCustomNotification({
-                    id: neg.id + "_" + neg.proposed_price, // Use price-specific ID for deduplication
+                    id: neg.id + "_" + neg.proposed_price, 
                     text: `Buyer counter-offered ₦${neg.proposed_price.toLocaleString()} for ${product?.name || 'Product'}`,
-                    isNegotiation: false,
+                    isNegotiation: true,
+                    isSellerAction: true,
                     hasImage: !!product?.image_url,
                     imageUrl: product?.image_url,
-                    route: "/seller/dashboard/messages?customer=" + (neg.customer_id || "") + "&order=" + neg.id
+                    negotiation: {
+                        id: neg.id,
+                        productId: neg.product_id,
+                        proposedPrice: neg.proposed_price,
+                        productName: product?.name || "Product"
+                    },
+                    route: "/seller/dashboard/messages?negotiation=" + neg.id
                 });
             }
         };
@@ -124,11 +145,13 @@ export function DynamicPillNotification() {
                     id: neg.id,
                     text: `Seller counter-offered ₦${neg.counter_price.toLocaleString()} for ${product?.name || 'Product'}`,
                     isNegotiation: true,
+                    isSellerAction: false,
                     hasImage: !!product?.image_url,
                     imageUrl: product?.image_url,
                     negotiation: {
+                        id: neg.id,
                         productId: neg.product_id,
-                        counterPrice: neg.counter_price,
+                        proposedPrice: neg.counter_price,
                         productName: product?.name || "Product"
                     },
                     route: "/account/negotiations"
@@ -140,6 +163,7 @@ export function DynamicPillNotification() {
                         ? `🎉 Your offer for "${product?.name || 'Product'}" was ACCEPTED!`
                         : `Your offer for "${product?.name || 'Product'}" was declined.`,
                     isNegotiation: false,
+                    isSellerAction: false,
                     hasImage: !!product?.image_url,
                     imageUrl: product?.image_url,
                     route: "/account/negotiations"
@@ -165,15 +189,14 @@ export function DynamicPillNotification() {
             playDingSound();
             try { (window as any).nativeBridge?.hapticFeedback?.("heavy"); } catch {}
 
-            const isNego = pendingNotification ? !!pendingNotification.negotiation : customNotification ? customNotification.isNegotiation : false;
+            const isNego = pendingNotification ? !!pendingNotification.negotiation : (customNotification ? customNotification.isNegotiation : false);
             
-            // Record to permanent history
             if (activeNotif.id) {
                 showNotification({
                     type: isNego ? "ziva" : "info",
                     title: isNego ? "Price Update" : "FairPrice.ng",
                     message: activeNotif.text,
-                    duration: 0 // History only, no duplicate toast
+                    duration: 0 
                 });
             }
 
@@ -188,7 +211,7 @@ export function DynamicPillNotification() {
                     dismissNotification();
                     setCustomNotification(null);
                 }, 500);
-            }, 10000); // 10s visibility
+            }, 10000); 
             return () => clearTimeout(timer);
         } else {
             setVisible(false);
@@ -198,7 +221,8 @@ export function DynamicPillNotification() {
 
     if (!pendingNotification && !customNotification) return null;
 
-    const isNegotiation = pendingNotification ? !!pendingNotification.negotiation : customNotification?.isNegotiation || false;
+    const isNegotiation = pendingNotification ? !!pendingNotification.negotiation : (customNotification?.isNegotiation || false);
+    const isSellerAction = customNotification?.isSellerAction || false;
     const imageUrl = pendingNotification?.imageUrl || customNotification?.imageUrl;
     const currentNegotiation = pendingNotification?.negotiation || customNotification?.negotiation;
 
@@ -206,26 +230,42 @@ export function DynamicPillNotification() {
         e.stopPropagation();
         const neg = currentNegotiation;
         if (neg) {
-            const product = DemoStore.getProducts().find(p => p.id === neg.productId);
-            if (product) {
-                addToCart({ ...product, price: neg.counterPrice || 0 });
+            const negId = (neg as any).id;
+            if (isSellerAction && negId) {
+                DemoStore.updateNegotiationStatus(negId, "accepted");
+                window.dispatchEvent(new Event("storage"));
+                setVisible(false);
+                dismissNotification();
+                setCustomNotification(null);
+                router.push('/seller/dashboard/messages?negotiation=' + negId);
+            } else {
+                const product = DemoStore.getProducts().find(p => p.id === neg.productId);
+                if (product) {
+                    addToCart({ ...product, price: (neg as any).proposedPrice || (neg as any).counterPrice || 0 });
+                }
+                setVisible(false);
+                dismissNotification();
+                router.push('/checkout');
             }
-            setVisible(false);
-            dismissNotification();
-            router.push('/checkout');
         }
     };
 
     const handleRenegotiate = (e: React.MouseEvent) => {
         e.stopPropagation();
         const neg = currentNegotiation;
-        if (pendingConversationId) {
+        const negId = (neg as any)?.id;
+        
+        if (isSellerAction && negId) {
+            router.push('/seller/dashboard/messages?negotiation=' + negId);
+        } else if (pendingConversationId) {
             openMessageBox(pendingConversationId);
         } else if (neg?.productId) {
             openMessageBox(`neg_${neg.productId}`);
         }
+        
         setVisible(false);
         dismissNotification();
+        setCustomNotification(null);
     };
 
     const handlePillClick = () => {
@@ -344,7 +384,7 @@ export function DynamicPillNotification() {
                                     </span>
                                     {expanded && (
                                         <button 
-                                            onClick={(e) => { e.stopPropagation(); setVisible(false); try { (window as any).nativeBridge?.hapticFeedback?.("light"); } catch {} }}
+                                            onClick={(e) => { e.stopPropagation(); setVisible(false); dismissNotification(); setCustomNotification(null); try { (window as any).nativeBridge?.hapticFeedback?.("light"); } catch {} }}
                                             className="p-1 px-3 -mr-1 bg-zinc-100 hover:bg-zinc-200 rounded-full text-zinc-500 hover:text-zinc-900 transition-all text-[10px] font-bold uppercase tracking-wider"
                                         >
                                             Dismiss
@@ -377,7 +417,9 @@ export function DynamicPillNotification() {
                                         className="w-full h-14 rounded-[22px] bg-emerald-600 text-white text-[15px] font-black transition-all active:scale-[0.97] hover:bg-emerald-700 flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-100 border border-emerald-500/10"
                                     >
                                         {isNegotiation ? <ShoppingCart className="h-5 w-5" /> : null}
-                                        {isNegotiation ? "Accept & Checkout" : "View Details"}
+                                        {isNegotiation 
+                                            ? (isSellerAction ? `Accept ₦${(currentNegotiation as any).proposedPrice?.toLocaleString()}` : "Accept & Checkout") 
+                                            : "View Details"}
                                     </button>
                                     
                                     {isNegotiation && (
@@ -386,7 +428,7 @@ export function DynamicPillNotification() {
                                             className="w-full h-14 rounded-[22px] bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-[15px] font-bold transition-all active:scale-[0.97] flex items-center justify-center gap-2.5 border border-zinc-200"
                                         >
                                             <MessageSquare className="h-5 w-5" />
-                                            Reply with Counter
+                                            {isSellerAction ? "Reply / Counter" : "Reply with Counter"}
                                         </button>
                                     )}
 

@@ -104,7 +104,7 @@ export default function NotificationCenter() {
                                                 <h3 className="text-[15px] font-black text-zinc-900 leading-tight truncate">{notif.title}</h3>
                                                 <span className="text-[10px] font-bold text-zinc-400 flex items-center gap-1 shrink-0 ml-2">
                                                     <Clock className="h-3 w-3" />
-                                                    {formatDistanceToNow(notif.timestamp)} ago
+                                                    {formatDistanceToNow(new Date(notif.timestamp))} ago
                                                 </span>
                                             </div>
                                             <p className="text-sm text-zinc-500 font-medium leading-relaxed mb-3 line-clamp-2">

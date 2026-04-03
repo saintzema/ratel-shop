@@ -29,13 +29,38 @@ export function RecommendedProducts({
     const { addToCart } = useCart();
     const router = useRouter();
 
-    // Robust deduplication of incoming products by ID
     const uniqueSourceProducts = useMemo(() => {
         const map = new Map();
         products.forEach(p => {
             if (p && p.id && !map.has(p.id)) map.set(p.id, p);
         });
-        return Array.from(map.values());
+        const baseProducts = Array.from(map.values());
+
+        // Personalization Logic: Boost products from categories the user explores often
+        if (typeof window !== "undefined") {
+            try {
+                const historyStr = localStorage.getItem("fp_browsing_history");
+                if (historyStr) {
+                    const history = JSON.parse(historyStr);
+                    const catScores: Record<string, number> = {};
+                    history.forEach((item: any) => {
+                        if (item.category) {
+                            catScores[item.category] = (catScores[item.category] || 0) + 1;
+                        }
+                    });
+
+                    return [...baseProducts].sort((a, b) => {
+                        const scoreA = catScores[a.category || ""] || 0;
+                        const scoreB = catScores[b.category || ""] || 0;
+                        if (scoreA !== scoreB) return scoreB - scoreA;
+                        return 0; // Maintain original order if scores equal
+                    });
+                }
+            } catch (e) {
+                console.warn("Failed to personalize recommendations", e);
+            }
+        }
+        return baseProducts;
     }, [products]);
 
     // Reset state when the product source changes (e.g. navigating to a different PDP)
@@ -156,7 +181,7 @@ export function RecommendedProducts({
 
                         {/* Product Details */}
                         <div className="p-2.5 flex-1 flex flex-col w-full text-left">
-                            <h3 className="text-[12px] sm:text-[13px] font-semibold text-gray-900 leading-[1.3] line-clamp-2 mb-1 group-hover:text-emerald-700 transition-colors">
+                            <h3 className="text-[12px] sm:text-[13px] font-bold text-gray-900 leading-[1.3] line-clamp-2 mb-1 group-hover:text-emerald-700 transition-colors">
                                 {product.name}
                             </h3>
 
