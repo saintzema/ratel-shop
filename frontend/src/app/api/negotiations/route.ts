@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const { id, status, counterPrice, counterMessage, counterStatus, chatMessages } = body;
+        const { id, status, counterPrice, counterMessage, counterStatus, chatMessages, proposedPrice } = body;
 
         if (!id) {
             return NextResponse.json({ success: false, error: "Negotiation ID required" }, { status: 400 });
@@ -134,6 +134,7 @@ export async function PATCH(request: Request) {
 
         const updateData: any = {};
         if (status) updateData.status = status;
+        if (proposedPrice !== undefined) updateData.proposedPrice = proposedPrice;
         if (counterPrice !== undefined) updateData.counterPrice = counterPrice;
         if (counterMessage !== undefined) updateData.counterMessage = counterMessage;
         if (counterStatus !== undefined) updateData.counterStatus = counterStatus;
@@ -162,6 +163,10 @@ export async function PATCH(request: Request) {
             if (status === "countered") notifMessage = `🤝 Counter-offer received for ${updated.product?.name}: ₦${counterPrice?.toLocaleString()}`;
             else if (status === "accepted") notifMessage = `🎉 Offer accepted for ${updated.product?.name}!`;
             else if (status === "rejected") notifMessage = `❌ Offer declined for ${updated.product?.name}.`;
+            else if (status === "pending" && proposedPrice && counterPrice === null) {
+                // Buyer sent a counter-counter offer
+                notifMessage = `💰 Buyer counter-offered ₦${proposedPrice.toLocaleString()} for ${updated.product?.name}`;
+            }
             else if (lastMsg) notifMessage = `💬 New message regarding ${updated.product?.name}: "${lastMsg.text?.substring(0, 50)}..."`;
 
             if (notifMessage) {

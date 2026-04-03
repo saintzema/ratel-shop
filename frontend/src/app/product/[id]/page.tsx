@@ -152,7 +152,9 @@ export default function ProductDetailPage() {
 
     // Use DemoStore for live product data (includes seller-added products)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    const allProducts = DemoStore.getProducts(); // re-reads on storeVersion change
+    // ID-based unique product list to prevent duplicate cards
+    const rawProducts = DemoStore.getProducts(); 
+    const allProducts = Array.from(new Map(rawProducts.map(p => [p.id, p])).values());
     const allSellers = DemoStore.getSellers();
 
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
@@ -251,9 +253,15 @@ export default function ProductDetailPage() {
                 // Smart generic fallback — extracts key details from the product name itself
                 {
                     const words = n.split(/\s+/).filter(w => w.length > 2);
-                    const productType = words.slice(-Math.min(3, words.length)).join(' ');
-                    const descriptors = words.slice(0, Math.max(words.length - 3, 0)).join(' ');
-                    return `Get the ${n} — designed to deliver exactly what you need. ${descriptors ? `The ${descriptors} design ensures` : 'This product ensures'} reliable performance and lasting durability for everyday use.\n\nWhat makes this stand out:\n• Specifically engineered as a ${productType.toLowerCase()} for optimal results\n• Built with quality materials for long-term reliability\n• Practical, user-friendly design that works straight out of the box\n• Compact and well-packaged for safe delivery\n\nBacked by FairPrice's buyer protection guarantee and secure escrow payment, you can purchase with complete confidence. Tracked delivery keeps you updated until it arrives at your doorstep.`;
+                    const productType = words.slice(-Math.min(3, words.length)).join(' ') || "product";
+                    
+                    return `The ${n} is a premium ${productType.toLowerCase()} designed to elevate your everyday experience. Built with high-quality materials and thoughtful craftsmanship, it offers exceptional reliability and longevity. Its intuitive design makes it incredibly easy to use, while its robust construction ensures dependable performance for daily use across Nigeria. The ${productType.toLowerCase()} incorporates strict quality standards, providing complete satisfaction and peace of mind for buyers.
+
+This item boasts excellent utility, delivering outstanding results and a smooth, seamless experience. It provides substantial value, allowing for consistent use without compromising on quality. Featuring a highly practical configuration, it effortlessly adapts to your needs. The carefully optimized design is tailored specifically for its category, ensuring it meets all your expectations effortlessly.
+
+The ${n} is perfect for discerning individuals, households, and anyone looking for a high-quality, efficient solution. It’s ideal for upgrading your daily routine, enhancing productivity, and making life more convenient. Its versatile form-factor makes it highly adaptable, while its efficient design saves time and reduces effort. This product is also an excellent choice for families or businesses needing a dependable essential for daily tasks.
+
+Inside your package, you'll find the ${n} along with standard manufacturer inclusions for immediate setup. The ${productType.toLowerCase()} represents exceptional value, offering impressive durability, everyday practicality, and a host of premium benefits at a competitive price point, making it a smart and sustainable choice for buyers on FairPrice.`;
                 }
             };
 
@@ -421,19 +429,27 @@ export default function ProductDetailPage() {
                 if (/projector/.test(nl)) return `Transform any room into a cinema with the ${n}. Delivers bright, crisp visuals with full HD support, built-in speakers, and multiple connectivity options including HDMI, USB, and Wi-Fi. Portable design perfect for movie nights, presentations, and gaming.`;
                 if (/power.*bank|charger|cable|adapter/.test(nl)) return `Stay powered up with the ${n}. Fast-charging technology ensures your devices are ready when you need them. Compact, portable design with intelligent safety circuitry to protect your devices from overcharging.`;
                 if (/nail|press.*on|manicure|pedicure/.test(nl)) return `Get salon-quality nails at home with the ${n}. Premium designs with easy application and long-lasting wear. No salon appointment needed — achieve beautiful, Instagram-worthy nails in minutes.`;
-                return `Discover the ${n} — carefully selected for exceptional quality and outstanding value. Built with premium materials and meticulous attention to detail. Every unit undergoes rigorous quality inspection to ensure reliability and long-lasting performance. Protected by FairPrice buyer guarantee and secure escrow payment.`;
+                const words = n.split(/\s+/).filter(w => w.length > 2);
+                const productType = words.slice(-Math.min(3, words.length)).join(' ') || "product";
+                
+                return `The ${n} is a premium ${productType.toLowerCase()} designed to elevate your everyday experience. Built with high-quality materials and thoughtful craftsmanship, it offers exceptional reliability and longevity. Its intuitive design makes it incredibly easy to use, while its robust construction ensures dependable performance for daily use across Nigeria. The ${productType.toLowerCase()} incorporates strict quality standards, providing complete satisfaction and peace of mind for buyers.
+
+This item boasts excellent utility, delivering outstanding results and a smooth, seamless experience. It provides substantial value, allowing for consistent use without compromising on quality. Featuring a highly practical configuration, it effortlessly adapts to your needs. The carefully optimized design is tailored specifically for its category, ensuring it meets all your expectations effortlessly.
+
+The ${n} is perfect for discerning individuals, households, and anyone looking for a high-quality, efficient solution. It’s ideal for upgrading your daily routine, enhancing productivity, and making life more convenient. Its versatile form-factor makes it highly adaptable, while its efficient design saves time and reduces effort. This product is also an excellent choice for families or businesses needing a dependable essential for daily tasks.
+
+Inside your package, you'll find the ${n} along with standard manufacturer inclusions for immediate setup. The ${productType.toLowerCase()} represents exceptional value, offering impressive durability, everyday practicality, and a host of premium benefits at a competitive price point, making it a smart and sustainable choice for buyers on FairPrice.`;
             };
             (product as any).description = generateEnhancedDescription(product.name);
         }
     }
-    // Define 'Customers Also Bought' exactly like search results (popular products across entire catalog, excluding self)
-    const alsoBoughtProducts = allProducts
-        .filter((p) => p.id !== product?.id)
-        .sort((a, b) => b.sold_count - a.sold_count);
     const similarProducts = allProducts
         .filter((p) => p.category === product?.category && p.id !== product?.id)
-        .sort((a, b) => b.sold_count - a.sold_count)
-        .slice(0, 15);
+        .sort((a, b) => b.sold_count - a.sold_count);
+
+    const alsoBoughtProducts = allProducts
+        .filter((p) => p.id !== product?.id && !similarProducts.some(s => s.id === p.id))
+        .sort((a, b) => b.sold_count - a.sold_count);
 
     // Fetch Real Reviews from DemoStore
     const realReviews = DemoStore.getReviews(product?.id);
@@ -667,8 +683,13 @@ export default function ProductDetailPage() {
     const [zivaInput, setZivaInput] = useState("");
     const zivaRef = useRef<HTMLDivElement>(null);
     const lastTapRef = useRef<number>(0);
+    const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const [showHeartBurst, setShowHeartBurst] = useState(false);
     const [copiedLink, setCopiedLink] = useState(false);
+    
+    // Lightbox & Swiping States
+    const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+    const [touchStartX, setTouchStartX] = useState(0);
 
     const zivaQA = product ? generateZivaAnswers(product) : [];
 
@@ -733,13 +754,14 @@ export default function ProductDetailPage() {
         router.push("/checkout");
     };
 
-    const handleDoubleTap = React.useCallback((e: React.MouseEvent) => {
+    const handleDoubleTap = React.useCallback((e: React.MouseEvent | React.TouchEvent) => {
         // Prevent event bubbling if clicking on the image container
         e.stopPropagation();
 
         const now = Date.now();
         if (now - lastTapRef.current < 400) {
             // It's a double tap
+            if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
             if (product && !isFavorite(product.id)) {
                 toggleFavorite(product.id);
             }
@@ -748,8 +770,28 @@ export default function ProductDetailPage() {
             lastTapRef.current = 0; // Reset
         } else {
             lastTapRef.current = now;
+            tapTimeoutRef.current = setTimeout(() => {
+                // If it evaluates, it's a single tap
+                setIsLightboxOpen(true);
+            }, 400);
         }
     }, [product, toggleFavorite, isFavorite]);
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        setTouchStartX(e.touches[0].clientX);
+    };
+
+    const handleTouchEnd = (e: React.TouchEvent) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const swipeThreshold = 50;
+        if (touchStartX - touchEndX > swipeThreshold) {
+            // Swipe Left -> Next Image
+            setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1);
+        } else if (touchEndX - touchStartX > swipeThreshold) {
+            // Swipe Right -> Prev Image
+            setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1);
+        }
+    };
 
     const handleSubmitReview = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -914,10 +956,11 @@ export default function ProductDetailPage() {
                                 </div>
                             )}
 
-                            {/* Main Image View */}
                             <div
                                 className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex items-center justify-center order-1 md:order-2 aspect-square md:aspect-auto"
                                 onClick={handleDoubleTap}
+                                onTouchStart={handleTouchStart}
+                                onTouchEnd={handleTouchEnd}
                             >
                                 {allImages.length > 0 ? (
                                     <img
@@ -1728,38 +1771,7 @@ export default function ProductDetailPage() {
                         icon={<Zap className="h-5 w-5 text-ratel-orange" />}
                     />
                     <div className="flex justify-center mt-2 flex-col items-center w-full">
-                        {loadedMore && (
-                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 w-full mt-4 mb-4">
-                                {Array.from({ length: visibleProductsCount }).map((_, i) => {
-                                    // Filter extra products excluding similar products to prevent adjacent duplicates
-                                    const extraProducts = allProducts.filter(p => p.id !== product?.id && !similarProducts.some(s => s.id === p.id));
-
-                                    // If extraProducts is empty, fallback to similar products, or just allProducts
-                                    const sourceProducts = extraProducts.length > 0 ? extraProducts : allProducts;
-
-                                    const item = sourceProducts[i % sourceProducts.length];
-                                    return (
-                                        <div key={`${item.id}-${i}`} className="h-full">
-                                            <SearchGridCard product={item} />
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-
-                        <Button
-                            variant="outline"
-                            className="rounded-full justify-center items-center px-8 py-4 text-sm font-bold text-gray-700 hover:text-black hover:bg-gray-50 border-gray-200 hover:border-gray-300 shadow-sm transition-all"
-                            onClick={() => {
-                                if (!loadedMore) {
-                                    setLoadedMore(true);
-                                } else {
-                                    setVisibleProductsCount(prev => prev + 8);
-                                }
-                            }}
-                        >
-                            VIEW MORE <ChevronDown className="h-4 w-4 ml-2" />
-                        </Button>
+                        {/* Manual pagination grid removed in favor of unified RecommendedProducts infinite scroll */}
                     </div>
                 </div>
 
@@ -1844,10 +1856,40 @@ export default function ProductDetailPage() {
                 </div>
             </div>
 
-            {/* Main Desktop Footer */}
             <div className="pb-[120px] md:pb-0 relative z-[1]">
                 <Footer />
             </div>
+
+            {/* Lightbox Modal */}
+            {isLightboxOpen && (
+                <div className="fixed inset-0 z-[200] bg-black text-white flex flex-col items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/90 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
+                    <button className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 transition z-50" onClick={() => setIsLightboxOpen(false)}>
+                        <span className="sr-only">Close</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    {allImages.length > 1 && (
+                        <>
+                            <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
+                                <ChevronLeft className="h-8 w-8" />
+                            </button>
+                            <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
+                                <ChevronRight className="h-8 w-8" />
+                            </button>
+                        </>
+                    )}
+                    <div 
+                        className="relative w-full max-w-5xl flex items-center justify-center select-none z-10"
+                        onTouchStart={handleTouchStart}
+                        onTouchEnd={handleTouchEnd}
+                    >
+                        <img src={allImages[currentImageIndex] as string} alt={product.name} className="w-full max-h-[85vh] object-contain transition-transform duration-300 pointer-events-none" />
+                    </div>
+                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-sm font-medium tracking-wide z-50 text-white/70 bg-black/50 px-4 py-1.5 rounded-full backdrop-blur-sm">
+                        {currentImageIndex + 1} / {allImages.length}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

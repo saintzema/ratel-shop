@@ -42,7 +42,10 @@ export async function POST(request: Request) {
         // Migrate Negotiations
         const negResult = await db.negotiationRequest.updateMany({
             where: { customerId: { in: idsToMigrate } },
-            data: { customerId: newId },
+            data: { 
+                customerId: newId,
+                customerName: email ? email.split('@')[0] : "Authenticated Buyer"
+            },
         });
         totalMigrated += negResult.count;
 
@@ -74,6 +77,27 @@ export async function POST(request: Request) {
         });
         totalMigrated += reviewResult.count;
 
+        // Migrate Support Messages
+        const supportResult = await db.supportMessage.updateMany({
+            where: { userId: { in: idsToMigrate } },
+            data: { userId: newId },
+        });
+        totalMigrated += supportResult.count;
+
+        // Migrate Disputes
+        const disputeResult = await db.dispute.updateMany({
+            where: { buyerId: { in: idsToMigrate } },
+            data: { buyerId: newId },
+        });
+        totalMigrated += disputeResult.count;
+
+        // Migrate Complaints
+        const complaintResult = await db.complaint.updateMany({
+            where: { userId: { in: idsToMigrate } },
+            data: { userId: newId },
+        });
+        totalMigrated += complaintResult.count;
+
         // Clean up duplicate user records (keep the newId one)
         for (const oldUserId of idsToMigrate) {
             if (oldUserId === "guest") continue; // Keep the guest record for future use
@@ -93,6 +117,9 @@ export async function POST(request: Request) {
                 notifications: notifResult.count,
                 addresses: addrResult.count,
                 reviews: reviewResult.count,
+                support: supportResult.count,
+                disputes: disputeResult.count,
+                complaints: complaintResult.count,
             }
         });
     } catch (error: any) {

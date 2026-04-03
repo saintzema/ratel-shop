@@ -58,12 +58,13 @@ export default function SellerSettingsPage() {
             return;
         }
         setSeller(s);
+        const storeUrl = s.store_url || s.slug || s.business_name?.toLowerCase().replace(/[^a-z0-9-]/g, '-') || s.id;
         setFormData({
-            business_name: s.business_name,
+            business_name: s.business_name || "",
             description: s.description || "",
             logo_url: s.logo_url || "",
             cover_image_url: s.cover_image_url || "",
-            store_url: s.store_url || "",
+            store_url: storeUrl,
             location: s.location || "",
             weekly_orders: s.weekly_orders || "",
             staff_count: s.staff_count || "",
@@ -179,7 +180,8 @@ export default function SellerSettingsPage() {
                                                 className="h-8 px-3 text-[10px] font-bold uppercase tracking-widest text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50"
                                                 onClick={async () => {
                                                     const { copyToClipboard } = await import("@/lib/utils");
-                                                    const success = await copyToClipboard(`${window.location.origin}/store/${formData.store_url || 'shop'}`);
+                                                    const canonicalBase = "https://fairprice.ng";
+                                                    const success = await copyToClipboard(`${canonicalBase}/store/${formData.store_url || 'shop'}`);
                                                     if (success) {
                                                         setCopied(true);
                                                         setTimeout(() => setCopied(false), 2000);
@@ -195,13 +197,13 @@ export default function SellerSettingsPage() {
                                     <>
                                         <div className="flex relative">
                                             <div className="absolute left-0 h-12 flex items-center bg-gray-100 border border-gray-200 border-r-0 rounded-l-xl px-3 text-gray-500 text-sm font-semibold pointer-events-none">
-                                                fairprice.ng/
+                                                fairprice.ng/store/
                                             </div>
                                             <Input
                                                 value={formData.store_url}
                                                 onChange={e => setFormData({ ...formData, store_url: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
                                                 placeholder="your-store-name"
-                                                className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-l-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pl-[110px]"
+                                                className="h-12 bg-gray-50 border-gray-200 rounded-xl rounded-l-none focus-visible:ring-1 focus-visible:border-brand-green-600 font-medium text-gray-900 pl-[165px]"
                                             />
                                         </div>
                                         <div className="flex items-center justify-between mt-2 gap-4">

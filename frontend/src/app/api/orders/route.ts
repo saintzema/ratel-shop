@@ -108,3 +108,32 @@ export async function POST(request: Request) {
         });
     }
 }
+// PATCH /api/orders
+// Update existing order status or payoutStatus
+export async function PATCH(request: Request) {
+    try {
+        const body = await request.json();
+        const { id, ...updates } = body;
+
+        if (!id) {
+            return NextResponse.json({ error: "Order ID is required" }, { status: 400 });
+        }
+
+        const prismaUpdates: any = {};
+        if (updates.status) prismaUpdates.status = updates.status;
+        if (updates.escrow_status) prismaUpdates.escrowStatus = updates.escrow_status;
+        if (updates.payout_status) prismaUpdates.payoutStatus = updates.payout_status;
+
+        const order = await db.order.update({
+            where: { id },
+            data: prismaUpdates,
+        });
+
+        broadcast({ type: "order_updated", id: id });
+
+        return NextResponse.json({ success: true, order });
+    } catch (error: any) {
+        console.error("Orders PATCH Error:", error);
+        return NextResponse.json({ error: "Failed to update order" }, { status: 500 });
+    }
+}

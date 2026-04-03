@@ -340,7 +340,7 @@ export default function SellerLayout({
                                 <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 border-gray-100 shadow-xl bg-white/95 backdrop-blur-xl">
                                     <DropdownMenuLabel className="font-bold text-gray-900 px-3 py-2">
                                         {currentSeller.business_name}
-                                        <div className="text-[10px] text-gray-400 font-medium uppercase tracking-widest mt-0.5" >Seller ID: {currentSeller.id}</div>
+                                        <div className="text-[11px] text-gray-500 font-medium lowercase mt-0.5" >{currentSeller.owner_email || `ID: ${currentSeller.id}`}</div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
                                     <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors">

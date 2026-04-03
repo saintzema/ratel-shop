@@ -315,6 +315,9 @@ class DemoStoreService {
 
             const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
 
+            const sellerId = this.getCurrentSeller()?.id || this.getCurrentSeller()?.user_id;
+            const ordersUrl = sellerId ? `/api/orders?sellerId=${sellerId}` : "/api/orders?all=true";
+
             const [
                 productsResult, sellersResult, searchCacheResult, ordersResult, 
                 negotiationsResult, notificationsResult, conversationsResult,
@@ -323,8 +326,8 @@ class DemoStoreService {
                 fetchProducts ? fetch(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSellers ? fetch(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSearchCache ? fetch("/api/search-cache") : mockUnfetched,
-                fetchOrders ? fetch("/api/orders?all=true") : mockUnfetched,
-                fetchNegotiations ? fetch("/api/negotiations?all=true") : mockUnfetched,
+                fetchOrders ? fetch(ordersUrl) : mockUnfetched,
+                fetchNegotiations ? fetch(`/api/negotiations?all=true`) : mockUnfetched,
                 fetchNotifications && notificationUrl ? fetch(notificationUrl) : mockUnfetched,
                 fetchConversations && user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
                 fetchDisputes ? fetch("/api/disputes?all=true") : mockUnfetched,
@@ -431,49 +434,52 @@ class DemoStoreService {
             // ── Process Orders ──
             if (ordersResult.status === "fulfilled" && ordersResult.value.ok) {
                 const ordersData = await ordersResult.value.json();
-                    const dbOrders: any[] = (ordersData.orders || ordersData || []).filter((o: any) => !String(o.id).startsWith("FP-DEMO-ORD"));
-                    const localOrders: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || '[]');
-                    const dbOrderMap = new Map(dbOrders.map((o: any) => [o.id, o]));
-                    const mergedOrders = new Map<string, any>();
-                    
-                    for (const [id, dbOrder] of dbOrderMap) {
-                        const mapped = {
-                            id: dbOrder.id,
-                            customer_id: dbOrder.customerId || dbOrder.customer_id,
-                            product_id: dbOrder.productId || dbOrder.product_id,
-                            seller_id: dbOrder.sellerId || dbOrder.seller_id,
-                            amount: dbOrder.amount,
-                            status: dbOrder.status || 'pending',
-                            escrow_status: dbOrder.escrowStatus || dbOrder.escrow_status || 'held',
-                            shipping_address: dbOrder.shippingAddress || dbOrder.shipping_address || '',
-                            created_at: dbOrder.createdAt || dbOrder.created_at || new Date().toISOString(),
-                            updated_at: dbOrder.updatedAt || dbOrder.updated_at || new Date().toISOString(),
-                            customer_name: dbOrder.customerName || dbOrder.customer_name,
-                            customer_email: dbOrder.customerEmail || dbOrder.customer_email,
-                            seller_name: dbOrder.sellerName || dbOrder.seller_name,
-                            payout_status: dbOrder.payoutStatus || dbOrder.payout_status,
-                            product: dbOrder.product ? {
-                                id: dbOrder.product.id,
-                                name: dbOrder.product.name,
-                                price: dbOrder.product.price,
-                                image_url: dbOrder.product.imageUrl || dbOrder.product.image_url,
-                                seller_id: dbOrder.product.sellerId || dbOrder.product.seller_id,
-                                category: dbOrder.product.category,
-                            } : undefined,
-                        };
-                        mergedOrders.set(id, mapped);
-                    }
-
-                    const newDataArray = Array.from(mergedOrders.values());
-                    const newDataStr = JSON.stringify(newDataArray);
-                    if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-                        localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("demo-store-update"));
-                    }
-                    // Run auto-release check after syncing orders
-                    this.runAutoReleaseWorker();
+                const dbOrders: any[] = ordersData.orders || ordersData || [];
+                const localOrders: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || '[]');
+                
+                // MERGE STRATEGY: Start with local, overlay DB updates.
+                // This prevents the "top 200" limit from deleting historical data.
+                const localMap = new Map(localOrders.map((o: any) => [o.id, o]));
+                const mergedOrders = new Map<string, any>(localMap);
+                
+                for (const dbOrder of dbOrders) {
+                    const mapped = {
+                        id: dbOrder.id,
+                        customer_id: dbOrder.customerId || dbOrder.customer_id,
+                        product_id: dbOrder.productId || dbOrder.product_id,
+                        seller_id: dbOrder.sellerId || dbOrder.seller_id,
+                        amount: dbOrder.amount,
+                        status: dbOrder.status || 'pending',
+                        escrow_status: dbOrder.escrowStatus || dbOrder.escrow_status || 'held',
+                        shipping_address: dbOrder.shippingAddress || dbOrder.shipping_address || '',
+                        created_at: dbOrder.createdAt || dbOrder.created_at || new Date().toISOString(),
+                        updated_at: dbOrder.updatedAt || dbOrder.updated_at || new Date().toISOString(),
+                        customer_name: dbOrder.customerName || dbOrder.customer_name,
+                        customer_email: dbOrder.customerEmail || dbOrder.customer_email,
+                        seller_name: dbOrder.sellerName || dbOrder.seller_name,
+                        payout_status: dbOrder.payoutStatus || dbOrder.payout_status || 'none',
+                        product: dbOrder.product ? {
+                            id: dbOrder.product.id,
+                            name: dbOrder.product.name,
+                            price: dbOrder.product.price,
+                            image_url: dbOrder.product.imageUrl || dbOrder.product.image_url,
+                            seller_id: dbOrder.product.sellerId || dbOrder.product.seller_id,
+                            category: dbOrder.product.category,
+                        } : undefined,
+                    };
+                    mergedOrders.set(dbOrder.id, mapped);
                 }
+
+                const newDataArray = Array.from(mergedOrders.values());
+                const newDataStr = JSON.stringify(newDataArray);
+                if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
+                    localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
+                    window.dispatchEvent(new Event("storage"));
+                    window.dispatchEvent(new Event("demo-store-update"));
+                }
+                // Run auto-release check after syncing orders
+                this.runAutoReleaseWorker();
+            }
             
 
             // ── Process Negotiations ──
@@ -1296,8 +1302,10 @@ class DemoStoreService {
             body: JSON.stringify({
                 id: negId,
                 status: "pending",
+                proposedPrice: newPrice,
                 counterPrice: null,
                 counterMessage: null,
+                counterStatus: null, // Ensure previous seller counter is cleared in DB
                 chatMessages: updatedNeg?.chat_messages
             })
         }).then(res => {
@@ -1495,8 +1503,31 @@ class DemoStoreService {
     }
 
     getCurrentUserId(): string | null {
+        if (typeof window === "undefined") return null;
         const user = this.getCurrentUser();
-        return user ? user.id : null;
+        if (user) return user.id;
+        
+        // Fallback to persistent guest ID
+        return this.getOrInitializeGuestId();
+    }
+
+    getOrInitializeGuestId(): string {
+        if (typeof window === "undefined") return "guest";
+        
+        let guestId = localStorage.getItem("fp_guest_id");
+        if (!guestId) {
+            // Unique ID pattern: USR_<timestamp>_<random>
+            const ts = Date.now();
+            const rnd = Math.floor(1000 + Math.random() * 9000);
+            guestId = `USR_${ts}_${rnd}`;
+            localStorage.setItem("fp_guest_id", guestId);
+            
+            // Also initialize a matching guest name if not already set
+            if (!localStorage.getItem("fp_guest_name")) {
+                localStorage.setItem("fp_guest_name", `Guest #${rnd}`);
+            }
+        }
+        return guestId;
     }
 
     logout() {
@@ -1507,6 +1538,12 @@ class DemoStoreService {
         localStorage.removeItem(this.STORAGE_KEYS.NOTIFICATIONS);
         localStorage.removeItem("fp_conversations");
         localStorage.removeItem("fp_chat_messages");
+        
+        // CRITICAL: Clear guest IDs on logout to prevent "inheritance" by the next user
+        localStorage.removeItem("fp_guest_id");
+        localStorage.removeItem("fp_guest_name");
+        localStorage.removeItem("fp-cart-guest");
+        
         window.dispatchEvent(new Event("storage"));
     }
 

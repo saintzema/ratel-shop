@@ -102,25 +102,30 @@ export default function PayoutsSettingsPage() {
     };
 
     // Payout calculations
+    const EARNINGS_ELIGIBLE_STATES = ["released", "buyer_confirmed", "auto_release_eligible"];
+
+    // Orders correctly marked as paid out
     const cashedOutOrders = orders.filter(
         (o) => o.payout_status === "cashed_out"
     );
+
+    // Orders ready, but not yet requested or currently in progress
     const pendingPayoutOrders = orders.filter(
         (o) =>
-            o.payout_status === "pending_payout" &&
-            (o.escrow_status === "buyer_confirmed" ||
-                o.escrow_status === "released" ||
-                o.escrow_status === "auto_release_eligible")
+            (o.payout_status === "pending_payout" || o.payout_status === "none" || !o.payout_status) &&
+            EARNINGS_ELIGIBLE_STATES.includes(o.escrow_status as string)
     );
     const totalCashedOut = cashedOutOrders.reduce(
         (acc, o) => acc + o.amount,
         0
     );
+
+    const commissionRate = seller?.commission_rate ?? 5;
+
     const pendingPayoutAmount = pendingPayoutOrders.reduce(
         (acc, o) => acc + o.amount,
         0
     );
-    const commissionRate = seller?.commission_rate ?? 5;
 
     const handleRequestPayout = async () => {
         if (!seller || pendingPayoutOrders.length === 0) return;
@@ -128,10 +133,21 @@ export default function PayoutsSettingsPage() {
         await new Promise((r) => setTimeout(r, 1000));
 
         // Mark pending orders as cashed out
+        const pendingIds = pendingPayoutOrders.map(o => o.id);
+        
+        // Update DB for each order
+        await Promise.all(pendingIds.map(id => 
+            fetch("/api/orders", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, payout_status: "cashed_out" })
+            })
+        )).catch(console.error);
+
+        // Update local state and trigger sync
         const allOrders: Order[] = DemoStore.getOrders();
-        const pendingIds = new Set(pendingPayoutOrders.map(o => o.id));
         const updatedOrders = allOrders.map(o =>
-            pendingIds.has(o.id) ? { ...o, payout_status: "cashed_out" as const } : o
+            pendingIds.includes(o.id) ? { ...o, payout_status: "cashed_out" as const } : o
         );
         localStorage.setItem("fp_orders", JSON.stringify(updatedOrders));
         window.dispatchEvent(new Event("demo-store-update"));

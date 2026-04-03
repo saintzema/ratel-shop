@@ -27,13 +27,13 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { PopupCloser } from "@/components/auth/PopupCloser";
 
 export const metadata: Metadata = {
-  title: "FairPrice | Premium African E-Commerce",
-  description: "Secure, reliable, and premium e-commerce platform for Africa with Escrow protection.",
+  title: "FairPrice Shop | Negotiate Best Deals",
+  description: "The official marketplace for fair trading. Verify Market Price, Negotiate, and Secure your deals with Escrow protection at FairPrice.ng.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/logo.png",
     apple: "/logo.png",
-    shortcut: "/favicon.ico",
+    shortcut: "/logo.png",
   },
 };
 

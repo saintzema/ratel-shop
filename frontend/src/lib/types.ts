@@ -113,7 +113,7 @@ export interface Order {
     delivery_method?: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
     tracking_id?: string;
-    payout_status?: "pending_payout" | "cashed_out";
+    payout_status?: "pending_payout" | "cashed_out" | "none";
     carrier?: string;
     tracking_steps?: {
         status: string;

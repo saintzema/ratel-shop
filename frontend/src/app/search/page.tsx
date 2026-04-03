@@ -466,6 +466,9 @@ function SearchContent() {
         .then((data) => {
           if (data.suggestions && Array.isArray(data.suggestions)) {
             setGlobalResults(data.suggestions);
+            if (data.suggestions.length > 0) {
+              setShowGlobalResults(true); // Auto-show the global results seamlessly
+            }
           }
         })
         .catch(() => { })
@@ -757,9 +760,9 @@ function SearchContent() {
     <div className="min-h-screen bg-white font-sans selection:bg-brand-green-200">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8 pt-24 min-h-[80vh]">
+      <main className="container mx-auto px-5 py-8 pt-24 min-h-[80vh]">
         {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
-        <div className="mb-6 w-full flex flex-col gap-3 bg-white/95 pt-3 pb-2 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-4 transition-all duration-300">
+        <div className="mb-6 w-full flex flex-col gap-3 bg-white/95 pt-12 pb-2 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-4 transition-all duration-300">
           {/* Top Row: Horizontal Scrollable Filters */}
           <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 pt-1 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
             {/* Clear All */}

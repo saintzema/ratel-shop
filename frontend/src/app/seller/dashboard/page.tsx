@@ -36,18 +36,24 @@ export default function SellerDashboard() {
     const [products, setProducts] = useState<Product[]>([]);
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
     const [cashoutSuccess, setCashoutSuccess] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const hasAttemptedCreation = useRef(false);
 
+    // Dynamic stats calculations
+    const stats = {
+        negotiationCount: negotiations.length,
+        completedNegotiations: negotiations.filter(n => n.status === "accepted").length,
+        successRate: negotiations.length > 0
+            ? Math.round((negotiations.filter(n => n.status === "accepted").length / negotiations.length) * 100)
+            : 0,
+        revenueTrend: "+14.2%" // Mock trend
+    };
+
     useEffect(() => {
-        let sellerId = DemoStore.getCurrentSellerId();
-
-        if (!sellerId) { 
-            // Give layout.tsx a moment to finish its DB sync before redirecting
-            // It might be doing a background fetch that will populate local storage.
-            return; 
-        }
-
         const loadData = () => {
+            const sellerId = DemoStore.getCurrentSellerId();
+            if (!sellerId) return;
+
             const seller = DemoStore.getCurrentSeller();
             if (seller) {
                 // Recalculate and persist dynamic trust score
@@ -69,38 +75,49 @@ export default function SellerDashboard() {
                 // deduplicate just in case 
                 const uniqueProducts = Array.from(new Map(combinedProducts.map(p => [p.id, p])).values());
                 setProducts(uniqueProducts.filter(p => p.seller_id === seller.id));
+
+                // Onboarding Verification Notification Logic
+                if (seller.verified) {
+                    const hasNotified = localStorage.getItem(`fp_notified_onboarding_${seller.id}`);
+                    if (!hasNotified) {
+                        // Check if they just got verified and have 0 products
+                        const myProducts = allProducts.filter(p => p.seller_id === seller.id);
+                        if (myProducts.length === 0) {
+                            DemoStore.addNotification({
+                                userId: seller.id,
+                                type: "system",
+                                message: `🎉 Congratulations! Your store "${seller.business_name}" is now verified. You can start uploading products!`,
+                                link: "/seller/products/new"
+                            });
+                            localStorage.setItem(`fp_notified_onboarding_${seller.id}`, "true");
+                        }
+                    }
+                }
             }
         };
 
         loadData();
 
-        // Onboarding Verification Notification Logic
-        const seller = DemoStore.getCurrentSeller();
-        if (seller && seller.verified) {
-            const hasNotified = localStorage.getItem(`fp_notified_onboarding_${seller.id}`);
-            if (!hasNotified) {
-                // Check if they just got verified and have 0 products
-                const allProducts = DemoStore.getProducts({ includeInactiveSellers: true });
-                const myProducts = allProducts.filter(p => p.seller_id === seller.id);
-                if (myProducts.length === 0) {
-                    DemoStore.addNotification({
-                        userId: seller.id,
-                        type: "system",
-                        message: `🎉 Congratulations! Your store "${seller.business_name}" is now verified. You can start uploading products!`,
-                        link: "/seller/products/new"
-                    });
-                    localStorage.setItem(`fp_notified_onboarding_${seller.id}`, "true");
-                }
-            }
-        }
-
+        // Register listeners IMMEDIATELY to catch the first sync
         window.addEventListener("storage", loadData);
         window.addEventListener("demo-store-update", loadData);
+
+        // Polling fallback: If no seller is found, try again every 2 seconds for a bit
+        // This handles cases where syncWithDB is still running on mount
+        const pollInterval = setInterval(() => {
+            if (!DemoStore.getCurrentSellerId()) {
+                loadData();
+            } else {
+                clearInterval(pollInterval);
+            }
+        }, 2000);
+
         return () => {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("demo-store-update", loadData);
+            clearInterval(pollInterval);
         }
-    }, [router, user?.id]);
+    }, [router, user?.id, user?.email]); // Added user.email for better detection
 
     const handleNegAction = (id: string, status: "accepted" | "rejected") => {
         DemoStore.updateNegotiationStatus(id, status);
@@ -131,41 +148,192 @@ export default function SellerDashboard() {
         setTimeout(() => setCashoutSuccess(false), 3000);
     };
 
-    if (!currentSeller) return null;
+    if (!currentSeller) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+                <div className="w-16 h-16 rounded-full border-4 border-[#FFD700]/20 border-t-[#FFD700] animate-spin shadow-lg shadow-amber-500/20" />
+                <div className="flex flex-col items-center">
+                    <h3 className="text-xl font-black text-gray-900 tracking-tight">Syncing your store...</h3>
+                    <p className="text-sm text-gray-400 font-medium">Fetching real-time sales and negotiations</p>
+                </div>
+                {/* Skeleton cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full mt-8 opacity-40 grayscale">
+                     {[1,2,3,4].map(i => (
+                         <div key={i} className="h-32 bg-gray-100 rounded-2xl animate-pulse" />
+                     ))}
+                </div>
+            </div>
+        );
+    }
 
     // Computed financials
-    const escrowAmount = orders.filter(o => o.escrow_status === "held").reduce((sum, o) => sum + o.amount, 0);
-    const releasedAmount = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + o.amount, 0);
+    const EARNINGS_ELIGIBLE_STATES = ["released", "buyer_confirmed", "auto_release_eligible"];
+    const ESCROW_STATES = ["held", "seller_confirmed"];
+
+    const escrowAmount = orders
+        .filter(o => ESCROW_STATES.includes(o.escrow_status as string))
+        .reduce((sum, o) => sum + o.amount, 0);
+
+    const releasedAmount = orders
+        .filter(o => EARNINGS_ELIGIBLE_STATES.includes(o.escrow_status as string))
+        .reduce((sum, o) => sum + o.amount, 0);
+
     const totalRevenue = releasedAmount + escrowAmount;
 
     // Platform takes dynamic commission on all released funds based on tier
     const COMMISSION_RATE = DemoStore.getSellerCommissionRate(currentSeller);
     const platformFee = releasedAmount * COMMISSION_RATE;
-    const availableBalance = releasedAmount - platformFee;
+    const availableBalance = orders
+        .filter(o => EARNINGS_ELIGIBLE_STATES.includes(o.escrow_status as string) && (o.payout_status === "none" || !o.payout_status))
+        .reduce((sum, o) => sum + (o.amount * (1 - COMMISSION_RATE)), 0);
 
     const pendingNegs = negotiations.filter(n => n.status === "pending");
     const disputedOrders = orders.filter(o => o.escrow_status === "disputed");
     const newOrders = orders.filter(o => o.status === "pending");
     const returnedOrders = orders.filter(o => o.status === "returned");
 
+    // Success rate logic
+    const successRate = negotiations.length > 0
+        ? Math.round((negotiations.filter(n => n.status === "accepted").length / negotiations.length) * 100)
+        : 0;
+    
+    const revenueTrend = totalRevenue > 0 ? "+12.4%" : undefined;
+
     return (
-        <div className="space-y-6 max-w-6xl">
+        <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6 max-w-6xl pb-20"
+        >
             {/* Welcome header */}
-            <div>
-                <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-                    Welcome back, {currentSeller.business_name} 👋
-                </h1>
-                <p className="text-sm text-gray-500 mt-1">
-                    Here's what's happening with your store today.
-                </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                        Welcome back, {currentSeller.business_name} 
+                        <motion.span 
+                            animate={{ rotate: [0, 15, -15, 0] }}
+                            transition={{ repeat: Infinity, duration: 2, delay: 1 }}
+                        >👋</motion.span>
+                    </h1>
+                    <p className="text-sm text-zinc-500 font-medium mt-1">
+                        Here's what's happening with your store today.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold px-5 h-10 transition-all hover:scale-105 active:scale-95"
+                        onClick={() => {
+                            setIsRefreshing(true);
+                            setTimeout(() => {
+                                setIsRefreshing(false);
+                                window.dispatchEvent(new Event("demo-store-update"));
+                            }, 800);
+                        }}
+                    >
+                        <TrendingUp className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                        {isRefreshing ? "Syncing..." : "Global Refresh"}
+                    </Button>
+                </div>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={totalRevenue > 0 ? "+12%" : undefined} color="emerald" href="/seller/orders?filter=delivered" />
-                <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" />
-                <StatCard icon={<Package />} label="Active Listings" value={products.length.toString()} color="blue" href="/seller/products" />
-                <StatCard icon={<Star />} label="Trust Score" value={`${currentSeller.trust_score || 50}%`} color="purple" />
+            <motion.div 
+                layout
+                className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+            >
+                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={revenueTrend} color="emerald" href="/seller/orders?filter=delivered" delay={0.1} />
+                <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" delay={0.2} />
+                <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} />
+                <StatCard icon={<Star />} label="Trust Score" value={`${currentSeller.trust_score || 50}%`} color="purple" delay={0.4} />
+            </motion.div>
+
+            {/* Premium Payout Tracker - Emerald & Gold Theme */}
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="bg-white rounded-[32px] border border-zinc-100 p-7 shadow-sm overflow-hidden relative group"
+            >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-50/40 rounded-full blur-3xl -mr-24 -mt-24 group-hover:bg-emerald-100/40 transition-colors duration-700" />
+                
+                <div className="flex items-center justify-between mb-8 relative">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                            <Wallet className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-zinc-900 leading-none">Payout Lifecycle</h3>
+                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">Fund Tracking & Escrow Release</p>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-1">Available to Cashout</p>
+                        <p className="text-2xl font-black text-emerald-600 flex items-center justify-end gap-1.5">
+                            {formatPrice(availableBalance)}
+                            <div className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative px-2">
+                    <PayoutStep 
+                        label="In Escrow" 
+                        amount={escrowAmount} 
+                        status="pending" 
+                        icon={<Lock className="h-4 w-4" />}
+                        description="Buyer payment held"
+                        active={escrowAmount > 0}
+                    />
+                    <PayoutStep 
+                        label="Released" 
+                        amount={releasedAmount} 
+                        status="completed" 
+                        icon={<ShieldCheck className="h-4 w-4" />}
+                        description="Verified for payout"
+                        active={releasedAmount > 0}
+                    />
+                    <PayoutStep 
+                        label="Processing" 
+                        amount={0} 
+                        status="pending" 
+                        icon={<TrendingUp className="h-4 w-4" />}
+                        description="Bank transfer in dev"
+                        active={false}
+                    />
+                    <PayoutStep 
+                        label="Paid Out" 
+                        amount={orders.filter(o => o.payout_status === "paid").reduce((s, o) => s + o.amount, 0)} 
+                        status="completed" 
+                        icon={<CheckCircle className="h-4 w-4" />}
+                        description="Settled to account"
+                        active={false}
+                    />
+                    
+                    {/* Progress Connecting Line (Desktop) */}
+                    <div className="hidden lg:block absolute top-[19px] left-[12%] right-[12%] h-[1px] bg-zinc-100 -z-10">
+                        <div 
+                            className="h-full bg-emerald-500 transition-all duration-1000" 
+                            style={{ width: releasedAmount > 0 ? '66%' : escrowAmount > 0 ? '33%' : '0%' }}
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-zinc-50 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 p-2 px-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
+                        <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                        <span className="text-[10px] text-amber-900 font-bold">
+                            Gold Accent Tier: Platform fee ({COMMISSION_RATE * 100}%) is <strong>{formatPrice(platformFee)}</strong>
+                        </span>
+                    </div>
+                    <Button 
+                        disabled={availableBalance <= 1000}
+                        className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-8 rounded-full font-bold h-11 text-sm shadow-xl shadow-emerald-100 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    >
+                        Request Instant Payout
+                    </Button>
+                </div>
             </div>
 
             {/* Dispute Alert */}
@@ -485,8 +653,39 @@ export default function SellerDashboard() {
     );
 }
 
+interface PayoutStepProps {
+    label: string;
+    amount: number;
+    status: "pending" | "completed";
+    icon: React.ReactNode;
+    description: string;
+    active?: boolean;
+}
+
+function PayoutStep({ label, amount, status, icon, description, active }: PayoutStepProps) {
+    return (
+        <div className="flex flex-row md:flex-col items-center md:items-start gap-4 md:gap-2">
+            <div className={`
+                w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500
+                ${active ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200 scale-110" : "bg-zinc-100 text-zinc-400"}
+                ${status === "completed" && active ? "ring-2 ring-amber-400 ring-offset-2" : ""}
+            `}>
+                {icon}
+            </div>
+            <div className="min-w-0">
+                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-tight leading-none mb-1">{label}</p>
+                <div className="flex items-baseline gap-1">
+                    <p className="text-sm font-black text-zinc-900">{formatPrice(amount)}</p>
+                    {active && <div className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />}
+                </div>
+                <p className="text-[9px] text-zinc-400 font-medium leading-tight">{description}</p>
+            </div>
+        </div>
+    );
+}
+
 // ─── StatCard ───
-function StatCard({ icon, label, value, trend, color = "blue", href }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string; href?: string }) {
+function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0 }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string; href?: string; delay?: number }) {
     const colors: Record<string, string> = {
         emerald: "bg-emerald-50 text-emerald-600 border border-emerald-100",
         amber: "bg-amber-50 text-amber-600 border border-amber-100",
@@ -495,16 +694,35 @@ function StatCard({ icon, label, value, trend, color = "blue", href }: { icon: R
     };
 
     const content = (
-        <div className={`bg-white p-5 rounded-2xl border border-gray-100 shadow-sm transition-all hover:shadow-md ${href ? 'cursor-pointer hover:border-gray-200' : ''}`}>
-            <div className="flex items-center justify-between mb-3">
-                <div className={`p-2.5 rounded-xl flex items-center justify-center ${colors[color] || colors.blue}`}>
+        <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay, type: "spring", stiffness: 300, damping: 25 }}
+            className={`bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm transition-all relative overflow-hidden group ${href ? 'cursor-pointer hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-1' : ''}`}
+        >
+            {/* Subtle Gold Pulse for positive trends */}
+            {trend && trend.includes("+") && (
+                <div className="absolute top-0 right-0 p-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+                </div>
+            )}
+
+            <div className="flex items-center justify-between mb-4">
+                <div className={`p-3 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 duration-500 ${colors[color] || colors.blue}`}>
                     <div className="h-4 w-4 flex items-center justify-center">{icon}</div>
                 </div>
-                {trend && <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-full">{trend}</span>}
+                {trend && (
+                    <span className="text-[11px] font-black text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full tracking-tight">
+                        {trend}
+                    </span>
+                )}
             </div>
-            <h3 className="text-xl lg:text-2xl font-black text-gray-900">{value}</h3>
-            <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mt-1">{label}</p>
-        </div>
+            <h3 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-2">{value}</h3>
+            <div className="flex items-center gap-2">
+                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{label}</p>
+                {href && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
+            </div>
+        </motion.div>
     );
 
     return href ? <Link href={href}>{content}</Link> : content;

@@ -24,8 +24,8 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
     const storeProducts = DemoStore.getApprovedProducts();
     const allPool = [...DEMO_PRODUCTS, ...storeProducts.filter(sp => !DEMO_PRODUCTS.some(dp => dp.id === sp.id))];
 
-    // Category-matched products (not already in cart)
-    let allSimilar = allPool.filter(p => cartCategories.includes(p.category) && !cartIds.has(p.id));
+    // Category-matched products (not already in cart/current)
+    let allSimilar = allPool.filter(p => (cartCategories.includes(p.category) || p.is_sponsored) && !cartIds.has(p.id));
 
     // Fallback & Padding: if we have fewer than 12 category matches, pad with popular products
     if (allSimilar.length < 12) {
@@ -36,12 +36,11 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
         allSimilar = [...allSimilar, ...popular];
     }
 
-    const hasCategoryMatches = allPool.some(p => cartCategories.includes(p.category) && !cartIds.has(p.id));
     const similarProducts = allSimilar.slice(0, visibleProductsCount);
 
     if (similarProducts.length === 0) return null;
 
-    const displayTitle = cartCategories.length > 0 && hasCategoryMatches ? "Similar Items in Category" : title;
+    const displayTitle = title;
 
     return (
         <div className="container mx-auto px-4 mb-8 lg:mb-12 pb-0">

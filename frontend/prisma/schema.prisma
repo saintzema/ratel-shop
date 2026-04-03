@@ -111,6 +111,7 @@ model Seller {
   kycSubmissions KYCSubmission[]
   negotiations   NegotiationRequest[] @relation("SellerNegotiations")
   orders         Order[]              @relation("SellerOrders")
+  payouts        Payout[]
   priceAlerts    PriceAlert[]
   products       Product[]
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -170,12 +171,27 @@ model Order {
   escrowReleasedAt  DateTime?
   customerName      String?
   sellerName        String?
+  payoutStatus      String?        @default("none")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   disputes          Dispute[]
   customer          User           @relation(fields: [customerId], references: [id])
   product           Product        @relation(fields: [productId], references: [id])
   seller            Seller         @relation("SellerOrders", fields: [sellerId], references: [id])
+}
+
+model Payout {
+  id            String   @id @default(cuid())
+  sellerId      String
+  amount        Float
+  status        String   @default("pending")
+  bankName      String
+  accountNumber String
+  accountName   String
+  orderIds      String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  seller        Seller   @relation(fields: [sellerId], references: [id])
 }
 
 model NegotiationRequest {

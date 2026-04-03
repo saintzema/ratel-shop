@@ -125,26 +125,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
-    const login = (userData: User) => {
-        // Transfer any guest negotiations to the logged-in user
+    const migrateGuestData = async (userData: User) => {
         try {
-            const transferData = (key: string, mapper: (item: any) => any) => {
-                const stored = localStorage.getItem(key);
-                if (stored) {
-                    const data = JSON.parse(stored);
-                    const updated = data.map(mapper);
-                    if (JSON.stringify(data) !== JSON.stringify(updated)) {
-                        localStorage.setItem(key, JSON.stringify(updated));
-                    }
-                }
-            };
-
+            const guestId = localStorage.getItem("fp_guest_id") || "guest";
+            const guestName = localStorage.getItem("fp_guest_name") || "Guest Buyer";
             const targetId = userData.id || userData.email;
             const targetName = userData.name || userData.email;
 
+            console.log(`🔑 Auth: Migrating guest data from ${guestId} to ${targetId}`);
+
+            const transferData = (key: string, mapper: (item: any) => any) => {
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    try {
+                        const data = JSON.parse(stored);
+                        const updated = data.map(mapper);
+                        if (JSON.stringify(data) !== JSON.stringify(updated)) {
+                            localStorage.setItem(key, JSON.stringify(updated));
+                        }
+                    } catch (e) { }
+                }
+            };
+
             // 1. Negotiations
             transferData("fairprice_demo_negotiations", (n: any) => {
-                if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
+                if (n.customer_id === guestId || n.customer_id === "guest" || n.customer_name === guestName || n.customer_name === "Guest Buyer") {
                     return { ...n, customer_id: targetId, customer_name: targetName };
                 }
                 return n;
@@ -152,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // 2. Notifications
             transferData("fairprice_demo_notifications", (n: any) => {
-                if (n.userId === "guest" || n.userId === "Guest Buyer") {
+                if (n.userId === guestId || n.userId === "guest" || n.userId === "Guest Buyer") {
                     return { ...n, userId: targetId };
                 }
                 return n;
@@ -160,14 +165,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // 3. Conversations
             transferData("fp_conversations", (c: any) => {
-                if (c.participants?.includes("guest")) {
-                    const newParts = c.participants.map((p: string) => p === "guest" ? targetId : p);
+                if (c.participants?.includes(guestId) || c.participants?.includes("guest")) {
+                    const newParts = c.participants.map((p: string) => (p === guestId || p === "guest") ? targetId : p);
                     const newNames = { ...c.participant_names };
+                    if (newNames[guestId]) {
+                        newNames[targetId] = targetName;
+                        delete newNames[guestId];
+                    }
                     if (newNames["guest"]) {
                         newNames[targetId] = targetName;
                         delete newNames["guest"];
                     }
                     const newUnread = { ...c.unread_count };
+                    if (newUnread[guestId] !== undefined) {
+                        newUnread[targetId] = newUnread[guestId];
+                        delete newUnread[guestId];
+                    }
                     if (newUnread["guest"] !== undefined) {
                         newUnread[targetId] = newUnread["guest"];
                         delete newUnread["guest"];
@@ -180,30 +193,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // 4. Chat Messages
             transferData("fp_chat_messages", (m: any) => {
                 let updated = { ...m };
-                if (updated.sender === "guest") {
+                if (updated.sender === guestId || updated.sender === "guest") {
                     updated.sender = targetId;
                     updated.sender_name = targetName;
                 }
                 return updated;
             });
 
+            // 5. Cart Migration (Critical for eCommerce)
+            const guestCart = localStorage.getItem("fp-cart-guest");
+            if (guestCart) {
+                const userCartKey = `fp-cart-${userData.email}`;
+                const userCart = localStorage.getItem(userCartKey);
+                
+                if (!userCart) {
+                    // Just move it
+                    localStorage.setItem(userCartKey, guestCart);
+                } else {
+                    // Merge logic
+                    try {
+                        const gItems = JSON.parse(guestCart);
+                        const uItems = JSON.parse(userCart);
+                        // Add guest items that aren't already in user cart (by product id)
+                        const merged = [...uItems];
+                        gItems.forEach((gi: any) => {
+                            if (!uItems.find((ui: any) => ui.id === gi.id)) {
+                                merged.push(gi);
+                            }
+                        });
+                        localStorage.setItem(userCartKey, JSON.stringify(merged));
+                    } catch (e) { }
+                }
+                localStorage.removeItem("fp-cart-guest");
+            }
+
+            // Cleanup ephemeral IDs
+            localStorage.removeItem("fp_guest_id");
+            localStorage.removeItem("fp_guest_name");
+
+            // Migrate Postgres records
+            await fetch("/api/auth/migrate-guest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    oldId: guestId,
+                    newId: targetId,
+                    email: userData.email,
+                }),
+            }).catch(err => console.error("Guest migration failed:", err));
+
         } catch (e) { console.error("Data transfer failed", e); }
+    };
+
+    const login = async (userData: User) => {
+        await migrateGuestData(userData);
 
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
         window.dispatchEvent(new Event("fp-auth-update"));
-
-        // Migrate guest/orphaned DB records to this user's real ID
-        const targetId = userData.id || userData.email;
-        fetch("/api/auth/migrate-guest", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                oldId: "guest",
-                newId: targetId,
-                email: userData.email,
-            }),
-        }).catch(err => console.error("Guest migration failed:", err));
     };
 
     const logout = () => {
@@ -226,10 +273,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem("fp_conversations");
             localStorage.removeItem("fp_chat_messages");
             localStorage.removeItem("fairprice_demo_orders");
-            // DELIBERATE OMISSION: Do NOT remove "fairprice_demo_notifications". They are device-bound and targetId-bound.
             localStorage.removeItem("fairprice_demo_returns");
             localStorage.removeItem("fairprice_demo_order_messages");
             localStorage.removeItem("fairprice_demo_support_messages");
+            
+            // CRITICAL: Clear guest IDs on logout to prevent "inheritance" by the next user
+            localStorage.removeItem("fp_guest_id");
+            localStorage.removeItem("fp_guest_name");
         } catch (e) { /* ignore */ }
 
         // Also clear seller session
@@ -244,69 +294,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
-    const register = (userData: User) => {
-        // Transfer any guest negotiations to the newly registered user
-        try {
-            const transferData = (key: string, mapper: (item: any) => any) => {
-                const stored = localStorage.getItem(key);
-                if (stored) {
-                    const data = JSON.parse(stored);
-                    const updated = data.map(mapper);
-                    if (JSON.stringify(data) !== JSON.stringify(updated)) {
-                        localStorage.setItem(key, JSON.stringify(updated));
-                    }
-                }
-            };
-
-            const targetId = userData.id || userData.email;
-            const targetName = userData.name || userData.email;
-
-            // 1. Negotiations
-            transferData("fairprice_demo_negotiations", (n: any) => {
-                if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
-                    return { ...n, customer_id: targetId, customer_name: targetName };
-                }
-                return n;
-            });
-
-            // 2. Notifications
-            transferData("fairprice_demo_notifications", (n: any) => {
-                if (n.userId === "guest" || n.userId === "Guest Buyer") {
-                    return { ...n, userId: targetId };
-                }
-                return n;
-            });
-
-            // 3. Conversations
-            transferData("fp_conversations", (c: any) => {
-                if (c.participants?.includes("guest")) {
-                    const newParts = c.participants.map((p: string) => p === "guest" ? targetId : p);
-                    const newNames = { ...c.participant_names };
-                    if (newNames["guest"]) {
-                        newNames[targetId] = targetName;
-                        delete newNames["guest"];
-                    }
-                    const newUnread = { ...c.unread_count };
-                    if (newUnread["guest"] !== undefined) {
-                        newUnread[targetId] = newUnread["guest"];
-                        delete newUnread["guest"];
-                    }
-                    return { ...c, participants: newParts, participant_names: newNames, unread_count: newUnread };
-                }
-                return c;
-            });
-
-            // 4. Chat Messages
-            transferData("fp_chat_messages", (m: any) => {
-                let updated = { ...m };
-                if (updated.sender === "guest") {
-                    updated.sender = targetId;
-                    updated.sender_name = targetName;
-                }
-                return updated;
-            });
-
-        } catch (e) { console.error("Data transfer failed", e); }
+    const register = async (userData: User) => {
+        await migrateGuestData(userData);
 
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);

@@ -331,11 +331,21 @@ export default function UniversalMessagesPage() {
     const activeProduct = activeConvo?.product_id ? products.find(p => p.id === activeConvo.product_id) : null;
     const activeNeg = activeConvo?.negotiation;
 
+    // Track last proposed price to detect when to update suggested counter offer
+    const lastProcessedProposedPriceRef = useRef<number | null>(null);
+
     useEffect(() => {
-        if (activeProduct && activeNeg && !counterPrice && activeNeg.status === "pending" && !activeNeg.counter_status) {
+        if (activeProduct && activeNeg && activeNeg.status === "pending" && !activeNeg.counter_status) {
+            // Update suggestion if:
+            // 1. No price has been set yet
+            // 2. OR the buyer's proposed price changed (new counter-counter offer)
             const buyerOffer = activeNeg.proposed_price || activeProduct.price * 0.8;
-            const suggestedPrice = Math.round(buyerOffer + ((activeProduct.price - buyerOffer) * 0.6));
-            setCounterPrice(suggestedPrice.toString());
+            
+            if (!counterPrice || lastProcessedProposedPriceRef.current !== buyerOffer) {
+                const suggestedPrice = Math.round(buyerOffer + ((activeProduct.price - buyerOffer) * 0.6));
+                setCounterPrice(suggestedPrice.toString());
+                lastProcessedProposedPriceRef.current = buyerOffer;
+            }
         }
     }, [activeProduct, activeNeg, selectedId]);
 
@@ -826,91 +836,99 @@ export default function UniversalMessagesPage() {
                             })}
 
                             {/* Injection of specific Negotiation UI within chat stream */}
-                            {activeConvo.type === "negotiation" && activeNeg && (
-                                <>
-                                    {/* Offer Request Bubble Injection if we don't naturally have it at index 0 */}
-                                    {activeConvo.chat_messages.length === 0 && (
-                                        <div className="flex items-end gap-2 max-w-[85%]">
-                                            <div className="h-8 w-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0 text-xs shadow-inner mb-5">
-                                                {activeConvo.customer_name.charAt(0)}
-                                            </div>
-                                            <div className="flex flex-col gap-1">
-                                                <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm p-4 relative shadow-sm">
-                                                    <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-50 mb-3 flex items-center gap-3">
-                                                        <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                                                            <Tag className="h-5 w-5" />
+                            {activeConvo.type === "negotiation" && activeNeg && (() => {
+                                // Derive the buyer's LATEST proposed price — this updates when buyer sends counter-counter
+                                const buyerLatestPrice = activeNeg.proposed_price;
+                                // The seller's own counter offer (only valid if counter_status is still "pending")
+                                const sellerCounterPrice = activeNeg.counter_price;
+                                const sellerCounterPending = activeNeg.counter_status === "pending" && sellerCounterPrice && sellerCounterPrice > 0;
+
+                                return (
+                                    <>
+                                        {/* Offer Request Bubble Injection if we don't naturally have it at index 0 */}
+                                        {activeConvo.chat_messages.length === 0 && (
+                                            <div className="flex items-end gap-2 max-w-[85%]">
+                                                <div className="h-8 w-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0 text-xs shadow-inner mb-5">
+                                                    {activeConvo.customer_name.charAt(0)}
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm p-4 relative shadow-sm">
+                                                        <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-50 mb-3 flex items-center gap-3">
+                                                            <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                                                                <Tag className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Proposed Price</p>
+                                                                <p className="text-xl font-black text-indigo-700 leading-none">{formatPrice(buyerLatestPrice)}</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Proposed Price</p>
-                                                            <p className="text-xl font-black text-indigo-700 leading-none">{formatPrice(activeNeg.proposed_price)}</p>
-                                                        </div>
+                                                        {activeNeg.message ? (
+                                                            <p className="text-[13px] text-gray-700">{activeNeg.message}</p>
+                                                        ) : (
+                                                            <p className="text-[13px] text-gray-400 italic">No additional message provided.</p>
+                                                        )}
                                                     </div>
-                                                    {activeNeg.message ? (
-                                                        <p className="text-[13px] text-gray-700">{activeNeg.message}</p>
-                                                    ) : (
-                                                        <p className="text-[13px] text-gray-400 italic">No additional message provided.</p>
-                                                    )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/* Accept/Reject Badges */}
-                                    {activeNeg.status === "rejected" && !activeNeg.counter_status && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
-                                                <XCircle className="h-3.5 w-3.5" /> You rejected this offer.
-                                            </span>
-                                        </div>
-                                    )}
+                                        {/* Accept/Reject Badges */}
+                                        {activeNeg.status === "rejected" && !activeNeg.counter_status && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
+                                                    <XCircle className="h-3.5 w-3.5" /> You rejected this offer.
+                                                </span>
+                                            </div>
+                                        )}
 
-                                    {activeNeg.status === "accepted" && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                                                <CheckCircle className="h-3.5 w-3.5" /> You accepted this offer!
-                                            </span>
-                                        </div>
-                                    )}
+                                        {activeNeg.status === "accepted" && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                                                    <CheckCircle className="h-3.5 w-3.5" /> You accepted this offer!
+                                                </span>
+                                            </div>
+                                        )}
 
-                                    {/* Counter Offer Bubble Inline */}
-                                    {activeNeg.counter_price && (
-                                        <div className="flex items-end gap-2 max-w-[85%] ml-auto justify-end">
-                                            <div className="flex flex-col gap-1 text-right">
-                                                <div className="bg-indigo-600 border-indigo-700 text-white rounded-2xl rounded-br-sm p-4 relative shadow-md">
-                                                    <div className="bg-white/10 rounded-xl p-3 mb-2 flex items-center gap-3">
-                                                        <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm">
-                                                            <Tag className="h-5 w-5" />
+                                        {/* Counter Offer Bubble Inline — only show if seller has an active counter with a real price */}
+                                        {sellerCounterPrice && sellerCounterPrice > 0 && (
+                                            <div className="flex items-end gap-2 max-w-[85%] ml-auto justify-end">
+                                                <div className="flex flex-col gap-1 text-right">
+                                                    <div className="bg-indigo-600 border-indigo-700 text-white rounded-2xl rounded-br-sm p-4 relative shadow-md">
+                                                        <div className="bg-white/10 rounded-xl p-3 mb-2 flex items-center gap-3">
+                                                            <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm">
+                                                                <Tag className="h-5 w-5" />
+                                                            </div>
+                                                            <div className="text-left">
+                                                                <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-0.5">Your Counter Offer</p>
+                                                                <p className="text-xl font-black text-white leading-none">{formatPrice(sellerCounterPrice)}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-left">
-                                                            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-0.5">Your Counter Offer</p>
-                                                            <p className="text-xl font-black text-white leading-none">{formatPrice(activeNeg.counter_price)}</p>
-                                                        </div>
+                                                        {activeNeg.counter_message && (
+                                                            <p className="text-[13px] text-indigo-50 text-left">{activeNeg.counter_message}</p>
+                                                        )}
                                                     </div>
-                                                    {activeNeg.counter_message && (
-                                                        <p className="text-[13px] text-indigo-50 text-left">{activeNeg.counter_message}</p>
-                                                    )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    {/* Buyer responses to counter */}
-                                    {activeNeg.counter_status === "accepted" && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                                                <CheckCircle className="h-3.5 w-3.5" /> Buyer accepted your counter offer! Checkout pending.
-                                            </span>
-                                        </div>
-                                    )}
+                                        )}
+                                        {/* Buyer responses to counter */}
+                                        {activeNeg.counter_status === "accepted" && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                                                    <CheckCircle className="h-3.5 w-3.5" /> Buyer accepted your counter offer! Checkout pending.
+                                                </span>
+                                            </div>
+                                        )}
 
-                                    {activeNeg.counter_status === "rejected" && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
-                                                <XCircle className="h-3.5 w-3.5" /> Buyer rejected your counter offer.
-                                            </span>
-                                        </div>
-                                    )}
-                                </>
-                            )}
+                                        {activeNeg.counter_status === "rejected" && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
+                                                    <XCircle className="h-3.5 w-3.5" /> Buyer rejected your counter offer.
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
 
                             {/* Scroll spacer */}
                             <div className="h-4" />
@@ -944,60 +962,66 @@ export default function UniversalMessagesPage() {
                                 </div>
                             )}
 
-                            {activeConvo.type === "negotiation" && activeNeg && activeNeg.status !== "accepted" && activeNeg.status !== "rejected" && (
-                                <div className="mb-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 shadow-inner">
-                                    <div className="flex flex-col gap-2 justify-center sm:justify-start mb-4 bg-white p-3 rounded-xl border border-indigo-50 shadow-sm">
-                                        {activeNeg.counter_status === "pending" ? (
-                                            <>
-                                                <p className="text-xs font-bold text-gray-500 mb-1">Waiting for buyer to respond to your counter offer of {formatPrice(activeNeg.counter_price || 0)}.</p>
-                                                <p className="text-[11px] text-gray-400 mb-2">You can still accept their last proposed price to close the deal now.</p>
-                                                <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm">
-                                                    <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {formatPrice(activeNeg.proposed_price)}
-                                                </Button>
-                                            </>
-                                        ) : (
-                                            <div className="flex gap-2 w-full">
-                                                <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
-                                                    <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {activeNeg.status === 'pending' && activeNeg.proposed_price !== activeProduct?.price ? 'Counter Offer' : 'Offer'} {formatPrice(activeNeg.proposed_price)}
-                                                </Button>
-                                                <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
-                                                    Reject
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="relative flex items-center mb-4 opacity-70">
-                                        <div className="absolute inset-x-0 h-px bg-gray-200"></div>
-                                        <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR {activeNeg.counter_status === "pending" ? "UPDATE COUNTER" : "NEGOTIATE"}</span>
-                                    </div>
-                                    <form onSubmit={handleCounterOffer} className="p-1">
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                            <div className="w-full sm:w-[150px] relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
-                                                <Input
-                                                    type="number"
-                                                    value={counterPrice}
-                                                    onChange={(e) => setCounterPrice(e.target.value)}
-                                                    className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
-                                                    placeholder="Price"
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="flex-1 flex gap-2">
-                                                <Input
-                                                    value={counterMessage}
-                                                    onChange={(e) => setCounterMessage(e.target.value)}
-                                                    className="flex-1 bg-white border-gray-200 rounded-xl h-11 text-[13px] shadow-sm font-medium focus-visible:ring-indigo-500"
-                                                    placeholder="Add a message to your counter offer..."
-                                                />
-                                                <Button type="submit" className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
-                                                    {activeNeg.counter_status === "pending" ? "Update Offer" : "Send Offer"}
-                                                </Button>
-                                            </div>
+                            {activeConvo.type === "negotiation" && activeNeg && activeNeg.status !== "accepted" && activeNeg.status !== "rejected" && (() => {
+                                // Derive correct prices for the action panel
+                                const buyerCurrentOffer = activeNeg.proposed_price;
+                                const sellerHasPendingCounter = activeNeg.counter_status === "pending" && activeNeg.counter_price && activeNeg.counter_price > 0;
+
+                                return (
+                                    <div className="mb-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 shadow-inner">
+                                        <div className="flex flex-col gap-2 justify-center sm:justify-start mb-4 bg-white p-3 rounded-xl border border-indigo-50 shadow-sm">
+                                            {sellerHasPendingCounter ? (
+                                                <>
+                                                    <p className="text-xs font-bold text-gray-500 mb-1">Waiting for buyer to respond to your counter offer of {formatPrice(activeNeg.counter_price!)}.</p>
+                                                    <p className="text-[11px] text-gray-400 mb-2">You can still accept their last proposed price to close the deal now.</p>
+                                                    <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm">
+                                                        <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {formatPrice(buyerCurrentOffer)}
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <div className="flex gap-2 w-full">
+                                                    <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
+                                                        <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept Offer {formatPrice(buyerCurrentOffer)}
+                                                    </Button>
+                                                    <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
+                                                        Reject
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
-                                    </form>
-                                </div>
-                            )}
+                                        <div className="relative flex items-center mb-4 opacity-70">
+                                            <div className="absolute inset-x-0 h-px bg-gray-200"></div>
+                                            <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR {sellerHasPendingCounter ? "UPDATE COUNTER" : "COUNTER OFFER"}</span>
+                                        </div>
+                                        <form onSubmit={handleCounterOffer} className="p-1">
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <div className="w-full sm:w-[150px] relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
+                                                    <Input
+                                                        type="number"
+                                                        value={counterPrice}
+                                                        onChange={(e) => setCounterPrice(e.target.value)}
+                                                        className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
+                                                        placeholder="Price"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="flex-1 flex gap-2">
+                                                    <Input
+                                                        value={counterMessage}
+                                                        onChange={(e) => setCounterMessage(e.target.value)}
+                                                        className="flex-1 bg-white border-gray-200 rounded-xl h-11 text-[13px] shadow-sm font-medium focus-visible:ring-indigo-500"
+                                                        placeholder="Add a message to your counter offer..."
+                                                    />
+                                                    <Button type="submit" className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
+                                                        {sellerHasPendingCounter ? "Update Offer" : "Send Offer"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                );
+                            })()}
 
                             <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
                                 <Button

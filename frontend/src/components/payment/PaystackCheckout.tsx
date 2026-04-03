@@ -181,6 +181,7 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
         loadPaystackScript()
             .then(() => {
                 if (autoStart) {
+                    // Directly start payment, skip summary entirely
                     startPayment(PAYSTACK_PUBLIC_KEY || "mock_key");
                 } else {
                     setStep("summary");

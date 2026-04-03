@@ -23,31 +23,44 @@ export function RecommendedProducts({
     const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
     const [page, setPage] = useState(1);
     const [isLoading, setIsLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
     const loaderRef = useRef<HTMLDivElement>(null);
     const ITEMS_PER_PAGE = 12;
     const { addToCart } = useCart();
     const router = useRouter();
 
-    // Initial load
-    useEffect(() => {
-        if (products.length > 0 && displayedProducts.length === 0) {
-            setDisplayedProducts(products.slice(0, ITEMS_PER_PAGE));
-        }
+    // Robust deduplication of incoming products by ID
+    const uniqueSourceProducts = useMemo(() => {
+        const map = new Map();
+        products.forEach(p => {
+            if (p && p.id && !map.has(p.id)) map.set(p.id, p);
+        });
+        return Array.from(map.values());
     }, [products]);
+
+    // Reset state when the product source changes (e.g. navigating to a different PDP)
+    useEffect(() => {
+        setDisplayedProducts(uniqueSourceProducts.slice(0, ITEMS_PER_PAGE));
+        setPage(1);
+        setHasMore(uniqueSourceProducts.length > ITEMS_PER_PAGE);
+        setIsLoading(false);
+    }, [uniqueSourceProducts]);
 
     // Refs for observer callback
     const pageRef = useRef(page);
-    const productsRef = useRef(products);
+    const productsRef = useRef(uniqueSourceProducts);
     const loadingRef = useRef(isLoading);
+    const hasMoreRef = useRef(hasMore);
     useEffect(() => { pageRef.current = page; }, [page]);
-    useEffect(() => { productsRef.current = products; }, [products]);
+    useEffect(() => { productsRef.current = uniqueSourceProducts; }, [uniqueSourceProducts]);
     useEffect(() => { loadingRef.current = isLoading; }, [isLoading]);
+    useEffect(() => { hasMoreRef.current = hasMore; }, [hasMore]);
 
     // Intersection Observer — re-attaches whenever the list updates to ensure loader is tracked
     useEffect(() => {
         const observer = new IntersectionObserver((entries) => {
             const target = entries[0];
-            if (target.isIntersecting && !loadingRef.current) {
+            if (target.isIntersecting && !loadingRef.current && hasMoreRef.current) {
                 setIsLoading(true);
                 setTimeout(() => {
                     const currentPage = pageRef.current;
@@ -58,10 +71,11 @@ export function RecommendedProducts({
                     if (nextBatch.length > 0) {
                         setDisplayedProducts(prev => [...prev, ...nextBatch]);
                         setPage(prev => prev + 1);
+                        if (nextIndex + ITEMS_PER_PAGE >= allProducts.length) {
+                            setHasMore(false);
+                        }
                     } else {
-                        // Endless loop — shuffle and recycle local catalogue
-                        const shuffled = [...allProducts].sort(() => 0.5 - Math.random());
-                        setDisplayedProducts(prev => [...prev, ...shuffled.slice(0, ITEMS_PER_PAGE)]);
+                        setHasMore(false);
                     }
                     setIsLoading(false);
                 }, 800);
@@ -99,9 +113,9 @@ export function RecommendedProducts({
 
             {/* Grid with round-button card design matching categories page */}
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2 md:gap-3 w-full">
-                {displayedProducts.map((product, idx) => (
+                {displayedProducts.map((product) => (
                     <div
-                        key={`${product.id}-${idx}`}
+                        key={product.id}
                         className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-xl overflow-hidden cursor-pointer border border-gray-100"
                         onClick={() => router.push(`/product/${product.id}`)}
                     >
