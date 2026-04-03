@@ -39,9 +39,10 @@ export function KeyboardAware() {
             html.style.setProperty("--kb-height", `${kbHeight}px`);
         };
 
+        const handleVVEvent = () => updateKeyboardHeight();
         if (window.visualViewport) {
-            window.visualViewport.addEventListener("resize", () => updateKeyboardHeight());
-            window.visualViewport.addEventListener("scroll", () => updateKeyboardHeight());
+            window.visualViewport.addEventListener("resize", handleVVEvent);
+            window.visualViewport.addEventListener("scroll", handleVVEvent);
         }
 
         // Add Native Capacitor listeners for 100% accuracy in the app
@@ -169,8 +170,8 @@ export function KeyboardAware() {
             document.removeEventListener("focusin", handleFocusIn);
             window.removeEventListener("scroll", preventBodyScroll);
             if (window.visualViewport) {
-                window.visualViewport.removeEventListener("resize", updateKeyboardHeight);
-                window.visualViewport.removeEventListener("scroll", updateKeyboardHeight);
+                window.visualViewport.removeEventListener("resize", handleVVEvent);
+                window.visualViewport.removeEventListener("scroll", handleVVEvent);
                 window.visualViewport.removeEventListener("resize", handleViewportResize);
             }
             if (kbShowListener) kbShowListener.remove();

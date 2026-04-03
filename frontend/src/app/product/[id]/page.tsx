@@ -792,10 +792,10 @@ export default function ProductDetailPage() {
         if (!product) return [];
         // Prioritize explicit highlights from the AI or Seller
         const features = [...(product.highlights || [])];
-        if (features.length === 0 && (product.shortDescription || product.description)) {
-            const textToSplit = product.shortDescription || product.description;
-            const sentences = textToSplit.split('. ').filter(s => s.length > 10).slice(0, 4);
-            sentences.forEach(s => features.push(s + (s.endsWith('.') ? '' : '.')));
+        if (features.length === 0 && ((product as any).shortDescription || product.description)) {
+            const textToSplit = (product as any).shortDescription || product.description;
+            const sentences = textToSplit.split('. ').filter((s: string) => s.length > 10).slice(0, 4);
+            sentences.forEach((s: string) => features.push(s + (s.endsWith('.') ? '' : '.')));
         }
         return features;
     }, [product]);

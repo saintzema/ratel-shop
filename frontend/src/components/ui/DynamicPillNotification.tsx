@@ -46,8 +46,8 @@ export function DynamicPillNotification() {
                     setCustomNotification({
                         text: `New negotiation offer for ${product?.name || 'Product'} at ₦${recentNeg.proposed_price.toLocaleString()}`,
                         isNegotiation: false,
-                        hasImage: !!product?.imageUrl,
-                        imageUrl: product?.imageUrl,
+                        hasImage: !!product?.image_url,
+                        imageUrl: product?.image_url,
                         route: "/seller/dashboard/messages?customer=" + (recentNeg.customer_id || "") + "&order=" + recentNeg.id
                     });
                     return;
@@ -86,8 +86,8 @@ export function DynamicPillNotification() {
                 setCustomNotification({
                     text: `New negotiation offer for ${product?.name || 'Product'} at ₦${neg.proposed_price.toLocaleString()}`,
                     isNegotiation: false,
-                    hasImage: !!product?.imageUrl,
-                    imageUrl: product?.imageUrl,
+                    hasImage: !!product?.image_url,
+                    imageUrl: product?.image_url,
                     route: "/seller/dashboard/messages?customer=" + (neg.customer_id || "") + "&order=" + neg.id
                 });
             }
@@ -100,8 +100,8 @@ export function DynamicPillNotification() {
                 setCustomNotification({
                     text: `Counter offer of ₦${neg.counter_price.toLocaleString()} for ${product?.name || 'Product'}`,
                     isNegotiation: true,
-                    hasImage: !!product?.imageUrl,
-                    imageUrl: product?.imageUrl,
+                    hasImage: !!product?.image_url,
+                    imageUrl: product?.image_url,
                     negotiation: {
                         productId: neg.product_id,
                         counterPrice: neg.counter_price,
@@ -115,8 +115,8 @@ export function DynamicPillNotification() {
                         ? `🎉 Your offer for "${product?.name || 'Product'}" was ACCEPTED!`
                         : `Your offer for "${product?.name || 'Product'}" was declined.`,
                     isNegotiation: false,
-                    hasImage: !!product?.imageUrl,
-                    imageUrl: product?.imageUrl,
+                    hasImage: !!product?.image_url,
+                    imageUrl: product?.image_url,
                     route: "/account/negotiations"
                 });
             }
@@ -138,7 +138,7 @@ export function DynamicPillNotification() {
         if (activeNotif) {
             setVisible(true);
             playDingSound();
-            nativeBridge.hapticFeedback("heavy");
+            (window as any).nativeBridge?.hapticFeedback("heavy");
 
             const isNego = pendingNotification ? !!pendingNotification.negotiation : customNotification ? customNotification.isNegotiation : false;
             if (isNego || (customNotification?.hasImage)) {

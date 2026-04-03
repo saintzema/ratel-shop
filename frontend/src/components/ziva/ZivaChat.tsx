@@ -1066,22 +1066,28 @@ export function ZivaChat() {
 
     // ─── 3D Mouse Tracking ──────────────────────────
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const mouseTickingRef = useRef(false);
+    
     useEffect(() => {
         if (!mounted) return;
-        let ticking = false;
+        
         const handleMouseMove = (e: MouseEvent) => {
-            if (!ticking) {
+            if (!mouseTickingRef.current) {
                 window.requestAnimationFrame(() => {
                     const x = (e.clientX / window.innerWidth) * 2 - 1;
                     const y = (e.clientY / window.innerHeight) * 2 - 1;
                     setMousePos({ x, y });
-                    ticking = false;
+                    mouseTickingRef.current = false;
                 });
-                ticking = true;
+                mouseTickingRef.current = true;
             }
         };
+        
         window.addEventListener("mousemove", handleMouseMove);
-        return () => window.removeEventListener("mousemove", handleMouseMove);
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            mouseTickingRef.current = false;
+        };
     }, [mounted]);
 
     // Unread pulse

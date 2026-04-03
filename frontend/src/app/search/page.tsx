@@ -42,6 +42,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  PlusCircle,
   Phone,
   Car,
   Shirt,
@@ -205,8 +206,10 @@ function getProductIcon(name: string, category?: string) {
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useInView } from "react-intersection-observer";
+import { useAuth } from "@/context/AuthContext";
 
 function SearchContent() {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -219,7 +222,7 @@ function SearchContent() {
   const maxPriceParam = searchParams.get("maxPrice");
 
   // Local State
-  const [priceRange, setPriceRange] = useState([0, 5000000]);
+  const [priceRange, setPriceRange] = useState([0, 500000000]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     categoryParam,
   );
@@ -301,7 +304,7 @@ function SearchContent() {
 
   useEffect(() => {
     if (minPriceParam)
-      setPriceRange([Number(minPriceParam), Number(maxPriceParam) || 5000000]);
+      setPriceRange([Number(minPriceParam), Number(maxPriceParam) || 500000000]);
     setSelectedCategory(categoryParam);
     setIsVerified(verifiedParam);
     setSortBy(sortParam);
@@ -705,8 +708,9 @@ function SearchContent() {
       }
     }
 
-    return combined;
-  }, [navResults, paginatedProducts, navClickedId]);
+    // Filter by price range at the very end
+    return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+  }, [navResults, paginatedProducts, navClickedId, priceRange]);
 
   // Products are no longer auto-saved here. They get saved to DemoStore only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
@@ -767,7 +771,7 @@ function SearchContent() {
                 <button
                   onClick={() => {
                     setAttributeFilters({});
-                    setPriceRange([0, 5000000]);
+                    setPriceRange([0, 500000000]);
                     setSelectedCategory(null);
                     setIsVerified(false);
                     const params = new URLSearchParams();
@@ -934,6 +938,32 @@ function SearchContent() {
             </div>
 
             {/* UNIFIED SEARCH RESULTS GRID */}
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              onClick={() => {
+                  if (user && user.role === 'seller') {
+                      router.push('/seller/dashboard');
+                  } else {
+                      router.push('/seller/onboarding');
+                  }
+              }}
+              className="bg-gradient-to-r from-brand-orange via-amber-500 to-brand-green-600 rounded-2xl p-4 md:p-6 mb-8 cursor-pointer relative overflow-hidden group shadow-md hover:shadow-xl transition-all active:scale-[0.99] flex items-center justify-between border border-white/10"
+            >
+              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_2s_infinite]" />
+              <div className="relative z-10 flex flex-col pt-1">
+                  <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center gap-2">
+                      Have items like these to sell? <Sparkles className="h-5 w-5 text-yellow-300" />
+                  </h3>
+                  <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg">
+                      Join 15,000+ sellers on FairPrice. Start your store today and reach millions of buyers who are looking for exactly what you have.
+                  </p>
+              </div>
+              <div className="relative z-10 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 text-white flex items-center gap-2 font-black text-sm shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 group-hover:bg-white group-hover:text-brand-green-700 transition-all">
+                  <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
+              </div>
+            </motion.div>
+
             {combinedCurrentResults.length > 0 && (
               <div className="mb-10">
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

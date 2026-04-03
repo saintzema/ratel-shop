@@ -255,7 +255,6 @@ export default function CategoriesPage() {
     const [activeCategory, setActiveCategory] = useState(SIDEBAR_CATEGORIES[0].key);
     const [searchQuery, setSearchQuery] = useState("");
     const [products, setProducts] = useState<Product[]>([]);
-    const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
     const [page, setPage] = useState(1);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [hasMore, setHasMore] = useState(true);
@@ -346,13 +345,11 @@ export default function CategoriesPage() {
         });
     }, [products, globalProducts, sortBy]);
 
-    // Sync displayed products when sortedProducts or page changes
-    useEffect(() => {
-        if (sortedProducts.length > 0) {
-            setDisplayedProducts(sortedProducts.slice(0, page * ITEMS_PER_PAGE));
-            setHasMore(true);
-        }
-    }, [sortedProducts, page]);
+    // Sync displayed products when sortedProducts or page changes — MEMOIZED to prevent loops
+    const displayedProducts = useMemo(() => {
+        const batch = sortedProducts.slice(0, page * ITEMS_PER_PAGE);
+        return batch;
+    }, [sortedProducts, page, ITEMS_PER_PAGE]);
 
     // Use refs for values needed inside the IntersectionObserver callback
     const pageRef = useRef(page);
@@ -414,7 +411,7 @@ export default function CategoriesPage() {
                             is_global: true,
                             seller_name: "Global Store",
                             created_at: new Date().toISOString(),
-                        } as Product;
+                        } as any as Product;
                     });
                     setGlobalProducts(prev => [...prev, ...mapped]);
                 }
@@ -429,32 +426,31 @@ export default function CategoriesPage() {
         const observer = new IntersectionObserver((entries) => {
             const target = entries[0];
             if (target.isIntersecting && !loadingRef.current) {
-                setIsLoadingMore(true);
-                setTimeout(() => {
-                    const currentPage = pageRef.current;
-                    const currentSorted = sortedRef.current;
-                    const nextIndex = currentPage * ITEMS_PER_PAGE;
-                    const nextBatch = currentSorted.slice(nextIndex, nextIndex + ITEMS_PER_PAGE);
+                // Check if we actually have more to show
+                const currentPage = pageRef.current;
+                const currentSorted = sortedRef.current;
+                if (currentPage * ITEMS_PER_PAGE < currentSorted.length || !globalDoneRef.current) {
+                    setIsLoadingMore(true);
+                    setTimeout(() => {
+                        const nextIndex = pageRef.current * ITEMS_PER_PAGE;
+                        const nextBatch = currentSorted.slice(nextIndex, nextIndex + ITEMS_PER_PAGE);
 
-                    if (nextBatch.length > 0) {
-                        setPage(prev => prev + 1);
-                    } else if (!globalDoneRef.current) {
-                        // Local catalogue exhausted — fetch global products
-                        fetchGlobalProducts(activeCatRef.current);
-                    } else {
-                        // All sources exhausted — loop back to beginning
-                        const shuffled = [...currentSorted].sort(() => 0.5 - Math.random());
-                        setDisplayedProducts(prev => [...prev, ...shuffled.slice(0, ITEMS_PER_PAGE)]);
-                    }
-                    setIsLoadingMore(false);
-                }, 600);
+                        if (nextBatch.length > 0) {
+                            setPage(prev => prev + 1);
+                        } else if (!globalDoneRef.current) {
+                            // Local catalogue exhausted — fetch global products
+                            fetchGlobalProducts(activeCatRef.current);
+                        }
+                        setIsLoadingMore(false);
+                    }, 600);
+                }
             }
         }, { root: null, rootMargin: '400px', threshold: 0 });
 
         const node = loaderRef.current;
         if (node) observer.observe(node);
         return () => { if (node) observer.unobserve(node); };
-    }, [displayedProducts.length]); // Re-attach observer when list updates to ensure loader target is tracked
+    }, [fetchGlobalProducts]); // Re-attach only if search method changes
 
     const handleSearch = () => {
         if (searchQuery.trim()) {
@@ -465,8 +461,8 @@ export default function CategoriesPage() {
     return (
         <div className="flex flex-col h-[calc(100dvh-64px)] md:h-screen bg-gray-50 pb-16 md:pb-0">
             {/* Top Search Header */}
-            <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100 z-10 bg-white shadow-sm">
-                <div className="flex-1 relative">
+            <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100 relative z-[100] bg-white shadow-sm">
+                <div className="flex-1 relative z-[110]">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-4 w-4 text-gray-400" />
                     </div>
@@ -536,7 +532,33 @@ export default function CategoriesPage() {
                     {/* Subcategory Circles View */}
                     {activeFilter === "all" ? (
                         <>
-                            <div className="mb-3 sticky top-0 bg-white z-10 pt-1 pb-2">
+                            {/* ✨ Dynamic Seller Banner ✨ */}
+                            <div 
+                                onClick={() => {
+                                    if (user && user.role === 'seller') {
+                                        router.push('/seller/dashboard');
+                                    } else {
+                                        router.push('/seller/onboarding');
+                                    }
+                                }}
+                                className="bg-gradient-to-r from-brand-orange to-brand-green-600 rounded-xl p-3 md:p-4 mb-5 mt-1 cursor-pointer relative overflow-hidden group shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex items-center justify-between"
+                            >
+                                {/* Shimmer Effect */}
+                                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                                <div className="relative z-10 flex flex-col pt-0.5">
+                                    <h3 className="text-white font-extrabold text-sm md:text-base leading-tight drop-shadow-sm flex items-center gap-1.5">
+                                        Got {SIDEBAR_CATEGORIES.find(c => c.key === activeCategory)?.label}?
+                                    </h3>
+                                    <p className="text-white/90 text-[11px] md:text-xs font-semibold drop-shadow-sm mt-0.5">
+                                        Start selling them today and earn!
+                                    </p>
+                                </div>
+                                <div className="relative z-10 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 text-white flex items-center gap-1 font-bold text-xs shadow-[inset_0_1px_rgba(255,255,255,0.4)]">
+                                    <PlusCircle className="h-3.5 w-3.5" strokeWidth={3} /> Post Item
+                                </div>
+                            </div>
+
+                            <div className="mb-3 sticky top-0 bg-white z-10 pt-1 pb-2 flex items-center justify-between">
                                 <h2 className="text-[13px] md:text-sm font-bold text-gray-900">Shop by category</h2>
                             </div>
 
@@ -580,33 +602,6 @@ export default function CategoriesPage() {
                         </div>
                     )}
 
-                    {/* ✨ Dynamic Seller Banner ✨ */}
-                    <div 
-                        onClick={() => {
-                            if (user && user.role === 'seller') {
-                                router.push('/seller/dashboard');
-                            } else {
-                                router.push('/seller/onboarding');
-                            }
-                        }}
-                        className="bg-gradient-to-r from-brand-orange to-brand-green-600 rounded-xl p-3 md:p-4 mb-4 mt-2 cursor-pointer relative overflow-hidden group shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex items-center justify-between"
-                    >
-                        {/* Shimmer Effect */}
-                        <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                        <div className="relative z-10 flex flex-col pt-0.5">
-                            <h3 className="text-white font-extrabold text-sm md:text-base leading-tight drop-shadow-sm flex items-center gap-1.5">
-                                Got {SIDEBAR_CATEGORIES.find(c => c.key === activeCategory)?.label}?
-                            </h3>
-                            <p className="text-white/90 text-[11px] md:text-xs font-semibold drop-shadow-sm mt-0.5">
-                                Start selling them today and earn!
-                            </p>
-                        </div>
-                        <div className="relative z-10 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 text-white flex items-center gap-1 font-bold text-xs shadow-[inset_0_1px_rgba(255,255,255,0.4)]">
-                            <PlusCircle className="h-3.5 w-3.5" strokeWidth={3} /> Post Item
-                        </div>
-                    </div>
-
-                    {/* Products Grid Section */}
                     <div className="mt-2">
                         <div className="flex items-center justify-between mb-3 px-1 sticky top-0 bg-white/95 backdrop-blur-sm z-10 py-2">
                             <h2 className="text-[14px] md:text-base font-bold text-gray-900 tracking-tight">

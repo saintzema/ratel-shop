@@ -23,7 +23,7 @@ const DEFAULT_TEMPLATES: NotificationTemplate[] = [
 ];
 
 export default function AdminPushNotifications() {
-    const { user, isMounted } = useAuth();
+    const { user, isMounted } = useAuth() as any;
     const router = useRouter();
 
     // Broadcast State

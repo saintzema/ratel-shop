@@ -308,7 +308,10 @@ class DemoStoreService {
             const fetchReviews = !collection || collection === "reviews";
 
             const lastSync = localStorage.getItem("fp_last_sync_time");
-            const updatedAfter = lastSync ? `&updated_after=${lastSync}` : "";
+            // Force full sync if localStorage has no products OR no sellers (fresh session or wiped)
+            const hasLocalProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]').length > 0;
+            const hasLocalSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]').length > 0;
+            const updatedAfter = (lastSync && hasLocalProducts && hasLocalSellers) ? `&updated_after=${lastSync}` : "";
 
             const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
 
@@ -348,13 +351,24 @@ class DemoStoreService {
                         review_count: p.reviewCount || p.review_count || 0,
                         sold_count: p.soldCount || p.sold_count || 0,
                         is_trending: p.isTrending || p.is_trending || false,
+                        is_active: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
+                        is_sponsored: p.isSponsored || p.is_sponsored || false,
                         original_price: p.originalPrice || p.original_price,
+                        seller_name: p.sellerName || p.seller_name || "Global Store",
                     }));
                     
-                    const dbMap = new Map(mappedDbProducts.map((p: any) => [p.id, p]));
+                    // START from existing local products, then overlay DB updates on top.
+                    // This prevents incremental (updated_after) syncs from wiping the catalog
+                    // when they return 0 new products.
                     const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
-                    const merged = new Map(dbMap);
+                    const merged = new Map(localMap);
+                    
+                    // Apply DB updates (overwrite local versions with fresh DB data)
+                    for (const dbProduct of mappedDbProducts) {
+                        merged.set(dbProduct.id, dbProduct);
+                    }
 
+                    // Preserve user's pending edits over DB versions
                     for (const pendingId of this._pendingEdits) {
                         const localVersion = localMap.get(pendingId);
                         if (localVersion) merged.set(pendingId, localVersion);
@@ -374,13 +388,17 @@ class DemoStoreService {
                 const dbSellers = await sellersResult.value.json();
                 if (Array.isArray(dbSellers)) {
                     const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
-                    const dbMap = new Map<string, any>(dbSellers.map((s: any) => [s.id, s]));
-                    const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
                     const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'payout_history'];
-                    const merged = new Map<string, any>();
+                    
+                    // START from existing local sellers, then overlay DB updates on top.
+                    // This prevents incremental (updated_after) syncs from wiping the seller registry
+                    // when they return 0 updated sellers.
+                    const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
+                    const merged = new Map<string, any>(localMap);
 
-                    for (const [id, dbSeller] of dbMap) {
-                        const localVersion = localMap.get(id);
+                    // Apply DB updates (overwrite local versions with fresh DB data)
+                    for (const dbSeller of dbSellers) {
+                        const localVersion = localMap.get(dbSeller.id);
                         if (localVersion) {
                             const mergedSeller = { ...localVersion, ...(dbSeller as any) };
                             for (const field of LOCAL_ONLY_FIELDS) {
@@ -388,11 +406,13 @@ class DemoStoreService {
                                     mergedSeller[field] = localVersion[field];
                                 }
                             }
-                            merged.set(id, mergedSeller);
+                            merged.set(dbSeller.id, mergedSeller);
                         } else {
-                            merged.set(id, dbSeller);
+                            merged.set(dbSeller.id, dbSeller);
                         }
                     }
+                    
+                    // Preserve user's pending seller edits over DB versions
                     for (const pendingSellerId of this._pendingSellerEdits) {
                         const localVersion = localMap.get(pendingSellerId);
                         if (localVersion) merged.set(pendingSellerId, localVersion);
@@ -1652,7 +1672,7 @@ class DemoStoreService {
         // Always map seller_name so 'My Store' defaults are overwritten by the true business name
         const allSellers = this.getSellers();
         const derivedProducts = allProducts.map((p: Product) => {
-            const seller = allSellers.find(s => s.id === p.seller_id || s.user_id === p.seller_id);
+            const seller = allSellers.find((s: any) => s.id === p.seller_id || (s.userId || s.user_id) === p.seller_id);
             if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
                 return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
             }
@@ -1665,14 +1685,19 @@ class DemoStoreService {
         // to prevent unapproved sellers from showing up in global search or catalogs.
         const user = this.getCurrentUser();
         const activeSellerIds = new Set<string>();
-        allSellers.forEach(s => {
-            const isVerified = s.status === "active" || s.verified || s.kyc_status === "approved" || s.id === "global-partners";
-            const isOwner = user && (user.id === s.user_id || user.email === s.owner_email);
+        allSellers.forEach((s: any) => {
+            // Handle both camelCase (from DB API) and snake_case (from localStorage)
+            const kycStatus = s.kycStatus || s.kyc_status;
+            const userId = s.userId || s.user_id;
+            const ownerEmail = s.ownerEmail || s.owner_email;
+            
+            const isVerified = s.status === "active" || s.verified || kycStatus === "approved" || s.id === "global-partners";
+            const isOwner = user && (user.id === userId || user.email === ownerEmail);
             const isAdmin = user?.role === "admin";
 
             if (isVerified || isOwner || isAdmin) {
                 if (s.id) activeSellerIds.add(s.id);
-                if (s.user_id) activeSellerIds.add(s.user_id);
+                if (userId) activeSellerIds.add(userId);
             }
         });
 
@@ -1883,10 +1908,16 @@ class DemoStoreService {
         const approvedIds = new Set<string>();
         approvedIds.add("global-partners"); // Always include global
 
-        sellers.forEach(s => {
-            if (s.status === "active" || s.verified === true || s.kyc_status === "approved") {
+        sellers.forEach((s: any) => {
+            // Handle both camelCase (from DB API) and snake_case (from localStorage)
+            const status = s.status;
+            const verified = s.verified;
+            const kycStatus = s.kycStatus || s.kyc_status;
+            const userId = s.userId || s.user_id;
+            
+            if (status === "active" || verified === true || kycStatus === "approved") {
                 if (s.id) approvedIds.add(s.id);
-                if (s.user_id) approvedIds.add(s.user_id);
+                if (userId) approvedIds.add(userId);
             }
         });
 
@@ -3322,7 +3353,7 @@ class DemoStoreService {
             active_sellers: sellers.length,
             flagged_products: products.filter(p => p.price_flag === "too_low" || p.price_flag === "overpriced").length,
             open_complaints: complaints.filter(c => c.status !== "resolved").length,
-            open_disputes: disputes.filter(d => d.status !== "resolved").length,
+            open_disputes: disputes.filter(d => d.status !== "resolved_refund" && d.status !== "resolved_release").length,
             total_orders: orders.length,
         };
     }

@@ -674,11 +674,12 @@ export function MessageBox() {
                                         <ChevronLeft className="h-5 w-5" />
                                     </button>
                                     <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0 overflow-hidden border border-white/30">
-                                        {selectedConversation.productImage || (selectedConversation.product_id && DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === selectedConversation.product_id)?.image_url ? DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === selectedConversation.product_id)?.image_url : null) ? (
-                                            <img src={selectedConversation.productImage || DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === selectedConversation.product_id)?.image_url} alt="" className="w-full h-full object-cover" />
+                                        {(selectedConversation as any).productImage || ((selectedConversation as any).product_id && DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url ? DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url : null) ? (
+                                            <img src={(selectedConversation as any).productImage || DemoStore.getProducts({ includeInactiveSellers: true }).find(p => p.id === (selectedConversation as any).product_id)?.image_url} alt="" className="w-full h-full object-cover" />
                                         ) : (
                                             <Package className="h-4 w-4 text-white/80" />
                                         )}
+
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <h3 className="font-bold text-sm leading-tight truncate">

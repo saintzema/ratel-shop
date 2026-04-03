@@ -958,7 +958,7 @@ export default function UniversalMessagesPage() {
                                         ) : (
                                             <div className="flex gap-2 w-full">
                                                 <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
-                                                    <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {activeNeg.status === 'pending' && activeNeg.proposed_price !== activeProduct.price ? 'Counter Offer' : 'Offer'} {formatPrice(activeNeg.proposed_price)}
+                                                    <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {activeNeg.status === 'pending' && activeNeg.proposed_price !== activeProduct?.price ? 'Counter Offer' : 'Offer'} {formatPrice(activeNeg.proposed_price)}
                                                 </Button>
                                                 <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
                                                     Reject

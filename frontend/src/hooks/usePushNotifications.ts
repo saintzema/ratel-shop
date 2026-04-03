@@ -33,7 +33,7 @@ export function usePushNotifications() {
                                 id: 'VIEW_ACTION',
                                 actions: [
                                     { id: 'view', title: 'View Details', foreground: true },
-                                    { id: 'dismiss', title: 'Dismiss', destructible: true }
+                                    { id: 'dismiss', title: 'Dismiss', destructive: true }
                                 ]
                             }
                         ]
@@ -57,22 +57,22 @@ export function usePushNotifications() {
         const handlePriceDrop = async (e: any) => {
             const { product, newPrice, oldPrice } = e.detail;
             
-            const cart = DemoStore.getCart();
-            const favorites = DemoStore.getFavorites();
+            // @ts-ignore
+            const cart = DemoStore.getCart ? DemoStore.getCart() : [];
+            // @ts-ignore
+            const favorites = DemoStore.getFavorites ? DemoStore.getFavorites() : [];
             
-            const isInCart = cart.some(item => item.product.id === product.id);
-            const isFavorited = favorites.some(fav => fav.id === product.id);
+            const isInCart = cart.some((item: any) => item.product.id === product.id);
+            const isFavorited = favorites.some((fav: any) => fav.id === product.id);
             
             if (!isInCart && !isFavorited) return;
 
             if (user?.id) {
                 DemoStore.addNotification({
                     userId: user.id,
-                    type: "action",
+                    type: "promo",
                     title: "Price Drop Alert! 📉",
                     message: `Price dropped on ${product.name} from ₦${oldPrice?.toLocaleString()} to ₦${newPrice?.toLocaleString()}!`,
-                    isRead: false,
-                    createdAt: new Date().toISOString()
                 });
             }
 
