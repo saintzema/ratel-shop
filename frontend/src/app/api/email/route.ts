@@ -25,7 +25,7 @@ export async function POST(request: Request) {
         }
 
         const data = await resend.emails.send({
-            from: '🛍️ FairPrice <hello@fairprice.zemaai.com>',
+            from: '🛍️ FairPrice Shop <hello@fairprice.ng>',
             replyTo: process.env.ESCALATION_EMAIL || 'fairprice2026@gmail.com',
             to: [to],
             subject: subject,

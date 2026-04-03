@@ -136,24 +136,24 @@ export const SearchGridCard = ({
           }}
         />
       </div>
-      <div className="p-4 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
-        <h4 className="font-bold text-sm text-gray-900 line-clamp-2 group-hover:text-emerald-700 transition-colors mb-1 min-h-[40px] leading-snug">
+      <div className="p-3 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
+        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-brand-green-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
           {product.name}
         </h4>
 
-        <div className="flex items-center gap-1 mb-2">
-          <span className="text-xs font-bold text-amber-500">
+        <div className="flex items-center gap-1 mb-1.5">
+          <span className="text-[11px] font-bold text-amber-500">
             {(product.avg_rating || 4.5).toFixed(1)}
           </span>
           <div className="flex items-center">
             {[1, 2, 3, 4, 5].map((s: number) => (
               <Star
                 key={s}
-                className={`w-3 h-3 flex-shrink-0 ${s <= Math.round(product.avg_rating || 4.5) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
+                className={`w-2.5 h-2.5 flex-shrink-0 ${s <= Math.round(product.avg_rating || 4.5) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
               />
             ))}
           </div>
-          <span className="text-[10px] text-blue-600 hover:underline">
+          <span className="text-[9px] text-blue-600 font-medium hover:underline">
             (
             {(
               product.review_count || Math.floor(Math.random() * 500) + 50
@@ -163,28 +163,28 @@ export const SearchGridCard = ({
         </div>
 
         {/* Phase 5: Compact Trust & Negotiation Indicators */}
-        <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Trust Score: 85%">
-                <ShieldCheck className="h-2.5 w-2.5 text-emerald-600" />
-                <span className="text-[9px] font-bold text-emerald-700">85%</span>
+        <div className="flex items-center gap-1.5 mb-2.5">
+            <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded-md" title="Trust Score: 85%">
+                <ShieldCheck className="h-2 w-2 text-emerald-600" />
+                <span className="text-[8px] font-bold text-emerald-700">85%</span>
             </div>
-            <div className="text-[9px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-md">
+            <div className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1 py-0.5 rounded-md">
                 80% Accept
             </div>
         </div>
 
-        <div className="flex items-baseline gap-2 mb-4 flex-wrap">
-          <p className="text-2xl font-black tracking-tight text-gray-900">
+        <div className="flex items-baseline gap-1.5 mb-3 flex-wrap">
+          <p className="text-xl font-black tracking-tight text-gray-900 leading-none">
             ₦{(product.price || product.approxPrice || 0).toLocaleString()}
           </p>
           {product.original_price &&
             product.original_price > (product.price || product.approxPrice) && (
-              <p className="text-sm text-gray-400 line-through font-medium">
+              <p className="text-[11px] text-gray-400 line-through font-medium leading-none">
                 ₦{product.original_price.toLocaleString()}
               </p>
             )}
           {discount > 0 && (
-            <span className="text-xs text-red-500 font-bold ml-auto bg-red-50 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] text-red-500 font-black ml-auto bg-red-50 px-1.5 py-0.5 rounded-md">
               -{discount}%
             </span>
           )}
@@ -192,7 +192,7 @@ export const SearchGridCard = ({
 
         <button
           className={cn(
-            "w-full mt-auto flex items-center justify-center gap-2 text-sm font-black py-3 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
+            "w-full mt-auto flex items-center justify-center gap-1.5 text-[12px] font-black py-2.5 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
             added
               ? "bg-black text-white hover:bg-gray-800 border-black"
               : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
@@ -201,11 +201,11 @@ export const SearchGridCard = ({
         >
           {added ? (
             <>
-              <Check className="h-4 w-4" /> View Cart
+              <Check className="h-3.5 w-3.5" /> Carted
             </>
           ) : (
             <>
-              <ShoppingCart className="h-4 w-4" /> Add to cart
+              <ShoppingCart className="h-3.5 w-3.5" /> Buy Now
             </>
           )}
         </button>

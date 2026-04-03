@@ -34,7 +34,14 @@ export function PwaManager() {
 
         window.addEventListener('beforeinstallprompt', handler);
 
-        return () => window.removeEventListener('beforeinstallprompt', handler);
+        // Prevent pinch-to-zoom completely on mobile devices running as an app
+        const blockPinchZoom = (e: any) => e.preventDefault();
+        document.addEventListener('gesturestart', blockPinchZoom);
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handler);
+            document.removeEventListener('gesturestart', blockPinchZoom);
+        };
     }, []);
 
     const handleInstall = async () => {

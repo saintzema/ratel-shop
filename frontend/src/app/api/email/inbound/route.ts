@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         if (process.env.ESCALATION_EMAIL && fetchStatus === "SUCCESS") {
             try {
                 await resend.emails.send({
-                    from: "FairPrice Support <hello@fairprice.zemaai.com>",
+                    from: "FairPrice Support <hello@fairprice.ng>",
                     to: process.env.ESCALATION_EMAIL,
                     replyTo: emailData.from, // This allows the user to hit 'Reply' on their iPhone!
                     subject: `[Fwd] ${emailData.subject || 'Inbound Email'}`,

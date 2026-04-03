@@ -1,6 +1,16 @@
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
+import fs from "fs";
+import path from "path";
+
+function logToFile(msg: string) {
+    try {
+        fs.appendFileSync(path.join(process.cwd(), "db_debug.log"), `[${new Date().toISOString()}] ${msg}\n`);
+    } catch (e) {}
+}
+
+logToFile("DB Module Loaded");
 
 // --- NEON SERVERLESS DB CONFIGURATION (COMMENTED OUT) ---
 // If Neon Database is back online and you want to switch to it,
@@ -33,8 +43,11 @@ function createPrismaClient() {
         console.warn('Postgres connection pool error:', err.message);
     });
 
+    logToFile("Creating Prisma Client with Pool Adapter...");
     const adapter = new PrismaPg(pool as any);
-    return new PrismaClient({ adapter, log: ["error", "warn"] });
+    const client = new PrismaClient({ adapter, log: ["error", "warn"] });
+    logToFile("Prisma Client Instance Created.");
+    return client;
 }
 
 // export const db = globalForPrisma.prisma ?? createNeonPrismaClient(); // Use when Neon is enabled

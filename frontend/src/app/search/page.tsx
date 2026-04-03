@@ -762,11 +762,11 @@ function SearchContent() {
     <div className="min-h-screen bg-white font-sans selection:bg-brand-green-200">
       <Navbar />
 
-      <main className="container mx-auto px-5 py-8 pt-24 min-h-[80vh]">
+      <main className="container mx-auto px-4 py-6 pt-20 min-h-[80vh]">
         {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
-        <div className="mb-6 w-full flex flex-col gap-3 bg-white/95 pt-12 pb-2 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-4 transition-all duration-300">
+        <div className="mb-4 w-full flex flex-col gap-2 bg-white/95 pt-8 pb-1 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
           {/* Top Row: Horizontal Scrollable Filters */}
-          <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 pt-1 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
             {/* Clear All */}
             {(Object.keys(attributeFilters).length > 0 ||
               selectedCategory ||
@@ -785,9 +785,9 @@ function SearchContent() {
                       scroll: false,
                     });
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 active:scale-95 transition-all shrink-0 shadow-sm snap-start"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 active:scale-95 transition-all shrink-0 shadow-sm snap-start"
                 >
-                  <Filter className="h-3.5 w-3.5" /> Clear All
+                  <Filter className="h-3 w-3" /> Clear All
                 </button>
               )}
 
@@ -926,18 +926,19 @@ function SearchContent() {
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
                 Popular:
               </span>
-              {CATEGORIES.slice(0, 10).map((cat) => (
+              {CATEGORIES.map((cat) => (
                 <button
                   key={cat.value}
-                  onClick={() => updateFilters({ category: cat.value })}
+                  onClick={() => setSelectedCategory(cat.value === selectedCategory ? null : cat.value)}
                   className={cn(
-                    "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap backdrop-blur-md shadow-sm border",
+                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
                     selectedCategory === cat.value
-                      ? "bg-emerald-600/90 text-white border-emerald-500 shadow-md scale-105"
-                      : "bg-white/80 text-gray-700 border-gray-200/50 hover:bg-white hover:border-emerald-200 hover:text-emerald-700 hover:shadow-md",
+                      ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
+                      : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
                   )}
                 >
-                  {getCategoryIcon(cat.value)} {cat.label}
+                  {getCategoryIcon(cat.value)}
+                  {cat.label}
                 </button>
               ))}
             </div>
@@ -1081,13 +1082,22 @@ function SearchContent() {
 
             {/* CUSTOMERS ALSO BOUGHT */}
             {customersAlsoBought.length > 0 && (
-              <div className="mt-16 pt-10 border-t border-gray-200">
-                <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-6">
+              <div className="mt-8 pt-8 border-t border-gray-200">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight mb-4">
                   Customers Also Bought
                 </h3>
 
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+                  {customersAlsoBought.slice(0, 8).map((product: any) => (
+                    <SearchGridCard
+                      key={`cab-${product.id}`}
+                      product={product}
+                    />
+                  ))}
+                </div>
+
                 {historyGroups.map((group, gIdx) => (
-                  <div key={`history-group-${gIdx}`} className="mb-8">
+                  <div key={`history-group-${gIdx}`} className="mb-6">
                     <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wide">Based on your earlier search for "{group.query}"</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {group.products
@@ -1103,11 +1113,11 @@ function SearchContent() {
                 ))}
 
                 {/* Phase 5: High-Fidelity Discovery & Personalization */}
-                <div className="mt-12 space-y-12">
+                <div className="mt-6 space-y-6">
                    <StoreDiscoveryRail />
                    <RecommendedProducts 
                       title="Recommended For You" 
-                      products={allProducts} 
+                      products={allProducts}
                    />
                 </div>
               </div>

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from "next/server"; // REBUILD_TRIGGER_ENV_FIX
 import { db } from "@/lib/db";
 import { broadcast } from "../realtime/route";
 
@@ -135,9 +135,12 @@ export async function PATCH(request: Request) {
         const updateData: any = {};
         if (status) updateData.status = status;
         if (proposedPrice !== undefined) updateData.proposedPrice = proposedPrice;
+        
+        // Use 'null' to clear out fields for a counter-counter offer scenario
         if (counterPrice !== undefined) updateData.counterPrice = counterPrice;
         if (counterMessage !== undefined) updateData.counterMessage = counterMessage;
         if (counterStatus !== undefined) updateData.counterStatus = counterStatus;
+
         if (chatMessages !== undefined) updateData.chatMessages = chatMessages;
 
         const updated = await db.negotiationRequest.update({
@@ -152,34 +155,9 @@ export async function PATCH(request: Request) {
 
         broadcast({ type: "negotiation_updated", id: updated.id });
 
-        // Create notification for the recipient
-        // Determine recipient: if seller updated it, notify buyer. If buyer updated it, notify seller.
-        // For simplicity, if status changed, we use that logic. If just messages, we look at the last sender.
-        const lastMsg = Array.isArray(chatMessages) ? chatMessages[chatMessages.length - 1] : null;
-        const recipientUserId = (lastMsg?.sender === "buyer") ? updated.seller?.userId : updated.customerId;
-
-        if (recipientUserId) {
-            let notifMessage = "";
-            if (status === "countered") notifMessage = `🤝 Counter-offer received for ${updated.product?.name}: ₦${counterPrice?.toLocaleString()}`;
-            else if (status === "accepted") notifMessage = `🎉 Offer accepted for ${updated.product?.name}!`;
-            else if (status === "rejected") notifMessage = `❌ Offer declined for ${updated.product?.name}.`;
-            else if (status === "pending" && proposedPrice && counterPrice === null) {
-                // Buyer sent a counter-counter offer
-                notifMessage = `💰 Buyer counter-offered ₦${proposedPrice.toLocaleString()} for ${updated.product?.name}`;
-            }
-            else if (lastMsg) notifMessage = `💬 New message regarding ${updated.product?.name}: "${lastMsg.text?.substring(0, 50)}..."`;
-
-            if (notifMessage) {
-                await db.notification.create({
-                    data: {
-                        userId: recipientUserId,
-                        type: "negotiation",
-                        message: notifMessage,
-                        link: lastMsg?.sender === "buyer" ? "/seller/dashboard/messages" : "/account/negotiations"
-                    }
-                }).catch(() => {});
-            }
-        }
+        // Duplicate Notifications Fix: We are removing the redundant `db.notification.create` block here!
+        // The frontend `DataSyncService.addNotification` already intelligently creates and syncs User Notifications 
+        // to `/api/notifications`. Creating them here again causes them to appear twice.
 
         // If it's a seller counter-offer, send email to Buyer
         if (status === "countered" && counterPrice !== undefined) {

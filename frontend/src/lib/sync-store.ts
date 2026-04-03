@@ -91,6 +91,7 @@ class DataSyncServiceService {
         AD_CREDITS: "fairprice_demo_ad_credits",
         DELETED_STUBS: "fp_deleted_stubs",
         PENDING_NEGOTIATIONS: "fp_pending_negotiations",
+        PLATFORM_SETTINGS: "fp_platform_settings",
     };
 
     private selfHeal() {
@@ -1286,9 +1287,9 @@ class DataSyncServiceService {
                 ...n,
                 proposed_price: newPrice,
                 status: "pending",
-                counter_status: undefined,
-                counter_price: undefined,
-                counter_message: undefined,
+                counter_status: null,
+                counter_price: null,
+                counter_message: null,
                 chat_messages: existingMessages,
                 updated_at: new Date().toISOString()
             };
@@ -1606,17 +1607,59 @@ class DataSyncServiceService {
         }
     }
 
-    getSellerCommissionRate(seller: Seller): number {
+    getPlatformSettings() {
+        if (typeof window === "undefined") return { default_commission_rate: 0.05, categories: {}, price_tiers: [] };
+        const stored = localStorage.getItem(this.STORAGE_KEYS.PLATFORM_SETTINGS);
+        if (!stored) {
+            const defaults = {
+                default_commission_rate: 0.05,
+                categories: {
+                    "solar": 0.03,
+                    "energy": 0.03,
+                    "cars": 0.02
+                },
+                price_tiers: [
+                    { min: 1000000, rate: 0.03 },
+                    { min: 5000000, rate: 0.02 }
+                ]
+            };
+            localStorage.setItem(this.STORAGE_KEYS.PLATFORM_SETTINGS, JSON.stringify(defaults));
+            return defaults;
+        }
+        return JSON.parse(stored);
+    }
+
+    getSellerCommissionRate(seller: Seller, product?: Product): number {
+        // 1. Admin direct override on seller (highest priority for personalized deals)
         if (seller.commission_rate !== undefined) {
             return seller.commission_rate;
         }
 
-        const plan = seller.subscription_plan || "Starter";
-        if (plan === "Starter") return 0.01;      // 1%
-        if (plan === "Pro") return 0.005;         // 0.5%
-        if (plan === "Growth" || plan === "Scale") return 0; // Free
+        const settings = this.getPlatformSettings();
 
-        return 0.01; // Default to Starter
+        // 2. Product-specific logic
+        if (product) {
+            // Category-specific overrides
+            if (product.category && settings.categories[product.category] !== undefined) {
+                return settings.categories[product.category];
+            }
+
+            // Price-tier logic (e.g. high-value items have lower %)
+            if (settings.price_tiers && settings.price_tiers.length > 0) {
+                // Sort by min descending to find the highest matching tier
+                const sortedTiers = [...settings.price_tiers].sort((a, b) => b.min - a.min);
+                const tier = sortedTiers.find(t => product.price >= t.min);
+                if (tier) return tier.rate;
+            }
+        }
+
+        // 3. Legacy Plan-based logic (can be phased out or used as secondary fallback)
+        const plan = seller.subscription_plan || "Starter";
+        if (plan === "Starter") return settings.default_commission_rate; 
+        if (plan === "Pro") return 0.03;         // pro tier lowered 
+        if (plan === "Growth" || plan === "Scale") return 0.01; // lowest possible
+
+        return settings.default_commission_rate; 
     }
 
     /**
@@ -2300,14 +2343,21 @@ class DataSyncServiceService {
                 return {
                     ...o,
                     chat_messages: [...(o.chat_messages || []), msg],
-                    zivaActive: sender === 'ziva' ? true : false,
-                    unread_admin: sender === 'user'
+                    zivaActive: sender === 'ziva' ? true : (sender === 'system' ? o.zivaActive : false),
+                    unread_admin: sender === 'user' || (sender === 'ziva' && text.includes('ESCALATION'))
                 };
             }
             return o;
         });
 
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // CRITICAL: Push to DB immediately for Concierge messages to ensure persistence and notifications
+        fetch("/api/orders/sync-messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, sender, text, imageUrl, replyTo })
+        }).catch(err => console.error("Message sync failed:", err));
 
         // Notifications: route messages to the right participants
         if (sender !== 'system') {
@@ -3565,11 +3615,56 @@ class DataSyncServiceService {
     getPromoPlan(plan: string) { return this.PROMO_PLANS[plan]; }
 
     // --- Platform Commission ---
-    static PLATFORM_COMMISSION = 0.05; // 5% commission
+    static get PLATFORM_COMMISSION() {
+        if (typeof window === "undefined") return 0.05;
+        try {
+            const settings = JSON.parse(localStorage.getItem('fp_admin_settings') || '{}');
+            return (settings.standardCommission !== undefined) ? settings.standardCommission / 100 : 0.05;
+        } catch { return 0.05; }
+    }
 
-    getSellerPayout(orderAmount: number) {
-        const commission = orderAmount * DataSyncServiceService.PLATFORM_COMMISSION;
-        return { commission, payout: orderAmount - commission, rate: DataSyncServiceService.PLATFORM_COMMISSION };
+    calculateCommission(orderAmount: number, sellerId?: string) {
+        if (typeof window === "undefined") return { commission: orderAmount * 0.05, payout: orderAmount * 0.95, rate: 0.05 };
+        
+        let settings: any = {};
+        try {
+            settings = JSON.parse(localStorage.getItem('fp_admin_settings') || '{}');
+        } catch { /* ignore */ }
+
+        let rate = (settings.standardCommission !== undefined) ? settings.standardCommission / 100 : 0.05;
+
+        // 1. Seller Tiers / Custom Rates
+        if (sellerId) {
+            const sellers = this.getSellers();
+            const seller = sellers.find(s => s.id === sellerId);
+            if (seller?.tier === 'Gold') {
+                rate = 0.01; // Gold Tier is 1%
+            } else if (seller?.commission_rate !== undefined) {
+                rate = seller.commission_rate / 100;
+            }
+        }
+
+        // 2. Low Cost Protection (Flat Fee)
+        if (settings.lowCostThreshold && orderAmount < settings.lowCostThreshold) {
+            const flatFee = settings.lowCostFlatFee || 250;
+            return { commission: flatFee, payout: orderAmount - flatFee, rate: flatFee / orderAmount };
+        }
+
+        // 3. High Cost Incentives (Fee Cap)
+        let commission = orderAmount * rate;
+        if (settings.highCostThreshold && orderAmount > settings.highCostThreshold) {
+            const cap = settings.highCostCap || 15000;
+            if (commission > cap) {
+                commission = cap;
+                rate = cap / orderAmount;
+            }
+        }
+
+        return { commission, payout: orderAmount - commission, rate };
+    }
+
+    getSellerPayout(orderAmount: number, sellerId?: string) {
+        return this.calculateCommission(orderAmount, sellerId);
     }
 
     // --- Admin & Governance ---

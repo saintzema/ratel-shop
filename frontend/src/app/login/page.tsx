@@ -418,12 +418,18 @@ export default function UnifiedAuthPage() {
 
             const regEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
             const regName = `${firstName.trim()} ${lastName.trim()}`;
+            
+            // CRITICAL FIX: If the user already existed in the DB (like a guest account) we MUST use their existing ID
+            // otherwise all their previous orders, negotiations, and messages will disconnect.
+            const preexistingId = fetchedUser?.id || existingUser?.id;
+            const newId = preexistingId || "user_" + Math.random().toString(36).substr(2, 9);
+            
             register({
-                id: "user_" + Math.random().toString(36).substr(2, 9),
+                id: newId,
                 name: regName,
                 email: regEmail,
                 role: determinedRole,
-                created_at: new Date().toISOString(),
+                created_at: fetchedUser?.createdAt || existingUser?.created_at || new Date().toISOString(),
                 birthday: birthday || undefined
             });
             // Persist this user as registered with password
@@ -848,6 +854,16 @@ export default function UnifiedAuthPage() {
                                             Continue
                                         </Button>
                                     </form>
+
+                                    <div className="flex justify-center mt-6 pt-4 border-t border-gray-50">
+                                        <button
+                                            type="button"
+                                            onClick={handleSendOtpLoginCode}
+                                            className="text-[13px] font-bold text-brand-orange hover:underline cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            Sign in with email code instead
+                                        </button>
+                                    </div>
 
                                 </motion.div>
                             )}

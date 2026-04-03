@@ -35,15 +35,15 @@ export function StoreDiscoveryRail() {
                     <div>
                         <h2 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
                             <Store className="h-7 w-7 text-emerald-600" />
-                            Discover Top Verified Stores
+                            Top Verified Stores
                         </h2>
-                        <p className="text-gray-500 font-medium mt-1">Shop with confidence from the most reliable sellers in the matrix.</p>
+                        <p className="text-gray-500 font-medium mt-1">Shop with confidence from the most reliable sellers.</p>
                     </div>
                     <Link 
                         href="/categories" 
                         className="group flex items-center gap-2 text-sm font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-700 transition-colors"
                     >
-                        View All Stores
+                        All Stores
                         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </Link>
                 </div>
@@ -122,7 +122,7 @@ export function StoreDiscoveryRail() {
                             <div className="h-16 w-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-6">
                                 <ArrowRight className="h-8 w-8 text-white" />
                             </div>
-                            <h3 className="text-2xl font-black text-white tracking-tight mb-2">Explore All Matrix Stores</h3>
+                            <h3 className="text-2xl font-black text-white tracking-tight mb-2">Explore All Stores</h3>
                             <p className="text-emerald-50/70 text-sm font-medium">Join 500+ verified sellers across Nigeria</p>
                         </div>
                     </Link>

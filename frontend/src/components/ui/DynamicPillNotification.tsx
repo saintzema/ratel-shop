@@ -196,7 +196,7 @@ export function DynamicPillNotification() {
                     type: isNego ? "ziva" : "info",
                     title: isNego ? "Price Update" : "FairPrice.ng",
                     message: activeNotif.text,
-                    duration: 0 
+                    duration: 10000 
                 });
             }
 

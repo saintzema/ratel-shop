@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 
 const NIGERIAN_BANKS = [
     "Access Bank",
@@ -62,6 +62,62 @@ export default function PayoutsSettingsPage() {
         account_number: "",
         account_name: "",
     });
+    const [isResolving, setIsResolving] = useState(false);
+    const [resolutionError, setResolutionError] = useState("");
+
+    const BANK_CODES: Record<string, string> = {
+        "Access Bank": "044",
+        "First Bank of Nigeria": "011",
+        "Guaranty Trust Bank (GTBank)": "058",
+        "United Bank for Africa (UBA)": "033",
+        "Zenith Bank": "057",
+        "Ecobank Nigeria": "050",
+        "Fidelity Bank": "070",
+        "First City Monument Bank (FCMB)": "214",
+        "Heritage Banking Company": "030",
+        "Keystone Bank": "082",
+        "Polaris Bank": "076",
+        "Stanbic IBTC Bank": "221",
+        "Standard Chartered Bank": "068",
+        "Sterling Bank": "232",
+        "Union Bank of Nigeria": "032",
+        "Unity Bank": "215",
+        "Wema Bank": "035",
+        "Kuda Microfinance Bank": "50211",
+        "OPay": "100004",
+        "PalmPay": "100033",
+        "Moniepoint": "50515"
+    };
+
+    useEffect(() => {
+        const resolveAccount = async () => {
+            if (bankData.account_number.length === 10 && bankData.bank_name) {
+                const code = BANK_CODES[bankData.bank_name];
+                if (!code) return;
+
+                setIsResolving(true);
+                setResolutionError("");
+
+                try {
+                    const res = await fetch(`/api/payouts/verify?account_number=${bankData.account_number}&bank_code=${code}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        setBankData(prev => ({ ...prev, account_name: data.account_name }));
+                    } else {
+                        setResolutionError(data.error || "Could not resolve account");
+                        setBankData(prev => ({ ...prev, account_name: "" }));
+                    }
+                } catch (err) {
+                    setResolutionError("Network error during verification");
+                } finally {
+                    setIsResolving(false);
+                }
+            }
+        };
+
+        const timer = setTimeout(resolveAccount, 500);
+        return () => clearTimeout(timer);
+    }, [bankData.account_number, bankData.bank_name]);
 
     useEffect(() => {
         const s = DataSyncService.getCurrentSeller();
@@ -433,23 +489,39 @@ export default function PayoutsSettingsPage() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold uppercase text-gray-400 tracking-widest">
-                                Account Name{" "}
-                                <span className="text-red-400">*</span>
+                            <label className="text-xs font-bold uppercase text-gray-400 tracking-widest flex items-center justify-between">
+                                <span>Account Name <span className="text-red-400">*</span></span>
+                                {isResolving && <span className="text-[10px] text-emerald-600 animate-pulse font-black">Verifying...</span>}
                             </label>
-                            <Input
-                                type="text"
-                                required
-                                placeholder="John Doe"
-                                className="rounded-xl border-gray-200 bg-gray-50/80 h-12 text-gray-900 font-medium focus:border-emerald-400 focus:ring-emerald-200"
-                                value={bankData.account_name}
-                                onChange={(e) =>
-                                    setBankData({
-                                        ...bankData,
-                                        account_name: e.target.value,
-                                    })
-                                }
-                            />
+                            <div className="relative">
+                                <Input
+                                    type="text"
+                                    required
+                                    readOnly={bankData.account_number.length === 10 && !!bankData.bank_name}
+                                    placeholder={isResolving ? "Fetching..." : "Auto-resolved from bank"}
+                                    className={cn(
+                                        "rounded-xl border-gray-200 h-12 text-gray-900 font-bold focus:border-emerald-400 focus:ring-emerald-200 transition-all",
+                                        (bankData.account_number.length === 10 && !!bankData.bank_name) ? "bg-gray-100 cursor-not-allowed opacity-80" : "bg-gray-50/80"
+                                    )}
+                                    value={bankData.account_name}
+                                    onChange={(e) =>
+                                        setBankData({
+                                            ...bankData,
+                                            account_name: e.target.value,
+                                        })
+                                    }
+                                />
+                                {bankData.account_name && !isResolving && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shadow-sm" strokeWidth={3} />
+                                    </div>
+                                )}
+                            </div>
+                            {resolutionError && (
+                                <p className="text-[10px] text-red-500 font-bold flex items-center gap-1 mt-1">
+                                    <AlertCircle className="h-3 w-3" /> {resolutionError}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl">
@@ -463,8 +535,8 @@ export default function PayoutsSettingsPage() {
 
                         <Button
                             type="submit"
-                            disabled={saving}
-                            className="w-full h-12 bg-black hover:bg-gray-900 text-white font-bold rounded-xl"
+                            disabled={saving || isResolving || !bankData.account_name}
+                            className="w-full h-12 bg-black hover:bg-gray-900 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {saving ? (
                                 <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full" />

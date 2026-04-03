@@ -31,6 +31,10 @@ export default function AdminSettings() {
     const [doorstepFee, setDoorstepFee] = useState("4000");
     const [pickupFee, setPickupFee] = useState("2500");
     const [maxNegotiationDiscount, setMaxNegotiationDiscount] = useState("10");
+    const [lowCostThreshold, setLowCostThreshold] = useState("5000");
+    const [lowCostFlatFee, setLowCostFlatFee] = useState("250");
+    const [highCostThreshold, setHighCostThreshold] = useState("500000");
+    const [highCostCap, setHighCostCap] = useState("15000");
 
     // COD Settings
     const [codThreshold, setCodThreshold] = useState("20000");
@@ -117,8 +121,11 @@ export default function AdminSettings() {
                         localStorage.setItem("fp_max_negotiation_discount", initialData.maxNegotiationDiscount.toString());
                     }
 
-                    if (initialData.categoryMargins) setMargins(initialData.categoryMargins as Record<string, string>);
                     if (initialData.stateShipping) setStateShipping(initialData.stateShipping as Record<string, string>);
+                    if (initialData.lowCostThreshold) setLowCostThreshold(initialData.lowCostThreshold.toString());
+                    if (initialData.lowCostFlatFee) setLowCostFlatFee(initialData.lowCostFlatFee.toString());
+                    if (initialData.highCostThreshold) setHighCostThreshold(initialData.highCostThreshold.toString());
+                    if (initialData.highCostCap) setHighCostCap(initialData.highCostCap.toString());
                 }
             } catch (err) {
                 console.error("Failed to load settings from DB", err);
@@ -168,6 +175,10 @@ export default function AdminSettings() {
             escrowFee: parseFloat(escrowFee) || 1000,
             categoryMargins: margins,
             maxNegotiationDiscount: parseFloat(maxNegotiationDiscount) || 10,
+            lowCostThreshold: parseFloat(lowCostThreshold) || 5000,
+            lowCostFlatFee: parseFloat(lowCostFlatFee) || 250,
+            highCostThreshold: parseFloat(highCostThreshold) || 500000,
+            highCostCap: parseFloat(highCostCap) || 15000,
         }, setIsSavingCommission);
     };
 
@@ -249,6 +260,38 @@ export default function AdminSettings() {
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Max Negotiation Discount (%)</label>
                                     <Input value={maxNegotiationDiscount} onChange={(e) => setMaxNegotiationDiscount(e.target.value)} type="number" min="1" max="50" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                     <p className="text-[10px] text-gray-400 pl-1">Buyers cannot offer more than this % below the listing price</p>
+                                </div>
+                            </div>
+
+                            {/* Advanced Commission Tiers */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-50">
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">Low Cost Protection</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Threshold (₦)</label>
+                                            <Input value={lowCostThreshold} onChange={(e) => setLowCostThreshold(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Flat Fee (₦)</label>
+                                            <Input value={lowCostFlatFee} onChange={(e) => setLowCostFlatFee(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 italic">Items below ₦{lowCostThreshold} will pay a flat ₦{lowCostFlatFee} fee instead of %.</p>
+                                </div>
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-black text-gray-900 uppercase tracking-widest">High Cost Incentives</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Threshold (₦)</label>
+                                            <Input value={highCostThreshold} onChange={(e) => setHighCostThreshold(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Fee Cap (₦)</label>
+                                            <Input value={highCostCap} onChange={(e) => setHighCostCap(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
+                                        </div>
+                                    </div>
+                                    <p className="text-[10px] text-gray-400 italic">Items above ₦{highCostThreshold} will have their fee capped at ₦{highCostCap}.</p>
                                 </div>
                             </div>
                             <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 flex items-start gap-3">

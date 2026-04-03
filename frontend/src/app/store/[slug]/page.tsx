@@ -155,7 +155,7 @@ export default function StoreProfile() {
     }
 
     return (
-        <div className="min-h-screen bg-white font-sans pb-20">
+        <div className="min-h-screen bg-white font-sans pb-10">
             <Navbar />
 
             {/* Header / Cover */}
@@ -197,10 +197,10 @@ export default function StoreProfile() {
                 </div>
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-                    <div className="-mt-16 md:-mt-20 flex flex-col md:flex-row md:items-end gap-6 pb-6">
+                    <div className="-mt-12 md:-mt-16 flex flex-col md:flex-row md:items-end gap-4 pb-4">
                         {/* Avatar */}
                         <div
-                            className={`h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar z-30 ${isOwner ? 'cursor-pointer' : ''}`}
+                            className={`h-28 w-28 md:h-36 md:w-36 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar z-30 ${isOwner ? 'cursor-pointer' : ''}`}
                             onClick={() => isOwner && document.getElementById("logo-upload")?.click()}
                         >
                             {isOwner && <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={handleUpdateLogo} />}
@@ -278,10 +278,10 @@ export default function StoreProfile() {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-                <div className="flex flex-col md:flex-row gap-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+                <div className="flex flex-col md:flex-row gap-6">
                     {/* Sidebar Filters */}
-                    <aside className="w-full md:w-64 space-y-8 hidden md:block">
+                    <aside className="w-full md:w-60 space-y-6 hidden md:block">
                         <div>
                             <h3 className="font-bold text-gray-900 mb-4">Categories</h3>
                             <div className="space-y-2">

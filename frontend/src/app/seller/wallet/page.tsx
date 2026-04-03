@@ -21,9 +21,9 @@ import {
     Landmark,
     AlertCircle,
     ArrowLeft,
-    RefreshCw,
     X,
-    BuildingIcon
+    BuildingIcon,
+    TrendingUp
 } from "lucide-react";
 
 export default function SellerWalletPage() {
@@ -39,6 +39,14 @@ export default function SellerWalletPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [availableToWithdraw, setAvailableToWithdraw] = useState(0);
     const [commissionRate, setCommissionRate] = useState(0);
+
+    const safeSeller = seller || DataSyncService.getCurrentSeller() || {
+        id: "loading",
+        business_name: "Loading Store...",
+        trust_score: 50,
+        bank_name: "",
+        account_number: ""
+    } as Seller;
 
     useEffect(() => {
         const loadFinanceData = () => {
@@ -126,7 +134,7 @@ export default function SellerWalletPage() {
         }, 800);
     };
 
-    if (!seller) return null;
+
 
     // Financial calculations
     const ESCROW_STATES = ["held", "seller_confirmed"];
@@ -172,8 +180,99 @@ export default function SellerWalletPage() {
                 </div>
             </div>
 
-            {/* Financial Dashboard Cards */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Empty States / Loading Indicator */}
+            {!seller && isRefreshing && (
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center text-emerald-700 text-xs font-bold animate-pulse"
+                >
+                    Syncing your financial records...
+                </motion.div>
+            )}
+
+                </div>
+            </div>
+
+            {/* Payout Lifecycle Tracking - Premium Component */}
+            <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-[32px] border border-zinc-100 p-7 shadow-sm overflow-hidden relative group"
+            >
+                <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-50/40 rounded-full blur-3xl -mr-24 -mt-24 group-hover:bg-emerald-100/40 transition-colors duration-700" />
+                
+                <div className="flex items-center justify-between mb-8 relative">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
+                            <Wallet className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black text-zinc-900 leading-none">Payout Lifecycle</h3>
+                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest mt-1">Fund Tracking & Escrow Release</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative px-2">
+                    <PayoutStep 
+                        label="In Escrow" 
+                        amount={escrowAmount} 
+                        status="pending" 
+                        icon={<Lock className="h-4 w-4" />}
+                        description="Buyer payment held"
+                        active={escrowAmount > 0}
+                    />
+                    <PayoutStep 
+                        label="Released" 
+                        amount={orders.filter(o => ["released", "buyer_confirmed"].includes(o.escrow_status as string)).reduce((sum, o) => sum + o.amount, 0)} 
+                        status="completed" 
+                        icon={<ShieldCheck className="h-4 w-4" />}
+                        description="Verified for payout"
+                        active={orders.some(o => ["released", "buyer_confirmed"].includes(o.escrow_status as string))}
+                    />
+                    <PayoutStep 
+                        label="Processing" 
+                        amount={pendingPayoutsAmount} 
+                        status="pending" 
+                        icon={<TrendingUp className="h-4 w-4" />}
+                        description="Bank transfer in progress"
+                        active={pendingPayoutsAmount > 0}
+                    />
+                    <PayoutStep 
+                        label="Paid Out" 
+                        amount={totalEarned} 
+                        status="completed" 
+                        icon={<CheckCircle className="h-4 w-4" />}
+                        description="Settled to account"
+                        active={totalEarned > 0}
+                    />
+                    
+                    {/* Progress Connecting Line (Desktop) */}
+                    <div className="hidden lg:block absolute top-[19px] left-[12%] right-[12%] h-[1px] bg-zinc-100 -z-10">
+                        <div 
+                            className="h-full bg-emerald-500 transition-all duration-1000" 
+                            style={{ 
+                                width: totalEarned > 0 ? '100%' : 
+                                       pendingPayoutsAmount > 0 ? '75%' : 
+                                       orders.some(o => ["released", "buyer_confirmed"].includes(o.escrow_status as string)) ? '50%' : 
+                                       escrowAmount > 0 ? '25%' : '0%' 
+                            }}
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-8 pt-6 border-t border-zinc-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2 p-2 px-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
+                        <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                        <span className="text-[10px] text-amber-900 font-bold">
+                            Wallet Security: Settlements are processed directly via Paystack
+                        </span>
+                    </div>
+                </div>
+            </motion.div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 
                 {/* Available for Withdrawal */}
                 <div className="bg-emerald-600 rounded-[24px] p-6 text-white shadow-xl shadow-emerald-600/20 relative overflow-hidden group">
@@ -360,8 +459,8 @@ export default function SellerWalletPage() {
                                 <div className="flex justify-between items-center">
                                     <span className="text-xs font-bold text-gray-500 uppercase">Destination</span>
                                     <span className="text-xs font-medium text-gray-700 font-mono text-right">
-                                        {seller.bank_name || 'Bank'} <br/>
-                                        **** {(seller.account_number || "0000").slice(-4)}
+                                        {safeSeller.bank_name || 'Bank'} <br/>
+                                        **** {(safeSeller.account_number || "0000").slice(-4)}
                                     </span>
                                 </div>
                             </div>
@@ -415,6 +514,37 @@ export default function SellerWalletPage() {
                     </div>
                 )}
             </AnimatePresence>
+        </div>
+    );
+}
+
+interface PayoutStepProps {
+    label: string;
+    amount: number;
+    status: "pending" | "completed";
+    icon: React.ReactNode;
+    description: string;
+    active?: boolean;
+}
+
+function PayoutStep({ label, amount, status, icon, description, active }: PayoutStepProps) {
+    return (
+        <div className="flex flex-row md:flex-col items-center md:items-start gap-4 md:gap-2">
+            <div className={`
+                w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-500
+                ${active ? "bg-emerald-600 text-white shadow-lg shadow-emerald-200 scale-110" : "bg-zinc-100 text-zinc-400"}
+                ${status === "completed" && active ? "ring-2 ring-amber-400 ring-offset-2" : ""}
+            `}>
+                {icon}
+            </div>
+            <div className="min-w-0">
+                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-tight leading-none mb-1">{label}</p>
+                <div className="flex items-baseline gap-1">
+                    <p className="text-sm font-black text-zinc-900">{formatPrice(amount)}</p>
+                    {active && <div className="w-1 h-1 rounded-full bg-amber-400 animate-pulse" />}
+                </div>
+                <p className="text-[9px] text-zinc-400 font-medium leading-tight">{description}</p>
+            </div>
         </div>
     );
 }

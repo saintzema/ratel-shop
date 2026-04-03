@@ -1,3 +1,4 @@
+// RESTART_TRIGGER_PRISMA_FIX
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {

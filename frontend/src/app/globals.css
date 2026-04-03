@@ -358,6 +358,12 @@ body {
   transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   overscroll-behavior-y: none;
   /* Prevents iOS rubber-banding so Navbar stays perfectly fixed at top */
+  
+  /* Capacitor Native App Padding for Notches */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Remove default focus rings from inputs that appear on mobile taps */

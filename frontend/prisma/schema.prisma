@@ -171,9 +171,12 @@ model Order {
   escrowReleasedAt  DateTime?
   customerName      String?
   sellerName        String?
-  payoutStatus      String?        @default("none")
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  payoutStatus      String?        @default("none")
+  chatMessages      Json?
+  unreadAdmin       Boolean?       @default(false)
+  zivaActive        Boolean?       @default(false)
   disputes          Dispute[]
   customer          User           @relation(fields: [customerId], references: [id])
   product           Product        @relation(fields: [productId], references: [id])
