@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { productName, region, mode = "analyze", anchorPrice } = await req.json();
+        const { productName, region, mode = "analyze", anchorPrice, category } = await req.json();
 
         if (!productName) {
             return NextResponse.json({ error: "Product name is required" }, { status: 400 });
@@ -22,8 +22,10 @@ export async function POST(req: Request) {
             prompt = `
             You are a shopping assistant for FairPrice Nigeria. Current year: 2026.
             User Query: "${productName}"
+            Category Context: "${category || 'General'}"
             
             Task: Find 8-10 distinct, real products that match this query.
+            CRITICAL CATEGORY RULE: You MUST strictly adhere to the Category Context. If Category Context is 'cars' or 'vehicles', you MUST ONLY return real cars/vehicles. Do NOT return blenders, massagers, or random electronics just because they are 'electric'.
             
             CRITICAL — QUERY INTERPRETATION:
             - ALWAYS treat the FULL query as a single concept/product. Do NOT split it into individual words.

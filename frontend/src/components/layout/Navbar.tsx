@@ -364,10 +364,17 @@ export function Navbar() {
             const productId = `global-${slug}`;
 
             let imageUrl = r.image_url || '';
-            if (imageUrl.includes('vertexaisearch.cloud.google.com') || imageUrl.includes('grounding-api-redirect')) {
-                imageUrl = '/assets/images/placeholder.png';
-            }
-            if (!imageUrl || imageUrl.toLowerCase().includes('no photo') || imageUrl.toLowerCase().includes('n/a')) {
+            const lowerImg = imageUrl.toLowerCase();
+            const isInvalid = !imageUrl || 
+                              lowerImg.includes('no photo') || 
+                              lowerImg.includes('no image') || 
+                              lowerImg.includes('n/a') ||
+                              lowerImg.includes('missing') ||
+                              lowerImg.includes('placeholder') ||
+                              lowerImg.includes('vertexaisearch.cloud.google.com') || 
+                              lowerImg.includes('grounding-api-redirect');
+
+            if (isInvalid) {
                 imageUrl = '/placeholder.png';
             }
 
