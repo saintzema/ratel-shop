@@ -528,7 +528,7 @@ function SearchContent() {
         else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
 
         const rawImg = r.image_url || "";
-        const fallback = "/assets/images/placeholder.png";
+        const fallback = "/placeholder.png";
         const hasValidPhoto = rawImg && 
                               !rawImg.toLowerCase().includes('no photo') && 
                               !rawImg.toLowerCase().includes('no image') && 
@@ -580,13 +580,23 @@ function SearchContent() {
   const filteredProducts = useMemo(() => {
     return searchableProducts
       .filter((product) => {
+        // ALWAYS keep global products, as they are already semantically matched by the backend AI
+        if (product._source === "global") return true;
+
         if (query) {
           const q = query.toLowerCase();
           const pName = (product.name || "").toLowerCase();
           const pDesc = (product.description || "").toLowerCase();
 
           // First: check if the entire query matches (exact substring)
-          const exactMatch = pName.includes(q) || pDesc.includes(q);
+          let exactMatch = pName.includes(q) || pDesc.includes(q);
+
+          // Custom logical mappings for categories like EVs yielding 0 direct name matches
+          if (q === "evs" || q === "ev") {
+            if (pName.includes("tesla") || pName.includes("electric") || pName.includes("hybrid") || pName.includes("ev ")) {
+              exactMatch = true;
+            }
+          }
 
           if (!exactMatch) {
             // Tokenize query into significant words (3+ chars, not just numbers/years)
@@ -763,6 +773,33 @@ function SearchContent() {
       <Navbar />
 
       <main className="container mx-auto px-4 py-6 pt-20 min-h-[80vh]">
+        {/* Sell Banner at the very top */}
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => {
+              if (user && user.role === 'seller') {
+                  router.push('/seller/dashboard');
+              } else {
+                  router.push('/seller/onboarding');
+              }
+          }}
+          className="w-full bg-gradient-to-r from-brand-orange via-amber-500 to-brand-green-600 rounded-2xl p-4 md:p-6 mb-4 cursor-pointer relative overflow-hidden group shadow-md hover:shadow-xl transition-all active:scale-[0.99] flex flex-col md:flex-row items-center justify-between gap-4 border border-white/10"
+        >
+          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent animate-[shimmer_3s_infinite]" />
+          <div className="relative z-10 flex flex-col pt-1 text-center md:text-left w-full md:w-auto">
+              <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center justify-center md:justify-start gap-2">
+                  Have items like these to sell? <Sparkles className="h-5 w-5 text-yellow-300" />
+              </h3>
+              <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg mx-auto md:mx-0">
+                  Join 15,000+ sellers on FairPrice. Start your store today and reach millions of buyers who are looking for exactly what you have.
+              </p>
+          </div>
+          <div className="relative z-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 transition-all font-black text-sm whitespace-nowrap text-white group-hover:bg-white group-hover:text-emerald-700">
+              <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
+          </div>
+        </motion.div>
+
         {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
         <div className="mb-4 w-full flex flex-col gap-2 bg-white/95 pt-8 pb-1 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
           {/* Top Row: Horizontal Scrollable Filters */}
@@ -944,39 +981,14 @@ function SearchContent() {
             </div>
 
             {/* UNIFIED SEARCH RESULTS GRID */}
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              onClick={() => {
-                  if (user && user.role === 'seller') {
-                      router.push('/seller/dashboard');
-                  } else {
-                      router.push('/seller/onboarding');
-                  }
-              }}
-              className="bg-gradient-to-r from-brand-orange via-amber-500 to-brand-green-600 rounded-2xl p-4 md:p-6 mb-8 cursor-pointer relative overflow-hidden group shadow-md hover:shadow-xl transition-all active:scale-[0.99] flex flex-col md:flex-row items-center justify-between gap-4 border border-white/10"
-            >
-              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_2s_infinite]" />
-              <div className="relative z-10 flex flex-col pt-1 text-center md:text-left w-full md:w-auto">
-                  <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center justify-center md:justify-start gap-2">
-                      Have items like these to sell? <Sparkles className="h-5 w-5 text-yellow-300" />
-                  </h3>
-                  <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg mx-auto md:mx-0">
-                      Join 15,000+ sellers on FairPrice. Start your store today and reach millions of buyers who are looking for exactly what you have.
-                  </p>
-              </div>
-              <div className="relative z-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 transition-all font-black text-sm whitespace-nowrap text-white group-hover:bg-white group-hover:text-brand-green-700">
-                  <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
-              </div>
-            </motion.div>
 
             {/* ─── Brand Logo Rail (Category-Aware) ─── */}
             {(() => {
               const BRAND_MAP: Record<string, { name: string; logo: string }[]> = {
                 cars: [
                   { name: "Toyota", logo: "🚗" }, { name: "Mercedes-Benz", logo: "⭐" },
-                  { name: "Honda", logo: "🏎️" }, { name: "Lexus", logo: "💎" },
-                  { name: "BMW", logo: "🔵" }, { name: "Hyundai", logo: "🚙" },
+                  { name: "Honda", logo: "🏎️" }, { name: "EVs", logo: "⚡" }, { name: "Hyundai", logo: "🚙" },
+                  { name: "Lexus", logo: "💎" }, { name: "BMW", logo: "🔵" },
                   { name: "Kia", logo: "🔷" }, { name: "Peugeot", logo: "🦁" },
                   { name: "Ford", logo: "🔘" }, { name: "Range Rover", logo: "🏔️" },
                   { name: "Audi", logo: "⚪" }, { name: "Innoson", logo: "🇳🇬" },
@@ -1058,8 +1070,14 @@ function SearchContent() {
               );
             })()}
 
-            {combinedCurrentResults.length > 0 && (
+            {(combinedCurrentResults.length > 0 || isGlobalSearching) && (
               <div className="mb-10">
+                {combinedCurrentResults.length === 0 && isGlobalSearching && (
+                   <div className="flex items-center gap-3 mb-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                     <div className="h-6 w-6 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin shrink-0" />
+                     <p className="text-sm font-bold text-emerald-800">Searching global suppliers for &quot;{query}&quot;...</p>
+                   </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {combinedCurrentResults.map((product: any) => (
                     <SearchGridCard key={product.id} product={product} />
@@ -1067,8 +1085,7 @@ function SearchContent() {
 
                   {/* Inline Loading skeletons for global search when active */}
                   {isGlobalSearching &&
-                    showGlobalResults &&
-                    [1, 2, 3, 4].map((i) => (
+                    [1, 2, 3, 4, 5, 6, 7, 8].slice(0, combinedCurrentResults.length > 0 ? 4 : 8).map((i) => (
                       <div
                         key={`skeleton-${i}`}
                         className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm h-[320px]"
@@ -1091,31 +1108,6 @@ function SearchContent() {
                       </button>
                     </div>
                   )}
-              </div>
-            )}
-
-            {combinedCurrentResults.length === 0 && isGlobalSearching && query && (
-              <div className="mb-10">
-                <div className="flex items-center justify-center gap-3 mb-8">
-                  <div className="relative">
-                    <div className="h-10 w-10 border-[3px] border-emerald-200 border-t-emerald-600 rounded-full animate-spin" />
-                    <Sparkles className="h-4 w-4 text-emerald-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black text-gray-900 tracking-tight">Finding best prices worldwide</p>
-                    <p className="text-[11px] text-gray-400 font-medium">Searching global suppliers for &quot;{query}&quot;…</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {[1,2,3,4,5,6,7,8].map((i) => (
-                    <div key={`ghost-${i}`} className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm" style={{ animationDelay: `${i * 80}ms` }}>
-                      <div className="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl mb-3" />
-                      <div className="h-3 bg-gray-100 rounded-full w-4/5 mb-2" />
-                      <div className="h-3 bg-gray-100 rounded-full w-3/5 mb-3" />
-                      <div className="h-5 bg-gray-100 rounded-full w-2/5" />
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
 
