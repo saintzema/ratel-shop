@@ -4,6 +4,16 @@ import { SEED_PRODUCTS, SEED_SELLERS } from "@/lib/data";
 
 export async function GET() {
   const baseUrl = "https://fairprice.ng";
+
+  function slugify(text: string) {
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]+/g, '')
+        .replace(/--+/g, '-');
+  }
   const sitemapEntries: { url: string; lastModified: Date; changeFrequency: string; priority: number }[] = [
     {
       url: baseUrl,
@@ -64,6 +74,21 @@ export async function GET() {
       changeFrequency: "daily",
       priority: 0.9,
     });
+  });
+
+  // 2.5. Programmatic Price Check Pages (SEO Landing)
+  const uniqueProductNames = Array.from(new Set(Array.from(productMap.keys()).map(id => {
+      const p = SEED_PRODUCTS.find(sp => sp.id === id);
+      return p ? p.name : id;
+  })));
+
+  uniqueProductNames.forEach(name => {
+      sitemapEntries.push({
+          url: `${baseUrl}/price-check/${slugify(name)}`,
+          lastModified: new Date(),
+          changeFrequency: "daily",
+          priority: 0.9,
+      });
   });
 
   // 3. Fetch Stores / Sellers

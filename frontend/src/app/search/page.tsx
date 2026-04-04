@@ -970,6 +970,94 @@ function SearchContent() {
               </div>
             </motion.div>
 
+            {/* ─── Brand Logo Rail (Category-Aware) ─── */}
+            {(() => {
+              const BRAND_MAP: Record<string, { name: string; logo: string }[]> = {
+                cars: [
+                  { name: "Toyota", logo: "🚗" }, { name: "Mercedes-Benz", logo: "⭐" },
+                  { name: "Honda", logo: "🏎️" }, { name: "Lexus", logo: "💎" },
+                  { name: "BMW", logo: "🔵" }, { name: "Hyundai", logo: "🚙" },
+                  { name: "Kia", logo: "🔷" }, { name: "Peugeot", logo: "🦁" },
+                  { name: "Ford", logo: "🔘" }, { name: "Range Rover", logo: "🏔️" },
+                  { name: "Audi", logo: "⚪" }, { name: "Innoson", logo: "🇳🇬" },
+                ],
+                phones: [
+                  { name: "Apple", logo: "🍎" }, { name: "Samsung", logo: "📱" },
+                  { name: "Tecno", logo: "📲" }, { name: "Infinix", logo: "♾️" },
+                  { name: "Xiaomi", logo: "🔶" }, { name: "Oppo", logo: "🟢" },
+                  { name: "Vivo", logo: "🟣" }, { name: "Nokia", logo: "📞" },
+                  { name: "Google Pixel", logo: "🔷" }, { name: "Huawei", logo: "🔴" },
+                  { name: "OnePlus", logo: "➕" }, { name: "Itel", logo: "📳" },
+                ],
+                electronics: [
+                  { name: "Samsung", logo: "📺" }, { name: "LG", logo: "🖥️" },
+                  { name: "Hisense", logo: "📡" }, { name: "Sony", logo: "🎧" },
+                  { name: "HP", logo: "💻" }, { name: "Dell", logo: "🖲️" },
+                  { name: "Apple", logo: "🍏" }, { name: "Lenovo", logo: "⌨️" },
+                  { name: "Panasonic", logo: "🔌" }, { name: "Haier Thermocool", logo: "❄️" },
+                  { name: "Scanfrost", logo: "🧊" }, { name: "Binatone", logo: "🔋" },
+                ],
+                computers: [
+                  { name: "Apple MacBook", logo: "🍏" }, { name: "HP", logo: "💻" },
+                  { name: "Dell", logo: "🖲️" }, { name: "Lenovo", logo: "⌨️" },
+                  { name: "Asus", logo: "🎮" }, { name: "Acer", logo: "🟩" },
+                  { name: "Microsoft Surface", logo: "🪟" }, { name: "Samsung", logo: "📱" },
+                ],
+                fashion: [
+                  { name: "Nike", logo: "✔️" }, { name: "Adidas", logo: "🏃" },
+                  { name: "Zara", logo: "👗" }, { name: "H&M", logo: "🛍️" },
+                  { name: "Gucci", logo: "👜" }, { name: "Louis Vuitton", logo: "💼" },
+                  { name: "Balenciaga", logo: "🧥" }, { name: "Prada", logo: "👠" },
+                ],
+              };
+              const cat = (detectedCategory || "").toLowerCase();
+              const brands = BRAND_MAP[cat];
+              if (!brands || brands.length === 0) return null;
+              return (
+                <div className="mb-6">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
+                    Popular {cat === "cars" ? "Car" : cat === "phones" ? "Phone" : cat === "computers" ? "Computer" : cat === "fashion" ? "Fashion" : "Electronics"} Brands in Nigeria
+                  </p>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+                    {brands.map((brand) => {
+                      const isActive = (query || "").toLowerCase().includes(brand.name.toLowerCase());
+                      return (
+                        <button
+                          key={brand.name}
+                          onClick={() => {
+                            const params = new URLSearchParams();
+                            params.set("q", brand.name);
+                            if (selectedCategory) params.set("category", selectedCategory);
+                            router.push(`/search?${params.toString()}`, { scroll: false });
+                          }}
+                          className={cn(
+                            "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start active:scale-95 shrink-0",
+                            isActive
+                              ? "bg-gray-900 text-white border-gray-900 shadow-md"
+                              : "bg-white text-gray-700 border-gray-100 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md"
+                          )}
+                        >
+                          <span className="text-base">{brand.logo}</span>
+                          {brand.name}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => {
+                        const brandQuery = `${cat === "cars" ? "cars" : cat === "phones" ? "phones" : cat === "computers" ? "laptops" : cat === "fashion" ? "fashion" : "electronics"} Nigeria`;
+                        const params = new URLSearchParams();
+                        params.set("q", brandQuery);
+                        router.push(`/search?${params.toString()}`, { scroll: false });
+                      }}
+                      className="flex items-center gap-1 px-3.5 py-2 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 active:scale-95 shrink-0"
+                    >
+                      View More →
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
             {combinedCurrentResults.length > 0 && (
               <div className="mb-10">
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

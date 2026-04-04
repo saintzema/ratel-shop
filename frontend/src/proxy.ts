@@ -5,6 +5,24 @@ export function proxy(request: NextRequest) {
     const url = request.nextUrl;
     const hostname = request.headers.get("host") || "";
 
+    // ─── Geo-Location Detection (for Diaspora Currency Banner) ───
+    const city = request.headers.get('x-vercel-ip-city') || '';
+    const country = request.headers.get('x-vercel-ip-country') || '';
+    const latitude = request.headers.get('x-vercel-ip-latitude') || '';
+    const longitude = request.headers.get('x-vercel-ip-longitude') || '';
+
+    // We'll set a cookie so the client-side CurrencyBanner can read location
+    let geoResponse: NextResponse | null = null;
+    if (city && country) {
+        // Will be applied to the final response below
+        geoResponse = NextResponse.next();
+        geoResponse.cookies.set('fp_location', JSON.stringify({ city, country, latitude, longitude }), {
+            path: '/',
+            maxAge: 60 * 60 * 24 * 7,
+            sameSite: 'lax',
+        });
+    }
+
     // Define allowed domains (including localhost for development)
     // In production, you would add your actual domain(s) here, e.g., 'fairprice.ng', 'fairprice.ai'
     const currentHost =
@@ -47,14 +65,22 @@ export function proxy(request: NextRequest) {
         }
     }
 
-
     // If there's a valid subdomain and it's not the main app or www
     if (subdomain && subdomain !== "www") {
         // Rewrite to the store dynamic route
         // e.g., seller1.localhost:3000/about -> /store/seller1/about
-        return NextResponse.rewrite(new URL(`/store/${subdomain}${url.pathname}${url.search}`, request.url));
+        const rewriteResponse = NextResponse.rewrite(new URL(`/store/${subdomain}${url.pathname}${url.search}`, request.url));
+        // Attach geo cookie if available
+        if (city && country) {
+            rewriteResponse.cookies.set('fp_location', JSON.stringify({ city, country, latitude, longitude }), {
+                path: '/', maxAge: 60 * 60 * 24 * 7, sameSite: 'lax',
+            });
+        }
+        return rewriteResponse;
     }
 
+    // Default: pass through with geo cookie if available
+    if (geoResponse) return geoResponse;
     return NextResponse.next();
 }
 

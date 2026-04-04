@@ -157,11 +157,17 @@ export default function CartPage() {
 
                 {/* Right Sidebar: Checkout (Desktop Only) */}
                 <div className="hidden lg:block w-80 h-fit bg-white p-6 rounded shadow-sm border space-y-4">
-                    <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold mb-2">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Your order qualifies for FREE Shipping</span>
-                    </div>
-
+                    {cartTotal >= 50000 ? (
+                        <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold mb-2">
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Your order qualifies for FREE Shipping!</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-brand-orange text-sm font-bold mb-2">
+                            <Plus className="h-4 w-4" />
+                            <span>Add {formatPrice(50000 - cartTotal)} more to get FREE Shipping</span>
+                        </div>
+                    )}
                     <div className="text-sm text-gray-500 pb-2 border-b">
                         Delivery to <span className="font-bold text-black">{location}</span> by <span className="font-bold text-black">{deliveryDate}</span>
                     </div>

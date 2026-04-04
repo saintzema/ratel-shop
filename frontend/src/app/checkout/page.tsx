@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { SEED_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
@@ -290,6 +290,9 @@ function CheckoutContent() {
     // Coupon System
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
     const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+
+    // Savings Breakdown Toggle
+    const [showSavingsBreakdown, setShowSavingsBreakdown] = useState(false);
 
     // Initial load effects
     useEffect(() => {
@@ -581,10 +584,16 @@ function CheckoutContent() {
     const hasGlobalProduct = checkoutItems.some(item => item.product.seller_id === "global-partners" || item.product.seller_name.toLowerCase().includes("global"));
     const shippingMultiplier = hasGlobalProduct ? 1.5 : 1;
 
-    // Shipping: FREE for online payments (Paystack) OR Premium Users spending ₦50,000+ OR Free Shipping Discount
+    // Shipping Policy (GMC-compliant):
+    // - FREE shipping for orders ≥ ₦50,000 (regardless of payment method)
+    // - FREE shipping for online payments (Paystack/Transfer)
+    // - FREE shipping for Premium users
+    // - FREE shipping if a Free Shipping coupon is applied
+    // - Price-based shipping for COD orders under ₦50,000
     const isFreeShippingDiscount = appliedCoupon?.reason === "Free Shipping discount";
-    const isPremiumFreeDelivery = user?.isPremium && subtotal >= 50000;
-    const shipping = (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount) ? 0 : (
+    const isPremiumFreeDelivery = user?.isPremium;
+    const isFreeShippingByOrderValue = subtotal >= 50000;
+    const shipping = (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount || isFreeShippingByOrderValue) ? 0 : (
         deliveryMethod === "pickup"
             ? Math.round(basePickupFee * shippingMultiplier)
             : Math.round(baseDoorFee * shippingMultiplier)
@@ -1751,20 +1760,84 @@ function CheckoutContent() {
                                 )}
                             </div>
 
-                            {/* Consolidated Order Savings */}
+                            {/* Interactive Order Savings Breakdown */}
                             {totalSavings > 0 ? (
-                                <div className="flex flex-col bg-emerald-50/80 -mx-4 px-4 py-3 rounded-2xl border border-emerald-100 shadow-sm mt-2">
-                                    <div className="flex justify-between items-center mb-0.5">
-                                        <span className="text-emerald-700 font-bold text-sm flex items-center gap-2">
-                                            <Sparkles className="h-4 w-4 text-emerald-500 animate-pulse" />
-                                            You Saved:
-                                        </span>
-                                        <span className="font-black text-emerald-600 text-base">{formatPrice(totalSavings)}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-emerald-600/60 text-[10px] uppercase font-bold tracking-wider">Discounts & Delivery</span>
-                                        <span className="text-emerald-500/80 text-[10px] font-bold italic">Exclusive Deal</span>
-                                    </div>
+                                <div className="space-y-2 mt-2">
+                                    <button
+                                        onClick={() => setShowSavingsBreakdown(!showSavingsBreakdown)}
+                                        className={cn(
+                                            "w-full flex flex-col bg-emerald-50/80 px-4 py-3 rounded-2xl border border-emerald-100 shadow-sm transition-all hover:bg-emerald-100/80 active:scale-[0.98] cursor-pointer text-left",
+                                            showSavingsBreakdown && "rounded-b-none border-b-transparent shadow-none"
+                                        )}
+                                    >
+                                        <div className="flex justify-between items-center mb-0.5">
+                                            <span className="text-emerald-700 font-bold text-sm flex items-center gap-2">
+                                                <Sparkles className="h-4 w-4 text-emerald-500 animate-pulse" />
+                                                You Saved:
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-black text-emerald-600 text-base">{formatPrice(totalSavings)}</span>
+                                                <ChevronDown className={cn("h-4 w-4 text-emerald-500 transition-transform", showSavingsBreakdown && "rotate-180")} />
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-emerald-600/60 text-[10px] uppercase font-bold tracking-wider">Discounts & Delivery</span>
+                                            <span className="text-emerald-500/80 text-[10px] font-bold italic">Tap to reveal breakdown</span>
+                                        </div>
+                                    </button>
+
+                                    <AnimatePresence>
+                                        {showSavingsBreakdown && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: "auto", opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="bg-emerald-50/50 -mt-2 pt-2 px-4 pb-4 rounded-b-2xl border-x border-b border-emerald-100 overflow-hidden"
+                                            >
+                                                <div className="space-y-3 pt-2">
+                                                    {productSavings > 0 && (
+                                                        <div className="flex justify-between items-center text-[13px]">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-gray-500 font-medium">Market Difference</span>
+                                                                <span className="text-[10px] text-gray-400 line-through">
+                                                                    {formatPrice(checkoutItems.reduce((acc, item) => acc + ((item.product.original_price || item.product.recommended_price || item.price) * item.quantity), 0))}
+                                                                </span>
+                                                            </div>
+                                                            <span className="font-bold text-emerald-600">-{formatPrice(productSavings)}</span>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {deliverySavings > 0 && (
+                                                        <div className="flex justify-between items-center text-[13px]">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-gray-500 font-medium">Free Delivery Promo</span>
+                                                                <span className="text-[10px] text-gray-400 line-through">
+                                                                    {formatPrice(deliveryMethod === "pickup" ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier))}
+                                                                </span>
+                                                            </div>
+                                                            <span className="font-bold text-emerald-600">-{formatPrice(deliverySavings)}</span>
+                                                        </div>
+                                                    )}
+
+                                                    {appliedCoupon && (
+                                                        <div className="flex justify-between items-center text-[13px]">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-gray-500 font-medium">Coupon ({appliedCoupon.code})</span>
+                                                                <span className="text-[10px] text-gray-400">Promo Discount Applied</span>
+                                                            </div>
+                                                            <span className="font-bold text-emerald-600">-{formatPrice(appliedCoupon.amount)}</span>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="pt-2 border-t border-emerald-100/50 mt-2">
+                                                        <p className="text-[10px] text-emerald-600/70 font-medium italic">
+                                                            * Real-time savings verified by Price Intelligence Engine
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
                                 </div>
                             ) : null}
 

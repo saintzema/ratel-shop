@@ -26,11 +26,29 @@ import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 
 // Standalone component to handle popup closing without forcing the whole layout to be client-side
 import { PopupCloser } from "@/components/auth/PopupCloser";
+import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
 
 export const metadata: Metadata = {
-  title: "FairPrice Shop | Negotiate Best Deals",
-  description: "The official marketplace for fair trading. Verify Market Price, Negotiate, and Secure your deals with Escrow protection at FairPrice.ng.",
+  title: {
+    default: "FairPrice Nigeria | Verified Market Prices & Secure Escrow Shopping",
+    template: "%s | FairPrice.ng"
+  },
+  description: "The official gold standard for price verification in Nigeria. Compare real-time market prices for millions of products. Secure your deals with Escrow protection. Better than Jumia, Konga, or Jiji.",
+  keywords: ["price verification Nigeria", "how much is it in Nigeria", "best deals Nigeria", "Jumia vs Konga vs FairPrice", "verify Jiji prices", "escrow service Nigeria", "buy phones Nigeria", "market price index Africa"],
   manifest: "/manifest.json",
+  metadataBase: new URL("https://fairprice.ng"),
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    locale: "en_NG",
+    url: "https://fairprice.ng",
+    siteName: "FairPrice.ng",
+    title: "FairPrice - Verify Real Market Prices in Nigeria",
+    description: "Don't overpay. Verify the real price of any product in Nigeria before you buy.",
+    images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Logo" }],
+  },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
@@ -112,6 +130,7 @@ export default function RootLayout({
                   <FavoritesProvider>
                     <MessageProvider>
                       <NotificationProvider>
+                        <CurrencyBanner />
                         {children}
                         <ZivaChat />
                         <DynamicPillNotification />
