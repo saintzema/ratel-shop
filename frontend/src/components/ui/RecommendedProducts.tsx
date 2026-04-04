@@ -25,7 +25,7 @@ export function RecommendedProducts({
     const [isLoading, setIsLoading] = useState(false);
     const [hasMore, setHasMore] = useState(false);
     const loaderRef = useRef<HTMLDivElement>(null);
-    const ITEMS_PER_PAGE = 12;
+    const ITEMS_PER_PAGE = 24;
     const { addToCart } = useCart();
     const router = useRouter();
 
@@ -87,7 +87,7 @@ export function RecommendedProducts({
             const target = entries[0];
             if (target.isIntersecting && !loadingRef.current && hasMoreRef.current) {
                 setIsLoading(true);
-                setTimeout(() => {
+                requestAnimationFrame(() => {
                     const currentPage = pageRef.current;
                     const allProducts = productsRef.current;
                     const nextIndex = currentPage * ITEMS_PER_PAGE;
@@ -103,9 +103,9 @@ export function RecommendedProducts({
                         setHasMore(false);
                     }
                     setIsLoading(false);
-                }, 800);
+                });
             }
-        }, { root: null, rootMargin: '400px', threshold: 0 });
+        }, { root: null, rootMargin: '600px', threshold: 0 });
 
         const node = loaderRef.current;
         if (node) observer.observe(node);

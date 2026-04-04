@@ -1531,7 +1531,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             <p className="mb-1">Estimated delivery: <span className="font-bold text-gray-700">{deliveryDates.start} – {deliveryDates.end}</span></p>
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 <span className="text-[10px] text-gray-500">Shipping to</span>
-                                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-200 px-1.5 font-bold hover:bg-emerald-100 cursor-pointer">
+                                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-200 px-1.5 font-bold hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer transition-colors">
                                                     <MapPin className="h-2.5 w-2.5 mr-1" /> {location}
                                                 </Badge>
                                             </div>

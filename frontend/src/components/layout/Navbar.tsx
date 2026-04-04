@@ -680,7 +680,7 @@ export function Navbar() {
                                                         setSearchQuery(suggestion);
                                                         document.querySelector('input')?.focus();
                                                     }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-[13px] md:text-sm text-gray-700 transition-colors flex items-center justify-between group"
+                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] md:text-sm text-gray-700 transition-all flex items-center justify-between group"
                                                 >
                                                     <div className="flex items-center gap-2">
                                                         <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -702,7 +702,7 @@ export function Navbar() {
                                                 key={product.id}
                                                 onClick={() => navigateWithResults(product.id)}
                                                 className={cn(
-                                                    "w-full flex items-center gap-4 p-3 transition-colors border-b border-gray-50 last:border-0 text-left",
+                                                    "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
                                                 )}
                                             >
@@ -744,7 +744,7 @@ export function Navbar() {
                                                 <button
                                                     key={result.id || i}
                                                     onClick={() => navigateWithResults(`__cached_${i}`)}
-                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-blue-50/30 text-left"
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 hover:bg-blue-50/50 active:scale-[0.99] active:bg-blue-100 cursor-pointer text-left"
                                                 >
                                                     <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
                                                         <img
@@ -798,7 +798,7 @@ export function Navbar() {
                                                         // The navigateWithResults will create the global product and cache it
                                                         navigateWithResults(`__global_${i}`);
                                                     }}
-                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
+                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 hover:bg-gray-50 active:scale-[0.99] active:bg-gray-100 cursor-pointer text-left"
                                                 >
                                                     <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
                                                         <img

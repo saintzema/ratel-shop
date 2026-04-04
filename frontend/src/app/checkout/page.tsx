@@ -591,11 +591,9 @@ function CheckoutContent() {
     );
 
     const productSavings = checkoutItems.reduce((acc, item) => {
-        const orig = item.product.original_price;
+        const orig = item.product.original_price || item.product.recommended_price;
         if (orig && orig > item.price) {
-            // Sanity Check: Cap savings at 2.5x the current price to avoid display errors from stale mock data
-            // Items like S24 Ultra might have a 1.4M MSRP in mock DB but 176k negotiated price, which looks like an error
-            const actualSave = Math.min(orig - item.price, item.price * 2.5);
+            const actualSave = orig - item.price;
             return acc + (actualSave * item.quantity);
         }
         return acc;
@@ -1759,7 +1757,7 @@ function CheckoutContent() {
                                     <div className="flex justify-between items-center mb-0.5">
                                         <span className="text-emerald-700 font-bold text-sm flex items-center gap-2">
                                             <Sparkles className="h-4 w-4 text-emerald-500 animate-pulse" />
-                                            Order Savings:
+                                            You Saved:
                                         </span>
                                         <span className="font-black text-emerald-600 text-base">{formatPrice(totalSavings)}</span>
                                     </div>

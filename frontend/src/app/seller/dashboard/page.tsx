@@ -405,7 +405,7 @@ export default function SellerDashboard() {
                                                     <div className="flex items-center gap-3 mt-1.5">
                                                         <span className="text-xs text-gray-400 font-semibold line-through">{formatPrice(product.price)}</span>
                                                         <span className="text-sm font-black text-blue-600">{formatPrice(neg.proposed_price)}</span>
-                                                        <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700 py-0 flex h-5 px-1.5 items-center font-bold">
+                                                        <Badge variant="outline" className="text-[10px] border-blue-200 bg-blue-50 text-blue-700 py-0 flex h-5 px-1.5 items-center font-bold hover:bg-blue-100 hover:text-blue-800 transition-colors cursor-default">
                                                             -{Math.round((1 - neg.proposed_price / product.price) * 100)}%
                                                         </Badge>
                                                     </div>

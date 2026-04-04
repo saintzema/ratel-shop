@@ -954,18 +954,18 @@ function SearchContent() {
                       router.push('/seller/onboarding');
                   }
               }}
-              className="bg-gradient-to-r from-brand-orange via-amber-500 to-brand-green-600 rounded-2xl p-4 md:p-6 mb-8 cursor-pointer relative overflow-hidden group shadow-md hover:shadow-xl transition-all active:scale-[0.99] flex items-center justify-between border border-white/10"
+              className="bg-gradient-to-r from-brand-orange via-amber-500 to-brand-green-600 rounded-2xl p-4 md:p-6 mb-8 cursor-pointer relative overflow-hidden group shadow-md hover:shadow-xl transition-all active:scale-[0.99] flex flex-col md:flex-row items-center justify-between gap-4 border border-white/10"
             >
               <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-[shimmer_2s_infinite]" />
-              <div className="relative z-10 flex flex-col pt-1">
-                  <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center gap-2">
+              <div className="relative z-10 flex flex-col pt-1 text-center md:text-left w-full md:w-auto">
+                  <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center justify-center md:justify-start gap-2">
                       Have items like these to sell? <Sparkles className="h-5 w-5 text-yellow-300" />
                   </h3>
-                  <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg">
+                  <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg mx-auto md:mx-0">
                       Join 15,000+ sellers on FairPrice. Start your store today and reach millions of buyers who are looking for exactly what you have.
                   </p>
               </div>
-              <div className="relative z-10 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 text-white flex items-center gap-2 font-black text-sm shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 group-hover:bg-white group-hover:text-brand-green-700 transition-all">
+              <div className="relative z-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 transition-all font-black text-sm whitespace-nowrap text-white group-hover:bg-white group-hover:text-brand-green-700">
                   <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
               </div>
             </motion.div>
