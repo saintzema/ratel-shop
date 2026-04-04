@@ -22,8 +22,9 @@ export async function POST(req: Request) {
                     "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    from: "Ziva AI <ziva@globalstores.shop>", // You'll need a verified domain for this to work perfectly on Resend
-                    to: ESCALATION_EMAIL,
+                    from: "Ziva AI <hello@fairprice.ng>", 
+                    to: "hello@fairprice.ng",
+                    cc: "fairprice2026@gmail.com",
                     subject: `[Escalation] ${reason} - ${userName}`,
                     html: `
                         <h1>New Support Escalation</h1>

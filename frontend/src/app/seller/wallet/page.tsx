@@ -181,18 +181,78 @@ export default function SellerWalletPage() {
                 </div>
             </div>
 
-            {/* Empty States / Loading Indicator */}
-            {!seller && isRefreshing && (
-                <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center text-emerald-700 text-xs font-bold animate-pulse"
-                >
-                    Syncing your financial records...
-                </motion.div>
-            )}
 
 
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* Available for Withdrawal */}
+                <div className="bg-emerald-600 rounded-[24px] p-6 text-white shadow-xl shadow-emerald-600/20 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
+                        <Wallet className="w-32 h-32" />
+                    </div>
+                    <div className="relative z-10 flex flex-col h-full">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="text-emerald-100 font-medium tracking-wide uppercase text-xs">Available to Withdraw</span>
+                            <ArrowUpRight className="h-4 w-4 text-emerald-200" />
+                        </div>
+                        <h2 className="text-4xl font-black mb-1">{formatPrice(availableToWithdraw)}</h2>
+                        <p className="text-emerald-100 text-xs font-medium mb-6">Net of {commissionRate * 100}% platform fee</p>
+                        
+                        <div className="mt-auto">
+                            <Button
+                                onClick={handleWithdraw}
+                                disabled={availableToWithdraw <= 0}
+                                className="w-full bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold h-12 shadow-sm pointer-events-auto"
+                            >
+                                Request Payout
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* In Escrow */}
+                <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 flex flex-col h-full">
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="p-2 bg-amber-50 rounded-full">
+                            <Lock className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <span className="text-gray-500 font-bold uppercase tracking-wider text-[11px]">Held in Escrow</span>
+                    </div>
+                    <h2 className="text-3xl font-black text-gray-900 mt-2">{formatPrice(escrowAmount)}</h2>
+                    <p className="text-xs text-gray-400 font-medium mt-1">Released automatically on buyer delivery</p>
+                    
+                    <div className="mt-8 pt-4 border-t border-gray-100">
+                        <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium text-gray-500">Pending Orders</span>
+                            <span className="font-bold text-gray-900">{orders.filter(o => ESCROW_STATES.includes(o.escrow_status as string)).length}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Total Lifetime / Processing */}
+                <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 flex flex-col h-full justify-between gap-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="p-2 bg-blue-50 rounded-full">
+                                <Clock className="h-4 w-4 text-blue-600" />
+                            </div>
+                            <span className="text-gray-500 font-bold uppercase tracking-wider text-[11px]">Processing Payouts</span>
+                        </div>
+                        <h2 className="text-3xl font-black text-gray-900 mt-2">{formatPrice(pendingPayoutsAmount)}</h2>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="p-2 bg-purple-50 rounded-full">
+                                <ShieldCheck className="h-4 w-4 text-purple-600" />
+                            </div>
+                            <span className="text-gray-500 font-bold uppercase tracking-wider text-[11px]">Total Settled</span>
+                        </div>
+                        <h2 className="text-2xl font-black text-gray-900">{formatPrice(totalEarned)}</h2>
+                    </div>
+                </div>
+            </div>
 
             {/* Payout Lifecycle Tracking - Premium Component */}
             <motion.div 
@@ -272,75 +332,6 @@ export default function SellerWalletPage() {
                 </div>
             </motion.div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                
-                {/* Available for Withdrawal */}
-                <div className="bg-emerald-600 rounded-[24px] p-6 text-white shadow-xl shadow-emerald-600/20 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-                        <Wallet className="w-32 h-32" />
-                    </div>
-                    <div className="relative z-10 flex flex-col h-full">
-                        <div className="flex items-center gap-2 mb-2">
-                            <span className="text-emerald-100 font-medium tracking-wide uppercase text-xs">Available to Withdraw</span>
-                            <ArrowUpRight className="h-4 w-4 text-emerald-200" />
-                        </div>
-                        <h2 className="text-4xl font-black mb-1">{formatPrice(availableToWithdraw)}</h2>
-                        <p className="text-emerald-100 text-xs font-medium mb-6">Net of {commissionRate * 100}% platform fee</p>
-                        
-                        <div className="mt-auto">
-                            <Button
-                                onClick={handleWithdraw}
-                                disabled={availableToWithdraw <= 0}
-                                className="w-full bg-white text-emerald-700 hover:bg-emerald-50 rounded-xl font-bold h-12 shadow-sm pointer-events-auto"
-                            >
-                                Request Payout
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* In Escrow */}
-                <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 flex flex-col h-full">
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="p-2 bg-amber-50 rounded-full">
-                            <Lock className="h-4 w-4 text-amber-600" />
-                        </div>
-                        <span className="text-gray-500 font-bold uppercase tracking-wider text-[11px]">Held in Escrow</span>
-                    </div>
-                    <h2 className="text-3xl font-black text-gray-900 mt-2">{formatPrice(escrowAmount)}</h2>
-                    <p className="text-xs text-gray-400 font-medium mt-1">Released automatically on buyer delivery</p>
-                    
-                    <div className="mt-8 pt-4 border-t border-gray-100">
-                        <div className="flex justify-between items-center">
-                            <span className="text-sm font-medium text-gray-500">Pending Orders</span>
-                            <span className="font-bold text-gray-900">{orders.filter(o => ESCROW_STATES.includes(o.escrow_status as string)).length}</span>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Total Lifetime / Processing */}
-                <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 flex flex-col h-full justify-between gap-6">
-                    <div>
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="p-2 bg-blue-50 rounded-full">
-                                <Clock className="h-4 w-4 text-blue-600" />
-                            </div>
-                            <span className="text-gray-500 font-bold uppercase tracking-wider text-[11px]">Processing Payouts</span>
-                        </div>
-                        <h2 className="text-3xl font-black text-gray-900 mt-2">{formatPrice(pendingPayoutsAmount)}</h2>
-                    </div>
-
-                    <div className="pt-4 border-t border-gray-100">
-                        <div className="flex items-center gap-2 mb-2">
-                            <div className="p-2 bg-purple-50 rounded-full">
-                                <ShieldCheck className="h-4 w-4 text-purple-600" />
-                            </div>
-                            <span className="text-gray-500 font-bold uppercase tracking-wider text-[11px]">Total Settled</span>
-                        </div>
-                        <h2 className="text-2xl font-black text-gray-900">{formatPrice(totalEarned)}</h2>
-                    </div>
-                </div>
-            </div>
 
             {/* Payout History Ledger */}
             <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden">

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NegotiationRequest, Product } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
@@ -25,6 +25,7 @@ import {
     TrendingUp
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useMessages } from "@/context/MessageContext";
 
 export default function NegotiationsPage() {
     const [negotiations, setNegotiations] = useState<NegotiationRequest[]>([]);
@@ -34,12 +35,15 @@ export default function NegotiationsPage() {
     const { addToCart } = useCart();
     const { user } = useAuth();
     const router = useRouter();
+    const { openMessageBox } = useMessages();
 
     useEffect(() => {
         const userId = user?.id || user?.email || "";
 
         const loadData = () => {
-            const all = DataSyncService.getNegotiations(undefined, userId);
+            let all = DataSyncService.getNegotiations(undefined, userId);
+            // Sort by most recent activity first
+            all.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
             setNegotiations(all);
             setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }));
         };
@@ -121,17 +125,6 @@ export default function NegotiationsPage() {
                     </div>
                 </div>
 
-                {userTier.discount > 0 && (
-                    <div className={`mb-6 p-4 rounded-xl border ${userTier.color} flex items-center gap-3`}>
-                        <div className="p-2 bg-white/50 rounded-full">
-                            <CheckCircle className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h4 className="font-bold text-sm">{userTier.name} Perks Unlocked!</h4>
-                            <p className="text-xs opacity-90 mt-0.5">Enjoy {userTier.discount}% off platform service fees on all your accepted deals.</p>
-                        </div>
-                    </div>
-                )}
 
                 {/* Filter chips */}
                 <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -199,18 +192,23 @@ export default function NegotiationsPage() {
                                     return (
                                         <div key={neg.id}>
                                             {/* Desktop Row */}
-                                            <div className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 items-center hover:bg-gray-50 transition-colors">
-                                                <Link href={`/product/${neg.product_id}`} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                            <div 
+                                                onClick={() => openMessageBox(`neg_${neg.product_id}`)}
+                                                className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 items-center hover:bg-indigo-50/30 transition-colors cursor-pointer group/row"
+                                            >
+                                                <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                     <img src={productImage} alt={productName} className="h-full w-full object-contain" />
                                                 </Link>
                                                 <div className="min-w-0">
-                                                    <Link href={`/product/${neg.product_id}`} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
+                                                    <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
                                                         {productName}
                                                     </Link>
                                                     <span className="text-[10px] text-gray-400">{sellerName}</span>
                                                 </div>
                                                 <span className="text-xs text-gray-400 line-through">{formatPrice(listPrice)}</span>
-                                                <span className="text-sm font-bold text-gray-900">{formatPrice(neg.proposed_price)}</span>
+                                                <span className={cn("text-sm font-bold", neg.counter_price ? "text-gray-400 font-medium line-through" : "text-gray-900")}>
+                                                    {formatPrice(neg.proposed_price)}
+                                                </span>
                                                 <div>
                                                     {neg.counter_price ? (
                                                         <span className="text-sm font-black text-blue-600">{formatPrice(neg.counter_price)}</span>
@@ -220,19 +218,30 @@ export default function NegotiationsPage() {
                                                 </div>
                                                 {statusBadge}
                                                 <div className="flex justify-end gap-1">
+                                                    <Button 
+                                                        size="sm" 
+                                                        variant="ghost" 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openMessageBox(`neg_${neg.product_id}`);
+                                                        }} 
+                                                        className="text-[10px] font-bold rounded-lg h-7 px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                                    >
+                                                        Chat
+                                                    </Button>
                                                     {isCounterOffer && (
                                                         <>
-                                                            <Button size="sm" onClick={() => handleAction(neg.id, "accepted")} className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-2">Accept</Button>
-                                                            <Button size="sm" variant="outline" onClick={() => handleAction(neg.id, "rejected")} className="text-[10px] font-bold rounded-lg h-7 px-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent">Reject</Button>
+                                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAction(neg.id, "accepted"); }} className="text-[10px] font-bold bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-lg h-7 px-2">Accept</Button>
+                                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleAction(neg.id, "rejected"); }} className="text-[10px] font-bold rounded-lg h-7 px-2 border-red-200 text-red-600 hover:bg-red-50 bg-transparent">Reject</Button>
                                                         </>
                                                     )}
                                                     {(neg.status === "accepted" || neg.counter_status === "accepted") && neg.status !== "purchased" && !neg.purchased && (
-                                                        <Button size="sm" onClick={() => product && handleAddToCart(neg, product)} disabled={justAdded || !product} className={`text-[10px] font-bold rounded-lg h-7 px-3 ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
+                                                        <Button size="sm" onClick={(e) => { e.stopPropagation(); product && handleAddToCart(neg, product); }} disabled={justAdded || !product} className={`text-[10px] font-bold rounded-lg h-7 px-3 ${justAdded ? "bg-brand-green-600 text-white" : "bg-brand-orange hover:bg-amber-500 text-black"}`}>
                                                             {justAdded ? "✓ Added" : <>Buy Deal <ArrowRight className="h-3 w-3 ml-1" /></>}
                                                         </Button>
                                                     )}
                                                     {neg.status === "rejected" && (
-                                                        <Link href={`/product/${neg.product_id}`}>
+                                                        <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()}>
                                                             <Button size="sm" variant="outline" className="text-[10px] font-bold rounded-lg h-7 px-2 border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View</Button>
                                                         </Link>
                                                     )}
@@ -243,13 +252,16 @@ export default function NegotiationsPage() {
                                             </div>
 
                                             {/* Mobile Card */}
-                                            <div className="md:hidden p-4 space-y-3">
+                                            <div 
+                                                onClick={() => openMessageBox(`neg_${neg.product_id}`)}
+                                                className="md:hidden p-4 space-y-3 cursor-pointer active:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                                            >
                                                 <div className="flex items-center gap-3">
-                                                    <Link href={`/product/${neg.product_id}`} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block">
+                                                    <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                         <img src={productImage} alt={productName} className="h-full w-full object-contain" />
                                                     </Link>
                                                     <div className="flex-1 min-w-0">
-                                                        <Link href={`/product/${neg.product_id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
+                                                        <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
                                                             {productName}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
@@ -265,7 +277,7 @@ export default function NegotiationsPage() {
                                                     </div>
                                                     <div>
                                                         <div className="text-[9px] text-gray-400 uppercase font-bold">Offer</div>
-                                                        <div className="font-bold text-gray-900">{formatPrice(neg.proposed_price)}</div>
+                                                        <div className={cn("text-gray-900", neg.counter_price ? "text-gray-400 line-through scale-90" : "font-bold")}>{formatPrice(neg.proposed_price)}</div>
                                                     </div>
                                                     {neg.counter_price && (
                                                         <div className="border-l border-gray-200 pl-4">

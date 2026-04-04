@@ -187,8 +187,7 @@ export default function DiscountsPage() {
                             {loading ? (
                                 <tr>
                                     <td colSpan={5} className="py-20 text-center">
-                                        <div className="h-10 w-10 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Syncing Matrix...</p>
+                                        <div className="h-10 w-10 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto" />
                                     </td>
                                 </tr>
                             ) : discounts.length === 0 ? (
@@ -254,8 +253,7 @@ export default function DiscountsPage() {
             <div className="md:hidden divide-y divide-white/20">
                 {loading ? (
                     <div className="py-20 text-center">
-                        <div className="h-8 w-8 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Syncing Matrix...</p>
+                        <div className="h-8 w-8 border-4 border-gray-900 border-t-transparent rounded-full animate-spin mx-auto" />
                     </div>
                 ) : discounts.length === 0 ? (
                     <div className="py-24 text-center">

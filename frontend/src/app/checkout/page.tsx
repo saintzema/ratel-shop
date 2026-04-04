@@ -927,7 +927,7 @@ function CheckoutContent() {
             {/* Header */}
             <Navbar />
 
-            <main className="flex-1 container mx-auto max-w-6xl px-4 py-8 flex flex-col lg:flex-row gap-8">
+            <main className="flex-1 container mx-auto max-w-6xl px-4 py-30 flex flex-col lg:flex-row gap-8">
 
                 {/* Left Column: Checkout steps */}
                 <div className="flex-1 space-y-6">

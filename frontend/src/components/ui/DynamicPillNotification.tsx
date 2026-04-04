@@ -41,7 +41,39 @@ export function DynamicPillNotification() {
         const checkGlobalNotifications = () => {
             const sellerId = DataSyncService.getCurrentSellerId();
             const currentUser = DataSyncService.getCurrentUser();
+            const userId = sellerId || currentUser?.id;
+
+            if (!userId) return;
+
+            // 1. Check for Generic System Notifications (New Orders, etc.)
+            const allNotifications = DataSyncService.getNotifications(userId);
+            const recentNotif = allNotifications.find((n: any) => {
+                const ts = new Date(n.timestamp).getTime();
+                const ageMs = Date.now() - ts;
+                const isRecent = ageMs < 10000; // 10s window
+                const notifyKey = `notif_${n.id}`;
+                const lastTime = notifiedHistory.current.get(notifyKey) || 0;
+                const isNewToUs = Date.now() - lastTime > 15000;
+
+                return isRecent && isNewToUs && !n.read;
+            });
+
+            if (recentNotif) {
+                const notifyKey = `notif_${recentNotif.id}`;
+                notifiedHistory.current.set(notifyKey, Date.now());
+                
+                setCustomNotification({
+                    id: recentNotif.id,
+                    text: recentNotif.message,
+                    isNegotiation: recentNotif.type === "negotiation",
+                    isSellerAction: !!sellerId,
+                    hasImage: false,
+                    route: recentNotif.link || (sellerId ? "/seller/dashboard" : "/account/notifications")
+                });
+                return;
+            }
             
+            // 2. Check for Specific Negotiation Actions (legacy logic)
             if (sellerId) {
                 const negs = DataSyncService.getNegotiations(sellerId);
                 const recentNeg = negs.find((n: NegotiationRequest) => {
@@ -418,7 +450,7 @@ export function DynamicPillNotification() {
                                     >
                                         {isNegotiation ? <ShoppingCart className="h-5 w-5" /> : null}
                                         {isNegotiation 
-                                            ? (isSellerAction ? `Accept ₦${(currentNegotiation as any).proposedPrice?.toLocaleString()}` : "Accept & Checkout") 
+                                            ? (isSellerAction ? `Accept ₦${(currentNegotiation as any)?.proposedPrice?.toLocaleString() || 'Offer'}` : "Accept & Checkout") 
                                             : "View Details"}
                                     </button>
                                     

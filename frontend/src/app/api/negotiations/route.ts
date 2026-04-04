@@ -125,8 +125,18 @@ export async function POST(request: Request) {
 // Update status (accept/reject) or counter-offer
 export async function PATCH(request: Request) {
     try {
-        const body = await request.json();
-        const { id, status, counterPrice, counterMessage, counterStatus, chatMessages, proposedPrice } = body;
+        const { searchParams } = new URL(request.url);
+        const queryId = searchParams.get("id");
+
+        let body: any = {};
+        try {
+            body = await request.json();
+        } catch (e) {
+            console.warn("Negotiations PATCH: Could not parse body, proceeding with query params");
+        }
+
+        const id = body.id || queryId;
+        const { status, counterPrice, counterMessage, counterStatus, chatMessages, proposedPrice } = body;
 
         if (!id) {
             return NextResponse.json({ success: false, error: "Negotiation ID required" }, { status: 400 });

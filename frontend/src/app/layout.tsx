@@ -123,7 +123,6 @@ export default function RootLayout({
                   <FloatingCart />
                   <PwaManager />
                   <WaitlistModal />
-                  <OfflineIndicator />
                 </CartProvider>
               </AuthProvider>
             </LocationProvider>

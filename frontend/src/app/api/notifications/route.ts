@@ -39,7 +39,9 @@ export async function GET(req: NextRequest) {
     const endpoint = count_only ? `${API_PREFIX}/unread-count` : API_PREFIX;
 
     const url = new URL(endpoint, BACKEND_URL);
-    url.searchParams.set("user_email", user_email);
+    if (user_email) {
+        url.searchParams.set("user_email", user_email);
+    }
     if (!count_only) {
         url.searchParams.set("unread_only", unread_only);
     }
@@ -49,26 +51,28 @@ export async function GET(req: NextRequest) {
     
     // 2. Fetch from Prisma (Next.js local DB)
     let prismaNotifications: any[] = [];
-    try {
-        const prismaNotifs = await db.notification.findMany({
-            where: {
-                user: { email: user_email },
-                ...(unread_only === "true" ? { read: false } : {})
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 50
-        });
-        prismaNotifications = prismaNotifs.map(n => ({
-            id: n.id,
-            user_id: user_email,
-            type: n.type.toLowerCase(),
-            message: n.message,
-            link: n.link,
-            read: n.read,
-            created_at: n.createdAt.toISOString()
-        }));
-    } catch (e) {
-        console.error("Prisma notification fetch failed:", e);
+    if (user_email) {
+        try {
+            const prismaNotifs = await db.notification.findMany({
+                where: {
+                    user: { email: user_email },
+                    ...(unread_only === "true" ? { read: false } : {})
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 50
+            });
+            prismaNotifications = prismaNotifs.map(n => ({
+                id: n.id,
+                user_id: user_email,
+                type: n.type.toLowerCase(),
+                message: n.message,
+                link: n.link,
+                read: n.read,
+                created_at: n.createdAt.toISOString()
+            }));
+        } catch (e) {
+            console.error("Prisma notification fetch failed:", e);
+        }
     }
 
     if (count_only) {

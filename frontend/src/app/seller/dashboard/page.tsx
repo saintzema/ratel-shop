@@ -63,10 +63,15 @@ export default function SellerDashboard() {
                 setCurrentSeller(enrichedSeller);
 
                 const allNegs = DataSyncService.getNegotiations(seller.id);
+                // Sort by most recent first
+                allNegs.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
                 setNegotiations(allNegs);
 
                 const allOrders = DataSyncService.getOrders();
-                setOrders(allOrders.filter(o => o.seller_id === seller.id));
+                const filteredOrders = allOrders.filter(o => o.seller_id === seller.id);
+                // Sort by most recent first
+                filteredOrders.sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime());
+                setOrders(filteredOrders);
 
                 const allProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
                 // Also include AI-generated products that are assigned to this seller
@@ -302,7 +307,7 @@ export default function SellerDashboard() {
                         }}
                     >
                         <TrendingUp className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-                        {isRefreshing ? "Syncing..." : "Global Refresh"}
+                        {isRefreshing ? "Refreshing..." : "Global Refresh"}
                     </Button>
                 </div>
             </div>
@@ -474,6 +479,67 @@ export default function SellerDashboard() {
                 </div>
             </div>
 
+            {/* Revenue & Metrics Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Available Balance */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Wallet className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Payout</span>
+                    </div>
+                    <h3 className="text-3xl font-black text-gray-900 mt-2">
+                        {formatPrice(availableBalance)}
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1 mb-4">After {COMMISSION_RATE * 100}% platform commission fees</p>
+                    <Link href="/seller/wallet">
+                        <Button
+                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-sm"
+                        >
+                            <ArrowUpRight className="h-4 w-4 mr-2" />
+                            Manage Wallet & Payout
+                        </Button>
+                    </Link>
+                </div>
+
+                {/* In Escrow */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Lock className="h-4 w-4 text-amber-500" />
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">In Escrow</span>
+                    </div>
+                    <h3 className="text-3xl font-black text-amber-600 mt-2">
+                        {formatPrice(escrowAmount)}
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1 mb-4">Held until delivery confirmed</p>
+                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
+                            style={{ width: `${escrowAmount > 0 ? Math.min((escrowAmount / (totalRevenue || 1)) * 100, 100) : 0}%` }}
+                        />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-2 font-medium">{orders.filter(o => o.escrow_status === "held").length} orders in escrow</p>
+                </div>
+
+                {/* Released */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Released</span>
+                    </div>
+                    <h3 className="text-3xl font-black text-emerald-600 mt-2">
+                        {formatPrice(releasedAmount)}
+                    </h3>
+                    <p className="text-[11px] text-gray-500 mt-1 mb-4">Successfully settled</p>
+                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
+                            style={{ width: `${releasedAmount > 0 ? Math.min((releasedAmount / (totalRevenue || 1)) * 100, 100) : 0}%` }}
+                        />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-2 font-medium">{orders.filter(o => o.escrow_status === "released").length} orders released</p>
+                </div>
+            </div>
+
             {/* Premium Payout Tracker */}
             <motion.div 
                 initial={{ opacity: 0, y: 20 }}
@@ -561,66 +627,6 @@ export default function SellerDashboard() {
                 </div>
             </motion.div>
 
-            {/* Revenue & Metrics Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Available Balance */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Wallet className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Payout</span>
-                    </div>
-                    <h3 className="text-3xl font-black text-gray-900 mt-2">
-                        {formatPrice(availableBalance)}
-                    </h3>
-                    <p className="text-[11px] text-gray-500 mt-1 mb-4">After {COMMISSION_RATE * 100}% platform commission fees</p>
-                    <Link href="/seller/wallet">
-                        <Button
-                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-sm"
-                        >
-                            <ArrowUpRight className="h-4 w-4 mr-2" />
-                            Manage Wallet & Payout
-                        </Button>
-                    </Link>
-                </div>
-
-                {/* In Escrow */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Lock className="h-4 w-4 text-amber-500" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">In Escrow</span>
-                    </div>
-                    <h3 className="text-3xl font-black text-amber-600 mt-2">
-                        {formatPrice(escrowAmount)}
-                    </h3>
-                    <p className="text-[11px] text-gray-500 mt-1 mb-4">Held until delivery confirmed</p>
-                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-amber-400 to-amber-500 rounded-full transition-all duration-500"
-                            style={{ width: `${escrowAmount > 0 ? Math.min((escrowAmount / (totalRevenue || 1)) * 100, 100) : 0}%` }}
-                        />
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-2 font-medium">{orders.filter(o => o.escrow_status === "held").length} orders in escrow</p>
-                </div>
-
-                {/* Released */}
-                <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
-                    <div className="flex items-center gap-2 mb-1">
-                        <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Released</span>
-                    </div>
-                    <h3 className="text-3xl font-black text-emerald-600 mt-2">
-                        {formatPrice(releasedAmount)}
-                    </h3>
-                    <p className="text-[11px] text-gray-500 mt-1 mb-4">Successfully settled</p>
-                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                            className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all duration-500"
-                            style={{ width: `${releasedAmount > 0 ? Math.min((releasedAmount / (totalRevenue || 1)) * 100, 100) : 0}%` }}
-                        />
-                    </div>
-                    <p className="text-[10px] text-gray-500 mt-2 font-medium">{orders.filter(o => o.escrow_status === "released").length} orders released</p>
-                </div>
-            </div>
 
             {/* Price Alerts — Dynamic per seller */}
             {(() => {
