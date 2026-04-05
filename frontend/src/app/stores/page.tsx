@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/layout/Navbar";
-import Footer from "@/components/layout/Footer";
+import { Footer } from "@/components/layout/Footer";
 import { DataSyncService } from "@/lib/sync-store";
 import { Seller } from "@/lib/types";
 import { motion } from "framer-motion";
