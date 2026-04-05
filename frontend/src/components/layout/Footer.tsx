@@ -38,7 +38,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/contact"
+                href="/help"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Contact us
@@ -54,7 +54,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/press"
+                href="/about"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Press
@@ -71,7 +71,7 @@ export function Footer() {
           <ul className="flex flex-col gap-3 text-[13px] text-gray-300">
             <li>
               <Link
-                href="/returns"
+                href="/return-policy"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Return and refund policy
@@ -103,7 +103,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/privacy"
+                href="/legal/privacy"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Privacy Policy
@@ -111,7 +111,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/terms"
+                href="/legal/conditions"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Terms of Service

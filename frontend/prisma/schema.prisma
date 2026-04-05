@@ -356,6 +356,7 @@ model SystemSetting {
   codGlobalThreshold          Float    @default(15000)
   codThreshold                Float    @default(20000)
   stateShipping               Json?
+  globalSearchCaching         Boolean  @default(true)
 }
 
 model Discount {

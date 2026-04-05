@@ -189,16 +189,16 @@ export default function UserDirectory() {
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">{participants.length} total accounts</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="bg-white p-1.5 rounded-2xl border border-gray-100 flex gap-1">
+                    <div className="bg-white/40 backdrop-blur-md p-1.5 rounded-3xl border border-white/50 shadow-sm flex gap-1">
                         {(["all", "sellers", "buyers", "pending"] as const).map((v) => (
                             <button
                                 key={v}
                                 onClick={() => setView(v)}
                                 className={cn(
-                                    "px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                                    "px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
                                     view === v
-                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-indigo-600 text-white shadow-lg"
-                                        : "text-gray-400 hover:text-gray-600"
+                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-emerald-600 text-white shadow-lg"
+                                        : "text-emerald-800/60 hover:text-emerald-900 hover:bg-white/50"
                                 )}
                             >
                                 {v === "pending" ? `⏳ Pending (${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length})` : v}
@@ -209,35 +209,36 @@ export default function UserDirectory() {
             </div>
 
             <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-emerald-600/50" />
                 <Input
                     placeholder="Search by name, email, business, or ID..."
-                    className="pl-12 h-12 bg-white border-gray-100 rounded-2xl text-sm font-medium shadow-sm"
+                    className="pl-12 h-14 bg-white/40 backdrop-blur-md border-[1.5px] border-white/60 rounded-3xl text-sm font-bold shadow-sm placeholder:text-emerald-800/40 focus:bg-white/60 transition-all text-emerald-900"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
 
-            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+            <div className="bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="overflow-x-auto -webkit-overflow-scrolling-touch relative z-10">
                     <table className="w-full min-w-[700px] text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50/50">
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">User</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role & Status</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Activity</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Joined</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                            <tr className="bg-white/20 text-[10px] font-black uppercase tracking-widest text-emerald-800 border-b border-white/30 backdrop-blur-md">
+                                <th className="px-6 py-4">User</th>
+                                <th className="px-6 py-4">Role & Status</th>
+                                <th className="px-6 py-4">Activity</th>
+                                <th className="px-6 py-4">Joined</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-white/20">
                             {filtered.map((p) => (
-                                <tr key={p.id} className="group hover:bg-gray-50/50 transition-colors">
+                                <tr key={p.id} className="group hover:bg-white/40 transition-all">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className={cn(
-                                                "h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border overflow-hidden shrink-0",
-                                                p.role === "seller" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-blue-50 text-blue-600 border-blue-100"
+                                                "h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm shadow-md border border-white/60 overflow-hidden shrink-0 backdrop-blur-sm",
+                                                p.role === "seller" ? "bg-emerald-100/50 text-emerald-700" : "bg-white/60 text-emerald-800"
                                             )}>
                                                 {p.avatar_url || p.logo_url ? (
                                                     <img src={p.avatar_url || p.logo_url} alt="" className="w-full h-full object-cover" />
@@ -246,7 +247,7 @@ export default function UserDirectory() {
                                                 )}
                                             </div>
                                             <div className="min-w-0">
-                                                <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-sm hover:text-indigo-600 hover:underline block truncate max-w-[200px]">
+                                                <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-sm hover:text-emerald-700 hover:underline block truncate max-w-[200px]">
                                                     {p.display_name}
                                                 </Link>
                                                 <p className="text-[11px] text-gray-400 truncate">{p.owner_email || p.email || p.id}</p>
@@ -257,16 +258,16 @@ export default function UserDirectory() {
                                         <div className="flex flex-col gap-1">
                                         <div className="flex items-center gap-1.5">
                                                 <span className={cn(
-                                                    "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
-                                                    p.role === "admin" ? "bg-purple-100 text-purple-700" :
-                                                    p.role === "seller" ? "bg-indigo-100 text-indigo-700" : "bg-zinc-100 text-zinc-700"
+                                                    "text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border border-white/50 shadow-sm",
+                                                    p.role === "admin" ? "bg-purple-100/50 text-purple-700" :
+                                                    p.role === "seller" ? "bg-emerald-100/50 text-emerald-700" : "bg-white/60 text-emerald-800"
                                                 )}>
                                                     {p.role}
                                                 </span>
                                                 {p.verified && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
                                                 <span className={cn(
-                                                    "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
-                                                    (p.status === "active" && p.kyc_status !== "pending") ? "bg-emerald-50 text-emerald-600" :
+                                                    "text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border border-white/50 shadow-sm",
+                                                    (p.status === "active" && p.kyc_status !== "pending") ? "bg-emerald-50/50 text-emerald-700" :
                                                         (p.status === "pending" || p.kyc_status === "pending") ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
                                                 )}>
                                                     {p.status === "pending" || p.kyc_status === "pending" ? "pending" : p.status || "active"}
@@ -289,7 +290,7 @@ export default function UserDirectory() {
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                             <Link href={`/admin/users/${p.id}`}>
-                                                <Button size="sm" variant="ghost" className="h-8 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50">
+                                                <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-white/50 border-[0.5px] border-white/60 hover:bg-white hover:shadow-lg transition-all">
                                                     View
                                                 </Button>
                                             </Link>

@@ -45,7 +45,7 @@ export default function AdminDashboard() {
 
         // Governance: merge complaints + disputed/cancelled orders
         const rawComplaints = DataSyncService.getComplaints();
-        const allOrders = DataSyncService.getOrders().filter(o => !String(o.id).startsWith("FP-DEMO-ORD"));
+        const allOrders = DataSyncService.getOrders();
         const disputedOrders = allOrders
             .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
             .map(o => ({
@@ -75,7 +75,7 @@ export default function AdminDashboard() {
             }));
         setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
 
-        const actualDisputes = DataSyncService.getDisputes().filter(d => !String(d.order_id).startsWith("FP-DEMO-ORD"));
+        const actualDisputes = DataSyncService.getDisputes();
         setOpenDisputeCount(actualDisputes.filter(d => !d.status.startsWith("resolved")).length);
         setRecentReviews(dSort(DataSyncService.getReviews()).slice(0, 5));
         setRecentOrders(dSort(allOrders).slice(0, 5));
@@ -174,7 +174,9 @@ export default function AdminDashboard() {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 {cards.map((card) => (
-                    <Link href={card.href} key={card.label} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group block">
+                    <Link href={card.href} key={card.label} className="bg-white/40 backdrop-blur-xl p-6 rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 hover:shadow-2xl hover:shadow-green-900/20 hover:-translate-y-1 transition-all group block relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent pointer-events-none" />
+                        <div className="relative z-10">
                         <div className="flex items-start justify-between mb-4">
                             <div className={cn(
                                 "p-3 rounded-xl",
@@ -197,9 +199,10 @@ export default function AdminDashboard() {
                         <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest">{card.label}</h3>
                         <div className="flex items-end justify-between mt-1">
                             <p className="text-2xl font-black text-gray-900">{card.value}</p>
-                            <span className="text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                            <span className="text-[10px] font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
                                 View Details <ChevronRight className="h-3 w-3 ml-0.5" />
                             </span>
+                        </div>
                         </div>
                     </Link>
                 ))}
@@ -208,8 +211,9 @@ export default function AdminDashboard() {
             {/* Governance & Operations Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Pending KYC Reviews */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                    <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                         <div>
                             <h3 className="text-lg font-black text-gray-900 tracking-tight">Trust &amp; Verify</h3>
                             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Pending Seller Onboarding</p>
@@ -267,8 +271,9 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Dispute Resolution Center */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                    <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                         <div>
                             <h3 className="text-lg font-black text-gray-900 tracking-tight">Governance</h3>
                             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Active Marketplace Disputes</p>
@@ -344,8 +349,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Reviews Management */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                     <div>
                         <h3 className="text-lg font-black text-gray-900 tracking-tight">Recent Product Reviews</h3>
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Monitor & Moderate</p>
@@ -402,8 +408,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Platform Orders */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                     <div>
                         <h3 className="text-lg font-black text-gray-900 tracking-tight">Recent Platform Orders</h3>
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Global Trading Activity</p>
@@ -490,8 +497,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Actions Footer */}
-            <div className="bg-indigo-600 rounded-2xl p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="text-center md:text-left">
+            <div className="bg-emerald-600 rounded-3xl p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-800/40 via-transparent to-white/20 pointer-events-none" />
+                <div className="relative z-10 text-center md:text-left">
                     <h3 className="text-2xl font-black tracking-tight">Platform Safety Mode</h3>
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">Configure system-wide trust protocols and fee structures.</p>
                 </div>

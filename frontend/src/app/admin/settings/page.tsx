@@ -49,6 +49,7 @@ export default function AdminSettings() {
     const [kycVerification, setKycVerification] = useState(false);
     const [escrowRelease, setEscrowRelease] = useState(true);
     const [strictSeller, setStrictSeller] = useState(true);
+    const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
 
     const [isSavingCommission, setIsSavingCommission] = useState(false);
     const [isSavingShipping, setIsSavingShipping] = useState(false);
@@ -115,6 +116,7 @@ export default function AdminSettings() {
                     if (initialData.kycVerification !== undefined) setKycVerification(initialData.kycVerification);
                     if (initialData.escrowRelease !== undefined) setEscrowRelease(initialData.escrowRelease);
                     if (initialData.strictSeller !== undefined) setStrictSeller(initialData.strictSeller);
+                    if (initialData.globalSearchCaching !== undefined) setGlobalSearchCaching(initialData.globalSearchCaching);
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -194,7 +196,7 @@ export default function AdminSettings() {
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
-        aiMonitoring, kycVerification, escrowRelease, strictSeller
+        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching
     }, setIsSavingSecurity);
 
     const handleReset = () => {
@@ -202,6 +204,7 @@ export default function AdminSettings() {
         setKycVerification(false);
         setEscrowRelease(true);
         setStrictSeller(true);
+        setGlobalSearchCaching(true);
         setDoorstepFee("2500");
         setPickupFee("1000");
     };
@@ -553,12 +556,19 @@ export default function AdminSettings() {
                                 </div>
                                 <Switch checked={escrowRelease} onCheckedChange={setEscrowRelease} />
                             </div>
-                            <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+                            <div className="flex items-center justify-between py-4 border-b border-gray-50">
                                 <div className="max-w-md">
                                     <h4 className="text-sm font-bold text-gray-900">Strict Seller Onboarding</h4>
                                     <p className="text-xs text-gray-400 mt-0.5">Require manual review for all new sellers</p>
                                 </div>
                                 <Switch checked={strictSeller} onCheckedChange={setStrictSeller} />
+                            </div>
+                            <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+                                <div className="max-w-md">
+                                    <h4 className="text-sm font-bold text-gray-900">Global Search Caching</h4>
+                                    <p className="text-xs text-gray-400 mt-0.5">Auto-capture AI-generated search results into the public catalogue</p>
+                                </div>
+                                <Switch checked={globalSearchCaching} onCheckedChange={setGlobalSearchCaching} />
                             </div>
                         </div>
 

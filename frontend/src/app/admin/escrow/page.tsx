@@ -174,6 +174,10 @@ export default function EscrowManagement() {
                 const orders = DataSyncService.getOrders();
                 const updated = orders.map(o => o.id === orderId ? { ...o, escrow_status: "refunded" as const } : o);
                 localStorage.setItem(DataSyncService.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+                fetch('/api/orders/update-status', {
+                    method: 'POST',
+                    body: JSON.stringify({ orderId, status: "refunded" })
+                }).catch(() => {});
             }
         } else if (type === "releaseDisputed") {
             const dispute = DataSyncService.getDisputeByOrderId(orderId);

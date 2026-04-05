@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
     codAllowExpensiveCategories: true,
     codGlobalEnabled: false,
     codGlobalThreshold: 15000,
+    globalSearchCaching: true,
     updatedAt: new Date()
 };
 

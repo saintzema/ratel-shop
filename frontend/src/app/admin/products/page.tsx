@@ -372,22 +372,37 @@ export default function CatalogControl() {
                                 <p className="text-xs text-blue-600/70 mt-0.5">Products found via global search. Edit details and promote to your public catalog.</p>
                             </div>
                             <div className="flex items-center gap-3">
-                                {selectedCacheIds.length > 0 && (
-                                    <button
-                                        onClick={() => {
-                                            if (confirm(`Are you sure you want to delete ${selectedCacheIds.length} items from the cache?`)) {
-                                                // Re-fetch properly using DataSyncService
-                                                for (let id of selectedCacheIds) {
-                                                    DataSyncService.removeFromSearchCache(id);
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                if (confirm(`Are you sure you want to add ${selectedCacheIds.length} items to your global platform catalog?`)) {
+                                                    for (let id of selectedCacheIds) {
+                                                        DataSyncService.promoteFromCache(id);
+                                                        DataSyncService.removeFromSearchCache(id);
+                                                    }
+                                                    setCachedProducts(DataSyncService.getAllCachedProducts());
+                                                    setSelectedCacheIds([]);
                                                 }
-                                                setCachedProducts(DataSyncService.getAllCachedProducts());
-                                                setSelectedCacheIds([]);
-                                            }
-                                        }}
-                                        className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" /> Delete Selected ({selectedCacheIds.length})
-                                    </button>
+                                            }}
+                                            className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" /> Add Selected to Catalog ({selectedCacheIds.length})
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (confirm(`Are you sure you want to delete ${selectedCacheIds.length} items from the cache?`)) {
+                                                    for (let id of selectedCacheIds) {
+                                                        DataSyncService.removeFromSearchCache(id);
+                                                    }
+                                                    setCachedProducts(DataSyncService.getAllCachedProducts());
+                                                    setSelectedCacheIds([]);
+                                                }
+                                            }}
+                                            className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" /> Delete Selected
+                                        </button>
+                                    </div>
                                 )}
                                 <span className="text-xs font-black text-blue-700 bg-blue-100 px-3 py-1.5 rounded-full">{searchFilteredCache.length} cached</span>
                             </div>

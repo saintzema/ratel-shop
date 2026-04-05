@@ -484,6 +484,18 @@ function SearchContent() {
             setGlobalResults(data.suggestions);
             if (data.suggestions.length > 0) {
               setShowGlobalResults(true); // Auto-show the global results seamlessly
+              // Formatting for auto-cache seeding
+              const mapped = data.suggestions.map((r: any) => ({
+                id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                name: r.name,
+                price: r.approxPrice || 0,
+                category: r.category || effectiveQuery || "general",
+                image_url: r.image_url || '/assets/images/placeholder.png',
+                description: r.description || '',
+                specs: r.specs || {},
+                _source: "global"
+              }));
+              DataSyncService.addToSearchCache(effectiveQuery, mapped);
             }
           }
         })
@@ -514,6 +526,20 @@ function SearchContent() {
               const newItems = data.suggestions.filter(
                 (s: any) => !prev.some(p => p.name.toLowerCase() === s.name.toLowerCase())
               );
+              // Formatting for auto-cache seeding
+              if (newItems.length > 0) {
+                  const mapped = newItems.map((r: any) => ({
+                    id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                    name: r.name,
+                    price: r.approxPrice || 0,
+                    category: r.category || effectiveQuery || "general",
+                    image_url: r.image_url || '/assets/images/placeholder.png',
+                    description: r.description || '',
+                    specs: r.specs || {},
+                    _source: "global"
+                  }));
+                  DataSyncService.addToSearchCache(effectiveQuery, mapped);
+              }
               return [...prev, ...newItems];
             });
           }

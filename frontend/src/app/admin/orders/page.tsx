@@ -13,17 +13,35 @@ export default function AdminOrdersPage() {
     const [orders, setOrders] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
 
-    const loadOrders = () => {
+    const [isLoading, setIsLoading] = useState(true);
+
+    const loadOrders = async () => {
+        // Fallback to local sync store while fetching
         setOrders(DataSyncService.getOrders().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        
+        try {
+            const res = await fetch("/api/orders?all=true");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.orders) {
+                    setOrders(data.orders.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+                }
+            }
+        } catch (e) {
+            console.error("Failed to fetch fresh orders", e);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     useEffect(() => {
         loadOrders();
-        window.addEventListener("storage", loadOrders);
-        window.addEventListener("sync-store-update", loadOrders);
+        const syncDB = () => setOrders(DataSyncService.getOrders().sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+        window.addEventListener("storage", syncDB);
+        window.addEventListener("sync-store-update", syncDB);
         return () => {
-            window.removeEventListener("storage", loadOrders);
-            window.removeEventListener("sync-store-update", loadOrders);
+            window.removeEventListener("storage", syncDB);
+            window.removeEventListener("sync-store-update", syncDB);
         };
     }, []);
 
@@ -51,11 +69,12 @@ export default function AdminOrdersPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
+            <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="overflow-x-auto relative z-10">
                     <table className="w-full text-left text-sm border-collapse">
                         <thead>
-                            <tr className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100">
+                            <tr className="bg-white/20 text-[10px] font-black uppercase tracking-widest text-emerald-800 border-b border-white/30 backdrop-blur-md">
                                 <th className="px-6 py-4">Order ID & Date</th>
                                 <th className="px-6 py-4">Customer</th>
                                 <th className="px-6 py-4">Product</th>
@@ -139,13 +158,13 @@ export default function AdminOrdersPage() {
                                             </td>
                                             <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                                                 <Link href={`/admin/inbox/orders?order=${order.id}`}>
-                                                    <Button size="sm" variant="outline" className="h-8 rounded-lg text-xs font-bold text-gray-700 bg-white border-gray-200 hover:bg-gray-50">
+                                                    <Button size="sm" variant="outline" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-white/50 border-white/60 hover:bg-white hover:shadow-lg transition-all">
                                                         <MessageSquare className="w-3 h-3 mr-1.5" />
                                                         View Ziva Chat
                                                     </Button>
                                                 </Link>
                                                 <Link href={`/admin/orders/${order.id}`}>
-                                                    <Button size="sm" variant="ghost" className="h-8 rounded-lg text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100">
+                                                    <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100">
                                                         <ExternalLink className="w-3 h-3 md:mr-0 lg:mr-1.5" />
                                                         <span className="hidden lg:inline">Details</span>
                                                     </Button>

@@ -4276,6 +4276,17 @@ class DataSyncServiceService {
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
 
+        // Sync with backend API to prevent ghost rerenders from polling
+        fetch("/api/admin/resolve-dispute", {
+            method: "POST",
+            body: JSON.stringify({
+                disputeId,
+                orderId: dispute.order_id,
+                resolution,
+                adminNotes
+            })
+        }).catch(() => {});
+
         window.dispatchEvent(new Event("storage"));
     }
 
