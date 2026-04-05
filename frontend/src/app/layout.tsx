@@ -30,7 +30,7 @@ import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
 
 export const metadata: Metadata = {
   title: {
-    default: "FairPrice Nigeria | Verified Market Prices & Secure Escrow Shopping",
+    default: "FairPrice Shop Negotiate Verify Prices",
     template: "%s | FairPrice.ng"
   },
   description: "The official gold standard for price verification in Nigeria. Compare real-time market prices for millions of products. Secure your deals with Escrow protection. Better than Jumia, Konga, or Jiji.",
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     locale: "en_NG",
     url: "https://fairprice.ng",
     siteName: "FairPrice.ng",
-    title: "FairPrice - Verify Real Market Prices in Nigeria",
+    title: "FairPrice Shop Negotiate Verify Prices",
     description: "Don't overpay. Verify the real price of any product in Nigeria before you buy.",
     images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Logo" }],
   },
@@ -83,8 +83,9 @@ export default function RootLayout({
         {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
         <style dangerouslySetInnerHTML={{
           __html: `
-          #fp-splash{position:fixed;top:0;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
-          body { background-color: #ffffff; }
+           #fp-splash{position:fixed;top:0;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
+          html,body,#__next,main { background-color: #ffffff !important; }
+          * { -webkit-tap-highlight-color: transparent; }
           #fp-splash img{width:80px;height:80px;border-radius:20px;margin-bottom:16px;animation:fp-pulse 2s ease-in-out infinite}
           #fp-splash .fp-name{color:#FFD700;font-size:24px;font-weight:900;letter-spacing:-0.02em;margin-top:16px;font-family:system-ui,-apple-system,sans-serif}
           #fp-splash .fp-tagline{color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;font-family:system-ui,-apple-system,sans-serif;text-align:center;max-width:280px}
