@@ -22,7 +22,8 @@ import {
     Copy,
     Lock,
     Check,
-    Wallet
+    Wallet,
+    Badge
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -106,12 +107,26 @@ export default function SellerSettingsPage() {
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'cover') => {
         const file = e.target.files?.[0];
         if (file) {
-            // Simulate reading file and setting URL
+            // Check plan for cover upload
+            if (type === 'cover' && (!seller?.subscription_plan || seller.subscription_plan === "Starter")) {
+                alert("Custom banners are a Pro feature. Please upgrade your plan to change your store's look.");
+                return;
+            }
+
             const url = URL.createObjectURL(file);
-            setFormData(prev => ({
-                ...prev,
-                [type === 'logo' ? 'logo_url' : 'cover_image_url']: url
-            }));
+            if (type === 'cover') {
+                const currentUrls = seller?.cover_image_urls || (formData.cover_image_url ? [formData.cover_image_url] : []);
+                const maxImages = (seller?.subscription_plan === "Growth" || seller?.subscription_plan === "Scale") ? 3 : 1;
+                
+                if (currentUrls.length >= maxImages && maxImages > 1) {
+                    const newUrls = [...currentUrls, url].slice(-maxImages);
+                    setFormData(prev => ({ ...prev, cover_image_urls: newUrls, cover_image_url: newUrls[0] }));
+                } else {
+                    setFormData(prev => ({ ...prev, cover_image_url: url, cover_image_urls: [url] }));
+                }
+            } else {
+                setFormData(prev => ({ ...prev, logo_url: url }));
+            }
         }
     };
 
@@ -297,8 +312,13 @@ export default function SellerSettingsPage() {
 
                             {/* Cover */}
                             <div className="space-y-3">
-                                <label className="text-xs font-black uppercase tracking-widest text-gray-800">Cover Banner</label>
-                                <div className="relative h-36 w-full rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden group">
+                                <label className="text-xs font-black uppercase tracking-widest text-gray-800 flex items-center justify-between">
+                                    <span>Cover Banner</span>
+                                    {(!seller.subscription_plan || seller.subscription_plan === "Starter") && (
+                                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none px-2 py-0.5 text-[8px] font-black uppercase tracking-tighter shadow-none">Starter Plan Limit</Badge>
+                                    )}
+                                </label>
+                                <div className="relative h-44 w-full rounded-2xl bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden group">
                                     {formData.cover_image_url ? (
                                         <img src={formData.cover_image_url} alt="Cover" className="w-full h-full object-cover" />
                                     ) : (
@@ -307,13 +327,41 @@ export default function SellerSettingsPage() {
                                             <span className="text-xs font-medium">1200 x 400px Recommended</span>
                                         </div>
                                     )}
-                                    <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center transition-opacity ${formData.cover_image_url ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
-                                        <Button type="button" onClick={() => coverInputRef.current?.click()} variant="secondary" className="bg-white hover:bg-gray-100 text-gray-900 text-xs font-black uppercase tracking-widest h-10 px-6 rounded-xl shadow-xl transition-transform hover:scale-105">
-                                            <Upload className="h-4 w-4 mr-2" /> {formData.cover_image_url ? 'Change Banner' : 'Upload Banner'}
-                                        </Button>
-                                        <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'cover')} />
-                                    </div>
+                                    
+                                    {(!seller.subscription_plan || seller.subscription_plan === "Starter") ? (
+                                        <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-6 text-center">
+                                            <div className="h-10 w-10 bg-white rounded-full shadow-lg flex items-center justify-center mb-3">
+                                                <Lock className="h-5 w-5 text-amber-600" />
+                                            </div>
+                                            <p className="text-xs font-bold text-gray-900 mb-3">Unlock custom branding with a premium plan</p>
+                                            <Link href="/seller/settings/billing">
+                                                <Button type="button" size="sm" className="bg-brand-green-600 text-white text-[10px] font-black uppercase tracking-widest h-9 px-6 rounded-xl shadow-lg shadow-brand-green-600/20 hover:scale-105 transition-all">
+                                                    Upgrade to Change
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity ${formData.cover_image_url ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
+                                            <Button type="button" onClick={() => coverInputRef.current?.click()} variant="secondary" className="bg-white hover:bg-gray-100 text-gray-900 text-xs font-black uppercase tracking-widest h-10 px-6 rounded-xl shadow-xl transition-transform hover:scale-105">
+                                                <Upload className="h-4 w-4 mr-2" /> {formData.cover_image_url ? 'Change Banner' : 'Upload Banner'}
+                                            </Button>
+                                            <p className="text-[10px] text-white/70 font-bold mt-2 uppercase tracking-widest">
+                                                {(seller.subscription_plan === "Growth" || seller.subscription_plan === "Scale") ? "Up to 3 images allowed" : "1 image limit"}
+                                            </p>
+                                            <input type="file" ref={coverInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'cover')} />
+                                        </div>
+                                    )}
                                 </div>
+                                {(seller.subscription_plan === "Growth" || seller.subscription_plan === "Scale") && seller.cover_image_urls && seller.cover_image_urls.length > 0 && (
+                                    <div className="grid grid-cols-3 gap-3 mt-4 animate-in fade-in slide-in-from-top-2">
+                                        {seller.cover_image_urls.map((url, i) => (
+                                            <div key={i} className="relative aspect-[3/1] rounded-lg overflow-hidden border border-gray-200">
+                                                <img src={url} alt="" className="w-full h-full object-cover" />
+                                                <div className="absolute top-1 right-1 h-5 w-5 bg-black/50 rounded-full flex items-center justify-center text-white text-[10px] font-bold">{i + 1}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
