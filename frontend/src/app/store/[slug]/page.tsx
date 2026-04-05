@@ -6,7 +6,7 @@ import { useParams } from "next/navigation";
 import { DataSyncService } from "@/lib/sync-store";
 import { SEED_PRODUCTS, SEED_SELLERS } from "@/lib/data";
 import { Product, Seller } from "@/lib/types";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
