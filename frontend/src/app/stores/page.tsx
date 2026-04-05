@@ -41,7 +41,7 @@ export default function AllStoresPage() {
         break;
       case "rating":
         results.sort(
-          (a, b) => parseFloat(b.rating || "0") - parseFloat(a.rating || "0")
+          (a, b) => parseFloat(String(b.rating || "0")) - parseFloat(String(a.rating || "0"))
         );
         break;
       case "newest":
