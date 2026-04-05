@@ -50,9 +50,9 @@ export const metadata: Metadata = {
     images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Logo" }],
   },
   icons: {
-    icon: "/logo.png",
+    icon: "/favicon.ico",
     apple: "/logo.png",
-    shortcut: "/logo.png",
+    shortcut: "/favicon.ico",
   },
 };
 

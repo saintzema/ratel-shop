@@ -244,6 +244,7 @@ function SearchContent() {
       condition?: string;
       sourceUrl?: string;
       image_url?: string;
+      description?: string;
       specs?: Record<string, string>;
     }[]
   >([]);
@@ -282,7 +283,20 @@ function SearchContent() {
         }
 
         if (cachedResults) {
-          const parsed = JSON.parse(cachedResults);
+          let parsed = JSON.parse(cachedResults);
+          
+          // ─── HYDRATION SYNC ───
+          // If any cached result is actually a local product, hydrate it with latest store data
+          // This ensures updated images from sellers appear correctly in SRP.
+          const approved = DataSyncService.getApprovedProducts();
+          parsed = parsed.map((p: any) => {
+            const live = approved.find(lp => lp.id === p.id || lp.name.toLowerCase() === p.name.toLowerCase());
+            if (live) {
+              return { ...p, ...live }; // Prefer live local data for imaging/pricing
+            }
+            return p;
+          });
+
           // Sort with clicked product first
           if (cachedClicked) {
             setNavClickedId(cachedClicked);
@@ -515,20 +529,27 @@ function SearchContent() {
       const mappedGlobal = globalResults.map((r, i) => {
         // Create a stable, URL-safe ID from the product name, matching Navbar logic
         const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
-        const descCategories = {
+        
+        // ─── Use REAL Gemini description, fallback to category templates only if empty ───
+        const fallbackDescriptions: Record<string, string> = {
           electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
           phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
           computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
+          cars: "This vehicle represents exceptional engineering and value. Sourced through our verified global network with full import documentation. Includes FairPrice Escrow protection for secure, worry-free transactions.",
           default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
         };
-        const catList = r.category ? r.category.toLowerCase() : "default";
-        let descBase = descCategories.default;
-        if (catList.includes("phone")) descBase = descCategories.phones;
-        else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
-        else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
+        const catKey = (r.category || "").toLowerCase();
+        let descFallback = fallbackDescriptions.default;
+        if (catKey.includes("phone")) descFallback = fallbackDescriptions.phones;
+        else if (catKey.includes("laptop") || catKey.includes("comput")) descFallback = fallbackDescriptions.computing;
+        else if (catKey.includes("car") || catKey.includes("vehicle")) descFallback = fallbackDescriptions.cars;
+        else if (catKey.includes("electronic") || catKey.includes("audio")) descFallback = fallbackDescriptions.electronics;
+
+        // Use Gemini's real description if available; only fallback if empty/generic
+        const description = (r.description && r.description.length > 30) ? r.description : descFallback;
 
         const rawImg = r.image_url || "";
-        const fallback = "/placeholder.png";
+        const fallback = "/assets/images/placeholder.png";
         const hasValidPhoto = rawImg && 
                               !rawImg.toLowerCase().includes('no photo') && 
                               !rawImg.toLowerCase().includes('no image') && 
@@ -536,13 +557,23 @@ function SearchContent() {
                               !rawImg.toLowerCase().includes('missing') &&
                               !rawImg.toLowerCase().includes('placeholder');
 
+        // ─── Use REAL Gemini specs, only add shipping/warranty if Gemini returned nothing ───
+        const realSpecs = (r.specs && typeof r.specs === 'object' && Object.keys(r.specs).length > 0) 
+          ? { ...r.specs, "Condition": r.condition || "Brand New" }
+          : {
+              "Sourcing": "Global Network",
+              "Shipping": "Air Freight (Tracked)",
+              "Warranty": "1 Year International",
+              "Condition": r.condition || "Brand New"
+            };
+
         const product = {
           id: stableId,
           name: r.name,
           price: r.approxPrice || 0,
           original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
           category: r.category || "electronics",
-          description: descBase,
+          description,
           image_url: hasValidPhoto ? rawImg : fallback,
           images: [hasValidPhoto ? rawImg : fallback],
           stock: 100,
@@ -555,14 +586,24 @@ function SearchContent() {
           is_active: true,
           created_at: new Date().toISOString(),
           _source: "global",
-          specs: r.specs || {
-            "Sourcing": "Global Network",
-            "Shipping": "Air Freight (Tracked)",
-            "Warranty": "1 Year International",
-            "Condition": r.condition || "Brand New"
-          },
+          specs: realSpecs,
         };
         return product as import("@/lib/types").Product;
+      })
+
+      // ─── FRONTEND VEHICLE PRICE FLOOR (mirrors backend defense — zero latency) ───
+      .filter((p) => {
+        const VEHICLE_FLOOR = 5_000_000;
+        if (p.price >= VEHICLE_FLOOR) return true;
+        const name = p.name.toLowerCase();
+        const cat = (p.category || "").toLowerCase();
+        const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+        const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+        if (PART_KW.test(name)) return true; // Parts/phones always pass
+        const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
+        const isWholeVeh = WHOLE_VEH.test(name);
+        if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false; // Block hallucinated vehicle
+        return true;
       });
 
       // Deduplicate globals
@@ -583,7 +624,7 @@ function SearchContent() {
     return searchableProducts
       .filter((product) => {
         // ALWAYS keep global products, as they are already semantically matched by the backend AI
-        if (product._source === "global") return true;
+        if ((product as any)._source === "global") return true;
 
         if (query) {
           const q = query.toLowerCase();
@@ -791,7 +832,7 @@ function SearchContent() {
           <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-[shimmer_2s_infinite] opacity-100" />
           <div className="relative z-10 flex flex-col pt-1 text-center md:text-left w-full md:w-auto">
               <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center justify-center md:justify-start gap-2">
-                  Have items like these to sell? <Sparkles className="h-5 w-5 text-yellow-300" />
+                  Have items like these to sell?
               </h3>
               <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg mx-auto md:mx-0">
                   Join 15,000+ sellers on FairPrice. Start your store today and reach millions of buyers who are looking for exactly what you have.

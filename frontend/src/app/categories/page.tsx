@@ -393,14 +393,14 @@ export default function CategoriesPage() {
                     const mapped: Product[] = data.suggestions.map((r: any, i: number) => {
                         const stableId = `global-cat-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
                         const rawImg = r.image_url || "";
-                        const hasValidPhoto = rawImg && !rawImg.toLowerCase().includes('no photo') && !rawImg.toLowerCase().includes('n/a');
+                        const hasValidPhoto = rawImg && !rawImg.toLowerCase().includes('no photo') && !rawImg.toLowerCase().includes('n/a') && !rawImg.toLowerCase().includes('placeholder');
                         return {
                             id: stableId,
                             name: r.name || "Global Product",
                             price: r.approxPrice || r.price || 0,
                             original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : undefined,
                             image_url: hasValidPhoto ? rawImg : "/assets/images/placeholder.png",
-                            images: hasValidPhoto ? [rawImg] : [],
+                            images: hasValidPhoto ? [rawImg] : ["/assets/images/placeholder.png"],
                             category: r.category || categoryKey,
                             description: r.reason || "",
                             avg_rating: 4.2 + Math.random() * 0.6,
@@ -547,7 +547,7 @@ export default function CategoriesPage() {
                                 <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
                                 <div className="relative z-10 flex flex-col pt-0.5">
                                     <h3 className="text-white font-extrabold text-sm md:text-base leading-tight drop-shadow-sm flex items-center gap-1.5">
-                                        Got {SIDEBAR_CATEGORIES.find(c => c.key === activeCategory)?.label}?
+                                        {activeCategory === 'featured' ? 'Got any items to sell?' : `Got ${SIDEBAR_CATEGORIES.find(c => c.key === activeCategory)?.label}?`}
                                     </h3>
                                     <p className="text-white/90 text-[11px] md:text-xs font-semibold drop-shadow-sm mt-0.5">
                                         Start selling them today and earn!

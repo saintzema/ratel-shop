@@ -180,11 +180,13 @@ export async function PATCH(request: Request) {
                      body: JSON.stringify({
                          to: buyerEmail,
                          subject: `Counter Offer Received: ${updated.product?.name || 'An Item'}`,
-                         type: "NEGOTIATION_REJECTED",
+                         type: "NEGOTIATION_REQUEST",
                          payload: {
                              name: updated.customerName || "Customer",
                              productName: updated.product?.name || 'An Item',
-                             message: `The seller has responded with a counter-offer of <strong>₦${counterPrice.toLocaleString()}</strong>. Please check your dashboard to accept or decline.`
+                             customerName: updated.customerName || "Customer",
+                             message: `The seller has responded with a counter-offer of <strong>₦${counterPrice.toLocaleString()}</strong>. Please check your dashboard to accept or decline.`,
+                             amount: `₦${counterPrice.toLocaleString()}`
                          }
                      })
                  }).catch(e => console.error("Failed to trigger counter-offer email:", e));

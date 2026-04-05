@@ -28,34 +28,47 @@ export async function GET() {
     }
 
     // 2. Format into GMC XML (RSS 2.0)
-    const xmlItems = allProducts.slice(0, 500).map(product => {
-        const title = `${product.name} Price in Nigeria (Verified Market Rate)`.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const description = `Verify the authentic market price for ${product.name} in Nigeria. We aggregate real-time rates from Jumia, Konga, and local stores to ensure you never overpay.`.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const category = product.category || 'General';
+    const xmlItems = allProducts.slice(0, 1000).map(product => {
+        // Escaping helper for XML safety
+        const escapeXml = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
         
-        // Map categories for GMC
+        const title = escapeXml(`${product.name} (Verified FairPrice)`);
+        const description = escapeXml(product.description || `Verify the authentic market price for ${product.name} in Nigeria. Real-time rates aggregated by FairPrice.`);
+        const categoryLabel = (product.category || 'General').toLowerCase();
+        
+        // Extract brand from specs if available
+        let brand = product.seller_name || 'FairPrice';
+        if (product.specs && typeof product.specs === 'object') {
+            const specs = product.specs as Record<string, any>;
+            if (specs.Brand) brand = specs.Brand;
+            else if (specs.brand) brand = specs.brand;
+            else if (specs.Manufacturer) brand = specs.Manufacturer;
+        }
+
+        // Map categories for GMC (Standardized)
         let googleCategory = 'Electronics';
-        if (category === 'phones') googleCategory = 'Electronics > Communications > Telephony > Mobile Phones';
-        if (category === 'fashion') googleCategory = 'Apparel & Accessories > Clothing';
-        if (category === 'beauty') googleCategory = 'Health & Beauty > Personal Care > Cosmetics';
-        if (category === 'home') googleCategory = 'Home & Garden > Household Appliances';
+        if (categoryLabel.includes('phone') || categoryLabel.includes('telecom')) googleCategory = 'Electronics > Communications > Telephony > Mobile Phones';
+        else if (categoryLabel.includes('fashion') || categoryLabel.includes('cloth')) googleCategory = 'Apparel & Accessories > Clothing';
+        else if (categoryLabel.includes('beauty') || categoryLabel.includes('health')) googleCategory = 'Health & Beauty > Personal Care > Cosmetics';
+        else if (categoryLabel.includes('home') || categoryLabel.includes('appliance')) googleCategory = 'Home & Garden > Household Appliances';
+        else if (categoryLabel.includes('laptop') || categoryLabel.includes('computer')) googleCategory = 'Electronics > Computers > Laptops';
 
         return `
         <item>
             <g:id>${product.id}</g:id>
             <g:title>${title}</g:title>
             <g:description>${description}</g:description>
-            <g:link>${baseUrl}/product/${product.id}</g:link>
-            <g:image_link>${product.image_url}</g:image_link>
+            <g:link>${baseUrl}/product/${encodeURIComponent(product.id)}</g:link>
+            <g:image_link>${escapeXml(product.image_url || '')}</g:image_link>
             <g:condition>new</g:condition>
             <g:availability>${product.stock > 0 ? 'in stock' : 'out of stock'}</g:availability>
             <g:price>${product.price}.00 NGN</g:price>
-            <g:brand>${product.seller_name || 'FairPrice'}</g:brand>
-            <g:google_product_category>${googleCategory}</g:google_product_category>
-            <g:external_seller_id>${product.seller_id}</g:external_seller_id>
+            <g:brand>${escapeXml(brand)}</g:brand>
+            <g:google_product_category>${escapeXml(googleCategory)}</g:google_product_category>
+            <g:mpn>${product.id}</g:mpn>
             <g:shipping>
                 <g:country>NG</g:country>
-                <g:service>Standard</g:service>
+                <g:service>Express Delivery</g:service>
                 <g:price>0.00 NGN</g:price>
             </g:shipping>
         </item>`;
@@ -64,9 +77,9 @@ export async function GET() {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:g="http://base.google.com/ns/1.0" version="2.0">
     <channel>
-        <title>FairPrice.ng Product Feed</title>
+        <title>FairPrice Nigeria - Verified Market Feed</title>
         <link>${baseUrl}</link>
-        <description>The real average market price of products in Nigeria. Verified aggregation of Jumia, Konga, and Jiji.</description>
+        <description>The definitive source for verified market prices in Nigeria. Real-time data from FairPrice.ng aggregation.</description>
         <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
         ${xmlItems}
     </channel>

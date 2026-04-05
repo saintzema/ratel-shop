@@ -205,7 +205,8 @@ class DataSyncServiceService {
         // Version check: when seed data is updated (new products added), bump this version
         // to force re-seeding localStorage with the latest data
         // v17: Reset all stats, purge orphaned products/sellers/orders
-        const DATA_VERSION = "17";
+        // v18: EXTREMELY IMPORTANT - Marketplace consolidation. Reassigned all products to Global Stores and purged demo stores/users.
+        const DATA_VERSION = "18";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -1060,40 +1061,128 @@ class DataSyncServiceService {
         if (negotiation && (status === "accepted" || status === "rejected")) {
             const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === negotiation.product_id);
             if (product) {
-                // Notify Buyer
-                this.addNotification({
-                    userId: negotiation.customer_id,
-                    type: "negotiation",
-                    message: status === "accepted"
-                        ? `🎉 Great news! Your offer of ₦${negotiation.proposed_price.toLocaleString()} for "${product.name}" was ACCEPTED! Proceed to checkout.`
-                        : `Your negotiation for "${product.name}" was ${status}.`,
-                    link: "/account/negotiations"
-                });
-
-                // Notify Seller
-                this.addNotification({
-                    userId: product.seller_id,
-                    type: "negotiation",
-                    message: `Negotiation for ${product.name} was ${status}.`,
-                    link: "/seller/dashboard/messages"
-                });
-
                 const buyerUser = this.getUser(negotiation.customer_id);
                 const buyerEmail = buyerUser?.email || `user_${negotiation.customer_id}@fairprice.ng`;
-                fetch("/api/email", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        to: buyerEmail,
-                        subject: `Negotiation ${status === 'accepted' ? 'Accepted' : 'Rejected'}: ${product.name}`,
-                        type: status === 'accepted' ? "NEGOTIATION_ACCEPTED" : "NEGOTIATION_REJECTED", 
-                        payload: {
-                            customerName: "Buyer",
-                            productName: product.name,
-                            amount: `₦${negotiation.proposed_price.toLocaleString()}`
-                        }
-                    })
-                }).catch(console.error);
+                const seller = this.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id);
+                const sellerEmail = seller?.owner_email || `seller_${product.seller_id}@fairprice.ng`;
+
+                if (isRespondingToCounter) {
+                    // ─── BUYER is responding to the seller's counter-offer ───
+                    if (status === "accepted") {
+                        // Buyer ACCEPTED the counter-offer
+                        this.addNotification({
+                            userId: negotiation.customer_id,
+                            type: "negotiation",
+                            message: `🎉 You accepted the counter-offer of ₦${(negotiation.counter_price || 0).toLocaleString()} for "${product.name}". Proceed to checkout!`,
+                            link: "/account/negotiations"
+                        });
+                        this.addNotification({
+                            userId: product.seller_id,
+                            type: "negotiation",
+                            message: `🎉 ${negotiation.customer_name || 'Buyer'} ACCEPTED your counter-offer of ₦${(negotiation.counter_price || 0).toLocaleString()} for ${product.name}!`,
+                            link: "/seller/dashboard/messages"
+                        });
+                        // Email buyer
+                        fetch("/api/email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                to: buyerEmail,
+                                subject: `Offer Accepted: ${product.name}`,
+                                type: "NEGOTIATION_ACCEPTED",
+                                payload: { name: buyerUser?.name || "Customer", customerName: buyerUser?.name || "Buyer", productName: product.name, amount: `₦${(negotiation.counter_price || 0).toLocaleString()}` }
+                            })
+                        }).catch(console.error);
+                    } else {
+                        // Buyer DECLINED the counter-offer
+                        this.addNotification({
+                            userId: negotiation.customer_id,
+                            type: "negotiation",
+                            message: `You declined the counter-offer of ₦${(negotiation.counter_price || 0).toLocaleString()} for "${product.name}". You can submit a new offer or buy at the listed price.`,
+                            link: "/account/negotiations"
+                        });
+                        this.addNotification({
+                            userId: product.seller_id,
+                            type: "negotiation",
+                            message: `${negotiation.customer_name || 'Buyer'} declined your counter-offer of ₦${(negotiation.counter_price || 0).toLocaleString()} for ${product.name}.`,
+                            link: "/seller/dashboard/messages"
+                        });
+                        // Email buyer — use COUNTER_OFFER_DECLINED (NOT NEGOTIATION_REJECTED)
+                        fetch("/api/email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                to: buyerEmail,
+                                subject: `Counter-Offer Update: ${product.name}`,
+                                type: "COUNTER_OFFER_DECLINED",
+                                payload: { name: buyerUser?.name || "Customer", customerName: negotiation.customer_name || "Buyer", productName: product.name, amount: `₦${(negotiation.counter_price || 0).toLocaleString()}` }
+                            })
+                        }).catch(console.error);
+                        // Email seller
+                        fetch("/api/email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                to: sellerEmail,
+                                subject: `Counter-Offer Declined: ${product.name}`,
+                                type: "COUNTER_OFFER_DECLINED",
+                                payload: { name: seller?.business_name || "Seller", customerName: negotiation.customer_name || "Buyer", productName: product.name, amount: `₦${(negotiation.counter_price || 0).toLocaleString()}` }
+                            })
+                        }).catch(console.error);
+                    }
+                } else {
+                    // ─── SELLER is responding to the buyer's initial offer ───
+                    if (status === "accepted") {
+                        this.addNotification({
+                            userId: negotiation.customer_id,
+                            type: "negotiation",
+                            message: `🎉 Great news! The seller ACCEPTED your offer of ₦${negotiation.proposed_price.toLocaleString()} for "${product.name}"! Proceed to checkout.`,
+                            link: "/account/negotiations"
+                        });
+                        this.addNotification({
+                            userId: product.seller_id,
+                            type: "negotiation",
+                            message: `✅ You accepted the offer of ₦${negotiation.proposed_price.toLocaleString()} from ${negotiation.customer_name || 'a buyer'} for ${product.name}.`,
+                            link: "/seller/dashboard/messages"
+                        });
+                        // Email buyer
+                        fetch("/api/email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                to: buyerEmail,
+                                subject: `Offer Accepted: ${product.name} 🎉`,
+                                type: "NEGOTIATION_ACCEPTED",
+                                payload: { name: buyerUser?.name || "Customer", customerName: buyerUser?.name || "Buyer", productName: product.name, amount: `₦${negotiation.proposed_price.toLocaleString()}` }
+                            })
+                        }).catch(console.error);
+                    } else {
+                        // Seller REJECTED the buyer's initial offer
+                        this.addNotification({
+                            userId: negotiation.customer_id,
+                            type: "negotiation",
+                            message: `The seller could not accept your offer of ₦${negotiation.proposed_price.toLocaleString()} for "${product.name}". You can try a higher offer or buy at the listed price.`,
+                            link: "/account/negotiations"
+                        });
+                        this.addNotification({
+                            userId: product.seller_id,
+                            type: "negotiation",
+                            message: `You declined the offer of ₦${negotiation.proposed_price.toLocaleString()} from ${negotiation.customer_name || 'a buyer'} for ${product.name}.`,
+                            link: "/seller/dashboard/messages"
+                        });
+                        // Email buyer
+                        fetch("/api/email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                to: buyerEmail,
+                                subject: `Offer Update: ${product.name}`,
+                                type: "NEGOTIATION_REJECTED",
+                                payload: { name: buyerUser?.name || "Customer", customerName: buyerUser?.name || "Buyer", productName: product.name, amount: `₦${negotiation.proposed_price.toLocaleString()}` }
+                            })
+                        }).catch(console.error);
+                    }
+                }
             }
 
             // Persist status change to database
@@ -2997,6 +3086,99 @@ class DataSyncServiceService {
                 payload: {
                     name: order.customer_name || "Customer",
                     orderId: order.id
+                }
+            })
+        }).catch(console.error);
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    /**
+     * Seller-initiated order cancellation with reason + automated refund flow.
+     * Sets escrow to refund_pending → admin approves → refund processed.
+     */
+    cancelOrderBySeller(orderId: string, reason: string) {
+        const orders = this.getOrders();
+        const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+
+        const product = this.getProducts({ includeInactiveSellers: true }).find(p => p.id === order.product_id);
+        const productName = product?.name || order.product?.name || "your item";
+        const seller = this.getSellers().find(s => s.id === order.seller_id);
+        const sellerName = seller?.business_name || "The seller";
+
+        // Update order status and escrow
+        const updated = orders.map(o => o.id === orderId ? {
+            ...o,
+            status: "cancelled" as const,
+            escrow_status: "refund_pending" as const,
+            cancel_reason: reason,
+            cancelled_by: "seller",
+            updated_at: new Date().toISOString()
+        } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+
+        // Recalculate seller balances
+        this.recalculateSellerBalances(order.seller_id);
+
+        // ─── Notify Buyer (Bell + Ziva Concierge) ───
+        this.addNotification({
+            userId: order.customer_id,
+            type: "order",
+            message: `⚠️ Your order #${orderId.substring(0, 8)} for "${productName}" has been cancelled by ${sellerName}. Reason: ${reason}. A refund is being processed.`,
+            link: `/account/orders`
+        });
+
+        // ─── Notify Seller (Confirmation) ───
+        this.addNotification({
+            userId: order.seller_id,
+            type: "order",
+            message: `You cancelled order #${orderId.substring(0, 8)} for "${productName}". Reason: ${reason}. The buyer will be refunded.`,
+            link: `/seller/orders`
+        });
+
+        // ─── Notify Admin (Refund Approval Required) ───
+        this.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `🔴 SELLER CANCELLATION: ${sellerName} cancelled order #${orderId.substring(0, 8)} for "${productName}". Reason: "${reason}". Refund of ₦${order.amount.toLocaleString()} pending admin approval.`,
+            link: `/admin/orders/${orderId}`
+        });
+
+        // ─── Email Buyer ───
+        const customerUser = this.getUser(order.customer_id);
+        const buyerEmail = customerUser?.email || `user_${order.customer_id}@fairprice.ng`;
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: buyerEmail,
+                subject: `Order Cancelled — #${orderId.substring(0, 8)}`,
+                type: "ORDER_CANCELLED",
+                payload: {
+                    name: customerUser?.name || order.customer_name || "Customer",
+                    orderId: orderId.substring(0, 8),
+                    productName,
+                    amount: order.amount
+                }
+            })
+        }).catch(console.error);
+
+        // ─── Email Seller (Confirmation) ───
+        const sellerEmail = seller?.owner_email || `seller_${order.seller_id}@fairprice.ng`;
+        fetch("/api/email", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                to: sellerEmail,
+                subject: `Order Cancelled Confirmation — #${orderId.substring(0, 8)}`,
+                type: "ORDER_CANCELLED",
+                payload: {
+                    name: seller?.business_name || "Seller",
+                    sellerName: seller?.business_name || "Seller",
+                    orderId: orderId.substring(0, 8),
+                    productName
                 }
             })
         }).catch(console.error);

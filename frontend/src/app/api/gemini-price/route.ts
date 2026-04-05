@@ -224,6 +224,41 @@ export async function POST(req: Request) {
         try {
             const parsedData = JSON.parse(jsonString);
 
+            // ─── INTELLIGENT VEHICLE PRICE HALLUCINATION DEFENSE (zero-latency) ───
+            // This runs pure in-memory string checks — adds <1ms to response time.
+            if (mode === "search" && parsedData.suggestions && Array.isArray(parsedData.suggestions)) {
+                const VEHICLE_FLOOR = 5_000_000; // ₦5M — even cheapest Chinese EVs land above this in Nigeria
+
+                // Words that indicate this is a PART, ACCESSORY, or NON-VEHICLE product — NOT a whole car
+                const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+
+                // Words that indicate this IS a whole vehicle (model names, body types)
+                const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|x[1-7]|[1-8]\s*series|a[1-8]|q[2-8]|tt|r8|e-?tron|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[369]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+
+                parsedData.suggestions = parsedData.suggestions.filter((item: any) => {
+                    const name = (item.name || "").toLowerCase();
+                    const cat = (item.category || "").toLowerCase();
+                    const price = item.approxPrice || 0;
+
+                    // Skip check if price is already above the floor — fast path
+                    if (price >= VEHICLE_FLOOR) return true;
+
+                    // Skip check if this contains part/accessory/phone keywords — it's NOT a whole car
+                    if (PART_KEYWORDS.test(name)) return true;
+
+                    // Only apply floor if this looks like a WHOLE VEHICLE
+                    const isVehicleCategory = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
+                    const isWholeVehicle = WHOLE_VEHICLE.test(name);
+
+                    if ((isVehicleCategory || isWholeVehicle) && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
+                        console.warn(`🚫 PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${VEHICLE_FLOOR.toLocaleString()})`);
+                        return false; // Remove this hallucinated result
+                    }
+
+                    return true;
+                });
+            }
+
             // Post-processing: Clamp prices to anchor if provided (prevents hallucination)
             if (anchorPrice && mode === "analyze" && parsedData.recommendedPrice) {
                 const ratio = parsedData.recommendedPrice / anchorPrice;

@@ -2,7 +2,17 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MessageCircle, ShoppingCart, MessageSquare, Tag, Image as ImageIcon, ChevronRight, X } from "lucide-react";
+import { 
+    MessageCircle, 
+    ShoppingCart, 
+    MessageSquare, 
+    Tag, 
+    Image as ImageIcon, 
+    ChevronRight, 
+    X,
+    CheckCircle,
+    ArrowUpRight
+} from "lucide-react";
 import { useMessages } from "@/context/MessageContext";
 import { useCart } from "@/context/CartContext";
 import { useNotification } from "@/components/ui/NotificationProvider";
@@ -358,23 +368,28 @@ export function DynamicPillNotification() {
                         onClick={handlePillClick}
                         onPointerDown={() => setLongPressActive(true)}
                         onPointerUp={() => setLongPressActive(false)}
-                        className={`pointer-events-auto relative overflow-hidden transition-all duration-[600ms] cubic-bezier(0.19, 1, 0.22, 1) ${
+                        className={`pointer-events-auto relative overflow-hidden transition-all duration-[700ms] cubic-bezier(0.19, 1, 0.22, 1) ${
                             expanded 
-                                ? "bg-white/90 backdrop-blur-3xl rounded-[38px] w-full max-w-[420px] p-6 shadow-[0_48px_80px_-20px_rgba(0,0,0,0.2)] text-zinc-900" 
-                                : `bg-white/95 backdrop-blur-2xl rounded-full p-2.5 w-auto pr-8 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.1)] text-zinc-800 ring-1 ring-black/5 ${longPressActive ? 'scale-95' : 'hover:scale-[1.02]'}`
+                                ? "bg-white/95 backdrop-blur-3xl rounded-[32px] w-[calc(100vw-32px)] md:w-[380px] p-6 shadow-[0_48px_100px_-24px_rgba(0,0,0,0.3)] text-zinc-900 ring-1 ring-black/10" 
+                                : `bg-white/98 backdrop-blur-2xl rounded-full p-2.5 w-auto pr-8 shadow-[0_12px_30px_-8px_rgba(0,0,0,0.15)] text-zinc-800 ring-1 ring-black/5 ${longPressActive ? 'scale-95' : 'hover:scale-[1.03]'}`
                         }`}
                         style={{ 
-                            perspective: "1000px",
+                            perspective: "1200px",
                             border: "1.5px solid transparent",
-                            backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.95)), linear-gradient(to right, #DAA520, #FFD700, #FFFACD, #DAA520)",
+                            backgroundImage: "linear-gradient(rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.98)), linear-gradient(to right, #DAA520, #FFD700, #FFFACD, #DAA520)",
                             backgroundOrigin: "border-box",
                             backgroundClip: "padding-box, border-box",
                         }}
                     >
-                        {/* Apple-style Gradient Overlay */}
+                        {/* Interactive Sparkle Layer */}
                         {expanded && (
-                            <div className="absolute inset-0 bg-gradient-to-b from-emerald-50/20 to-transparent pointer-events-none" />
+                            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/5 via-transparent to-indigo-500/5 pointer-events-none" />
                         )}
+
+                        {/* Top Indicator Line (iPhone style) */}
+                        <div className="flex justify-center mb-1 -mt-1 opacity-20">
+                            <div className="w-8 h-1 rounded-full bg-zinc-400" />
+                        </div>
 
                         {/* Text and Icon Content */}
                         <motion.div layout="position" className="flex items-center gap-4">
@@ -382,55 +397,60 @@ export function DynamicPillNotification() {
                             {imageUrl ? (
                                 <motion.div 
                                     layout="position" 
-                                    className={`relative shrink-0 overflow-hidden ring-1 ring-black/5 shadow-md ${
+                                    className={`relative shrink-0 flex items-center justify-center ${
                                         expanded ? "w-16 h-16 rounded-2xl" : "w-10 h-10 rounded-full"
                                     }`}
                                     style={{
-                                        border: "1.2px solid transparent",
-                                        backgroundImage: "linear-gradient(white, white), linear-gradient(to bottom right, #DAA520, #FFD700, #FFFACD)",
+                                        border: "1.5px solid transparent",
+                                        backgroundImage: "linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.05)), linear-gradient(to bottom right, #DAA520, #FFD700, #FFFACD)",
                                         backgroundOrigin: "border-box",
                                         backgroundClip: "padding-box, border-box",
+                                        boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
                                     }}
                                 >
-                                    <img src={imageUrl} alt="Asset" className="w-full h-full object-cover" />
+                                    <img src={imageUrl} alt="Asset" className="w-[85%] h-[85%] object-contain scale-[1.1]" />
                                     {expanded && (
-                                        <div className="absolute inset-0 bg-black/5" />
+                                        <div className="absolute inset-0 bg-black/[0.02] pointer-events-none" />
                                     )}
                                 </motion.div>
                             ) : (
                                 <motion.div 
                                     layout="position" 
-                                    className={`shrink-0 flex items-center justify-center bg-emerald-600 shadow-lg shadow-emerald-500/20 ${
+                                    className={`shrink-0 flex items-center justify-center bg-indigo-600 shadow-lg shadow-indigo-500/20 ${
                                         expanded ? "w-16 h-16 rounded-2xl" : "w-10 h-10 rounded-full"
                                     }`}
                                 >
-                                    <Tag className={`text-white ${expanded ? "h-7 w-7" : "h-5 w-5"}`} strokeWidth={3} />
+                                    {isNegotiation ? (
+                                        <Tag className={`text-white ${expanded ? "h-8 w-8" : "h-5 w-5"}`} strokeWidth={3} />
+                                    ) : (
+                                        <MessageCircle className={`text-white ${expanded ? "h-8 w-8" : "h-5 w-5"}`} strokeWidth={3} />
+                                    )}
                                 </motion.div>
                             )}
 
                             {/* Info */}
                             <motion.div layout="position" className="flex flex-col min-w-0 flex-1">
                                 <div className="flex items-center justify-between">
-                                    <span className={`font-black tracking-tight ${expanded ? "text-xl text-zinc-900" : "text-[10px] text-emerald-600 uppercase tracking-[0.15em] font-black"}`}>
+                                    <span className={`font-black tracking-tight ${expanded ? "text-lg text-zinc-900" : "text-[10px] text-emerald-600 uppercase tracking-[0.16em] font-black"}`}>
                                         {displayTitle}
                                     </span>
                                     {expanded && (
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); setVisible(false); dismissNotification(); setCustomNotification(null); try { (window as any).nativeBridge?.hapticFeedback?.("light"); } catch {} }}
-                                            className="p-1 px-3 -mr-1 bg-zinc-100 hover:bg-zinc-200 rounded-full text-zinc-500 hover:text-zinc-900 transition-all text-[10px] font-bold uppercase tracking-wider"
+                                            className="p-1 px-3 -mr-1 bg-zinc-100 hover:bg-zinc-200 rounded-full text-zinc-500 hover:text-zinc-900 transition-all text-[10px] font-black uppercase tracking-wider"
                                         >
                                             Dismiss
                                         </button>
                                     )}
                                 </div>
-                                <span className={`font-medium tracking-tight ${expanded ? "text-zinc-500 text-[15px] mt-1.5 leading-snug" : "text-zinc-800 text-sm line-clamp-1"}`}>
+                                <span className={`font-medium tracking-tight ${expanded ? "text-zinc-600 text-[15px] mt-1.5 leading-snug pr-2" : "text-zinc-900 text-[13px] font-bold line-clamp-1"}`}>
                                     {displayText}
                                 </span>
                             </motion.div>
                             
                             {!expanded && (
-                                <div className="ml-1 opacity-40">
-                                    <ChevronRight className="h-4 w-4 text-emerald-600" strokeWidth={3} />
+                                <div className="ml-1 opacity-30">
+                                    <ChevronRight className="h-4 w-4 text-zinc-400" strokeWidth={3} />
                                 </div>
                             )}
                         </motion.div>
@@ -439,46 +459,36 @@ export function DynamicPillNotification() {
                         <AnimatePresence>
                             {expanded && (
                                 <motion.div 
-                                    initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    initial={{ opacity: 0, scale: 0.9, y: 15 }}
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    transition={{ delay: 0.1, type: "spring", stiffness: 400, damping: 25 }}
+                                    transition={{ delay: 0.1, type: "spring", stiffness: 450, damping: 28 }}
                                     className="mt-6 flex flex-col gap-3"
                                 >
                                     <button
                                         onClick={isNegotiation ? handleAcceptOffer : handlePillClick}
-                                        className="w-full h-14 rounded-[22px] bg-emerald-600 text-white text-[15px] font-black transition-all active:scale-[0.97] hover:bg-emerald-700 flex items-center justify-center gap-2.5 shadow-xl shadow-emerald-100 border border-emerald-500/10"
+                                        className="w-full h-14 rounded-[22px] bg-indigo-600 text-white text-[15px] font-black transition-all active:scale-[0.97] hover:bg-indigo-700 flex items-center justify-center gap-2.5 shadow-xl shadow-indigo-100 border border-indigo-500/10"
                                     >
-                                        {isNegotiation ? <ShoppingCart className="h-5 w-5" /> : null}
+                                        {isNegotiation ? (isSellerAction ? <CheckCircle className="h-5 w-5" /> : <ShoppingCart className="h-5 w-5" />) : <ArrowUpRight className="h-5 w-5" />}
                                         {isNegotiation 
                                             ? (isSellerAction ? `Accept ₦${(currentNegotiation as any)?.proposedPrice?.toLocaleString() || 'Offer'}` : "Accept & Checkout") 
                                             : "View Details"}
                                     </button>
                                     
-                                    {isNegotiation && (
-                                        <button
-                                            onClick={handleRenegotiate}
-                                            className="w-full h-14 rounded-[22px] bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-[15px] font-bold transition-all active:scale-[0.97] flex items-center justify-center gap-2.5 border border-zinc-200"
-                                        >
-                                            <MessageSquare className="h-5 w-5" />
-                                            {isSellerAction ? "Reply / Counter" : "Reply with Counter"}
-                                        </button>
-                                    )}
-
-                                    {!isNegotiation && !customNotification?.route && (
-                                         <button
-                                            onClick={handlePillClick}
-                                            className="w-full h-14 rounded-[22px] bg-zinc-900 text-white text-[15px] font-black transition-all active:scale-[0.97] shadow-xl shadow-zinc-200 flex items-center justify-center gap-2.5"
-                                        >
-                                            <MessageCircle className="h-5 w-5" />
-                                            Reply Now
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={isNegotiation ? handleRenegotiate : handlePillClick}
+                                        className="w-full h-14 rounded-[22px] bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-[15px] font-bold transition-all active:scale-[0.97] flex items-center justify-center gap-2.5 border border-zinc-200"
+                                    >
+                                        {isNegotiation ? <MessageSquare className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
+                                        {isNegotiation 
+                                            ? (isSellerAction ? "Reply / Counter" : "Reply with Counter") 
+                                            : "Open Concierge"}
+                                    </button>
                                 </motion.div>
                             )}
                         </AnimatePresence>
-                    </motion.div>
-                </div>
-            )}
-        </AnimatePresence>
-    );
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        );
 }

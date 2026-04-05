@@ -1421,7 +1421,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                                 {/* Price History Embedded Widget */}
                                 {priceComparison && (
-                                    <div className="mt-2">
+                                    <div className="mt-1">
                                         <PriceGraphWidget 
                                             history={[
                                                 { month: "Sep", price: Math.round(priceComparison.market_avg * 1.05) },
@@ -1436,8 +1436,19 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 )}
 
+                                {/* ─── GOOGLE 2026 TRUST SIGNAL: 14-DAY RETURNS ─── */}
+                                <div className="mt-1 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 backdrop-blur-md flex items-center gap-4 transition-all hover:bg-emerald-50/50 group">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
+                                        <RotateCcw className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-black text-gray-900 leading-tight">14-Day Easy Returns</span>
+                                        <p className="text-[10px] text-gray-500 font-medium tracking-wide uppercase">Consumer Protection Guaranteed</p>
+                                    </div>
+                                </div>
+
                                 {/* Quantity Selector */}
-                                <div className="flex items-center justify-between p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
+                                <div className="mt-2 flex items-center justify-between p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
                                     <span className="text-sm font-bold text-emerald-800">Quantity</span>
                                     <div className="flex items-center gap-3">
                                         <button

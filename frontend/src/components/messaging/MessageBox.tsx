@@ -138,23 +138,24 @@ const ChatMessageItem = React.memo(({
                     </div>
                 )}
                 {msg.negotiation && (
-                    <div className={`border rounded-xl p-3.5 mt-2 shadow-lg backdrop-blur-md ${msg.negotiation.type === 'accepted' ? 'bg-gradient-to-br from-emerald-500 to-brand-green-600 text-white border-brand-green-400/50' : 'bg-white/90 text-gray-900 border-white/60'}`}>
-                        <p className={`font-bold mb-1 flex items-center gap-1.5 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-gray-900'}`}>
+                    <div className={`border rounded-3xl p-4 mt-2 shadow-lg backdrop-blur-md mx-auto max-w-[320px] ${msg.negotiation.type === 'accepted' ? 'bg-gradient-to-br from-emerald-500 to-brand-green-600 text-white border-brand-green-400/50' : 'bg-white/95 text-gray-900 border-gray-200/60'}`}>
+                        <p className={`font-black text-[13px] mb-1.5 flex items-center justify-center gap-1.5 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-gray-900'}`}>
                             <Coins className="h-4 w-4" /> {msg.negotiation.type === 'accepted' ? "Offer Accepted!" : msg.negotiation.type === 'rejected' ? "Offer Rejected" : "Counter Offer"}
                         </p>
-                        <p className={`text-xs mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-600'}`}>{msg.negotiation.productName}: <strong className={`text-base font-black ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</strong></p>
+                        <p className={`text-xs text-center mb-3 ${msg.negotiation.type === 'accepted' ? 'text-emerald-50' : 'text-gray-500'}`}>{msg.negotiation.productName}</p>
+                        <p className={`text-center text-2xl font-black mb-3 ${msg.negotiation.type === 'accepted' ? 'text-white' : 'text-emerald-600'}`}>₦{msg.negotiation.counterPrice.toLocaleString()}</p>
                         
                         {msg.negotiation.type === 'countered' && (
-                            <div className="flex flex-col gap-2 mt-2">
+                            <div className="flex flex-col gap-2">
                                 <div className="flex gap-2">
                                     <Button 
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onAcceptCounter(msg.negotiation!.productId, msg.negotiation!.counterPrice);
                                         }}
-                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 rounded-lg font-bold shadow-md transition-all"
+                                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-10 rounded-2xl font-black shadow-md transition-all"
                                     >
-                                        Accept ₦{(msg.negotiation.counterPrice || 0).toLocaleString()}
+                                        Accept
                                     </Button>
                                     <Button 
                                         onClick={(e) => {
@@ -162,15 +163,15 @@ const ChatMessageItem = React.memo(({
                                             onRejectCounter(msg.negotiation!.productId);
                                         }}
                                         variant="outline"
-                                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50 text-xs h-9 rounded-lg font-bold transition-all"
+                                        className="flex-1 border-red-200 text-red-600 hover:bg-red-50 text-xs h-10 rounded-2xl font-black transition-all"
                                     >
-                                        Reject
+                                        Decline
                                     </Button>
                                 </div>
                                 
-                                <div className="relative flex items-center pt-2 pb-1">
+                                <div className="relative flex items-center py-1.5">
                                     <div className="flex-grow border-t border-gray-200"></div>
-                                    <span className="shrink-0 text-[10px] font-bold text-gray-400 px-2 uppercase tracking-widest">Or Negotiate</span>
+                                    <span className="shrink-0 text-[9px] font-black text-gray-400 px-2 uppercase tracking-widest">Or Negotiate</span>
                                     <div className="flex-grow border-t border-gray-200"></div>
                                 </div>
                                 
@@ -184,7 +185,7 @@ const ChatMessageItem = React.memo(({
                                         onRenegotiate(msg.negotiation!.productId, Number(input.value));
                                         input.value = "";
                                     }} 
-                                    className="flex gap-2"
+                                    className="flex gap-1.5"
                                 >
                                     <div className="relative flex-1">
                                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">₦</span>
@@ -192,10 +193,10 @@ const ChatMessageItem = React.memo(({
                                             name="renegotiatePrice"
                                             type="number" 
                                             placeholder="Amount" 
-                                            className="w-full h-9 pl-7 pr-3 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
+                                            className="w-full h-9 pl-7 pr-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
                                         />
                                     </div>
-                                    <Button type="submit" size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold px-3">
+                                    <Button type="submit" size="sm" className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold px-3">
                                         Send
                                     </Button>
                                 </form>
@@ -208,7 +209,7 @@ const ChatMessageItem = React.memo(({
                                     e.stopPropagation();
                                     onAcceptCounter(msg.negotiation!.productId, msg.negotiation!.counterPrice);
                                 }}
-                                className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-8 rounded-lg font-bold shadow-md transition-all"
+                                className="w-full bg-white text-brand-green-700 hover:bg-emerald-50 text-xs h-10 rounded-2xl font-black shadow-md transition-all"
                             >
                                 Proceed to Checkout
                             </Button>

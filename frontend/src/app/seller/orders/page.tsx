@@ -25,7 +25,8 @@ import {
     ArrowUpRight,
     Wallet,
     MessageSquare,
-    ArrowUpDown
+    ArrowUpDown,
+    XCircle
 } from "lucide-react";
 
 export default function SellerOrders() {
@@ -36,6 +37,8 @@ export default function SellerOrders() {
     const [statusFilter, setStatusFilter] = useState<string>("all");
     const [sortBy, setSortBy] = useState<string>("newest");
     const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+    const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+    const [cancelReason, setCancelReason] = useState<string>("");
     const searchParams = useSearchParams();
 
     // Read ?filter= from URL (e.g. from dashboard Total Revenue card)
@@ -81,6 +84,22 @@ export default function SellerOrders() {
             setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
         }
         // Hot update across the app
+        window.dispatchEvent(new Event("sync-store-update"));
+    };
+
+    const handleCancelOrder = (orderId: string) => {
+        if (!cancelReason) {
+            alert("Please select a reason for cancellation.");
+            return;
+        }
+        DataSyncService.cancelOrderBySeller(orderId, cancelReason);
+        setCancellingOrderId(null);
+        setCancelReason("");
+        // Reload
+        const sellerId = DataSyncService.getCurrentSellerId();
+        if (sellerId) {
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+        }
         window.dispatchEvent(new Event("sync-store-update"));
     };
 
@@ -429,6 +448,7 @@ export default function SellerOrders() {
 
                                                 <div className="flex gap-2">
                                                     {order.status === "pending" && (
+                                                        <>
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
@@ -438,6 +458,25 @@ export default function SellerOrders() {
                                                             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold h-9"
                                                         >
                                                             <CheckCircle className="h-3 w-3 mr-1.5" /> Accept Order
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => setCancellingOrderId(order.id)}
+                                                            className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-bold h-9"
+                                                        >
+                                                            <XCircle className="h-3 w-3 mr-1.5" /> Cancel Order
+                                                        </Button>
+                                                        </>
+                                                    )}
+                                                    {order.status === "processing" && cancellingOrderId !== order.id && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => setCancellingOrderId(order.id)}
+                                                            className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-bold h-9"
+                                                        >
+                                                            <XCircle className="h-3 w-3 mr-1.5" /> Cancel Order
                                                         </Button>
                                                     )}
 
@@ -610,6 +649,44 @@ export default function SellerOrders() {
                                                             </Link>
                                                         </div>
                                                     )}
+
+                                                    {/* Cancel Order Modal */}
+                                                    {cancellingOrderId === order.id && (
+                                                        <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-4 mt-2">
+                                                            <h5 className="text-xs font-bold text-rose-800 mb-2 flex items-center gap-1.5">
+                                                                <XCircle className="h-3.5 w-3.5" /> Cancel Order #{order.id.substring(0, 8)}
+                                                            </h5>
+                                                            <select
+                                                                value={cancelReason}
+                                                                onChange={(e) => setCancelReason(e.target.value)}
+                                                                className="w-full h-9 text-xs rounded-lg border-rose-200 bg-white mb-2 px-3"
+                                                            >
+                                                                <option value="">Select a reason...</option>
+                                                                <option value="Stock unavailable">Stock unavailable</option>
+                                                                <option value="Pricing error">Pricing error</option>
+                                                                <option value="Cannot fulfill order">Cannot fulfill order</option>
+                                                                <option value="Product discontinued">Product discontinued</option>
+                                                                <option value="Other">Other</option>
+                                                            </select>
+                                                            <div className="flex gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleCancelOrder(order.id)}
+                                                                    className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold h-8 flex-1"
+                                                                >
+                                                                    Confirm Cancellation
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => { setCancellingOrderId(null); setCancelReason(""); }}
+                                                                    className="text-gray-600 border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold h-8"
+                                                                >
+                                                                    Keep Order
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -669,6 +746,7 @@ export default function SellerOrders() {
 
                                                     <div className="pt-3 border-t border-gray-100">
                                                         {order.status === "pending" && (
+                                                            <div className="flex flex-col gap-1.5">
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
@@ -679,9 +757,26 @@ export default function SellerOrders() {
                                                             >
                                                                 <CheckCircle className="h-3 w-3 mr-1" /> Accept Order
                                                             </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    const reason = window.prompt("Reason for cancellation:\n• Stock unavailable\n• Pricing error\n• Cannot fulfill\n• Other");
+                                                                    if (reason) {
+                                                                        DataSyncService.cancelOrderBySeller(order.id, reason);
+                                                                        const sellerId = DataSyncService.getCurrentSellerId();
+                                                                        if (sellerId) setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+                                                                    }
+                                                                }}
+                                                                className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg text-[10px] font-bold h-7 w-full"
+                                                            >
+                                                                <XCircle className="h-3 w-3 mr-1" /> Cancel
+                                                            </Button>
+                                                            </div>
                                                         )}
 
                                                         {order.status === "processing" && (
+                                                            <div className="flex flex-col gap-1.5">
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
@@ -692,6 +787,22 @@ export default function SellerOrders() {
                                                             >
                                                                 <Truck className="h-3 w-3 mr-1" /> Mark Shipped
                                                             </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    const reason = window.prompt("Reason for cancellation:\n• Stock unavailable\n• Pricing error\n• Cannot fulfill\n• Other");
+                                                                    if (reason) {
+                                                                        DataSyncService.cancelOrderBySeller(order.id, reason);
+                                                                        const sellerId = DataSyncService.getCurrentSellerId();
+                                                                        if (sellerId) setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+                                                                    }
+                                                                }}
+                                                                className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg text-[10px] font-bold h-7 w-full"
+                                                            >
+                                                                <XCircle className="h-3 w-3 mr-1" /> Cancel
+                                                            </Button>
+                                                            </div>
                                                         )}
 
                                                         {order.status === "shipped" && (
