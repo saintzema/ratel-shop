@@ -49,11 +49,6 @@ export const metadata: Metadata = {
     description: "Don't overpay. Verify the real price of any product in Nigeria before you buy.",
     images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Logo" }],
   },
-  icons: {
-    icon: "/favicon.ico",
-    apple: "/logo.png",
-    shortcut: "/favicon.ico",
-  },
 };
 
 export const viewport = {
