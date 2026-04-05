@@ -372,6 +372,7 @@ export default function CatalogControl() {
                                 <p className="text-xs text-blue-600/70 mt-0.5">Products found via global search. Edit details and promote to your public catalog.</p>
                             </div>
                             <div className="flex items-center gap-3">
+                                {selectedCacheIds.length > 0 && (
                                     <div className="flex gap-2">
                                         <button
                                             onClick={() => {
