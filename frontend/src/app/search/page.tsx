@@ -987,23 +987,15 @@ function SearchContent() {
             })}
           </div>
 
-          {/* Bottom Row: Results Count - SRP Container as requested */}
-          <div className="flex items-center justify-between border-t border-emerald-100/60 pt-2.5 px-2 bg-emerald-50/20 py-1.5 -mx-4 px-4 sm:mx-0 sm:px-4">
-            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-widest text-emerald-800/60">
-              <span>Price: <span className="text-emerald-700">{priceRange[0] === 0 && priceRange[1] >= 5000000 ? 'All' : `${formatPrice(priceRange[0])}-${formatPrice(priceRange[1])}`}</span></span>
-              <span className="h-3 w-px bg-emerald-200" />
-              <span>Status: <span className={cn(isVerified ? "text-emerald-600" : "text-gray-500")}>{isVerified ? 'Verified Only' : 'All'}</span></span>
-              <span className="h-3 w-px bg-emerald-200" />
-              <span>Category: <span className="text-emerald-700">{selectedCategory || 'All Categories'}</span></span>
-              <span className="h-3 w-px bg-emerald-200 ml-1" />
-              <p className="text-[12px] text-emerald-900 font-black tracking-tight ml-2">
+          {/* Bottom Row: Results Count */}
+          <div className="flex items-center border-t border-emerald-100/60 pt-2.5 px-2 bg-emerald-50/20 py-1.5 -mx-4 px-4 sm:mx-0 sm:px-4">
+              <p className="text-[12px] text-emerald-900 font-black tracking-tight">
                 {query ? (
                   <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results for &quot;<span className="text-brand-orange italic underline decoration-2 underline-offset-4">{query}</span>&quot;</span>
                 ) : (
                   <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results</span>
                 )}
               </p>
-            </div>
           </div>
         </div>
 
@@ -1038,24 +1030,24 @@ function SearchContent() {
               const BRAND_MAP: Record<string, { name: string; logo: string; logoImage?: string }[]> = {
                 cars: [
                   { name: "Toyota", logo: "🚗", logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
-                  { name: "Lexus", logo: "💎", logoImage: "/assets/images/Car-Logos/Lexus-logo.jpg" },
+                  { name: "Lexus", logo: "💎", logoImage: "/assets/images/Car-Logos/Lexus-logo.png" },
                   { name: "Mercedes-Benz", logo: "⭐", logoImage: "/assets/images/Car-Logos/Benz-logo.png" },
                   { name: "Honda", logo: "🏎️", logoImage: "/assets/images/Car-Logos/Honda-logo.png" },
                   { name: "EVs", logo: "⚡" }, 
                   { name: "Hyundai", logo: "🚙", logoImage: "/assets/images/Car-Logos/Hyundai-logo.png" },
-                  { name: "BYD", logo: "⚡", logoImage: "/assets/images/Car-Logos/BYD-Logo.webp" },
-                  { name: "Tesla", logo: "⚡", logoImage: "/assets/images/Car-Logos/Tesla-Logo.jpg" },
+                  { name: "BYD", logo: "⚡", logoImage: "/assets/images/Car-Logos/BYD-Logo.png" },
+                  { name: "Tesla", logo: "⚡", logoImage: "/assets/images/Car-Logos/Tesla-Logo.png" },
                   { name: "Xpeng", logo: "⚡", logoImage: "/assets/images/Car-Logos/Xpeng-Logo.png" },
-                  { name: "Xiaomi", logo: "📱", logoImage: "/assets/images/Car-Logos/xiaomi-Logo.jpg" },
+                  { name: "Xiaomi", logo: "📱", logoImage: "/assets/images/Car-Logos/Xiaomi-Logo.png" },
                   { name: "Changan", logo: "🚗", logoImage: "/assets/images/Car-Logos/Changan-Logo.png" },
                   { name: "GAC", logo: "🚗", logoImage: "/assets/images/Car-Logos/GAC-Logo.png" },
-                  { name: "Chevrolet", logo: "🚗" },
-                  { name: "BMW", logo: "🔵", logoImage: "/assets/images/Car-Logos/BMW-logo.jpg" },
-                  { name: "Kia", logo: "🔷", logoImage: "/assets/images/Car-Logos/Kia-logo.jpg" },
+                  { name: "Chevrolet", logo: "🚗", logoImage: "/assets/images/Car-Logos/Chevrolet-Logo.png" },
+                  { name: "BMW", logo: "🔵", logoImage: "/assets/images/Car-Logos/BMW-logo.png" },
+                  { name: "Kia", logo: "🔷", logoImage: "/assets/images/Car-Logos/Kia-logo.png" },
                   { name: "Ford", logo: "🔘", logoImage: "/assets/images/Car-Logos/Ford-logo.png" },
                   { name: "Range Rover", logo: "🏔️", logoImage: "/assets/images/Car-Logos/LandRover-logo.png" },
                   { name: "Audi", logo: "⚪", logoImage: "/assets/images/Car-Logos/Audi-logo.png" },
-                  { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.jpeg" },
+                  { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
                 ],
                 phones: [
                   { name: "Apple", logo: "🍎" }, { name: "Samsung", logo: "📱" },
@@ -1107,18 +1099,18 @@ function SearchContent() {
                             router.push(`/search?${params.toString()}`, { scroll: false });
                           }}
                           className={cn(
-                            "flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start active:scale-95 shrink-0 cursor-pointer",
+                            "flex items-center justify-center px-3 py-1.5 rounded-full whitespace-nowrap transition-all shadow-sm border snap-start active:scale-95 shrink-0 cursor-pointer",
                             isActive
                               ? "bg-emerald-50 text-emerald-900 border-emerald-600 border-2 shadow-emerald-100"
                               : "bg-white text-gray-700 border-gray-100 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md"
                           )}
+                          title={brand.name}
                         >
                           {brand.logoImage ? (
-                            <img src={brand.logoImage} alt={brand.name} className="h-12 w-[48px] object-contain" />
+                            <img src={brand.logoImage} alt={brand.name} className="h-8 w-auto max-w-[56px] object-contain" />
                           ) : (
-                            <span className="text-base">{brand.logo}</span>
+                            <span className="text-base px-1">{brand.logo} <span className="text-[11px] font-bold">{brand.name}</span></span>
                           )}
-                          {brand.name}
                         </button>
                       );
                     })}

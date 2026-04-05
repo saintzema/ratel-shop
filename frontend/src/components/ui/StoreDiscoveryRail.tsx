@@ -40,7 +40,7 @@ export function StoreDiscoveryRail() {
                         <p className="text-gray-500 font-medium mt-1">Shop with confidence from the most reliable sellers.</p>
                     </div>
                     <Link 
-                        href="/categories" 
+                        href="/stores" 
                         className="group flex items-center gap-2 text-sm font-black text-emerald-600 uppercase tracking-widest hover:text-emerald-700 transition-colors"
                     >
                         All Stores
@@ -117,7 +117,7 @@ export function StoreDiscoveryRail() {
                     ))}
                     
                     {/* View All Card */}
-                    <Link href="/categories" className="group shrink-0 h-full">
+                    <Link href="/stores" className="group shrink-0 h-full">
                         <div className="w-72 h-full min-h-[340px] bg-emerald-600 rounded-[32px] p-8 flex flex-col items-center justify-center text-center group-hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-500/20">
                             <div className="h-16 w-16 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-6">
                                 <ArrowRight className="h-8 w-8 text-white" />
