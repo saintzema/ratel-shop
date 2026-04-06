@@ -565,7 +565,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         if (!lower || lower === 'n/a' || lower.includes('no photo') || lower.includes('no image')) return false;
         return true;
     });
-    const deliveryDates = useMemo(() => getDeliveryDateRange(3, 7), []);
+    const deliveryDates = useMemo(() => {
+        const stateName = location.includes(",") ? location.split(",")[1].trim() : location;
+        const baseDays = NIGERIAN_STATES.find(s => s.state === stateName)?.delivery_days || 3;
+        return getDeliveryDateRange(baseDays, baseDays + 4);
+    }, [location]);
     const isGlobalProduct = product?.id?.startsWith('global-') || product?.seller_id === 'global-partners';
     const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
 
@@ -1875,6 +1879,13 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     onClose={() => setIsNegotiationOpen(false)}
                     product={product}
                     priceComparison={priceComparison}
+                />
+
+                <LocationModal 
+                    isOpen={isLocationModalOpen}
+                    onClose={() => setIsLocationModalOpen(false)}
+                    currentLocation={location}
+                    onSelectLocation={setLocation}
                 />
 
                 {/* Spacer to prevent Footer from hiding behind fixed bars on mobile */}
