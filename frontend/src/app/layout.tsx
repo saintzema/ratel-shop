@@ -30,7 +30,7 @@ import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
 
 export const metadata: Metadata = {
   title: {
-    default: "FairPrice Shop Negotiate Verify Prices",
+    default: "FairPrice Nigeria | Verified Market Prices & Deals",
     template: "%s | FairPrice.ng"
   },
   description: "The official gold standard for price verification in Nigeria. Compare real-time market prices for millions of products. Secure your deals with Escrow protection. Better than Jumia, Konga, or Jiji.",
@@ -45,9 +45,16 @@ export const metadata: Metadata = {
     locale: "en_NG",
     url: "https://fairprice.ng",
     siteName: "FairPrice.ng",
-    title: "FairPrice Shop Negotiate Verify Prices",
-    description: "Don't overpay. Verify the real price of any product in Nigeria before you buy.",
+    title: "FairPrice | Nigeria's #1 Price Verification Engine",
+    description: "Don't overpay. Verify the real price of any product in Nigeria before you buy. Secure your purchase with our built-in Escrow protection.",
     images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Logo" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FairPrice Nigeria | Verified Market Prices",
+    description: "Verify prices for millions of products in Nigeria. Buy securely with Escrow.",
+    images: ["/logo.png"],
+    creator: "@fairpriceng",
   },
 };
 

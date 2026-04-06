@@ -414,7 +414,6 @@ export default function StoreProfile() {
                                                         <div className="mt-auto pt-2 md:pt-4 space-y-2 md:space-y-3">
                                                             <div className="flex items-end justify-between">
                                                                 <div>
-                                                                    <p className="text-[8px] md:text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Price</p>
                                                                     <p className="text-sm md:text-xl font-black text-gray-900">
                                                                         {formatPrice(product.price)}
                                                                     </p>

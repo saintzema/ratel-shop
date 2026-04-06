@@ -63,6 +63,7 @@ import {
     Plus,
     Minus
 } from "lucide-react";
+import { LocationModal } from "@/components/modals/LocationModal";
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
 
@@ -117,7 +118,7 @@ function generateZivaAnswers(product: typeof SEED_PRODUCTS[0]): { question: stri
 export default function ProductDetailPage() {
     const params = useParams();
     const id = params?.id as string;
-    const { location } = useLocation();
+    const { location, setLocation } = useLocation();
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
     const { user } = useAuth();
@@ -141,6 +142,7 @@ export default function ProductDetailPage() {
     // Seller Reply States
     const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
@@ -1542,9 +1544,15 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             <p className="mb-1">Estimated delivery: <span className="font-bold text-gray-700">{deliveryDates.start} – {deliveryDates.end}</span></p>
                                             <div className="flex items-center gap-1.5 flex-wrap">
                                                 <span className="text-[10px] text-gray-500">Shipping to</span>
-                                                <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-200 px-1.5 font-bold hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer transition-colors">
-                                                    <MapPin className="h-2.5 w-2.5 mr-1" /> {location}
-                                                </Badge>
+                                                <button 
+                                                    onClick={() => setIsLocationModalOpen(true)}
+                                                    className="flex items-center gap-1 text-[10px] font-bold text-gray-900 hover:text-brand-green-600 transition-colors group/loc"
+                                                >
+                                                    <span className="border-b border-dotted border-gray-400 group-hover/loc:border-brand-green-600">
+                                                        {location}
+                                                    </span>
+                                                    <ChevronDown className="h-2.5 w-2.5 text-gray-400 group-hover/loc:text-brand-green-600" />
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
