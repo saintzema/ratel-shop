@@ -109,7 +109,6 @@ export default function RootLayout({
             }, 8000);
           `
         }} />
-        }} />
         <Script
           id="organization-jsonld"
           type="application/ld+json"
