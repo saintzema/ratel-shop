@@ -147,6 +147,7 @@ export interface Order {
     customer_whatsapp?: string;
     source?: string;
     seller_name?: string;
+    discount_id?: string;
 }
 
 export interface ReturnRequest {

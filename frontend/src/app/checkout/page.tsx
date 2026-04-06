@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { SEED_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice, cn } from "@/lib/utils";
+import { 
+    calculateTieredEscrowFee, 
+    ESCROW_TIERS 
+} from "@/lib/escrow-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
@@ -46,11 +50,13 @@ function DiscountSection({
     availableCoupons,
     appliedCoupon,
     subtotal,
+    userId,
     onApplyCoupon
 }: {
     availableCoupons: Coupon[];
     appliedCoupon: Coupon | null;
     subtotal: number;
+    userId?: string;
     onApplyCoupon: (coupon: Coupon | null) => void;
 }) {
     const [code, setCode] = useState("");
@@ -75,7 +81,7 @@ function DiscountSection({
 
         // If not found in DataSyncService, check the database via the API
         try {
-            const res = await fetch(`/api/discounts/validate?code=${targetCode.toUpperCase()}`);
+            const res = await fetch(`/api/discounts/validate?code=${targetCode.toUpperCase()}${userId ? `&userId=${userId}` : ''}`);
             if (res.ok) {
                 const discount = await res.json();
                 
@@ -109,8 +115,9 @@ function DiscountSection({
                 setMsg(`Discount Applied: ₦${amountOff.toLocaleString()} OFF`);
                 setShowDropdown(false);
             } else {
-                setMsg("Invalid or expired discount code");
-                setTimeout(() => setMsg(""), 3000);
+                const data = await res.json();
+                setMsg(data.error || "Invalid or expired discount code");
+                setTimeout(() => setMsg(""), 4000);
             }
         } catch (e) {
             setMsg("Error validating code. Please try again.");
@@ -601,13 +608,26 @@ function CheckoutContent() {
     const isPremiumFreeDelivery = user?.isPremium;
     const isFreeShippingByOrderValue = subtotal >= 50000;
     // COD orders ALWAYS pay delivery fee (no free shipping for COD)
+    const getBaseShipping = () => {
+        const state = (pickupDetails.state || address.state || "").toLowerCase();
+        
+        // Premium localized pricing per user request
+        if (state.includes("lagos")) return 3350;
+        if (state.includes("abuja") || state.includes("fct")) return 5750;
+        
+        // Fallback to defaults if no state match
+        return deliveryMethod === "pickup" ? 2500 : 4000;
+    };
+
+    const baseFee = getBaseShipping();
     const shipping = (paymentMethod !== "cod" && (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount || isFreeShippingByOrderValue)) ? 0 : (
-        deliveryMethod === "pickup"
-            ? Math.round(basePickupFee * shippingMultiplier)
-            : Math.round(baseDoorFee * shippingMultiplier)
+        Math.round((baseFee * shippingMultiplier) / 50) * 50
     );
 
-    const escrowFee = (paymentMethod === "paystack" || paymentMethod === "transfer") ? escrowFeePayNow : 0;
+    // Dynamic Tiered Escrow Fee Calculation (Apple-level logic)
+    const escrowFee = (paymentMethod === "paystack" || paymentMethod === "transfer") 
+        ? calculateTieredEscrowFee(subtotal) 
+        : 0;
 
     const productSavings = checkoutItems.reduce((acc, item) => {
         const orig = item.product.original_price || item.product.recommended_price;
@@ -784,7 +804,8 @@ function CheckoutContent() {
                         : `${fullName}, ${address.street}, ${address.city}`,
                     delivery_method: deliveryMethod,
                     customer_phone: `${countryCode} ${address.phone}`,
-                    customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined
+                    customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
+                    discount_id: appliedCoupon?.id
                 }, item.product);
                 createdOrders.push({ order: newOrder, product: item.product, item });
             });
@@ -1551,6 +1572,7 @@ function CheckoutContent() {
                                     availableCoupons={availableCoupons}
                                     appliedCoupon={appliedCoupon}
                                     subtotal={subtotal}
+                                    userId={user?.id}
                                     onApplyCoupon={setAppliedCoupon}
                                 />
 

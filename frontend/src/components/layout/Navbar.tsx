@@ -516,7 +516,7 @@ export function Navbar() {
         router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
     };
 
-    // Close suggestions when clicking outside
+    // Close suggestions when clicking outside (Apple-level smoothness)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -525,7 +525,12 @@ export function Navbar() {
             if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
                 setIsCategoryOpen(false);
             }
+            // Explicitly close account menu on click-outside
+            if (!containerRef.current?.contains(event.target as Node)) {
+               setIsAccountMenuOpen(false);
+            }
         };
+        const containerRef = { current: document.querySelector('.account-menu-trigger') }; // We'll add this class below
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
@@ -998,9 +1003,12 @@ export function Navbar() {
                         onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
                     >
                         {/* Desktop View */}
-                        <div className="flex flex-col">
-                            <span className="text-white">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
-                            <span className="font-bold text-white flex items-center">Account & Lists <ChevronDown className="ml-1 h-3 w-3" /></span>
+                        <div 
+                            className="flex flex-col relative py-2"
+                            onMouseEnter={() => setIsAccountMenuOpen(true)}
+                        >
+                            <span className="text-white text-[11px] opacity-80 leading-none">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
+                            <span className="font-bold text-white flex items-center gap-1">My Account & Lists <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", isAccountMenuOpen && "rotate-180")} /></span>
                         </div>
 
                         {/* Dropdown Menu */}
@@ -1010,8 +1018,12 @@ export function Navbar() {
                                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="absolute top-full right-0 w-64 bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[100] origin-top-right text-sm"
+                                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                                    className="absolute top-full right-0 w-64 bg-white/95 backdrop-blur-xl border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[100] origin-top-right text-sm"
+                                    onMouseLeave={() => {
+                                        // Wait a bit before closing to avoid accidental closes
+                                        // But per user request, we primarily rely on click-outside
+                                    }}
                                 >
                                     {!user ? (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 text-center">
@@ -1062,9 +1074,9 @@ export function Navbar() {
 
                                     {/* Favorites & Negotiations — promoted */}
                                     <div className="py-1">
-                                        <Link href="/account/favorites" className="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 font-medium transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
+                                        <Link href="/account/favorites" className="flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
                                             <Heart className="h-4 w-4 text-red-500 fill-red-500" />
-                                            <span>Favorites</span>
+                                            <span>My Favorites</span>
                                         </Link>
                                         <Link href="/account/negotiations" className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
                                             <Handshake className="h-4 w-4 text-emerald-600" />
@@ -1077,8 +1089,13 @@ export function Navbar() {
 
                                     <div className="py-1">
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
-                                        <Link href="/account" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Account</Link>
-                                        <Link href="/account/orders" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Orders</Link>
+                                        <Link href="/account" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Account</Link>
+                                        <Link href="/account/payments" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium flex items-center justify-between" onClick={() => setIsAccountMenuOpen(false)}>
+                                            My Wallet
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
+                                        </Link>
+                                        <Link href="/account/addresses" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Delivery Address</Link>
+                                        <Link href="/account/orders" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Orders</Link>
                                         {mounted && (user?.role === 'admin' ? (
                                             <>
                                                 <Link href="/admin/dashboard" className="block px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Admin Dashboard</Link>
@@ -1099,8 +1116,8 @@ export function Navbar() {
 
                     {/* Returns & Orders */}
                     <Link href="/account/orders" className="hidden md:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">
-                        <span className="font-bold text-white">Orders</span>
-                        <span className="font-bold text-white">& Returns</span>
+                        <span className="font-medium text-white/80">Returns</span>
+                        <span className="font-bold text-white">& My Orders</span>
                     </Link>
 
                     {/* Messages */}

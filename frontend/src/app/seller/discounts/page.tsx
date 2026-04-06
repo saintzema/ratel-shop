@@ -15,24 +15,27 @@ import {
     X,
     CheckCircle2,
     Calendar,
-    Hash
+    Hash,
+    Eye,
+    User,
+    Shield
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+    DropdownMenuTrigger,
+    DropdownMenuContent,
+    DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
     DialogDescription,
-    DialogFooter
+    DialogFooter,
+    DialogTrigger
 } from "@/components/ui/dialog";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
@@ -223,7 +226,56 @@ export default function DiscountsPage() {
                                         <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest opacity-70">{discount.type}</p>
                                     </td>
                                     <td className="px-8 py-6">
-                                        <p className="text-sm font-black text-gray-700">{discount.usageCount} / {discount.usageLimit || '∞'}</p>
+                                        <div className="flex items-center gap-1">
+                                            <p className="text-sm font-black text-gray-700">{discount.usageCount} / {discount.usageLimit || '∞'}</p>
+                                            {discount.usages?.length > 0 && (
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full hover:bg-emerald-50 text-emerald-600">
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </DialogTrigger>
+                                                    <DialogContent className="sm:max-w-[425px] rounded-3xl bg-white/95 backdrop-blur-xl border-white/40 shadow-2xl overflow-hidden p-0">
+                                                        <DialogHeader className="p-6 pb-2">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                                                                    <User className="h-4 w-4" />
+                                                                </div>
+                                                                <div>
+                                                                    <DialogTitle className="text-lg font-black tracking-tight">Utilisation Pulse</DialogTitle>
+                                                                    <DialogDescription className="text-[10px] font-black uppercase tracking-wider text-gray-400">Coupon: {discount.code}</DialogDescription>
+                                                                </div>
+                                                            </div>
+                                                        </DialogHeader>
+                                                        <div className="px-6 pb-8 pt-4">
+                                                            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                                                {discount.usages.map((u: any, i: number) => (
+                                                                    <div key={i} className="flex items-center justify-between p-3.5 bg-gray-50/50 border border-gray-100 rounded-2xl hover:border-emerald-200 transition-all group">
+                                                                        <div className="flex items-center gap-3">
+                                                                           <div className="h-8 w-8 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 flex items-center justify-center font-bold text-emerald-700 text-xs shadow-inner">
+                                                                                {u.user.name.charAt(0)}
+                                                                           </div>
+                                                                           <div>
+                                                                                <p className="text-xs font-black text-gray-900 leading-tight">{u.user.name}</p>
+                                                                                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">ID: ...{u.user.id.slice(-6)}</p>
+                                                                           </div>
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{new Date(u.usedAt).toLocaleDateString()}</p>
+                                                                            <p className="text-[8px] font-bold text-gray-300 tracking-tight">{new Date(u.usedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                            <div className="mt-6 p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-start gap-2.5">
+                                                                <Shield className="h-4 w-4 text-blue-500 mt-0.5" />
+                                                                <p className="text-[10px] text-blue-600 font-bold leading-relaxed">System Privacy: Sensitive data like customer emails are strictly omitted from this view to meet platform compliance. Only first name and partial IDs are displayed.</p>
+                                                            </div>
+                                                        </div>
+                                                    </DialogContent>
+                                                </Dialog>
+                                            )}
+                                        </div>
                                         <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest opacity-70">
                                             {discount.expiry ? `Expires ${new Date(discount.expiry).toLocaleDateString()}` : 'Indefinite Validity'}
                                         </p>

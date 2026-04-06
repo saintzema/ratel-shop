@@ -21,6 +21,7 @@ model User {
   accounts        Account[]
   addresses       Address[]
   complaints      Complaint[]          @relation("UserComplaints")
+  discountsUsed   UserDiscountUsage[]
   disputes        Dispute[]            @relation("BuyerDisputes")
   negotiations    NegotiationRequest[]
   notifications   Notification[]
@@ -370,9 +371,21 @@ model Discount {
   usageCount Int       @default(0)
   expiry     DateTime?
   status     String    @default("active")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  seller     Seller              @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  usages     UserDiscountUsage[]
+}
+
+model UserDiscountUsage {
+  id         String   @id @default(cuid())
+  userId     String
+  discountId String
+  usedAt     DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, discountId])
 }
 
 model SearchCache {

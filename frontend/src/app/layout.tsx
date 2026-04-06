@@ -82,7 +82,6 @@ export default function RootLayout({
       <head>
         <meta name="google-site-verification" content="_BT79N3Ti1Smba1864DQYGqrtDIwFamIygQqu6R9Xxc" />
         <link rel="preload" href="/logo.png" as="image" />
-        <link rel="preload" href="https://images.unsplash.com/photo-1611432579402-7037e3e2c1e4?w=900&auto=format&fit=crop&q=60" as="image" />
         {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
         <style dangerouslySetInnerHTML={{
           __html: `

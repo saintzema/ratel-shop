@@ -18,10 +18,14 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     const [isAuthorized, setIsAuthorized] = useState(false);
 
     useEffect(() => {
-        console.log("ProtectedRoute check:", { isLoading, user, pathname, allowedRoles });
+        if (process.env.NODE_ENV === 'development') {
+            console.log("ProtectedRoute check:", { isLoading, user, pathname, allowedRoles });
+        }
         if (!isLoading) {
             if (!user) {
-                console.log("ProtectedRoute: No user, redirecting to login");
+                if (process.env.NODE_ENV === 'development') {
+                    console.log("ProtectedRoute: No user, redirecting to login");
+                }
                 // Redirect to login with return URL
                 const returnUrl = encodeURIComponent(pathname);
                 router.push(`/login?returnUrl=${returnUrl}`);
@@ -33,7 +37,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                     const allSellers = DataSyncService.getSellers();
                     const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
                     if (myStore) {
-                        console.log("ProtectedRoute: Auto-healing legacy customer to seller role");
+                        if (process.env.NODE_ENV === 'development') {
+                            console.log("ProtectedRoute: Auto-healing legacy customer to seller role");
+                        }
                         updateUser({ role: "seller" });
                         isRoleAllowed = true;
                     }
@@ -45,16 +51,22 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                         .then(res => res.json())
                         .then(dbUser => {
                             if (dbUser && dbUser.role && allowedRoles && allowedRoles.includes(dbUser.role)) {
-                                console.log(`ProtectedRoute: Auto-healing session to match DB role [${dbUser.role}]`);
+                                if (process.env.NODE_ENV === 'development') {
+                                    console.log(`ProtectedRoute: Auto-healing session to match DB role [${dbUser.role}]`);
+                                }
                                 updateUser({ role: dbUser.role });
                                 setIsAuthorized(true);
                             } else {
-                                console.log(`ProtectedRoute: Role mismatch. User role: ${user.role}, Allowed: ${allowedRoles}. Redirecting to /`);
+                                if (process.env.NODE_ENV === 'development') {
+                                    console.log(`ProtectedRoute: Role mismatch. User role: ${user.role}, Allowed: ${allowedRoles}. Redirecting to /`);
+                                }
                                 router.push("/");
                             }
                         })
                         .catch(() => {
-                            console.log("ProtectedRoute: Failed to verify DB role. Redirecting.");
+                            if (process.env.NODE_ENV === 'development') {
+                                console.log("ProtectedRoute: Failed to verify DB role. Redirecting.");
+                            }
                             router.push("/");
                         });
                 } else {
@@ -80,7 +92,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                                 setIsAuthorized(true);
                             });
                     } else {
-                        console.log("ProtectedRoute: Authorized (Low Privilege)");
+                        if (process.env.NODE_ENV === 'development') {
+                            console.log("ProtectedRoute: Authorized (Low Privilege)");
+                        }
                         setIsAuthorized(true);
                     }
                 }

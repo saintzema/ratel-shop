@@ -75,24 +75,46 @@ export async function POST(request: Request) {
             }).catch(() => { /* ignore — order will save locally */ });
         });
 
-        const newOrder = await db.order.create({
-            data: {
-                id: body.tracking_id || `FP-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-                customerId: userId,
-                customerName: userName,
-                productId: body.product_id,
-                sellerId: body.seller_id,
-                sellerName: body.seller_name,
-                amount: body.amount,
-                quantity: body.quantity || 1,
-                shippingAddress: body.shipping_address,
-                paymentMethod: body.payment_method || 'paystack',
-                status: 'pending',
-                escrowStatus: 'held',
-            },
-            include: {
-                product: true
+        const newOrder = await db.$transaction(async (tx) => {
+            // 1. Create the order
+            const order = await tx.order.create({
+                data: {
+                    id: body.tracking_id || `FP-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+                    customerId: userId,
+                    customerName: userName,
+                    productId: body.product_id,
+                    sellerId: body.seller_id,
+                    sellerName: body.seller_name,
+                    amount: body.amount,
+                    quantity: body.quantity || 1,
+                    shippingAddress: body.shipping_address,
+                    paymentMethod: body.payment_method || 'paystack',
+                    status: 'pending',
+                    escrowStatus: 'held',
+                },
+                include: {
+                    product: true
+                }
+            });
+
+            // 2. Record Discount Usage if applicable
+            if (body.discount_id) {
+                // Increment global usage
+                await tx.discount.update({
+                    where: { id: body.discount_id },
+                    data: { usageCount: { increment: 1 } }
+                }).catch(() => { /* skip if discount deleted */ });
+
+                // Record per-user usage
+                await tx.userDiscountUsage.create({
+                    data: {
+                        userId: userId,
+                        discountId: body.discount_id
+                    }
+                }).catch(() => { /* skip if already used — should be caught by validation, but safe to ignore here */ });
             }
+
+            return order;
         });
 
         // Broadcast update for real-time sync

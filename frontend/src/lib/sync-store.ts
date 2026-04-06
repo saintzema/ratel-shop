@@ -128,7 +128,9 @@ class DataSyncServiceService {
             });
 
             if (healed) {
-                console.log("🛠️ DataSyncService self-heal: Purged all legacy demo entries.");
+                if (process.env.NODE_ENV === 'development') {
+                    console.log("🛠️ DataSyncService self-heal: Purged all legacy demo entries.");
+                }
                 window.dispatchEvent(new Event("sync-store-update"));
             }
         } catch (e) {
@@ -2262,6 +2264,7 @@ class DataSyncServiceService {
             tracking_status: "pending",
             tracking_steps: trackingSteps,
             escrow_status: "held" as const,
+            discount_id: (order as any).discount_id,
             zivaActive: true,
             chat_messages: [
                 {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import {
     Settings,
     Bell,
@@ -242,12 +243,20 @@ export default function AdminSettings() {
                                 <Percent className="h-5 w-5" />
                             </div>
                             <h3 className="text-lg font-black text-gray-900">Revenue & Fees</h3>
+                            <InfoTooltip 
+                                content="These fees determine the platform's revenue model and who bears the cost of trust. High fees support better support but may impact volume."
+                                title="Financial Governance"
+                                position="right"
+                            />
                         </div>
 
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Platform Margin (%)</label>
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Platform Margin (%)</label>
+                                        <InfoTooltip content="The base markup applied by RatelShop on top of seller prices." />
+                                    </div>
                                     <Input value={platformMargin} onChange={(e) => setPlatformMargin(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-indigo-200 ring-2 ring-indigo-50" />
                                 </div>
                                 <div className="space-y-2">
@@ -259,11 +268,17 @@ export default function AdminSettings() {
                                     <Input value={serviceCharge} onChange={(e) => setServiceCharge(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Escrow Fee (Fixed ₦)</label>
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Escrow Fee (Fixed ₦)</label>
+                                        <InfoTooltip content="The flat fee paid by the buyer for basic escrow protection on COD/standard orders." />
+                                    </div>
                                     <Input value={escrowFee} onChange={(e) => setEscrowFee(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Pay Now Escrow Fee (₦)</label>
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Pay Now Escrow Fee (₦)</label>
+                                        <InfoTooltip content="For instant payments, the platform uses a tiered fee (10% down to 7%, capped at ₦7,000) for maximum security and fairness." />
+                                    </div>
                                     <Input value={escrowFeePayNow} onChange={(e) => setEscrowFeePayNow(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-emerald-200 ring-2 ring-emerald-50" />
                                 </div>
                                 <div className="space-y-2">
@@ -283,7 +298,10 @@ export default function AdminSettings() {
                                             <Input value={lowCostThreshold} onChange={(e) => setLowCostThreshold(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Flat Fee (₦)</label>
+                                            <div className="flex items-center gap-1.5 ">
+                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">Flat Fee (₦)</label>
+                                                    <InfoTooltip content="Bears the cost: The SELLER bears this flat fee to ensure the platform remains sustainable for micro-transactions." />
+                                            </div>
                                             <Input value={lowCostFlatFee} onChange={(e) => setLowCostFlatFee(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
                                         </div>
                                     </div>
@@ -297,7 +315,10 @@ export default function AdminSettings() {
                                             <Input value={highCostThreshold} onChange={(e) => setHighCostThreshold(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Fee Cap (₦)</label>
+                                            <div className="flex items-center gap-1.5 ">
+                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">Fee Cap (₦)</label>
+                                                <InfoTooltip content="The maximum possible commission taken from a high-value sale. Encourages luxury and bulk sellers." />
+                                            </div>
                                             <Input value={highCostCap} onChange={(e) => setHighCostCap(e.target.value)} type="number" className="h-10 bg-gray-50 border-none rounded-xl font-bold" />
                                         </div>
                                     </div>
