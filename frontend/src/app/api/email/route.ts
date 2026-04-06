@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { buildEmailTemplate, EmailType } from '@/lib/email-templates';
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
+// Initialize Resend inside the handler to prevent build-time failures if API key is missing
+function getResend() {
+    return new Resend(process.env.RESEND_API_KEY || 're_YxXYZ...');
+}
 
 export async function POST(request: Request) {
     try {
@@ -18,13 +20,14 @@ export async function POST(request: Request) {
         }
 
         const { subject, html } = buildEmailTemplate(type, payload || {});
-
+        const resendInstance = getResend();
+        
         if (!html || html.trim().length === 0) {
             console.warn(`Email template returned empty HTML for type: ${type}`);
             return NextResponse.json({ success: true, warning: `No template for type: ${type}`, deliveredCode: payload?.code }, { status: 200 });
         }
 
-        const data = await resend.emails.send({
+        const data = await resendInstance.emails.send({
             from: '🛍️ FairPrice Shop <hello@fairprice.ng>',
             replyTo: process.env.ESCALATION_EMAIL || 'fairprice2026@gmail.com',
             to: [to],

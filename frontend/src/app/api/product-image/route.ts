@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = 'force-dynamic'; // Prevent Vercel from statically caching this free-tier proxy
+
 // We prioritize Serper.dev for Google Image Search (2,500 free queries)
 // or standard Google Custom Search API.
 const SERPER_API_KEY = process.env.SERPER_API_KEY;

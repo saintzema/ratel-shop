@@ -7,7 +7,12 @@ import { Resend } from 'resend';
 const LOG_FILE_PATH = path.join(process.cwd(), 'inbound_emails.log');
 const VIEWER_SECRET = "FP_SECRET_2025"; 
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Lazy-initialize Resend inside handlers to prevent build-time failures if API key is missing
+const getResend = () => {
+    const key = process.env.RESEND_API_KEY;
+    if (!key) return null;
+    return new Resend(key);
+};
 
 /**
  * Resend Inbound Webhook Handler (POST)
@@ -25,11 +30,12 @@ export async function POST(request: Request) {
         let fetchStatus = "Not attempted";
 
         if (emailData.email_id) {
-            if (!process.env.RESEND_API_KEY) {
+            const resendInstance = getResend();
+            if (!resendInstance) {
                 fetchStatus = "FAILED: RESEND_API_KEY is missing from environment";
             } else {
                 try {
-                    const response = await resend.emails.get(emailData.email_id);
+                    const response = await resendInstance.emails.get(emailData.email_id);
                     
                     if (response.data) {
                         fullHtml = (response.data as any).html || 'No HTML in API response';
@@ -45,9 +51,10 @@ export async function POST(request: Request) {
         }
 
         // 3. Optional: Forward to iPhone (Personal Inbox)
-        if (process.env.ESCALATION_EMAIL && fetchStatus === "SUCCESS") {
+        const resendInstance = getResend();
+        if (process.env.ESCALATION_EMAIL && fetchStatus === "SUCCESS" && resendInstance) {
             try {
-                await resend.emails.send({
+                await resendInstance.emails.send({
                     from: "FairPrice Support <hello@fairprice.ng>",
                     to: process.env.ESCALATION_EMAIL,
                     replyTo: emailData.from, // This allows the user to hit 'Reply' on their iPhone!

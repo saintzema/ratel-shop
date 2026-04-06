@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, TrendingUp, Loader2, ShoppingCart, Star } from "lucide-react";
 import { Product } from "@/lib/types";
 import { getProductUrl } from "@/lib/utils";
+import { useCart } from "@/context/CartContext";
 
 interface RecommendedProductsProps {
     products: Product[];
