@@ -46,12 +46,13 @@ export function getTrustColor(score: number): string {
     return "text-red-500";
 }
 
-export function getProductUrl(id: string, name: string): string {
-    if (!id) return "/";
-    const slug = (name || "").toLowerCase()
+export function getProductUrl(id: string | undefined | null, name: string | undefined | null): string {
+    if (!id || id === 'undefined' || id === 'null') return "/";
+    const safeName = (name && name !== 'undefined' && name !== 'null') ? name : id;
+    const slug = safeName.toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
-    return `/product/${id}/${slug}`;
+    return `/product/${id}/${slug || 'product'}`;
 }
 
 export async function copyToClipboard(text: string): Promise<boolean> {

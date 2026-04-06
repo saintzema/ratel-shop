@@ -70,14 +70,23 @@ export async function POST(req: Request) {
             
             - For local Nigerian products (food, drinks, herbal): Use local market prices only.
             - Do NOT quote artificially inflated prices. When in doubt, use the LOWER end of the price range.
+
+            *** CRITICAL: PRODUCT DESCRIPTION (MANDATORY) ***
+            - Each product MUST include a detailed "description" field (minimum 80 words, maximum 200 words).
+            - The description must read like a professional product listing written by a top e-commerce copywriter.
+            - Include: what the product IS, what it DOES, key features, what makes it special, who it's ideal for, and why a buyer should care.
+            - DO NOT use generic filler like "Discover exceptional quality". Be SPECIFIC to each product.
+            - Example for a massager: "This heated neck and shoulder massager delivers deep-tissue Shiatsu kneading with infrared heat therapy to relieve muscle tension, stiffness, and chronic pain. Features 8 rotating massage nodes with 3 adjustable speed levels and auto-shutoff timer. The ergonomic U-shaped design wraps comfortably around your neck, shoulders, and upper back. Made with premium PU leather exterior and breathable mesh lining. Ideal for office workers, athletes, and anyone dealing with daily muscle fatigue. Includes AC adapter and car charger for use at home or on the go."
             
-            CRITICAL SPECS:
-            - Include a "specs" object with 5-8 key specifications for each product.
+            CRITICAL SPECS (MANDATORY — MINIMUM 8 PER PRODUCT):
+            - Include a "specs" object with 8-15 key specifications for each product.
             - For vehicles: Engine, Horsepower, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating, Year.
-            - For phones: Screen Size, Processor, RAM, Storage, Battery, Camera.
-            - For hair/beauty: Length, Texture, Material, Origin, Weight, Color.
-            - For fashion: Size Range, Material, Color, Brand.
-            - For electronics: Key technical specs relevant to the product.
+            - For phones: Screen Size, Processor, RAM, Storage, Battery, Camera, OS, Connectivity.
+            - For hair/beauty: Length, Texture, Material, Origin, Weight, Color, Style, Grade.
+            - For fashion: Size Range, Material, Color, Brand, Gender, Season, Care Instructions.
+            - For electronics/appliances: Wattage, Dimensions, Weight, Material, Voltage, Features, Warranty.
+            - For health/wellness devices: Massage Type, Heat Settings, Speed Levels, Power Source, Material, Dimensions, Weight, Timer, Auto-Shutoff.
+            - NEVER return a specs object with fewer than 6 entries. Fill with relevant technical details.
             
             ANONYMIZATION & LINKS (CRITICAL): 
             - NEVER mention any real store name in the product *name*.
@@ -88,12 +97,14 @@ export async function POST(req: Request) {
             Return JSON:
             {
                 "suggestions": [
-                    { "name": "Full Descriptive Product Name (including year for vehicles)", "category": "Category", "approxPrice": number (Naira), "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished", "sourceUrl": "https://www.alibaba.com/product-detail/...", "image_url": "https://s.alicdn.com/.../image.jpg", "specs": { "Key": "Value" } }
+                    { "name": "Full Descriptive Product Name (including year for vehicles)", "category": "Category", "approxPrice": number (Naira), "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished", "sourceUrl": "https://www.alibaba.com/product-detail/...", "image_url": "https://s.alicdn.com/.../image.jpg", "description": "Detailed 80-200 word product description covering features, benefits, use cases, materials, and ideal buyer profile.", "specs": { "Key1": "Value1", "Key2": "Value2", "...": "Minimum 8 key-value pairs" } }
                 ]
             }
 
             CRITICAL RULES:
             - The 'approxPrice' MUST be a realistic market value in Naira. It CANNOT be 0.
+            - The 'description' MUST be specific and detailed, NOT generic filler text. MINIMUM 80 words.
+            - The 'specs' MUST have at least 8 key-value pairs with real technical data.
             - Output ONLY raw, valid JSON. NO markdown.
             `;
         } else {

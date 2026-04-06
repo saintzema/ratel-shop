@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import { DataSyncService } from "@/lib/sync-store";
 import { SEED_PRODUCTS, SEED_SELLERS } from "@/lib/data";
 import { Product, Seller } from "@/lib/types";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -422,7 +422,7 @@ export default function StoreProfile() {
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                                         {filteredProducts.map((product) => (
-                                            <Link key={product.id} href={`/product/${product.id}`} className="group block">
+                                            <Link key={product.id} href={getProductUrl(product.id, product.name)} className="group block">
                                                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 h-full flex flex-col">
                                                     {/* Image */}
                                                     <div className="aspect-square relative bg-[#F5F5F7] p-4 flex items-center justify-center overflow-hidden">

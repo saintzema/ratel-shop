@@ -1598,7 +1598,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                     onClick={() => setIsLocationModalOpen(true)}
                                                     className="flex items-center gap-1 text-[10px] font-bold text-gray-900 hover:text-brand-green-600 transition-colors group/loc"
                                                 >
-                                                    <span className="border-b border-dotted border-gray-400 group-hover/loc:border-brand-green-600">
+                                                    <span className="border-b border-dotted border-gray-400 group-hover/loc:border-brand-green-600 cursor:pointer">
                                                         {location}
                                                     </span>
                                                     <ChevronDown className="h-2.5 w-2.5 text-gray-400 group-hover/loc:text-brand-green-600" />

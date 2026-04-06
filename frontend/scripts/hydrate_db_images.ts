@@ -1,8 +1,22 @@
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+
+import { Pool } from 'pg';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+    console.error("❌ Missing DATABASE_URL in .env.local!");
+    process.exit(1);
+}
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
+
+// Use the same adapter pattern as the app's db.ts
+const pool = new Pool({ connectionString: DATABASE_URL });
+const adapter = new PrismaPg(pool as any);
+const prisma = new PrismaClient({ adapter, log: ["error", "warn"] });
 
 // List of signatures that indicate a missing/broken/test image
 const isBrokenImage = (url: string | null | undefined) => {
@@ -76,28 +90,25 @@ async function run() {
                     await prisma.product.update({
                         where: { id: product.id },
                         data: {
-                            imageUrl: realImageUrl,
-                            images: [realImageUrl] // Add to image array just in case
+                            imageUrl: realImageUrl
                         }
                     });
                     console.log(`✅ [SUCCESS] Updated ${product.name}: ${realImageUrl}`);
                     updatedCount++;
                 } else {
-                    // FINAL FALLBACK: If Serper fails, ensure it's set beautifully and safely to our official placeholder 
-                    // instead of leaving ugly terminal text ('No photo', 'n/a') in the Live DB.
+                    // FINAL FALLBACK: If Serper fails, ensure it's set to our official placeholder
                     await prisma.product.update({
                         where: { id: product.id },
                         data: {
-                            imageUrl: '/assets/images/placeholder.png',
-                            images: ['/assets/images/placeholder.png']
+                            imageUrl: '/assets/images/placeholder.png'
                         }
                     });
                     console.log(`⚠️  [FALLBACK] Replaced ugly data with standard placeholder for: ${product.name}`);
                     updatedCount++;
                 }
 
-                // Sleep slightly to respect Serper API bounds and not get rate-limited
-                await new Promise(r => setTimeout(r, 600)); 
+                // Sleep slightly to respect Serper API rate limits
+                await new Promise(r => setTimeout(r, 600));
             } else {
                 skipCount++;
             }
@@ -113,6 +124,7 @@ async function run() {
         console.error("Catastrophic error running hydration:", e);
     } finally {
         await prisma.$disconnect();
+        await pool.end();
     }
 }
 
