@@ -46,6 +46,14 @@ export function getTrustColor(score: number): string {
     return "text-red-500";
 }
 
+export function getProductUrl(id: string, name: string): string {
+    if (!id) return "/";
+    const slug = (name || "").toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+    return `/product/${id}/${slug}`;
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
     try {
         if (navigator?.clipboard?.writeText) {

@@ -4,7 +4,7 @@ import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProductUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
@@ -136,7 +136,7 @@ export function SearchResultCard({
                         <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
                     </div>
                 )}
-                <Link href={`/product/${product.id}`} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
+                <Link href={getProductUrl(product.id, product.name)} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
                     {!imgError ? (
                         <img
                             src={(() => {
@@ -169,7 +169,7 @@ export function SearchResultCard({
             <div className="flex-1 flex flex-col pt-1">
                 {isSponsored && <span className="text-[10px] text-gray-400 font-medium mb-1">Sponsored</span>}
 
-                <Link href={`/product/${product.id}`} className="group-hover:text-brand-green-600 transition-colors">
+                <Link href={getProductUrl(product.id, product.name)} className="group-hover:text-brand-green-600 transition-colors">
                     <h2 className="text-xl font-medium leading-tight mb-1 line-clamp-2">
                         {product.name}
                     </h2>

@@ -23,6 +23,7 @@ import { SessionProvider } from "@/context/SessionProvider";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
+import Script from 'next/script';
 
 // Standalone component to handle popup closing without forcing the whole layout to be client-side
 import { PopupCloser } from "@/components/auth/PopupCloser";
@@ -108,6 +109,71 @@ export default function RootLayout({
             }, 8000);
           `
         }} />
+        }} />
+        <Script
+          id="organization-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Organization',
+              'name': 'FairPrice Shop Nigeria',
+              'url': 'https://fairprice.ng',
+              'logo': 'https://fairprice.ng/logo.png',
+              'contactPoint': {
+                '@type': 'ContactPoint',
+                'telephone': '+234-800-FAIR-PRICE',
+                'contactType': 'customer service',
+                'areaServed': 'NG',
+                'availableLanguage': ['English', 'Hausa', 'Igbo', 'Yoruba']
+              },
+              'sameAs': [
+                'https://facebook.com/fairpriceng',
+                'https://twitter.com/fairpriceng',
+                'https://instagram.com/fairpriceng'
+              ]
+            })
+          }}
+        />
+        <Script
+          id="localbusiness-jsonld"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'LocalBusiness',
+              'name': 'FairPrice Shop Headquarters',
+              'image': 'https://fairprice.ng/logo.png',
+              '@id': 'https://fairprice.ng',
+              'url': 'https://fairprice.ng',
+              'telephone': '+234-800-FAIR-PRICE',
+              'address': {
+                '@type': 'PostalAddress',
+                'streetAddress': '12 Victoria Island',
+                'addressLocality': 'Lagos',
+                'postalCode': '101241',
+                'addressCountry': 'NG'
+              },
+              'geo': {
+                '@type': 'GeoCoordinates',
+                'latitude': 6.4281,
+                'longitude': 3.4219
+              },
+              'openingHoursSpecification': {
+                '@type': 'OpeningHoursSpecification',
+                'dayOfWeek': [
+                  'Monday',
+                  'Tuesday',
+                  'Wednesday',
+                  'Thursday',
+                  'Friday'
+                ],
+                'opens': '08:00',
+                'closes': '18:00'
+              }
+            })
+          }}
+        />
       </head>
       <body
         className={cn("font-sans antialiased min-h-screen flex flex-col bg-white text-black")}

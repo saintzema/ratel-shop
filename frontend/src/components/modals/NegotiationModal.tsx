@@ -8,7 +8,7 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Product, PriceComparison } from "@/lib/types";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
@@ -337,7 +337,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                 <h4 className="text-sm font-bold text-zinc-900 mb-3 text-center">While you wait, check out these similar deals:</h4>
                                 <div className="space-y-3">
                                     {similarProducts.map((p) => (
-                                        <Link key={p.id} href={`/product/${p.id}`} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
+                                        <Link key={p.id} href={getProductUrl(p.id, p.name)} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
                                             <div className="h-12 w-12 bg-white rounded-lg border border-zinc-100 overflow-hidden shrink-0">
                                                 <img src={p.image_url || "/assets/images/placeholder.png"} alt={p.name} className="w-full h-full object-cover" />
                                             </div>

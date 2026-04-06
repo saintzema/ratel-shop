@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, TrendingUp, Loader2, ShoppingCart, Star } from "lucide-react";
 import { Product } from "@/lib/types";
-import { useCart } from "@/context/CartContext";
+import { getProductUrl } from "@/lib/utils";
 
 interface RecommendedProductsProps {
     products: Product[];
@@ -142,7 +142,7 @@ export function RecommendedProducts({
                     <div
                         key={product.id}
                         className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-xl overflow-hidden cursor-pointer border border-gray-100"
-                        onClick={() => router.push(`/product/${product.id}`)}
+                        onClick={() => router.push(getProductUrl(product.id, product.name))}
                     >
                         <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
                             <img

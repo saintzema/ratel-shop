@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Star, ChevronDown } from "lucide-react";
 import { useCart } from "@/context/CartContext";
@@ -53,7 +53,7 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
                             : 0;
                         return (
                             <div key={product.id} className="group relative bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all overflow-hidden">
-                                <Link href={`/product/${product.id}`} className="block">
+                                <Link href={getProductUrl(product.id, product.name)} className="block">
                                     <div className="bg-gray-50 rounded-t-xl aspect-square p-3 flex items-center justify-center relative">
                                         <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                         {discount > 0 && (

@@ -222,6 +222,7 @@ function SearchContent() {
   const sortParam = searchParams.get("sort") || "relevance";
   const minPriceParam = searchParams.get("minPrice");
   const maxPriceParam = searchParams.get("maxPrice");
+  const pageParam = searchParams.get("page");
 
   // Local State
   const [priceRange, setPriceRange] = useState([0, 500000000]);
@@ -448,7 +449,7 @@ function SearchContent() {
   >([]);
 
   // Pagination State
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(pageParam ? parseInt(pageParam, 10) : 1);
   const ITEMS_PER_PAGE = 12;
   const { ref: observerRef, inView } = useInView({ threshold: 0.1 });
 
@@ -1186,12 +1187,19 @@ function SearchContent() {
                 {paginatedProducts.length < filteredProducts.length &&
                   !showGlobalResults && (
                     <div className="flex justify-center mt-8 mb-4">
-                      <button
-                        onClick={() => setPage(p => p + 1)}
+                      <NextLink
+                        href={{
+                          pathname: '/search',
+                          query: { ...Object.fromEntries(searchParams.entries()), page: page + 1 }
+                        }}
+                        scroll={false}
+                        onClick={(e) => {
+                          setPage((p) => p + 1);
+                        }}
                         className="px-8 py-3 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm flex items-center gap-2"
                       >
                         <ChevronDown className="h-4 w-4" /> View More Results
-                      </button>
+                      </NextLink>
                     </div>
                   )}
               </div>

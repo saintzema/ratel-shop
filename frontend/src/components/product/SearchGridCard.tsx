@@ -7,7 +7,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { ShieldCheck, Heart, Star, Check, ShoppingCart } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
-import { cn } from "@/lib/utils";
+import { cn, getProductUrl } from "@/lib/utils";
 
 export const SearchGridCard = ({
   product,
@@ -70,7 +70,7 @@ export const SearchGridCard = ({
 
   return (
     <NextLink
-      href={`/product/${product.id || "global_" + product.name.replace(/\s+/g, "_").toLowerCase()}`}
+      href={getProductUrl(product.id, product.name)}
       className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">

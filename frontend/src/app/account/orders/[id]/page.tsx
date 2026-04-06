@@ -5,7 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, DisputeReason, Dispute, SupportMessage } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, formatDateExact } from "@/lib/utils";
+import { formatPrice, formatDateExact, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, CheckCircle, Clock, MapPin, Phone, ChevronLeft, ShieldCheck, AlertTriangle, MessageSquare, Mail, Star, Download, ThumbsUp } from "lucide-react";
@@ -269,11 +269,11 @@ export default function OrderDetailsPage() {
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <h2 className="font-bold text-lg mb-4 text-gray-900">Items in this order</h2>
                             <div className="flex gap-4">
-                                <Link href={`/product/${order.product_id}`} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
                                     <img src={order.product?.image_url || "/assets/images/placeholder.png"} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                 </Link>
                                 <div>
-                                    <Link href={`/product/${order.product_id}`} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
+                                    <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
                                         {order.product?.name || "Product"}
                                     </Link>
                                     <p className="text-sm text-gray-500 mt-1">Quantity: {(order as any).quantity || 1}</p>

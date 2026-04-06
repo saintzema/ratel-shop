@@ -50,7 +50,7 @@ import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
 import { SEED_PRODUCTS } from "@/lib/data"; // Import products for search
 import { DataSyncService } from "@/lib/sync-store";
-import { cn } from "@/lib/utils";
+import { cn, getProductUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -71,6 +71,26 @@ const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
     furniture: <Sofa className="h-6 w-6" />,
     grocery: <ShoppingBag className="h-6 w-6" />
 };
+
+const RECENT_SEARCHES_KEY = 'fp_recent_searches';
+const MAX_RECENT_SEARCHES = 4;
+
+function getRecentSearches(): string[] {
+    try {
+        const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+}
+
+function saveRecentSearch(term: string) {
+    try {
+        const current = getRecentSearches();
+        // Remove duplicate if exists, then prepend
+        const filtered = current.filter(t => t.toLowerCase() !== term.toLowerCase());
+        const updated = [term, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    } catch { /* quota */ }
+}
 
 export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -241,7 +261,7 @@ export function Navbar() {
                 })
                 .filter(s => s.score > 40) // slightly lowered threshold to capture more inventory overlaps
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 5); // Increased from 3 to 5 to show more local matches first
+                .slice(0, 2); // Show only top 2 closely related local results
             setSuggestions(scored.map(s => s.product));
 
             // Generate smart, context-aware autocomplete suggestions (no API)
@@ -465,11 +485,12 @@ export function Navbar() {
             }
         }
 
-        // Build combined results for session cache
+        // Build combined results for session cache — global results FIRST so they appear
+        // at the top of the SRP, then local/cached below them
         const combinedResults = [
+            ...globalAsProducts.map(p => ({ ...p, _source: 'global' })),
             ...suggestions.map(p => ({ ...p, _source: 'local' })),
-            ...cachedResults.map(p => ({ ...p, _source: 'cached' })),
-            ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
+            ...cachedResults.map(p => ({ ...p, _source: 'cached' }))
         ];
 
         try {
@@ -477,6 +498,19 @@ export function Navbar() {
             sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
             sessionStorage.setItem('fp_nav_search_query', searchQuery);
         } catch (e) { /* quota exceeded */ }
+
+        // Persist to recent searches
+        saveRecentSearch(searchQuery);
+
+        // ─── ELITE REVIEW GENERATION ───
+        // Trigger review generation in background for the promoted global product
+        if (resolvedClickedId.startsWith('global-')) {
+            fetch('/api/gemini-reviews', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId: resolvedClickedId })
+            }).catch(() => {}); // Fire and forget
+        }
 
         setShowSuggestions(false);
         router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
@@ -498,6 +532,8 @@ export function Navbar() {
 
     const handleSearch = () => {
         if (searchQuery.trim()) {
+            // Persist to recent searches on every search
+            saveRecentSearch(searchQuery.trim());
             // Cache current results before navigating
             if (suggestions.length > 0 || globalResults.length > 0) {
                 navigateWithResults('');
@@ -525,7 +561,7 @@ export function Navbar() {
                 // Navigate to product
                 const product = suggestions[activeIndex - textSuggestions.length];
                 setShowSuggestions(false);
-                router.push(`/product/${product.id}`);
+                router.push(getProductUrl(product.id, product.name));
             } else {
                 handleSearch();
             }
@@ -679,16 +715,22 @@ export function Navbar() {
                                     {/* Empty State: Recent & Trending (Temu-style) */}
                                     {searchQuery.trim().length === 0 && (
                                         <div className="p-5">
-                                            <div className="mb-5">
-                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><Search className="h-3.5 w-3.5" /> Recent Searches</h3>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['iPhone 15 Pro Max', 'Solar Panels 500W', 'Samsung S24 Ultra', 'PS5 Console'].map(term => (
-                                                        <button key={term} onMouseDown={(e) => { e.preventDefault(); setSearchQuery(term); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
-                                                            {term}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
+                                            {(() => {
+                                                const recentSearches = getRecentSearches();
+                                                return recentSearches.length > 0 ? (
+                                                    <div className="mb-5">
+                                                        <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> Recent Searches</h3>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {recentSearches.map(term => (
+                                                                <button key={term} onMouseDown={(e) => { e.preventDefault(); setSearchQuery(term); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                                    <History className="h-3 w-3 text-gray-400" />
+                                                                    {term}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                             <div>
                                                 <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Right Now</h3>
                                                 <div className="flex flex-wrap gap-2">

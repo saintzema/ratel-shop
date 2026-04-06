@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 
@@ -377,7 +377,7 @@ function HomeContent() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-white/20 bg-white/10 text-white hover:bg-white/20 hover:scale-[1.02] shadow-sm transition-all duration-300 group"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border-2 border-emerald-400 bg-white/10 text-white hover:bg-emerald-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 group ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent"
                   onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
                 >
                   <span className="font-extrabold tracking-wide">{isSeller ? "View Store" : "Start Selling"}</span>
@@ -694,7 +694,7 @@ function ScrollerProductCard({ product }: { product: any }) {
 
   return (
     <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3 cursor-pointer">
-      <div onClick={() => router.push(`/product/${product.id}`)} className="flex flex-col flex-1 h-full relative">
+      <div onClick={() => router.push(getProductUrl(product.id, product.name))} className="flex flex-col flex-1 h-full relative">
         <div
           className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
           onClick={handleDoubleTap}

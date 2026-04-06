@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { NegotiationRequest, Product } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
@@ -196,11 +196,11 @@ export default function NegotiationsPage() {
                                                 onClick={() => openMessageBox(`neg_${neg.product_id}`)}
                                                 className="hidden md:grid grid-cols-[48px_minmax(0,1.5fr)_100px_100px_120px_90px_130px] gap-3 px-5 py-3 items-center hover:bg-indigo-50/30 transition-colors cursor-pointer group/row"
                                             >
-                                                <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                <Link href={getProductUrl(neg.product_id, productName)} onClick={(e) => e.stopPropagation()} className="h-10 w-10 bg-gray-50 rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                     <img src={productImage} alt={productName} className="h-full w-full object-contain" />
                                                 </Link>
                                                 <div className="min-w-0">
-                                                    <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
+                                                    <Link href={getProductUrl(neg.product_id, productName)} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-gray-900 hover:text-brand-green-600 transition-colors line-clamp-1 block">
                                                         {productName}
                                                     </Link>
                                                     <span className="text-[10px] text-gray-400">{sellerName}</span>
@@ -241,7 +241,7 @@ export default function NegotiationsPage() {
                                                         </Button>
                                                     )}
                                                     {neg.status === "rejected" && (
-                                                        <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()}>
+                                                        <Link href={getProductUrl(neg.product_id, productName)} onClick={(e) => e.stopPropagation()}>
                                                             <Button size="sm" variant="outline" className="text-[10px] font-bold rounded-lg h-7 px-2 border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View</Button>
                                                         </Link>
                                                     )}
@@ -257,11 +257,11 @@ export default function NegotiationsPage() {
                                                 className="md:hidden p-4 space-y-3 cursor-pointer active:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
                                             >
                                                 <div className="flex items-center gap-3">
-                                                    <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                    <Link href={getProductUrl(neg.product_id, productName)} onClick={(e) => e.stopPropagation()} className="h-12 w-12 bg-gray-50 rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                         <img src={productImage} alt={productName} className="h-full w-full object-contain" />
                                                     </Link>
                                                     <div className="flex-1 min-w-0">
-                                                        <Link href={`/product/${neg.product_id}`} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
+                                                        <Link href={getProductUrl(neg.product_id, productName)} onClick={(e) => e.stopPropagation()} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-600 transition-colors">
                                                             {productName}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
@@ -303,7 +303,7 @@ export default function NegotiationsPage() {
                                                         </Button>
                                                     )}
                                                     {neg.status === "rejected" && (
-                                                        <Link href={`/product/${neg.product_id}`} className="flex-1">
+                                                        <Link href={getProductUrl(neg.product_id, productName)} className="flex-1">
                                                             <Button size="sm" variant="outline" className="w-full text-xs rounded-lg font-bold border-gray-300 text-gray-600 hover:bg-gray-100 bg-transparent">View Product</Button>
                                                         </Link>
                                                     )}

@@ -148,6 +148,7 @@ export default function ProductDetailPage() {
 
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
+    const [aiReviews, setAiReviews] = useState<any[]>([]);
 
     useEffect(() => {
         setMounted(true);
@@ -545,8 +546,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         });
     }
 
-    // Combine real reviews with seeded ones (real ones first)
-    const productReviews = [...realReviews, ...seededReviews];
+    // Combine real reviews with AI seeded ones (real ones first)
+    // Use Gemini generated AI reviews if available, otherwise fallback to local deterministic seeded ones
+    const productReviews = [...realReviews, ...(aiReviews.length > 0 ? aiReviews : seededReviews)];
 
     const canUserReview = useMemo(() => {
         if (!user) return false;
@@ -608,6 +610,45 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             } catch (e) {
                 console.error("Failed to save browsing history", e);
             }
+
+            // Hydrate Gemini Reviews
+            try {
+                const cachedContent = localStorage.getItem('fp_ai_reviews');
+                const allCache = cachedContent ? JSON.parse(cachedContent) : {};
+                if (allCache[product.id]) {
+                    setAiReviews(allCache[product.id]);
+                } else {
+                    // Fetch real synthetic reviews from Gemini!
+                    fetch('/api/gemini-reviews', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ productName: product.name, category: product.category })
+                    }).then(res => res.json()).then(data => {
+                        if (data.reviews && Array.isArray(data.reviews)) {
+                            const mapped = data.reviews.map((r: any, i: number) => ({
+                                id: `ai_${product.id}_${Date.now()}_${i}`,
+                                product_id: product.id,
+                                user_id: `ai_u_${Date.now()}_${i}`,
+                                user_name: r.user_name || "Verified Customer",
+                                rating: r.rating || 5,
+                                title: r.title || "Standard item",
+                                body: r.body,
+                                verified_purchase: r.verified_purchase !== false,
+                                helpful_count: Math.floor(Math.random() * 50),
+                                created_at: r.created_at || new Date().toISOString()
+                            }));
+                            setAiReviews(mapped);
+                            
+                            const freshCache = JSON.parse(localStorage.getItem('fp_ai_reviews') || '{}');
+                            freshCache[product.id] = mapped;
+                            localStorage.setItem('fp_ai_reviews', JSON.stringify(freshCache));
+                        }
+                    }).catch(e => {
+                        console.error("Failed to fetch AI reviews", e);
+                    });
+                }
+            } catch(e) { }
+
         } else {
             const timer = setTimeout(() => { }, 800);
             return () => clearTimeout(timer);

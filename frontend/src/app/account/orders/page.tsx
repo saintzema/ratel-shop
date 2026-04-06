@@ -5,7 +5,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, NegotiationRequest, Product } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, formatDateExact } from "@/lib/utils";
+import { formatPrice, formatDateExact, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
@@ -128,7 +128,7 @@ function OrdersContent() {
             userId: user?.email || "guest",
             type: "order",
             message: `Delivery Confirmed! 🎉 Your order has been delivered. Leave a review to help other shoppers!`,
-            link: `/product/${order?.product_id}?review=true`
+            link: `${getProductUrl(order?.product_id || "", order?.product?.name || "")}?review=true`
         });
         loadData();
 
@@ -342,7 +342,7 @@ function OrdersContent() {
                                                 {/* Desktop Row */}
                                                 <div className="hidden md:grid grid-cols-[44px_minmax(0,1fr)_110px_110px_100px_120px] gap-3 px-4 py-3 items-center hover:bg-white transition-colors">
                                                     {/* Thumbnail */}
-                                                    <Link href={`/product/${order.product_id}`} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                    <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                         <img
                                                             src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                             alt={order.product?.name || "Product"}
@@ -353,7 +353,7 @@ function OrdersContent() {
 
                                                     {/* Product Info */}
                                                     <div className="min-w-0">
-                                                        <Link href={`/product/${order.product_id}`} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
+                                                        <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
                                                             {order.product?.name || "Product"}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
@@ -422,7 +422,7 @@ function OrdersContent() {
                                                 {/* Mobile Card */}
                                                 <div className="md:hidden p-4 space-y-3">
                                                     <div className="flex items-center gap-3">
-                                                        <Link href={`/product/${order.product_id}`} className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                        <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                             <img
                                                                 src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                                 alt={order.product?.name || "Product"}
@@ -431,7 +431,7 @@ function OrdersContent() {
                                                             />
                                                         </Link>
                                                         <div className="flex-1 min-w-0">
-                                                            <Link href={`/product/${order.product_id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-400 transition-colors">
+                                                            <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-400 transition-colors">
                                                                 {order.product?.name || "Product"}
                                                             </Link>
                                                             <div className="flex items-center gap-2 mt-0.5">
