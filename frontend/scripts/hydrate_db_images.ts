@@ -64,7 +64,7 @@ async function run() {
 
         for (const product of products) {
             // Check if MAIN image and array FALLBACK are both broken/missing
-            const hasBadMain = isBrokenImage(product.image_url);
+            const hasBadMain = isBrokenImage(product.imageUrl);
             const hasBadThumbs = !product.images || product.images.length === 0 || isBrokenImage(product.images[0]);
 
             if (hasBadMain && hasBadThumbs) {
@@ -76,7 +76,7 @@ async function run() {
                     await prisma.product.update({
                         where: { id: product.id },
                         data: {
-                            image_url: realImageUrl,
+                            imageUrl: realImageUrl,
                             images: [realImageUrl] // Add to image array just in case
                         }
                     });
@@ -88,7 +88,7 @@ async function run() {
                     await prisma.product.update({
                         where: { id: product.id },
                         data: {
-                            image_url: '/assets/images/placeholder.png',
+                            imageUrl: '/assets/images/placeholder.png',
                             images: ['/assets/images/placeholder.png']
                         }
                     });
