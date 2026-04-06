@@ -78,8 +78,8 @@ export default function PaymentsPage() {
     const filteredTransactions = useMemo(() => {
         if (walletTab === "all") return transactions;
         if (walletTab === "received") return transactions.filter(t => t.status === "delivered"); // Simple proxy for demonstration
-        if (walletTab === "sent") return transactions.filter(t => t.paymentMethod !== "cod");
-        if (walletTab === "paid_out") return transactions.filter(t => t.payoutStatus === "paid");
+        if (walletTab === "sent") return transactions.filter(t => t.payment_method !== "cod");
+        if (walletTab === "paid_out") return transactions.filter(t => t.payout_status === "paid");
         return transactions;
     }, [transactions, walletTab]);
 
