@@ -530,6 +530,36 @@ export function Navbar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Background Image Hydration for Global Results
+    useEffect(() => {
+        if (globalResults.length > 0) {
+            const isValidImg = (url: string | undefined | null) =>
+                url && url.trim().length > 4 &&
+                !url.toLowerCase().includes('no photo') &&
+                !url.toLowerCase().includes('no image') &&
+                !url.toLowerCase().includes('n/a') &&
+                !url.toLowerCase().includes('undefined') &&
+                !url.includes('vertexaisearch.cloud.google.com') &&
+                !url.includes('grounding-api-redirect');
+
+            globalResults.forEach((product, index) => {
+                const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
+                if (hasNoRealImage && !product._imageHydrated) {
+                    fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.imageUrl) {
+                                setGlobalResults(prev => prev.map((p, i) => i === index ? { ...p, image_url: data.imageUrl, _imageHydrated: true } : p));
+                            } else {
+                                setGlobalResults(prev => prev.map((p, i) => i === index ? { ...p, _imageHydrated: true } : p));
+                            }
+                        })
+                        .catch(() => {});
+                }
+            });
+        }
+    }, [globalResults]);
+
     const handleSearch = () => {
         if (searchQuery.trim()) {
             // Persist to recent searches on every search

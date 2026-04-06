@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
@@ -22,6 +22,42 @@ export const SearchGridCard = ({
   const { addToCart } = useCart();
   const { toggleFavorite, isFavorite } = useFavorites();
   const favorited = isFavorite(product.id);
+  const [hydratedImage, setHydratedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if the current product lacks a valid image
+    const isValidImg = (url: string | undefined | null) =>
+      url && url.trim().length > 4 &&
+      !url.toLowerCase().includes('no photo') &&
+      !url.toLowerCase().includes('no image') &&
+      !url.toLowerCase().includes('n/a') &&
+      !url.toLowerCase().includes('undefined') &&
+      !url.includes('vertexaisearch.cloud.google.com') &&
+      !url.includes('grounding-api-redirect');
+
+    const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
+
+    if (product._source === "global" && hasNoRealImage && !hydratedImage) {
+      // Async fetch real image in the background
+      fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.imageUrl) {
+                setHydratedImage(data.imageUrl);
+                // Attempt to cache it to session storage so we don't refetch on back/forward navigation
+                try {
+                    const cached = sessionStorage.getItem('fp_nav_search_results');
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        const updated = parsed.map((p: any) => p.id === product.id ? { ...p, image_url: data.imageUrl } : p);
+                        sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
+                    }
+                } catch(e) {}
+            }
+        })
+        .catch(() => {});
+    }
+  }, [product.id, product._source, product.image_url, product.name, hydratedImage, product.images]);
 
   const lastTapRef = useRef<number>(0);
   const handleDoubleTap = (e: React.MouseEvent) => {
@@ -117,6 +153,7 @@ export const SearchGridCard = ({
         <div className="absolute inset-0 z-10" onClick={handleDoubleTap}></div>
         <img
           src={(() => {
+            if (hydratedImage) return hydratedImage;
             const isValid = (url: string | undefined | null) =>
               url && url.trim().length > 4 &&
               !url.toLowerCase().includes('no photo') &&
