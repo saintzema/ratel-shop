@@ -342,6 +342,7 @@ model SystemSetting {
   serviceCharge               Float    @default(25.0)
   standardCommission          Float    @default(2.5)
   escrowFee                   Float    @default(1000)
+  escrowFeePayNow             Float    @default(1950)
   doorstepFee                 Float    @default(4000)
   pickupFee                   Float    @default(2500)
   aiMonitoring                Boolean  @default(true)

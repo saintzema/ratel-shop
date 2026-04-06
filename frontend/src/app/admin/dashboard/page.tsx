@@ -443,7 +443,7 @@ export default function AdminDashboard() {
                             <tbody className="divide-y divide-gray-50">
                                 {recentOrders.map((order) => {
                                     const buyer = DataSyncService.getUser(order.customer_id);
-                                    const buyerName = buyer?.name || buyer?.email?.split('@')[0] || order.customer_name || order.customer_id.split('@')[0];
+                                    const buyerName = buyer?.name || buyer?.email?.split('@')[0] || order.customer_name || order.customer_id?.split('@')[0] || "Customer";
 
                                     return (
                                         <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">

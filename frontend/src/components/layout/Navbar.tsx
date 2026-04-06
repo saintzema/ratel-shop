@@ -963,14 +963,13 @@ export function Navbar() {
                                                 setIsPriceIntelOpen(true);
                                                 setShowSuggestions(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100"
+                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100 animate-pulse-grow"
                                         >
                                             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                                                 <Globe className="h-5 w-5" />
                                             </div>
                                             <div className="flex flex-col flex-1 min-w-0 text-left">
                                                 <span className="text-sm font-bold text-emerald-800 flex items-center gap-1.5">
-                                                    <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
                                                     Calculate Fair Price
                                                 </span>
                                                 <span className="text-[11px] text-emerald-600/80 line-clamp-1">

@@ -28,6 +28,7 @@ export default function AdminSettings() {
     const [serviceCharge, setServiceCharge] = useState("25");
     const [standardCommission, setStandardCommission] = useState("2.5");
     const [escrowFee, setEscrowFee] = useState("1000");
+    const [escrowFeePayNow, setEscrowFeePayNow] = useState("1950");
     const [doorstepFee, setDoorstepFee] = useState("4000");
     const [pickupFee, setPickupFee] = useState("2500");
     const [maxNegotiationDiscount, setMaxNegotiationDiscount] = useState("10");
@@ -37,7 +38,7 @@ export default function AdminSettings() {
     const [highCostCap, setHighCostCap] = useState("15000");
 
     // COD Settings
-    const [codThreshold, setCodThreshold] = useState("20000");
+    const [codThreshold, setCodThreshold] = useState("50000");
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
     // Global COD Settings
@@ -103,6 +104,7 @@ export default function AdminSettings() {
                     if (initialData.serviceCharge !== undefined) setServiceCharge(initialData.serviceCharge.toString());
                     if (initialData.standardCommission !== undefined) setStandardCommission(initialData.standardCommission.toString());
                     if (initialData.escrowFee !== undefined) setEscrowFee(initialData.escrowFee.toString());
+                    if (initialData.escrowFeePayNow !== undefined) setEscrowFeePayNow(initialData.escrowFeePayNow.toString());
                     if (initialData.doorstepFee !== undefined) setDoorstepFee(initialData.doorstepFee.toString());
                     if (initialData.pickupFee !== undefined) setPickupFee(initialData.pickupFee.toString());
 
@@ -175,6 +177,7 @@ export default function AdminSettings() {
             serviceCharge: parseFloat(serviceCharge) || 25.0,
             standardCommission: parseFloat(standardCommission) || 2.5,
             escrowFee: parseFloat(escrowFee) || 1000,
+            escrowFeePayNow: parseFloat(escrowFeePayNow) || 1950,
             categoryMargins: margins,
             maxNegotiationDiscount: parseFloat(maxNegotiationDiscount) || 10,
             lowCostThreshold: parseFloat(lowCostThreshold) || 5000,
@@ -258,6 +261,10 @@ export default function AdminSettings() {
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Escrow Fee (Fixed ₦)</label>
                                     <Input value={escrowFee} onChange={(e) => setEscrowFee(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Pay Now Escrow Fee (₦)</label>
+                                    <Input value={escrowFeePayNow} onChange={(e) => setEscrowFeePayNow(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-emerald-200 ring-2 ring-emerald-50" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Max Negotiation Discount (%)</label>

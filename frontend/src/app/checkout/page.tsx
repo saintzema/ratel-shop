@@ -363,9 +363,10 @@ function CheckoutContent() {
 
     const [baseDoorFee, setBaseDoorFee] = useState(4000);
     const [basePickupFee, setBasePickupFee] = useState(2500);
+    const [escrowFeePayNow, setEscrowFeePayNow] = useState(1950);
 
     // COD settings from admin
-    const [codThreshold, setCodThreshold] = useState(20000);
+    const [codThreshold, setCodThreshold] = useState(50000);
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
     // COD for global products — admin-controlled (default enabled for seamless UX)
@@ -473,46 +474,51 @@ function CheckoutContent() {
 
     // Load saved addresses and auto-fill from user on mount
     useEffect(() => {
-        const saved = getSavedAddresses();
-        setSavedAddresses(saved);
+        // Only load saved addresses for authenticated users to prevent cross-session leaks
+        if (user) {
+            const saved = getSavedAddresses();
+            setSavedAddresses(saved);
 
-        if (saved.length > 0) {
-            const latest = saved[0];
-            setAddress({
-                firstName: latest.firstName,
-                lastName: latest.lastName,
-                street: latest.street,
-                city: latest.city,
-                phone: latest.phone,
-                email: latest.email || user?.email || ""
-            });
-            if (latest.method === "pickup") {
-                setDeliveryMethod("pickup");
-                setPickupDetails({
-                    state: latest.state || "",
-                    city: latest.city || "",
-                    station: latest.station || ""
+            if (saved.length > 0) {
+                const latest = saved[0];
+                setAddress({
+                    firstName: latest.firstName,
+                    lastName: latest.lastName,
+                    street: latest.street,
+                    city: latest.city,
+                    phone: latest.phone,
+                    email: latest.email || user?.email || ""
                 });
+                if (latest.method === "pickup") {
+                    setDeliveryMethod("pickup");
+                    setPickupDetails({
+                        state: latest.state || "",
+                        city: latest.city || "",
+                        station: latest.station || ""
+                    });
+                } else {
+                    setDeliveryMethod("doorstep");
+                }
+                if (latest.whatsappPhone) {
+                    setShowWhatsappField(true);
+                    setWhatsappPhone(latest.whatsappPhone);
+                }
+                setIsEditingAddress(false);
             } else {
-                setDeliveryMethod("doorstep");
+                const nameParts = (user.name || "").split(" ");
+                const firstName = nameParts[0] || "";
+                const lastName = nameParts.slice(1).join(" ") || "";
+                setAddress(prev => ({
+                    ...prev,
+                    firstName,
+                    lastName,
+                    email: user.email,
+                    phone: (user as any)?.phone || ""
+                }));
+                setIsEditingAddress(true);
             }
-            if (latest.whatsappPhone) {
-                setShowWhatsappField(true);
-                setWhatsappPhone(latest.whatsappPhone);
-            }
-            setIsEditingAddress(false);
-        } else if (user) {
-            const nameParts = (user.name || "").split(" ");
-            const firstName = nameParts[0] || "";
-            const lastName = nameParts.slice(1).join(" ") || "";
-            setAddress(prev => ({
-                ...prev,
-                firstName,
-                lastName,
-                email: user.email,
-                phone: (user as any)?.phone || ""
-            }));
-            // Logged-in users with no saved address need to edit
+        } else {
+            // Guest: start with empty address, never load saved data
             setIsEditingAddress(true);
         }
 
@@ -534,6 +540,7 @@ function CheckoutContent() {
                     // Global COD settings
                     if (data.codGlobalEnabled != null) setCodGlobalEnabled(data.codGlobalEnabled);
                     if (data.codGlobalThreshold != null) setCodGlobalThreshold(Number(data.codGlobalThreshold));
+                    if (data.escrowFeePayNow != null) setEscrowFeePayNow(Number(data.escrowFeePayNow));
                 }
             })
             .catch(() => { });
@@ -593,11 +600,14 @@ function CheckoutContent() {
     const isFreeShippingDiscount = appliedCoupon?.reason === "Free Shipping discount";
     const isPremiumFreeDelivery = user?.isPremium;
     const isFreeShippingByOrderValue = subtotal >= 50000;
-    const shipping = (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount || isFreeShippingByOrderValue) ? 0 : (
+    // COD orders ALWAYS pay delivery fee (no free shipping for COD)
+    const shipping = (paymentMethod !== "cod" && (paymentMethod === "paystack" || paymentMethod === "transfer" || isPremiumFreeDelivery || isFreeShippingDiscount || isFreeShippingByOrderValue)) ? 0 : (
         deliveryMethod === "pickup"
             ? Math.round(basePickupFee * shippingMultiplier)
             : Math.round(baseDoorFee * shippingMultiplier)
     );
+
+    const escrowFee = (paymentMethod === "paystack" || paymentMethod === "transfer") ? escrowFeePayNow : 0;
 
     const productSavings = checkoutItems.reduce((acc, item) => {
         const orig = item.product.original_price || item.product.recommended_price;
@@ -611,7 +621,7 @@ function CheckoutContent() {
     const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier)) : 0;
     const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
 
-    const total = Math.max(0, subtotal + shipping - (appliedCoupon?.amount || 0));
+    const total = Math.max(0, subtotal + shipping + escrowFee - (appliedCoupon?.amount || 0));
 
     // COD eligibility: admin-configurable threshold + expensive category override
     const EXPENSIVE_CATEGORIES = ["cars", "automotive", "vehicles"];
@@ -1759,6 +1769,16 @@ function CheckoutContent() {
                                     <span className="font-medium">{formatPrice(shipping)}</span>
                                 )}
                             </div>
+
+                            {escrowFee > 0 && (
+                                <div className="flex justify-between text-gray-600 animate-in fade-in slide-in-from-top-1">
+                                    <span className="flex items-center gap-1.5">
+                                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                                        Escrow Fee:
+                                    </span>
+                                    <span className="font-medium text-emerald-700">{formatPrice(escrowFee)}</span>
+                                </div>
+                            )}
 
                             {/* Interactive Order Savings Breakdown */}
                             {totalSavings > 0 ? (

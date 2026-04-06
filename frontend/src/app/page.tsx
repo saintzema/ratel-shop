@@ -368,10 +368,10 @@ function HomeContent() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 group"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 animate-pulse-grow group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  <span className="font-extrabold tracking-wide">Calculate Fair Price</span> <span className="ml-2 animate-bounce">✨</span>
+                  <span className="font-extrabold tracking-wide">Calculate Fair Price</span>
                 </Button>
 
                 <Button

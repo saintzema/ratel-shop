@@ -38,6 +38,11 @@ export default function UserDirectory() {
     const [editingCommissionSeller, setEditingCommissionSeller] = useState<any | null>(null);
     const [commissionInput, setCommissionInput] = useState("");
 
+    // Delete Confirmation State
+    const [deletingUser, setDeletingUser] = useState<any | null>(null);
+    const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+    const [deleteLoading, setDeleteLoading] = useState(false);
+
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -181,6 +186,49 @@ export default function UserDirectory() {
         setEditingCommissionSeller(null);
     };
 
+    const handleDeleteUser = async () => {
+        if (!deletingUser) return;
+        const targetEmail = deletingUser.owner_email || deletingUser.email || "";
+        if (deleteConfirmEmail.trim().toLowerCase() !== targetEmail.trim().toLowerCase()) {
+            alert("Email does not match. Deletion cancelled.");
+            return;
+        }
+        setDeleteLoading(true);
+        try {
+            // Try API cascade delete first
+            const res = await fetch(`/api/users/${deletingUser.id}`, { method: "DELETE" });
+            if (!res.ok) {
+                // Fallback: remove from DataSyncService
+                if (deletingUser.role === "seller") {
+                    DataSyncService.updateSeller(deletingUser.id, { status: "banned" as any });
+                }
+            }
+            // Remove from local UI
+            setParticipants(prev => prev.filter(p => p.id !== deletingUser.id));
+            window.dispatchEvent(new Event("sync-store-update"));
+            alert(`User ${deletingUser.display_name} has been removed.`);
+        } catch (e) {
+            console.error("Delete failed:", e);
+            alert("Failed to delete user. They may have linked orders — try suspending instead.");
+        } finally {
+            setDeleteLoading(false);
+            setDeletingUser(null);
+            setDeleteConfirmEmail("");
+        }
+    };
+
+    const handleToggleSuspend = (p: any) => {
+        const newStatus = p.status === "suspended" ? "active" : "suspended";
+        if (p.role === "seller") {
+            DataSyncService.updateSeller(p.id, { status: newStatus as any });
+        }
+        setParticipants(prev => prev.map(participant =>
+            participant.id === p.id ? { ...participant, status: newStatus } : participant
+        ));
+        window.dispatchEvent(new Event("sync-store-update"));
+        alert(`${p.display_name} has been ${newStatus === "suspended" ? "suspended" : "reactivated"}.`);
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -294,6 +342,7 @@ export default function UserDirectory() {
                                                     View
                                                 </Button>
                                             </Link>
+                                            {/* Approve: only for pending sellers */}
                                             {p.role === "seller" && (p.status === "pending" || p.kyc_status === "pending") && (
                                                 <Button
                                                     size="sm"
@@ -310,9 +359,43 @@ export default function UserDirectory() {
                                                     Approve
                                                 </Button>
                                             )}
-                                            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-rose-50 hover:text-rose-600">
-                                                <Ban className="h-3.5 w-3.5" />
-                                            </Button>
+                                            {/* Activate: only for suspended users */}
+                                            {p.status === "suspended" && (
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold"
+                                                    onClick={() => handleToggleSuspend(p)}
+                                                >
+                                                    Activate
+                                                </Button>
+                                            )}
+                                            {/* Suspend: only for active users (not pending or already suspended) */}
+                                            {p.status === "active" && p.role !== "admin" && (
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600"
+                                                    title="Suspend user"
+                                                    onClick={() => handleToggleSuspend(p)}
+                                                >
+                                                    <ShieldOff className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
+                                            {/* Delete: always available except for admins */}
+                                            {p.role !== "admin" && (
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 rounded-lg hover:bg-rose-50 hover:text-rose-600"
+                                                    title="Delete user"
+                                                    onClick={() => {
+                                                        setDeletingUser(p);
+                                                        setDeleteConfirmEmail("");
+                                                    }}
+                                                >
+                                                    <Ban className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -362,6 +445,49 @@ export default function UserDirectory() {
                     <div className="flex justify-end gap-3 mt-4">
                         <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingCommissionSeller(null)}>Cancel</Button>
                         <Button className="h-12 px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSaveCommission}>Save Rate</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open) { setDeletingUser(null); setDeleteConfirmEmail(""); } }}>
+                <DialogContent className="sm:max-w-[450px]">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900 text-lg">⚠️ Delete User Account</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                            <p className="text-sm font-bold text-rose-800">This action is irreversible.</p>
+                            <p className="text-xs text-rose-600 mt-1">
+                                Deleting <strong>{deletingUser?.display_name}</strong> will remove their account, associated orders, and all linked data.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Type the user's email to confirm:
+                            </Label>
+                            <p className="text-sm font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
+                                {deletingUser?.owner_email || deletingUser?.email || deletingUser?.id}
+                            </p>
+                            <Input
+                                type="email"
+                                placeholder="Type email here to confirm..."
+                                value={deleteConfirmEmail}
+                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-2">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => { setDeletingUser(null); setDeleteConfirmEmail(""); }}>Cancel</Button>
+                        <Button
+                            className="h-12 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                            onClick={handleDeleteUser}
+                            disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== (deletingUser?.owner_email || deletingUser?.email || "").trim().toLowerCase()}
+                        >
+                            {deleteLoading ? "Deleting..." : "Permanently Delete"}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

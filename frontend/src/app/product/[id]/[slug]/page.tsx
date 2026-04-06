@@ -39,14 +39,15 @@ export async function generateMetadata(
         }
     }
 
-    const titleProductName = productDetails?.name || decodedId.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const rawFallback = decodedId.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const titleProductName = (productDetails?.name || rawFallback || 'Product').replace(/^undefined$/i, 'Product');
 
     // Fallback Price representation
     const formattedPrice = price > 0 ? `₦${price.toLocaleString()}` : "Compare Rates";
 
     return {
-        title: `${titleProductName} Price in Nigeria Today | Buy on FairPrice (Cheaper than Jumia & Konga)`,
-        description: `Verify the current real market price of ${titleProductName} in Nigeria. FairPrice: ${formattedPrice}. Don't overpay on Jiji or Temu. Secure escrow, daily price updates, and verified sellers. Buy ${titleProductName} at the actual market value now.`,
+        title: `${titleProductName} Price in Nigeria Today | Buy on FairPrice (Cheaper than Other Online Stores)`,
+        description: `Verify the current real market price of ${titleProductName} in Nigeria. FairPrice: ${formattedPrice}. Don't overpay — compare prices instantly. Secure escrow, daily price updates, and verified sellers. Buy ${titleProductName} at the actual market value now.`,
         keywords: [`${titleProductName} price in Nigeria`, `how much is ${titleProductName}`, `buy ${titleProductName} Lagos`, `FairPrice verification ${titleProductName}`, "Jumia Nigeria prices", "Konga Nigeria deals"],
         openGraph: {
             title: `${titleProductName} - Verified FairPrice in Nigeria`,

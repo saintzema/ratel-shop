@@ -96,7 +96,7 @@ export default function AdminOrdersPage() {
                                 </tr>
                             ) : (
                                 filteredOrders.map((order) => {
-                                    const buyerName = order.customer_name || order.customer_id.split('@')[0];
+                                    const buyerName = order.customer_name || order.customer_id?.split('@')[0] || "Customer";
                                     
                                     return (
                                         <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">

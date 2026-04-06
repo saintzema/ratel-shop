@@ -253,6 +253,20 @@
     }
   }
 
+  /* Pulse Grow animation for primary CTA buttons */
+  @keyframes pulse-grow {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-pulse-grow {
+    animation: pulse-grow 2s ease-in-out infinite;
+  }
+
   .animate-heart-burst {
     animation: heart-burst 0.9s cubic-bezier(0.17, 0.89, 0.32, 1.28) forwards;
   }

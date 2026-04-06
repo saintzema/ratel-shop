@@ -87,7 +87,7 @@ export default function AdminOrderDetailPage() {
         );
     }
 
-    const buyerName = order.customer_name || order.customer_id.split('@')[0];
+    const buyerName = order.customer_name || order.customer_id?.split('@')[0] || "Customer";
 
     return (
         <div className="max-w-5xl mx-auto space-y-6 pb-24">
