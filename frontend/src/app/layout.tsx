@@ -30,11 +30,11 @@ import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
 
 export const metadata: Metadata = {
   title: {
-    default: "FairPrice Nigeria | Verified Market Prices & Deals",
-    template: "%s | FairPrice.ng"
+    default: "FairPrice Shop Negotiate & Verify Market Prices | Save Money in Nigeria",
+    template: "%s | FairPrice Shop Negotiate & Verify Market Prices"
   },
-  description: "The official gold standard for price verification in Nigeria. Compare real-time market prices for millions of products. Secure your deals with Escrow protection. Better than Jumia, Konga, or Jiji.",
-  keywords: ["price verification Nigeria", "how much is it in Nigeria", "best deals Nigeria", "Jumia vs Konga vs FairPrice", "verify Jiji prices", "escrow service Nigeria", "buy phones Nigeria", "market price index Africa"],
+  description: "FairPrice Shop: The official gold standard for price verification and negotiation in Nigeria. Compare real-time market prices, negotiate deals, and secure your purchase with Escrow protection. More reliable than Jumia, Konga, or Jiji.",
+  keywords: ["price verification Nigeria", "negotiate price Nigeria", "how much is it in Nigeria", "FairPrice Shop", "Jumia vs Konga vs FairPrice", "verify Jiji prices", "escrow service Nigeria", "buy phones Nigeria", "market price index Africa"],
   manifest: "/manifest.json",
   metadataBase: new URL("https://fairprice.ng"),
   alternates: {
@@ -44,15 +44,15 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_NG",
     url: "https://fairprice.ng",
-    siteName: "FairPrice.ng",
-    title: "FairPrice | Nigeria's #1 Price Verification Engine",
-    description: "Don't overpay. Verify the real price of any product in Nigeria before you buy. Secure your purchase with our built-in Escrow protection.",
-    images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Logo" }],
+    siteName: "FairPrice Shop Negotiate & Verify Market Prices",
+    title: "FairPrice Shop | Nigeria's #1 Price Verification & Negotiation Engine",
+    description: "Don't overpay. Verify the real price of any product in Nigeria and negotiate with verified sellers. Secure your purchase with our built-in Escrow protection.",
+    images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Shop Logo" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "FairPrice Nigeria | Verified Market Prices",
-    description: "Verify prices for millions of products in Nigeria. Buy securely with Escrow.",
+    title: "FairPrice Shop Negotiate & Verify Market Prices",
+    description: "Verify prices and negotiate with sellers in Nigeria. Buy securely with Escrow.",
     images: ["/logo.png"],
     creator: "@fairpriceng",
   },

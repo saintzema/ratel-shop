@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { DataSyncService } from "@/lib/sync-store";
@@ -35,6 +36,7 @@ import { useCart } from "@/context/CartContext";
 import { Input } from "@/components/ui/input";
 import { ContactSellerModal } from "@/components/modals/ContactSellerModal";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 
 export default function StoreProfile() {
     const params = useParams();
@@ -165,7 +167,41 @@ export default function StoreProfile() {
 
     return (
         <div className="min-h-screen bg-white font-sans pb-10">
+            {seller && (
+                <Script
+                    id="store-breadcrumb-jsonld"
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify({
+                        '@context': 'https://schema.org',
+                        '@type': 'BreadcrumbList',
+                        itemListElement: [
+                            {
+                                '@type': 'ListItem',
+                                position: 1,
+                                name: 'All Stores',
+                                item: 'https://fairprice.ng/stores'
+                            },
+                            {
+                                '@type': 'ListItem',
+                                position: 2,
+                                name: seller.business_name,
+                                item: `https://fairprice.ng/store/${params.slug}`
+                            }
+                        ]
+                    }) }}
+                />
+            )}
             <Navbar />
+
+            {/* Breadcrumbs Section */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-4">
+                <Breadcrumbs 
+                    items={[
+                        { label: "All Stores", href: "/stores" },
+                        { label: seller.business_name, active: true }
+                    ]}
+                />
+            </div>
 
             {/* Header / Cover */}
             <div className="bg-white shadow-sm border-b border-gray-100 relative z-10">

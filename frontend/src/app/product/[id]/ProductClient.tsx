@@ -1,11 +1,13 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -937,15 +939,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             <Navbar />
             <main className="container mx-auto px-4 py-8 pt-24 pb-32 md:pb-8 font-sans">
 
-                {/* Breadcrumb */}
-                <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 font-medium">
-                    <Link href="/" className="hover:text-black">Home</Link>
-                    <ChevronRight className="h-4 w-4" />
-                    <Link href={`/category/${product.category}`} className="hover:text-black capitalize">{product.category}</Link>
-                    <ChevronRight className="h-4 w-4" />
-                    <span className="text-black truncate max-w-[200px]">{product.name}</span>
+                {/* Desktop & Mobile Breadcrumbs */}
+                <div className="mb-6 md:mb-8">
+                    <Breadcrumbs 
+                        items={[
+                            { label: "All Stores", href: "/stores" },
+                            { label: seller.business_name || "Store", href: `/store/${seller.store_url || seller.id}` },
+                            { label: product.name, active: true }
+                        ]}
+                    />
                 </div>
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 mb-16">
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 relative z-10">
                     {/* Left Column (Images, Reviews) */}
                     <div className="lg:col-span-4 flex flex-col gap-8 min-w-0">
                         {/* Left: Images */}

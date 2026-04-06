@@ -19,7 +19,7 @@ export async function GET() {
     let productIds: string[] = [];
     try {
         const dbProducts = await db.product.findMany({
-            where: { is_active: true },
+            where: { isActive: true },
             select: { id: true },
             take: 1000,
         });
@@ -33,11 +33,12 @@ export async function GET() {
     try {
         const dbSellers = await db.seller.findMany({
             where: { status: 'active' },
-            select: { slug: true },
+            select: { storeUrl: true, id: true },
         });
-        storeSlugs = dbSellers.map((s) => s.slug);
+        storeSlugs = dbSellers.map((s) => s.storeUrl || s.id);
     } catch (e) {
-        storeSlugs = SEED_SELLERS.map((s) => s.slug);
+        // Fallback for demo sellers - use id or business_name slugified
+        storeSlugs = SEED_SELLERS.map((s) => s.store_url || s.slug || s.id);
     }
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>

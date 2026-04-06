@@ -152,8 +152,9 @@ export function SearchResultCard({
                                 if (isValid(product.images?.[0])) return product.images[0];
                                 return "/assets/images/placeholder.png";
                             })()}
-                            alt={product.name}
+                            alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
                             className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                            loading="lazy"
                             onError={() => setImgError(true)}
                         />
                     ) : (

@@ -166,9 +166,10 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     )}
 
                     <img
-                        src={(product.image_url && product.image_url.trim() !== "" && !product.image_url.includes('placeholder.png')) ? product.image_url : (product.images?.[0] || "/assets/images/placeholder.png")}
-                        alt={product.name}
+                        src={product.image_url || "/assets/images/placeholder.png"}
+                        alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        loading="lazy"
                         onError={(e) => {
                             const target = e.currentTarget as HTMLImageElement;
                             if (target.src.includes('placeholder.png')) return; // Prevent infinite loops

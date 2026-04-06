@@ -129,8 +129,9 @@ export const SearchGridCard = ({
             if (isValid(product.images?.[0])) return product.images[0];
             return "/assets/images/placeholder.png";
           })()}
-          alt={product.name}
+          alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          loading="lazy"
           onError={(e) => {
             e.currentTarget.src = "/assets/images/placeholder.png";
           }}
