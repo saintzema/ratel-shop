@@ -542,7 +542,7 @@ export function Navbar() {
                 !url.includes('vertexaisearch.cloud.google.com') &&
                 !url.includes('grounding-api-redirect');
 
-            globalResults.forEach((product, index) => {
+            globalResults.forEach((product: any, index: number) => {
                 const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
                 if (hasNoRealImage && !product._imageHydrated) {
                     fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
