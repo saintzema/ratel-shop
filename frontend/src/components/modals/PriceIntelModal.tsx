@@ -7,7 +7,7 @@ import {
     ShieldCheck, MapPin, Scale, ArrowRight,
     BarChart3, Globe, AlertTriangle, CheckCircle, ShoppingCart,
     Loader2, ExternalLink, ChevronRight, Box, Heart,
-    Phone, Monitor, Sofa, Home as HomeIcon, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package
+    Phone, Monitor, Sofa, Home as HomeIcon, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Sparkles
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -896,14 +896,14 @@ function GlassCard({ children, className = "" }: { children: React.ReactNode; cl
     );
 }
 
-// ─── Search Input with Hybrid Autocomplete ──────────────────
-
 function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResult, onReset }: { value: string, onChange: (v: string) => void, onSearch: (q: string) => void, onAnalyze: (q: string, product?: Product, sourceUrl?: string, approxPrice?: number, specs?: Record<string, string>, imageUrl?: string) => void; isLoading: boolean; hasResult: boolean; onReset: () => void }) {
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [apiSuggestions, setApiSuggestions] = useState<ProductSuggestion[]>([]);
     const [localMatches, setLocalMatches] = useState<Product[]>([]);
+    const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(-1);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -930,152 +930,245 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                 const local = SEED_PRODUCTS.filter(p =>
                     p.name.toLowerCase().includes(value.toLowerCase()) ||
                     p.category.toLowerCase().includes(value.toLowerCase())
-                ).slice(0, 7);
+                ).slice(0, 4);
                 setLocalMatches(local);
 
                 // 2. API Search
                 try {
+                    setIsGlobalSearching(true);
                     const api = await PriceEngine.searchProducts(value);
-                    setApiSuggestions(api);
+                    setApiSuggestions(api.slice(0, 4));
                 } catch (e) {
                     console.error("API Suggestion error", e);
+                } finally {
+                    setIsGlobalSearching(false);
                 }
             } else {
                 setLocalMatches([]);
                 setApiSuggestions([]);
             }
-        }, 300); // 300ms debounce
+            setActiveIndex(-1); // Reset highlight when typing
+        }, 400); // 400ms debounce slightly longer to prevent rapid API calls
 
         return () => clearTimeout(timer);
     }, [value]);
 
+    const totalSuggestions = localMatches.length + apiSuggestions.length;
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === "Enter") {
+            if (activeIndex >= 0 && activeIndex < totalSuggestions) {
+                e.preventDefault();
+                setShowSuggestions(false);
+                if (activeIndex < localMatches.length) {
+                    const selected = localMatches[activeIndex];
+                    onChange(selected.name);
+                    onAnalyze(selected.name, selected);
+                } else {
+                    const selected = apiSuggestions[activeIndex - localMatches.length];
+                    onChange(selected.name);
+                    onAnalyze(selected.name, undefined, selected.sourceUrl, selected.approxPrice, selected.specs, selected.image_url);
+                }
+            } else {
+                onSearch(value);
+                setShowSuggestions(false);
+            }
+        } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActiveIndex((prev) => Math.min(prev + 1, totalSuggestions - 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActiveIndex((prev) => Math.max(prev - 1, -1));
+        } else if (e.key === "Escape") {
+            setShowSuggestions(false);
+        }
+    };
+
     return (
-        <div ref={containerRef} className="relative" onClick={(e) => e.stopPropagation()}>
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-900/25 z-10" />
-            <input
-                ref={inputRef}
-                type="text"
-                value={value}
-                onChange={(e) => {
-                    onChange(e.target.value);
-                    setShowSuggestions(true);
-                }}
-                onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                        onSearch(value);
-                        setShowSuggestions(false);
-                    }
-                }}
-                onFocus={() => setShowSuggestions(true)}
-                placeholder="Search any product to get Fair Market Price"
-                className="w-full h-12 rounded-xl pl-11 pr-24 text-sm text-gray-900 placeholder:text-gray-900/25 focus:outline-none transition-all font-medium"
-                style={{ background: "rgba(0,0,0,0.02)", border: "1px solid rgba(0,0,0,0.08)" }}
-                disabled={isLoading}
-                autoFocus
-            />
-            {value && !isLoading && !hasResult && (
-                <button
-                    onClick={() => {
-                        onSearch(value);
-                        setShowSuggestions(false);
+        <div ref={containerRef} className="relative z-50 w-full">
+            <div className={`flex w-full h-[52px] rounded-2xl bg-white overflow-visible transition-all shadow-sm relative group border focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.1),0_0_16px_4px_rgba(16,185,129,0.05)] ${hasResult ? 'border-gray-200' : 'border-gray-300'}`}>
+                <div className="pl-4 pr-2 flex items-center justify-center shrink-0">
+                    <Search className="h-5 w-5 text-emerald-600/70" />
+                </div>
+                <input
+                    ref={inputRef}
+                    type="text"
+                    value={value}
+                    onChange={(e) => {
+                        onChange(e.target.value);
+                        setShowSuggestions(true);
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold px-4 py-2 rounded-lg transition-all"
-                >
-                    Search
-                </button>
-            )}
-            {hasResult && (
-                <button
-                    onClick={onReset}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-red-500 hover:bg-red-400 text-white text-xs font-bold px-4 py-2 rounded-lg transition-all shadow-sm"
-                >
-                    Clear
-                </button>
-            )}
-
-            {/* Hybrid Dropdown */}
-            {showSuggestions && value.length >= 2 && !isLoading && (
-                <motion.div
-                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 right-0 mt-2 rounded-2xl overflow-y-auto overflow-x-hidden z-50 shadow-[0_8px_30px_rgb(0,0,0,0.12)] max-h-[50vh]"
-                    style={{ border: "1px solid rgba(0,0,0,0.06)", background: "rgba(255, 255, 255, 0.85)", backdropFilter: "blur(20px) saturate(1.5)", WebkitBackdropFilter: "blur(20px) saturate(1.5)" }}
-                >
-                    {/* Local Matches Section */}
-                    {localMatches.length > 0 && (
-                        <div>
-                            <div className="px-4 py-2.5 bg-white/40 border-b border-gray-900/5 flex items-center gap-2">
-                                <Box className="h-3 w-3 text-gray-500" />
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">In Catalog</span>
-                            </div>
-                            {localMatches.map((product) => (
-                                <button
-                                    key={product.id}
-                                    onClick={() => {
-                                        onChange(product.name);
-                                        onAnalyze(product.name, product);
-                                        setShowSuggestions(false);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
-                                >
-                                    <div className="h-10 w-10 rounded-xl bg-white border border-gray-200 shadow-sm p-1.5 shrink-0 flex items-center justify-center overflow-hidden">
-                                        {product.image_url ? (
-                                            <img src={product.image_url} className="w-full h-full object-contain" alt="" onError={e => { e.currentTarget.style.display = 'none'; e.currentTarget.nextElementSibling && ((e.currentTarget.nextElementSibling as HTMLElement).style.display = 'flex'); }} />
-                                        ) : null}
-                                        <div className={`w-full h-full rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 ${product.image_url ? 'hidden' : 'flex'} items-center justify-center`}>
-                                            <span className="text-white font-black text-xs">{product.name.charAt(0)}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-900 truncate">{product.name}</p>
-                                        <p className="text-[11px] text-emerald-600 font-bold mt-0.5">{formatPrice(product.price)}</p>
-                                    </div>
-                                    <div className="shrink-0 text-gray-400 group-hover:text-blue-500 transition-colors">
-                                        <ArrowRight className="h-4 w-4" />
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setShowSuggestions(true)}
+                    placeholder="Search any product to get Fair Market Price"
+                    className="flex-1 min-w-0 bg-transparent px-1 text-[14px] focus:outline-none placeholder:text-gray-400 h-full text-gray-900 font-medium"
+                    disabled={isLoading}
+                    autoFocus
+                />
+                
+                <div className="flex items-center gap-1.5 pr-2 shrink-0">
+                    {hasResult && !isLoading && (
+                        <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReset(); }}
+                            className="bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 text-xs font-bold px-3 py-2 h-[36px] rounded-xl transition-all"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
                     )}
-
-                    {/* API Suggestions Section */}
-                    {apiSuggestions.length > 0 && (
-                        <div>
-                            <div className="px-4 py-2.5 bg-white/40 border-b border-gray-900/5 flex items-center gap-2">
-                                <Search className="h-3 w-3 text-gray-500" />
-                                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Global Search</span>
-                            </div>
-                            {apiSuggestions.map((s, i) => (
-                                <button
-                                    key={i}
-                                    onClick={() => {
-                                        onChange(s.name);
-                                        onAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice, s.specs, s.image_url);
-                                        setShowSuggestions(false);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-black/5 transition-colors border-b border-gray-900/5 last:border-0 text-left group"
-                                >
-                                    <div className="h-10 w-10 rounded-xl bg-gray-100 border border-gray-200 shrink-0 flex items-center justify-center">
-                                        <Search className="h-4 w-4 text-gray-500" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-900 truncate">{s.name}</p>
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-[11px] text-gray-500 font-medium">{s.category}</span>
-                                            <span className="text-[10px] text-emerald-600 font-bold drop-shadow-sm">~{formatPrice(s.approxPrice)}</span>
-                                        </div>
-                                    </div>
-                                    <div className="shrink-0 text-gray-400 group-hover:text-blue-500 transition-colors">
-                                        <ArrowRight className="h-4 w-4" />
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
+                    {value.trim().length > 0 && !hasResult && !isLoading && (
+                        <button
+                            onClick={() => {
+                                onSearch(value);
+                                setShowSuggestions(false);
+                            }}
+                            className="bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white shadow shadow-emerald-500/20 text-xs font-bold px-4 py-2 h-[36px] rounded-xl transition-all flex items-center gap-1.5"
+                        >
+                            Analyze
+                            <BarChart3 className="h-3.5 w-3.5" />
+                        </button>
                     )}
-                </motion.div>
-            )}
+                </div>
+            </div>
+
+            {/* Premium Predictive Dropdown (Navbar Clone) */}
+            <AnimatePresence>
+                {showSuggestions && value.length > 0 && !isLoading && !hasResult && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                        className="absolute top-full left-0 right-0 mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[60vh] overflow-y-auto"
+                    >
+                        {/* Empty/Trending State */}
+                        {value.trim().length < 2 && (
+                            <div className="p-5">
+                                <h3 className="text-[11px] font-black uppercase tracking-wider text-emerald-600 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Analysis</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {['PlayStation 5 Slim', 'MacBook Pro M3', 'Inverter Battery', 'Starlink Kit'].map(term => (
+                                        <button key={term} onMouseDown={(e) => { e.preventDefault(); onChange(term); setShowSuggestions(true); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                            <TrendingUp className="h-3 w-3" />
+                                            {term}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Loading State for Search */}
+                        {value.length >= 2 && isGlobalSearching && apiSuggestions.length === 0 && (
+                            <div className="p-4 bg-gradient-to-r from-emerald-50/50 to-emerald-100/30">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center animate-pulse">
+                                        <Sparkles className="h-4 w-4 text-emerald-600 animate-spin-slow" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-bold text-emerald-800">Searching global partners...</span>
+                                        <span className="text-[11px] font-medium text-emerald-600/80">Comparing best prices. Results appearing shortly.</span>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Local (Catalog) Suggestions */}
+                        {localMatches.length > 0 && (
+                            <div className="py-2 border-b border-gray-100/50">
+                                <div className="px-4 py-1.5 flex items-center gap-2 text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                                    <Box className="h-3 w-3 text-gray-400" />
+                                    In Catalog
+                                </div>
+                                {localMatches.map((product, i) => {
+                                    const isHighlighted = activeIndex === i;
+                                    return (
+                                        <button
+                                            key={product.id}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                onChange(product.name);
+                                                onAnalyze(product.name, product);
+                                                setShowSuggestions(false);
+                                            }}
+                                            className={`w-full flex items-center gap-4 p-3 pr-4 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer ${isHighlighted ? "bg-blue-50" : "hover:bg-gray-50"}`}
+                                        >
+                                            <div className="relative h-12 w-12 shrink-0 bg-white border border-gray-100 rounded-lg p-1.5 shadow-sm overflow-hidden flex items-center justify-center">
+                                                {product.image_url ? (
+                                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-contain" />
+                                                ) : (
+                                                    <span className="text-gray-300 font-bold max-text-lg">{product.name.charAt(0)}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col flex-1 min-w-0">
+                                                <span className="text-[13px] md:text-sm font-semibold text-gray-900 line-clamp-1">{product.name}</span>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[11px] font-bold text-emerald-600">{formatPrice(product.price)}</span>
+                                                    <span className="text-[10px] text-gray-400">·</span>
+                                                    <span className="text-[10px] text-gray-500">{product.seller_name}</span>
+                                                </div>
+                                            </div>
+                                            <div className="shrink-0">
+                                                 <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded uppercase border border-blue-100">MATCH</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* API Suggestions (Global Search) */}
+                        {apiSuggestions.length > 0 && (
+                            <div className="py-2">
+                                <div className="px-4 py-1.5 flex items-center gap-2 text-[10px] font-black text-emerald-600 uppercase tracking-wider">
+                                    <Globe className="h-3 w-3 text-emerald-500" />
+                                    Global Internet Sources
+                                </div>
+                                {apiSuggestions.map((s, i) => {
+                                    const isHighlighted = activeIndex === localMatches.length + i;
+                                    return (
+                                        <button
+                                            key={i}
+                                            onMouseDown={(e) => {
+                                                e.preventDefault();
+                                                onChange(s.name);
+                                                onAnalyze(s.name, undefined, s.sourceUrl, s.approxPrice, s.specs, s.image_url);
+                                                setShowSuggestions(false);
+                                            }}
+                                            className={`w-full flex items-center gap-4 p-3 pr-4 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer ${isHighlighted ? "bg-emerald-50" : "hover:bg-gray-50"}`}
+                                        >
+                                            <div className="relative h-12 w-12 shrink-0 bg-white border border-gray-100 rounded-lg p-1.5 shadow-sm overflow-hidden flex items-center justify-center">
+                                                {s.image_url ? (
+                                                    <img src={s.image_url} alt={s.name} className="w-full h-full object-contain mix-blend-multiply" />
+                                                ) : (
+                                                    <Search className="h-4 w-4 text-emerald-200" />
+                                                )}
+                                            </div>
+                                            <div className="flex flex-col flex-1 min-w-0">
+                                                <span className="text-[13px] md:text-sm font-semibold text-gray-900 line-clamp-1">{s.name}</span>
+                                                <div className="flex items-center gap-2 mt-0.5">
+                                                    <span className="text-[11px] font-bold text-emerald-600">~{formatPrice(s.approxPrice)}</span>
+                                                    <span className="text-[10px] text-gray-400">·</span>
+                                                    <span className="text-[10px] text-gray-500">{s.category}</span>
+                                                </div>
+                                            </div>
+                                            <div className="shrink-0 flex items-center group-hover:text-emerald-500 transition-colors">
+                                                 <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1"><BarChart3 className="h-3 w-3"/> Analyze</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        
+                        {/* No content message */}
+                        {value.length >= 2 && !isGlobalSearching && localMatches.length === 0 && apiSuggestions.length === 0 && (
+                            <div className="p-8 text-center text-gray-500 border-t border-gray-100 bg-gray-50/50">
+                                <Search className="h-6 w-6 text-gray-300 mx-auto mb-2" />
+                                <p className="text-[13px] font-medium text-gray-800">No matching products found.</p>
+                                <p className="text-[11px] mt-1 text-gray-400">Try adjusting your search terms.</p>
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

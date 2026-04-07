@@ -233,45 +233,43 @@ function HomeContent() {
     };
   }, []);
 
-  // ─── Product De-Duplication System ───
-  // Each product appears in at most ONE section (except sponsored products which can appear in their section + one category section).
-  // This maximizes catalog visibility across the homepage.
-  const usedIds = new Set<string>();
-  const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
+  // ─── Unified Product Memoization Engine ───
+  // Consolidating all filtering logic into ONE memoized block to solve the 'Lag' issue.
+  // This prevents recalculating thousands of filters on every scroll/state update.
+  const sections = useMemo(() => {
+    if (!mounted || allProducts.length === 0) return null;
 
-  // Helper: take from pool, skip already-used IDs (sponsored bypass)
-  const takeUnique = (pool: Product[], count: number): Product[] => {
-    const result: Product[] = [];
-    for (const p of pool) {
-      if (result.length >= count) break;
-      if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
-      result.push(p);
-      usedIds.add(p.id);
-    }
-    return result;
-  };
+    const usedIds = new Set<string>();
+    const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
 
-  // 1. Trending — First show Admin Curated Trending, then fallback to popularity (sold_count)
-  const trendingPool = [...allProducts].sort((a, b) => {
-    // Curated items float to very top
-    const aTrending = !!a.is_trending;
-    const bTrending = !!b.is_trending;
-    if (aTrending && !bTrending) return -1;
-    if (!aTrending && bTrending) return 1;
-    // Otherwise sort by sold count
-    return (b.sold_count || 0) - (a.sold_count || 0);
-  });
-  const topPicks = takeUnique(trendingPool, 20);
+    const takeUnique = (pool: Product[], count: number): Product[] => {
+      const result: Product[] = [];
+      for (const p of pool) {
+        if (result.length >= count) break;
+        if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
+        result.push(p);
+        usedIds.add(p.id);
+      }
+      return result;
+    };
 
-  // 2. Sponsored — always shown regardless of duplication
-  const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
-  // Don't add sponsored to usedIds — they're allowed to also appear in category sections
+    // 1. Trending
+    const trendingPool = [...allProducts].sort((a, b) => {
+      const aTrending = !!a.is_trending;
+      const bTrending = !!b.is_trending;
+      if (aTrending && !bTrending) return -1;
+      if (!aTrending && bTrending) return 1;
+      return (b.sold_count || 0) - (a.sold_count || 0);
+    });
+    const topPicks = takeUnique(trendingPool, 20);
 
-  // 3. Deals (Flash deals from DB/Demo + General Price Drops)
-  const dealProducts = useMemo(() => {
+    // 2. Sponsored
+    const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
+
+    // 3. Deals
     const now = new Date();
     const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
-    const active = allDeals
+    const activeDeals = allDeals
       .filter(d => d.is_active && new Date(d.end_at) > now)
       .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
       .map(deal => {
@@ -286,9 +284,9 @@ function HomeContent() {
           dealDiscountText: `${deal.discount_pct}% OFF`
         };
       })
-      .filter(Boolean);
+      .filter(Boolean) as Product[];
 
-    const dealProductIds = new Set(active.map(a => a?.id));
+    const dealProductIds = new Set(activeDeals.map(a => a.id));
     const priceDrop = allProducts
         .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
         .map(p => ({
@@ -297,39 +295,51 @@ function HomeContent() {
         }))
         .sort((a,b) => ((b.original_price! - b.price) / b.original_price!) - ((a.original_price! - a.price) / a.original_price!));
 
-    return [...active, ...priceDrop].slice(0, 30);
+    const dealProducts = [...activeDeals, ...priceDrop].slice(0, 30);
+
+    // 4. Category sections
+    const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
+    const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
+    const computerProducts = takeUnique(allProducts.filter(p => ["computers", "office"].includes(p.category || "")), 12);
+    const carProducts = takeUnique(allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")), 12);
+    const fashionProducts = takeUnique(allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")), 12);
+    const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
+    const homeProducts = takeUnique(allProducts.filter(p => ["home", "furniture"].includes(p.category || "")), 12);
+    const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
+    const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
+    const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
+
+    // 5. Verified Fair Prices
+    const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30);
+
+    // 6. From Stores You Follow
+    let followedStoreProducts: Product[] = [];
+    const favoriteStoresStr = typeof window !== "undefined" ? localStorage.getItem("fp_favorites_stores") : null;
+    const favoriteStores = favoriteStoresStr ? JSON.parse(favoriteStoresStr) : [];
+    
+    if (favoriteStores.length > 0) {
+      const followedSellerIds = new Set(favoriteStores);
+      followedStoreProducts = allProducts.filter(p => followedSellerIds.has(p.seller_id)).slice(0, 12);
+    }
+
+    return {
+      topPicks,
+      sponsoredProducts,
+      dealProducts,
+      phonesProducts,
+      gamingProducts,
+      computerProducts,
+      carProducts,
+      fashionProducts,
+      beautyProducts,
+      homeProducts,
+      electronicsProducts,
+      fitnessProducts,
+      groceryProducts,
+      fairPriceProducts,
+      followedStoreProducts
+    };
   }, [allProducts]);
-
-  // 4. Category sections — each draws from its own filtered pool, de-duplicated
-  const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
-  const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
-  const computerProducts = takeUnique(allProducts.filter(p => ["computers", "office"].includes(p.category || "")), 12);
-  const carProducts = takeUnique(allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")), 12);
-  const fashionProducts = takeUnique(allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")), 12);
-  const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
-  const homeProducts = takeUnique(allProducts.filter(p => ["home", "furniture"].includes(p.category || "")), 12);
-  const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
-  const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
-  const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
-
-  // 5. Verified Fair Prices — from remaining fair-priced products
-  const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30);
-
-  // ─── From Stores You Follow ──────────────
-  const { favoriteStores } = useFavorites();
-  const followedStoreProducts = mounted ? (() => {
-    if (favoriteStores.length === 0) return [];
-    const sellers = DataSyncService.getSellers();
-    const followedSellerIds = new Set(favoriteStores);
-    return allProducts.filter(p => {
-      const seller = sellers.find(s => s.id === p.seller_id);
-      return seller && followedSellerIds.has(seller.id);
-    }).slice(0, 12);
-  })() : [];
-
-  const scrollToProducts = () => {
-    productSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
 
   return (
     <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
@@ -343,7 +353,6 @@ function HomeContent() {
           <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5">
             <div className="absolute inset-0">
               <img
-
                 src="/assets/images/image_v1.png"
                 onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
                 className="w-full h-full object-cover opacity-65"
@@ -358,7 +367,6 @@ function HomeContent() {
             </div>
 
             <div className="relative container mx-auto h-full flex flex-col justify-center px-2 py-4 text-center text-white z-10">
-              {/* Title Hidden Per Request */}
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -377,7 +385,7 @@ function HomeContent() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border-2 border-emerald-400 bg-white/10 text-white hover:bg-emerald-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 group ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-emerald-400 bg-white/10 text-white hover:bg-emerald-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 group ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent"
                   onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
                 >
                   <span className="font-extrabold tracking-wide">{isSeller ? "View Store" : "Start Selling"}</span>
@@ -390,8 +398,8 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20">
 
-            {/* ═══ Apple-Style Loading Skeletons (show while DB is loading or offline) ═══ */}
-            {(!mounted || allProducts.length === 0) && (
+            {/* ═══ Initial Hydration Skeletons (show while DB is preparing) ═══ */}
+            {(!mounted || !sections) && (
               <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4 mb-10">
                 <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
@@ -400,99 +408,151 @@ function HomeContent() {
               </div>
             )}
 
-            {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
-            {mounted && allProducts.length > 0 && (
-              <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
-                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-              </section>
-            )}
-            {/* ═══ Horizontal Sliding Products in Categories ═══ */}
-            {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
-            {mounted && dealProducts.length > 0 && (
-              <section className="container mx-auto px-1 md:px-2 mb-1">
-                <ProductSlider
-                  title={
-                    <>
-                      Hottest Deals <span className="text-green-500">GenZ Favorites</span>
-                    </>
-                  }
-                  link="/deals"
-                  products={dealProducts}
-                  icon={<Flame className="h-5 w-5 text-orange-500" />}
-                  autoScroll
-                  direction="right"
-                />
-              </section>
-            )}
-            {/* ═══ Sponsored Products Scroller ═══ */}
-            {mounted && sponsoredProducts.length > 0 && (
-              <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
-                <ProductSlider title="Sponsored" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-              </section>
-            )}
+            {/* ═══ Optimized Homepage Sections ═══ */}
+            {mounted && sections && (
+              <>
+                <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
+                  <ProductSlider title="Trending in Nigeria" link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                </section>
 
+                <section className="container mx-auto px-1 md:px-2 mb-1">
+                  <ProductSlider
+                    title={<>Hottest Deals <span className="text-green-500">GenZ Favorites</span></>}
+                    link="/deals"
+                    products={sections.dealProducts}
+                    icon={<Flame className="h-5 w-5 text-orange-500" />}
+                    autoScroll
+                    direction="right"
+                  />
+                </section>
 
+                <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
+                  <ProductSlider title="Sponsored" link="/search" products={sections.sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                </section>
 
-            {/* ═══ From Stores You Follow ═══ */}
-            {mounted && followedStoreProducts.length > 0 && (
-              <section className="container mx-auto px-1 md:px-2 mb-1">
-                <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
-              </section>
-            )}
+                {sections.followedStoreProducts.length > 0 && (
+                  <section className="container mx-auto px-1 md:px-2 mb-1">
+                    <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={sections.followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
+                  </section>
+                )}
 
+                {/* ══ Lazy Hydrated Category Sections ══ */}
+                <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
+                  <LazySection height={340} skeletonTitle="Verified Fair Prices">
+                    <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                  </LazySection>
 
+                  <LazySection height={340} skeletonTitle="Phones & Tablets">
+                    <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
+                  </LazySection>
 
-            {/* ═══ Product Slider Sections ═══ */}
-            {mounted && (
-              <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
-                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-                <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
-                
+                  <LazySection height={340} skeletonTitle="Best in Gaming">
+                    <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                  </LazySection>
 
+                  <LazySection height={340} skeletonTitle="PCs & Laptops">
+                    <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
+                  </LazySection>
 
-                <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-                <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
-                <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
-                <ProductSlider title="Verified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
-                <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
-                <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
-                
+                  <LazySection height={340} skeletonTitle="Electronics & Audio">
+                    <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
+                  </LazySection>
 
+                  <LazySection height={340} skeletonTitle="Verified Cars">
+                    <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
+                  </LazySection>
 
-                <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
-                <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
-                <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
-              </section>
-            )}
+                  <LazySection height={340} skeletonTitle="Fashion & Style">
+                    <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
+                  </LazySection>
 
-            {/* ═══ CATEGORY 4-SQUARE BOXES ═══ */}
-            {mounted && (
-              <section className="container mx-auto px-1 md:px-2 my-12 pt-4 border-t border-gray-100">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {categoryGrids.map((card, i) => (
-                    <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
-                  ))}
-                </div>
-              </section>
-            )}
+                  <LazySection height={340} skeletonTitle="Beauty & Skincare">
+                    <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
+                  </LazySection>
 
-            {/* ═══ Store Discovery Rail ═══ */}
-            {mounted && (
-              <StoreDiscoveryRail />
-            )}
+                  <LazySection height={340} skeletonTitle="Home & Living">
+                    <ProductSlider title="Home & Living" link="/search?category=home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
+                  </LazySection>
 
-            {/* ═══ Global Recommended Products ═══ */}
-            {mounted && allProducts.length > 0 && (
-              <section className="w-full px-1 md:px-2 mb-20">
-                <RecommendedProducts products={allProducts} title="Recommended For You" />
-              </section>
+                  <LazySection height={340} skeletonTitle="Gym & Fitness">
+                    <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Groceries & Baby Essentials">
+                    <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
+                  </LazySection>
+                </section>
+
+                <LazySection height={400} skeletonTitle="Explore Categories">
+                  <section className="container mx-auto px-1 md:px-2 my-12 pt-4 border-t border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {categoryGrids.map((card, i) => (
+                        <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
+                      ))}
+                    </div>
+                  </section>
+                </LazySection>
+
+                <LazySection height={200}>
+                  <StoreDiscoveryRail />
+                </LazySection>
+
+                <LazySection height={800} skeletonTitle="Recommended For You">
+                  <section className="w-full px-1 md:px-2 mb-20">
+                    <RecommendedProducts products={allProducts} title="Recommended For You" />
+                  </section>
+                </LazySection>
+              </>
             )}
           </div>
         </main>
       </div>
 
       <Footer />
-    </div >
+    </div>
+  );
+}
+
+// ─── Lazy Hydration Wrapper ───
+// Prevents the browser from rendering off-screen sections until needed.
+// This resolves the scrolling lag and white-space issues.
+function LazySection({ children, height = 340, skeletonTitle }: { children: React.ReactNode; height?: number; skeletonTitle?: string }) {
+  const [ref, setRef] = useState<HTMLElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!ref) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "400px" } // Load 400px before it enters the viewport
+    );
+    observer.observe(ref);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return (
+    <div ref={setRef} style={{ minHeight: isVisible ? "auto" : `${height}px` }} className="transition-all duration-500">
+      {isVisible ? (
+        children
+      ) : (
+        <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-50 flex flex-col justify-center gap-4 group">
+          <div className="flex items-center justify-between opacity-50">
+            <div className="h-6 w-48 bg-gray-100 animate-pulse rounded" />
+            <div className="h-4 w-24 bg-gray-50 animate-pulse rounded" />
+          </div>
+          <div className="flex gap-4 overflow-hidden">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="min-w-[200px] h-[300px] bg-gray-50/50 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
