@@ -109,3 +109,15 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
 
     return url;
 }
+
+export function generateCompliantId(name: string, prefix = 'global'): string {
+    const slug = name.toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+    
+    const id = `${prefix}-${slug}`;
+    if (id.length <= 50) return id;
+    
+    // If too long, trim to 50 and ensure it doesn't end with a hyphen
+    return id.substring(0, 50).replace(/-+$/, "");
+}

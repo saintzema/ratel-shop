@@ -2582,6 +2582,10 @@ class DataSyncServiceService {
     }
 
     addRawProduct(product: Product) {
+        // Enforce 50-character limit for GMC compliance on all newly added products
+        if (product.id.length > 50) {
+            product.id = product.id.slice(0, 50).replace(/-+$/, "");
+        }
         let products = this.getProducts();
 
         const existingIdx = products.findIndex(p => p.id === product.id);

@@ -380,8 +380,7 @@ export function Navbar() {
     const navigateWithResults = (clickedProductId: string) => {
         // Build product objects from global results with intelligent verification
         const globalAsProducts = globalResults.map((r: any) => {
-            const slug = r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            const productId = `global-${slug}`;
+            const productId = generateCompliantId(r.name);
 
             // ─── Real Gemini Description & Specs ───
             const catKey = (r.category || "").toLowerCase();

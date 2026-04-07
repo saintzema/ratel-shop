@@ -116,7 +116,7 @@ export async function POST(req: Request) {
         const isSellerActive = seller?.status === "active";
 
         const productData = {
-            id: body.id,
+            id: body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id,
             sellerId: body.seller_id,
             sellerName: body.seller_name,
             name: body.name,

@@ -83,9 +83,13 @@ export async function GET() {
         else if (specs.brand) brand = specs.brand;
         else if (specs.Manufacturer) brand = specs.Manufacturer;
 
+        // ─── GMC Compliance: Truncate ID to 50 chars ───
+        // Google Merchant Center has a strict 50-character limit for Product IDs.
+        const safeId = product.id.length > 50 ? product.id.slice(0, 50) : product.id;
+
         return `
         <item>
-            <g:id>${product.id}</g:id>
+            <g:id>${safeId}</g:id>
             <g:title>${title}</g:title>
             <g:description>${description}</g:description>
             <g:link>${baseUrl}/product/${encodeURIComponent(product.id)}</g:link>
@@ -101,7 +105,7 @@ export async function GET() {
             ${gender ? `<g:gender>${escapeXml(gender)}</g:gender>` : ''}
             <g:age_group>${ageGroup}</g:age_group>
             
-            <g:mpn>${product.id}</g:mpn>
+            <g:mpn>${safeId}</g:mpn>
             
             <!-- Default Shipping (Nigeria) -->
             <g:shipping>
