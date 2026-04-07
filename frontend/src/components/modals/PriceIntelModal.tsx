@@ -503,10 +503,16 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                 intel = processAnalysis(analysis, user?.location || "lagos", matchedProduct, platformMarginPercent, anchorPrice);
             }
 
-            // Auto-save Global Searches to the local catalog
+            // Auto-save Global Searches to the local catalog and master database
             if (!matchedProduct) {
                 const nameSlug = intel.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80);
                 const newId = `global-${nameSlug}`;
+                
+                // Wrap external Gemini image URL into our secure local Node.js proxy to prevent cross-origin blocking on the PDP.
+                const safeImageUrl = intel.image_url 
+                    ? (intel.image_url.startsWith('http') ? `/api/image-cdn?url=${encodeURIComponent(intel.image_url)}` : intel.image_url) 
+                    : getFallbackImage(intel.category || "");
+
                 const newGlobalProduct: Product = {
                     id: newId,
                     seller_id: "global-partners",
@@ -515,7 +521,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     description: intel.description || `Global import sourced securely via real-time market analysis.`,
                     price: intel.fairBestPrice,
                     category: intel.category as any,
-                    image_url: intel.image_url || getFallbackImage(intel.category || ""),
+                    image_url: safeImageUrl,
                     images: [],
                     stock: 999, // global stock
                     price_flag: "fair",
@@ -527,7 +533,17 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     external_url: sourceUrl || undefined,
                     specs: intel.specs
                 };
+                
+                // 1. Save synchronously locally for instant UX
                 DataSyncService.addRawProduct(newGlobalProduct);
+                
+                // 2. Async Push to the absolute database for public SSR rendering / GMC Feed Pickup
+                fetch('/api/products', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newGlobalProduct)
+                }).catch(err => console.error('Failed to commit generated catalog item to DB:', err));
+
                 matchedProduct = newGlobalProduct; // Attach it so they can buy it directly!
                 intel.matchedProduct = newGlobalProduct;
             }
