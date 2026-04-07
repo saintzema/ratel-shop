@@ -274,6 +274,7 @@ function CheckoutContent() {
         lastName: "",
         street: "",
         city: "Lagos",
+        state: "Lagos",
         phone: "",
         email: ""
     });
@@ -493,6 +494,7 @@ function CheckoutContent() {
                     lastName: latest.lastName,
                     street: latest.street,
                     city: latest.city,
+                    state: latest.state || "Lagos",
                     phone: latest.phone,
                     email: latest.email || user?.email || ""
                 });
@@ -590,7 +592,7 @@ function CheckoutContent() {
     // Auto-clear shipping address error when user fills in fields
     useEffect(() => {
         if (addressError) setAddressError("");
-    }, [address.firstName, address.lastName, address.email, address.phone, address.street, address.city, pickupDetails.state, pickupDetails.city, pickupDetails.station, deliveryMethod]);
+    }, [address.firstName, address.lastName, address.email, address.phone, address.street, address.city, address.state, pickupDetails.state, pickupDetails.city, pickupDetails.station, deliveryMethod]);
 
     const subtotal = checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
@@ -609,7 +611,7 @@ function CheckoutContent() {
     const isFreeShippingByOrderValue = subtotal >= 50000;
     // COD orders ALWAYS pay delivery fee (no free shipping for COD)
     const getBaseShipping = () => {
-        const state = (pickupDetails.state || address.state || "").toLowerCase();
+        const state = (deliveryMethod === "pickup" ? pickupDetails.state : address.state || "").toLowerCase();
         
         // Premium localized pricing per user request
         if (state.includes("lagos")) return 3350;
@@ -666,7 +668,7 @@ function CheckoutContent() {
             email: address.email || user?.email || "",
             street: address.street,
             city: address.city,
-            state: pickupDetails.state,
+            state: deliveryMethod === "pickup" ? pickupDetails.state : address.state,
             station: pickupDetails.station,
             method: deliveryMethod,
             whatsappPhone: showWhatsappField ? whatsappPhone : undefined
@@ -1206,12 +1208,12 @@ function CheckoutContent() {
                                                         <div className="relative">
                                                             <select suppressHydrationWarning
                                                                 className="w-full appearance-none rounded-2xl border border-gray-200 bg-gray-50/80 backdrop-blur-sm text-sm h-12 pl-4 pr-10 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 hover:border-gray-300 transition-all cursor-pointer"
-                                                                value={pickupDetails.state || ""}
+                                                                value={address.state || ""}
                                                                 required
                                                                 onChange={e => {
-                                                                    setPickupDetails({ state: e.target.value, city: "", station: "" });
-                                                                    const firstCity = Object.keys(PICKUP_STATIONS[e.target.value] || {})[0] || "";
-                                                                    setAddress({ ...address, city: firstCity || e.target.value });
+                                                                    const newState = e.target.value;
+                                                                    const firstCity = Object.keys(PICKUP_STATIONS[newState] || {})[0] || "";
+                                                                    setAddress({ ...address, state: newState, city: firstCity || address.city });
                                                                 }}
                                                             >
                                                                 <option value="" disabled>Select State</option>
