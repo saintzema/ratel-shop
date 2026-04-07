@@ -29,6 +29,7 @@ model User {
   seller          Seller?
   sessions        Session[]
   supportMessages SupportMessage[]
+  discountUsages  UserDiscountUsage[]
 }
 
 model Account {
@@ -372,6 +373,18 @@ model Discount {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  usages     UserDiscountUsage[]
+}
+
+model UserDiscountUsage {
+  id         String   @id @default(cuid())
+  userId     String
+  discountId String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, discountId])
 }
 
 model SearchCache {
