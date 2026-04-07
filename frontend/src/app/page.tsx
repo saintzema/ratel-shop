@@ -340,7 +340,7 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section ─── */}
-          <section className="relative w-full overflow-hidden bg-black pt-[102px] pb-1.5">
+          <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5">
             <div className="absolute inset-0">
               <img
 
@@ -371,7 +371,7 @@ function HomeContent() {
                   className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 animate-pulse-grow group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  <span className="font-extrabold tracking-wide">Calculate Fair Price</span>
+                  <span className="font-extrabold tracking-wide cursor:pointer">AI Price Checker</span>
                 </Button>
 
                 <Button

@@ -21,7 +21,6 @@ model User {
   accounts        Account[]
   addresses       Address[]
   complaints      Complaint[]          @relation("UserComplaints")
-  discountsUsed   UserDiscountUsage[]
   disputes        Dispute[]            @relation("BuyerDisputes")
   negotiations    NegotiationRequest[]
   notifications   Notification[]
@@ -174,8 +173,8 @@ model Order {
   sellerName        String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
-  payoutStatus      String?        @default("none")
   chatMessages      Json?
+  payoutStatus      String?        @default("none")
   unreadAdmin       Boolean?       @default(false)
   zivaActive        Boolean?       @default(false)
   disputes          Dispute[]
@@ -343,7 +342,6 @@ model SystemSetting {
   serviceCharge               Float    @default(25.0)
   standardCommission          Float    @default(2.5)
   escrowFee                   Float    @default(1000)
-  escrowFeePayNow             Float    @default(1950)
   doorstepFee                 Float    @default(4000)
   pickupFee                   Float    @default(2500)
   aiMonitoring                Boolean  @default(true)
@@ -371,21 +369,9 @@ model Discount {
   usageCount Int       @default(0)
   expiry     DateTime?
   status     String    @default("active")
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-  seller     Seller              @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  usages     UserDiscountUsage[]
-}
-
-model UserDiscountUsage {
-  id         String   @id @default(cuid())
-  userId     String
-  discountId String
-  usedAt     DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, discountId])
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model SearchCache {

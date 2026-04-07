@@ -235,7 +235,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                         className="w-full border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-blue-50/50 animate-pulse-grow"
                                     >
                                         <Tag className="h-4 w-4 mr-2" />
-                                        {proposedPrice ? "Recalculate Fair Price" : "Auto-Calculate Fair Price"}
+                                        {proposedPrice ? "Recalculate with AI" : "AI Price Checker"}
                                     </Button>
 
                                     {isSystemCalculated && (

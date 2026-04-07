@@ -80,3 +80,32 @@ export async function copyToClipboard(text: string): Promise<boolean> {
         return false;
     }
 }
+export function getProxiedImageUrl(url: string | null | undefined): string {
+    if (!url) return "/assets/images/placeholder.png";
+    
+    // Internal assets or already proxied
+    if (url.startsWith('/') || url.includes('api/image-cdn')) {
+        return url;
+    }
+
+    const lower = url.toLowerCase();
+    const isBroken = lower.includes('no photo') || 
+                    lower.includes('no image') || 
+                    lower.includes('n/a') ||
+                    lower.includes('placeholder') ||
+                    lower.includes('vertexaisearch.cloud.google.com') || 
+                    lower.includes('grounding-api-redirect') ||
+                    lower.includes('googleusercontent.com/grounding') ||
+                    url.startsWith('data:image');
+
+    if (isBroken) {
+        return "/assets/images/placeholder.png";
+    }
+
+    // Only proxy external HTTP(S) links
+    if (url.startsWith('http')) {
+        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+    }
+
+    return url;
+}

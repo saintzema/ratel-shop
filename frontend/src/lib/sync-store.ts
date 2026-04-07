@@ -2,6 +2,7 @@
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
 export type { NegotiationRequest };
+import { formatPrice, getProxiedImageUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
 
 export interface Category {
@@ -353,7 +354,7 @@ class DataSyncServiceService {
                     const mappedDbProducts = dbProducts.map((p: any) => ({
                         ...p,
                         seller_id: p.sellerId || p.seller_id,
-                        image_url: p.imageUrl || p.image_url,
+                        image_url: getProxiedImageUrl(p.imageUrl || p.image_url),
                         avg_rating: p.avgRating || p.avg_rating || 0,
                         review_count: p.reviewCount || p.review_count || 0,
                         sold_count: p.soldCount || p.sold_count || 0,

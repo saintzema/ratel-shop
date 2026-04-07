@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProxiedImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -568,7 +568,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         const lower = img.toLowerCase().trim();
         if (!lower || lower === 'n/a' || lower.includes('no photo') || lower.includes('no image')) return false;
         return true;
-    });
+    }).map(img => getProxiedImageUrl(img));
     const deliveryDates = useMemo(() => {
         const stateName = location.includes(",") ? location.split(",")[1].trim() : location;
         const baseDays = NIGERIAN_STATES.find(s => s.state === stateName)?.delivery_days || 3;

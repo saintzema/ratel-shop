@@ -18,7 +18,7 @@ const pool = new Pool({ connectionString: DATABASE_URL });
 const adapter = new PrismaPg(pool as any);
 const prisma = new PrismaClient({ adapter, log: ["error", "warn"] });
 
-// List of signatures that indicate a missing/broken/test image
+// List of signatures that indicate a missing/broken/test/GMC-rejected image
 const isBrokenImage = (url: string | null | undefined) => {
     if (!url) return true;
     url = url.toLowerCase();
@@ -28,6 +28,9 @@ const isBrokenImage = (url: string | null | undefined) => {
         url.includes('n/a') ||
         url.includes('vertexaisearch.cloud.google.com') ||
         url.includes('grounding-api-redirect') ||
+        url.includes('googleusercontent.com/grounding') || // GCP grounding links
+        url.includes('m.media-amazon.com/images/S/') || // Some Amazon internal thumbnails are too small
+        url.startsWith('data:image') || // Base64 is bad for GMC feeds
         url === '' ||
         url === 'undefined' ||
         url === 'null';
@@ -45,13 +48,16 @@ async function fetchRealImageForProduct(query: string): Promise<string | null> {
                 "X-API-KEY": SERPER_API_KEY,
                 "Content-Type": "application/json",
             },
-            body: JSON.stringify({ q: query + " product high quality", num: 1 }),
+            // GMC prefers white backgrounds and no watermarks
+            body: JSON.stringify({ q: query + " product professional photo white background", num: 1 }),
         });
 
         if (response.ok) {
             const data = await response.json();
             if (data && data.images && data.images.length > 0) {
-                return data.images[0].imageUrl;
+                const url = data.images[0].imageUrl;
+                // Double check it's not another grounding link
+                if (!isBrokenImage(url)) return url;
             }
         }
     } catch (e) {

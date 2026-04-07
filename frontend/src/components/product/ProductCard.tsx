@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, getTrustColor, cn, getProductUrl } from "@/lib/utils";
+import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
@@ -166,7 +166,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     )}
 
                     <img
-                        src={product.image_url || "/assets/images/placeholder.png"}
+                        src={getProxiedImageUrl(product.image_url)}
                         alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                         loading="lazy"
