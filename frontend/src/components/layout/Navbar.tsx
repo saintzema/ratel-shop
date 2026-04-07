@@ -50,7 +50,7 @@ import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
 import { SEED_PRODUCTS } from "@/lib/data"; // Import products for search
 import { DataSyncService } from "@/lib/sync-store";
-import { cn, getProductUrl, getProxiedImageUrl } from "@/lib/utils";
+import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";

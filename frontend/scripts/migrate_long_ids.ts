@@ -47,7 +47,7 @@ async function migrate() {
                 const { id, ...data } = product;
                 await tx.product.create({
                     data: {
-                        ...data,
+                        ...(data as any),
                         id: safeId
                     }
                 });

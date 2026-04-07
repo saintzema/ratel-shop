@@ -44,7 +44,7 @@ export async function GET(req: Request) {
             .toBuffer();
 
         // 3. Return with proper Cache-Control and Content-Type for GMC
-        return new NextResponse(optimized, {
+        return new NextResponse(optimized as any, {
             headers: {
                 "Content-Type": "image/jpeg",
                 "Cache-Control": "public, max-age=2592000, stale-while-revalidate=86400", // 30 days
