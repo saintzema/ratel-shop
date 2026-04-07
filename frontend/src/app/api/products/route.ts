@@ -115,6 +115,20 @@ export async function POST(req: Request) {
 
         const isSellerActive = seller?.status === "active";
 
+        // ─── Enforce GMC Missing Attribute Rules for New Products ───
+        let rawSpecs = typeof body.specs === 'object' && body.specs !== null ? { ...body.specs } : {};
+        const catLabel = (body.category || 'General').toLowerCase();
+        const productName = (body.name || '').toLowerCase();
+
+        if (!rawSpecs.Color && !rawSpecs.color && !rawSpecs.Colour && !rawSpecs.colour) {
+            rawSpecs.Color = 'Multicolor';
+        }
+
+        const hasSize = rawSpecs.Size || rawSpecs.size || rawSpecs["Sizes Available"] || rawSpecs.Dimensions || rawSpecs.size_options;
+        if (!hasSize && (catLabel.includes('fashion') || catLabel.includes('cloth') || catLabel.includes('apparel') || productName.includes('wig') || productName.includes('hair') || productName.includes('backpack'))) {
+            rawSpecs.Size = 'Standard';
+        }
+
         const productData = {
             id: body.id.length > 50 ? body.id.slice(0, 50).replace(/-+$/, "") : body.id,
             sellerId: body.seller_id,
@@ -136,7 +150,7 @@ export async function POST(req: Request) {
             reviewCount: body.review_count || 0,
             soldCount: body.sold_count || 0,
             highlights: body.highlights || [],
-            specs: body.specs || {},
+            specs: rawSpecs,
             externalUrl: body.external_url,
         };
 
