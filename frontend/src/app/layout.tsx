@@ -98,14 +98,21 @@ export default function RootLayout({
         {/* Fail-safe: dismiss splash even if hydration hangs due to DB timeouts */}
         <script dangerouslySetInnerHTML={{
           __html: `
-            setTimeout(function() {
-              var s = document.getElementById("fp-splash");
-              if (s && !s.classList.contains("fp-hide")) {
-                 console.log("Splash fail-safe triggered");
-                 s.classList.add("fp-hide");
-                 setTimeout(function() { s.style.display = "none"; }, 500);
-              }
-            }, 5000);
+            (function() {
+              var hideSplash = function() {
+                var s = document.getElementById("fp-splash");
+                if (s && !s.classList.contains("fp-hide")) {
+                   s.classList.add("fp-hide");
+                   setTimeout(function() { s.style.display = "none"; }, 500);
+                }
+              };
+              // Auto-dismiss if ANY fatal JS error occurs during boot
+              window.onerror = function() { hideSplash(); };
+              // Timeout fail-safe (3s for better mobile responsiveness)
+              setTimeout(hideSplash, 3000);
+              // Secondary ultra fail-safe
+              setTimeout(hideSplash, 6000);
+            })();
           `
         }} />
         <Script

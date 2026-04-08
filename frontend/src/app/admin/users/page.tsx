@@ -333,7 +333,26 @@ export default function UserDirectory() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">
-                                        {p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}
+                                        <div className="font-bold text-gray-900">
+                                            {p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}
+                                        </div>
+                                        {p.created_at && (
+                                            <div className="text-[11px] text-gray-400 mt-0.5 font-medium tracking-tight">
+                                                {(() => {
+                                                    const created = new Date(p.created_at);
+                                                    const now = new Date();
+                                                    const diffTime = Math.max(0, now.getTime() - created.getTime());
+                                                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                                    if (diffDays === 0) return "Joined today";
+                                                    if (diffDays === 1) return "1 day on platform";
+                                                    if (diffDays < 30) return `${diffDays} days on platform`;
+                                                    const diffMonths = Math.floor(diffDays / 30);
+                                                    if (diffMonths < 12) return `${diffMonths} month${diffMonths > 1 ? "s" : ""} on platform`;
+                                                    const diffYears = (diffDays / 365.25).toFixed(1);
+                                                    return `${diffYears} year${parseFloat(diffYears) > 1 ? "s" : ""} on platform`;
+                                                })()}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">

@@ -84,6 +84,29 @@ export default function SellerLayout({
 
                 // Check for plan expiry and send notifications/deactivate if needed
                 DataSyncService.checkPlanExpiry(seller.id);
+            } else {
+                // If loadData is called but still no seller, let's gracefully handle it rather than hanging on "Loading..."
+                const userStr = localStorage.getItem("fp_user");
+                if (userStr) {
+                    try {
+                        const user = JSON.parse(userStr);
+                        if ((user.role === "seller" || user.role === "admin") && !isPublicRoute) {
+                            // Synthesize a placeholder store so they don't get locked out
+                            const minimalStore = {
+                                id: `s_${user.id || Math.random().toString(36).substr(2, 9)}`,
+                                user_id: user.id || "admin",
+                                business_name: user.name ? `${user.name}'s Shop` : "My Shop",
+                                owner_email: user.email || "",
+                                owner_name: user.name || "Owner",
+                                status: "pending",
+                                verified: false
+                            };
+                            DataSyncService.addSeller(minimalStore as any);
+                            DataSyncService.loginSeller(minimalStore.id);
+                            setCurrentSeller(minimalStore as any);
+                        }
+                    } catch(e) {}
+                }
             }
         };
 
@@ -110,9 +133,6 @@ export default function SellerLayout({
                             // Check if DB is offline (Network/Access error)
                             if (res.headers.get("X-DB-Status") === "offline") {
                                 console.warn("Database is offline. Using local layout fallback.");
-                                // DB offline and no local store found. We shouldn't force redirect 
-                                // to onboarding because they might be a seller whose sync failed.
-                                // Just load local data and let the dashboard handle states.
                                 loadData();
                                 return null; // Signal skip
                             }
@@ -122,7 +142,7 @@ export default function SellerLayout({
                             if (dbSellers === null) return; // Skipped due to offline
                             
                             if (Array.isArray(dbSellers)) {
-                                const dbStore = dbSellers.find(s => 
+                                const dbStore = dbSellers.find((s: any) => 
                                     s.user_id === user.id || 
                                     s.owner_email === user.email || 
                                     s.userId === user.id || 
@@ -139,10 +159,8 @@ export default function SellerLayout({
                                     loadData();
                                 } else {
                                     // NO store found in DB either.
-                                    // CRITICAL FIX: If user already has 'seller' role, DO NOT force onboarding.
-                                    // They might have just registered or be in a sync delay.
-                                    if (user.role === "seller") {
-                                        console.warn("Seller role detected but no store found. Staying on dashboard.");
+                                    if (user.role === "seller" || user.role === "admin") {
+                                        console.warn("Seller/Admin role detected but no store found. Staying on dashboard.");
                                         loadData();
                                     } else {
                                         router.push("/seller/onboarding");
@@ -150,7 +168,7 @@ export default function SellerLayout({
                                 }
                             } else {
                                 // Not an array or empty result
-                                if (user.role === "seller") {
+                                if (user.role === "seller" || user.role === "admin") {
                                     loadData();
                                 } else {
                                     router.push("/seller/onboarding");
@@ -215,7 +233,7 @@ export default function SellerLayout({
                 {/* Mobile overlay */}
                 {isSidebarOpen && (
                     <div
-                        className="fixed inset-0 bg-black/40 z-40 md:hidden"
+                        className="fixed inset-0 bg-black/40 z-40 lg:hidden"
                         onClick={() => setIsSidebarOpen(false)}
                     />
                 )}
@@ -223,7 +241,7 @@ export default function SellerLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto",
+                        "fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto",
                         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
@@ -315,7 +333,7 @@ export default function SellerLayout({
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="md:hidden h-9 w-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                className="lg:hidden h-9 w-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                             >
                                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

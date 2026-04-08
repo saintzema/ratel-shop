@@ -1503,6 +1503,10 @@ export function ZivaChat() {
             <motion.div
                 initial={false}
                 whileHover={{ scale: 1.08 }}
+                drag="y"
+                dragConstraints={{ top: -300, bottom: 50 }}
+                dragElastic={0.1}
+                dragMomentum={false}
                 className="pointer-events-auto transition-opacity duration-200 opacity-100"
             >
                 <motion.button

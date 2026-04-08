@@ -361,7 +361,7 @@ function CheckoutContent() {
         }
     };
 
-    const [deliveryMethod, setDeliveryMethod] = useState<"doorstep" | "pickup">("doorstep");
+    const [deliveryMethod, setDeliveryMethod] = useState<"doorstep" | "pickup">("pickup");
     const [pickupDetails, setPickupDetails] = useState({ state: "", city: "", station: "" });
 
     const [isGuestCheckout, setIsGuestCheckout] = useState(false);
@@ -643,7 +643,7 @@ function CheckoutContent() {
         : 0;
 
     const productSavings = checkoutItems.reduce((acc, item) => {
-        const orig = item.product.original_price || item.product.recommended_price;
+        const orig = item.product.original_price || item.product.recommended_price || (item.isNegotiated ? item.product.price : 0);
         if (orig && orig > item.price) {
             const actualSave = orig - item.price;
             return acc + (actualSave * item.quantity);
@@ -748,6 +748,12 @@ function CheckoutContent() {
         }
         if (!address.phone.trim()) {
             setAddressError("Please enter your phone number.");
+            scrollToShippingAddress();
+            return;
+        }
+        const cleanPhone = address.phone.replace(/\D/g, '');
+        if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+            setAddressError("Please enter a valid 10-11 digit phone number.");
             scrollToShippingAddress();
             return;
         }
@@ -1264,11 +1270,11 @@ function CheckoutContent() {
                                                                 className="w-full appearance-none rounded-2xl border border-gray-200 bg-gray-50/80 backdrop-blur-sm text-sm h-12 pl-4 pr-10 text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-400 hover:border-gray-300 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                                 value={address.city}
                                                                 onChange={e => setAddress({ ...address, city: e.target.value })}
-                                                                disabled={!pickupDetails.state}
+                                                                disabled={!address.state}
                                                                 required
                                                             >
                                                                 <option value="" disabled>Select City</option>
-                                                                {pickupDetails.state && PICKUP_STATIONS[pickupDetails.state] && Object.keys(PICKUP_STATIONS[pickupDetails.state]).map(city => (
+                                                                {address.state && PICKUP_STATIONS[address.state] && Object.keys(PICKUP_STATIONS[address.state]).map(city => (
                                                                     <option key={city} value={city}>{city}</option>
                                                                 ))}
                                                             </select>
@@ -1399,6 +1405,11 @@ function CheckoutContent() {
                                                     }
                                                     if (!address.phone.trim()) {
                                                         setAddressError("Phone number is required.");
+                                                        return;
+                                                    }
+                                                    const cleanPhone = address.phone.replace(/\D/g, '');
+                                                    if (cleanPhone.length < 10 || cleanPhone.length > 11) {
+                                                        setAddressError("Please enter a valid 10-11 digit phone number.");
                                                         return;
                                                     }
                                                     if (deliveryMethod === "doorstep") {

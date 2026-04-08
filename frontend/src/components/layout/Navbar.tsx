@@ -624,15 +624,15 @@ export function Navbar() {
         <>
             <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 9999, transform: 'translateZ(0)' }}>
                 {/* Top Bar — Liquid Glass */}
-                <div className="flex w-full items-center justify-between gap-1 md:gap-4 liquid-glass px-1 md:px-4 py-2.5 md:py-3 text-white relative z-10">
-                    <div className="flex items-center gap-1 md:gap-4 shrink-0">
+                <div className="flex w-full items-center justify-between gap-1 md:gap-3 lg:gap-4 liquid-glass px-1 md:px-2 lg:px-4 py-2.5 md:py-3 text-white relative z-10">
+                    <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0">
                         {/* Logo */}
                         <Logo variant="light" hideTextMobile />
 
                         {/* Deliver To - Now Clickable */}
                         <button
                             onClick={() => setIsLocationModalOpen(true)}
-                            className="hidden md:flex flex-col text-left text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all"
+                            className="hidden lg:flex flex-col text-left text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all"
                         >
                             <span className="text-white ml-3">Deliver to</span>
                             <div className="flex items-center font-bold text-white">
@@ -643,7 +643,7 @@ export function Navbar() {
                     </div>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center w-full md:max-w-6xl mx-1 md:mx-4 relative" ref={searchRef}>
+                    <div className="flex flex-1 items-center w-full md:max-w-4xl lg:max-w-[72%] xl:max-w-6xl mx-1 md:mx-2 lg:mx-4 relative" ref={searchRef}>
                         <div className="flex h-[44px] md:h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
@@ -1124,13 +1124,13 @@ export function Navbar() {
                     </div>
 
                     {/* Returns & Orders */}
-                    <Link href="/account/orders" className="hidden md:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">
+                    <Link href="/account/orders" className="hidden lg:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">
                         <span className="font-medium text-white/80">Returns</span>
                         <span className="font-bold text-white">& My Orders</span>
                     </Link>
 
                     {/* Messages */}
-                    <button onClick={() => user ? openMessageBox() : router.push("/login?from=/account")} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
+                    <button onClick={() => user ? openMessageBox() : router.push("/login?from=/account")} className="hidden lg:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
                         <div className="relative">
                             <MessageCircle className="h-6 w-6 text-white" />
                             {mounted && totalUnread > 0 && (
@@ -1168,7 +1168,7 @@ export function Navbar() {
                                 </Badge>
                             )}
                         </div>
-                        <span className="text-sm font-bold text-white hidden sm:inline mb-1">Cart</span>
+                        <span className="text-sm font-bold text-white hidden lg:inline mb-1">Cart</span>
                     </Link>
                 </div >
 

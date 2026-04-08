@@ -44,17 +44,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        // Setup BroadcastChannel for multi-tab sync
-        const channel = new BroadcastChannel("fp_notifications_sync");
-        channel.onmessage = (event) => {
-            if (event.data.type === "SYNC_NOTIFICATIONS") {
-                setNotifications(event.data.notifications);
-            } else if (event.data.type === "REMOVE_TOAST") {
-                setActiveToasts(prev => prev.filter(n => n.id !== event.data.id));
-            }
-        };
+        // Setup BroadcastChannel for multi-tab sync (Feature-check for older iOS/Mobile)
+        const hasBroadcast = typeof BroadcastChannel !== "undefined";
+        let channel: any = null;
 
-        return () => channel.close();
+        if (hasBroadcast) {
+            try {
+                channel = new BroadcastChannel("fp_notifications_sync");
+                channel.onmessage = (event: MessageEvent) => {
+                    if (event.data.type === "SYNC_NOTIFICATIONS") {
+                        setNotifications(event.data.notifications);
+                    } else if (event.data.type === "REMOVE_TOAST") {
+                        setActiveToasts(prev => prev.filter(n => n.id !== event.data.id));
+                    }
+                };
+            } catch (e) {
+                console.error("BroadcastChannel initialization failed", e);
+            }
+        }
+
+        return () => {
+            if (channel) channel.close();
+        };
     }, []);
 
     // Persist to storage and broadcast to other tabs
@@ -62,8 +73,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setNotifications(newNotifications);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(newNotifications.slice(0, MAX_HISTORY)));
         
-        const channel = new BroadcastChannel("fp_notifications_sync");
-        channel.postMessage({ type: "SYNC_NOTIFICATIONS", notifications: newNotifications });
+        if (typeof BroadcastChannel !== "undefined") {
+            try {
+                const channel = new BroadcastChannel("fp_notifications_sync");
+                channel.postMessage({ type: "SYNC_NOTIFICATIONS", notifications: newNotifications });
+                // Note: We don't need to keep it open here as postMessage is immediate
+                setTimeout(() => channel.close(), 100); 
+            } catch (e) {}
+        }
     }, []);
 
     const showNotification = useCallback((notification: Omit<Notification, "id" | "timestamp">) => {
@@ -90,8 +107,13 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     const removeToast = useCallback((id: string) => {
         setActiveToasts((prev) => prev.filter((n) => n.id !== id));
-        const channel = new BroadcastChannel("fp_notifications_sync");
-        channel.postMessage({ type: "REMOVE_TOAST", id });
+        if (typeof BroadcastChannel !== "undefined") {
+            try {
+                const channel = new BroadcastChannel("fp_notifications_sync");
+                channel.postMessage({ type: "REMOVE_TOAST", id });
+                setTimeout(() => channel.close(), 100);
+            } catch (e) {}
+        }
     }, []);
 
     const clearAll = useCallback(() => {

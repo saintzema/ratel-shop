@@ -15,6 +15,12 @@ import { useAuth } from "@/context/AuthContext";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
+const CARRIER_LOGOS: Record<string, string> = {
+    "GIG Logistics": "/images/logistics/gig.png",
+    "Speedaf": "/images/logistics/speedaf.png",
+    "FairPrice Logistics": "/images/logistics/fairprice.png"
+};
+
 const DISPUTE_REASONS: { value: DisputeReason; label: string; desc: string }[] = [
     { value: "wrong_item", label: "Wrong Item", desc: "I received a different product" },
     { value: "damaged", label: "Damaged", desc: "The item arrived damaged or broken" },
@@ -255,12 +261,29 @@ export default function OrderDetailsPage() {
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="font-bold text-lg text-gray-900">Tracking Status</h2>
-                                {order.tracking_id && (
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tracking ID</p>
-                                        <p className="text-sm font-black text-blue-600">{order.tracking_id}</p>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right flex flex-col items-end">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Carrier</p>
+                                        <div className="flex items-center gap-2 bg-white border border-gray-100 px-3 py-1.5 rounded-full shadow-sm">
+                                            {CARRIER_LOGOS[order.carrier || ""] ? (
+                                                <img 
+                                                    src={CARRIER_LOGOS[order.carrier || ""]} 
+                                                    alt={order.carrier} 
+                                                    className="h-4 w-auto object-contain" 
+                                                />
+                                            ) : (
+                                                <Truck className="h-4 w-4 text-gray-400" />
+                                            )}
+                                            <span className="text-xs font-black text-gray-900">{order.carrier || "FairPrice Logistics"}</span>
+                                        </div>
                                     </div>
-                                )}
+                                    {order.tracking_id && (
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Tracking ID</p>
+                                            <p className="text-sm font-black text-blue-600">{order.tracking_id}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <TrackingTimeline steps={order.tracking_steps || []} />
                         </div>

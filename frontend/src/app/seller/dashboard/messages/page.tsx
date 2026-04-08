@@ -67,7 +67,7 @@ export default function UniversalMessagesPage() {
     const [chatMessage, setChatMessage] = useState("");
     const [counterPrice, setCounterPrice] = useState("");
     const [counterMessage, setCounterMessage] = useState("");
-    const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
+    const [selectedImagePreviews, setSelectedImagePreviews] = useState<string[]>([]);
     const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,7 +124,9 @@ export default function UniversalMessagesPage() {
                     sender: m.sender as "seller" | "buyer",
                     text: m.text,
                     timestamp: new Date(m.timestamp),
-                    replyTo: m.replyTo
+                    replyTo: m.replyTo,
+                    imageUrl: m.imageUrl,
+                    imageUrls: m.imageUrls
                 }));
 
                 const hasUnread = customerNegs.some(n => {
@@ -182,7 +184,8 @@ export default function UniversalMessagesPage() {
                                 sender: m.sender as "seller" | "buyer" | "system" | "admin" | "ziva",
                                 text: m.text,
                                 timestamp: new Date(),
-                                imageUrl: m.imageUrl
+                                imageUrl: m.imageUrl,
+                                imageUrls: m.imageUrls
                             }))
                         ]
                     });
@@ -204,11 +207,9 @@ export default function UniversalMessagesPage() {
                         preview: lastMsg.text?.substring(0, 60) || "Concierge chat",
                         updated_at: new Date(order.updated_at || order.created_at),
                         unread: !!order.chat_messages.find((m: any) => m.sender === 'user' && !m.read_by?.includes(sellerId)),
-                        chat_messages: order.chat_messages.map((m: any) => ({
-                            sender: m.sender === 'user' ? 'buyer' as const : m.sender as any,
-                            text: m.text,
                             timestamp: new Date(),
-                            imageUrl: m.imageUrl
+                            imageUrl: m.imageUrl,
+                            imageUrls: m.imageUrls
                         })),
                         orderId: order.id,
                         zivaActive: order.zivaActive !== false,
@@ -430,22 +431,44 @@ export default function UniversalMessagesPage() {
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            if (event.target?.result) {
-                // Show a preview string (data URI)
-                setSelectedImagePreview(event.target.result as string);
-            }
-        };
-        reader.readAsDataURL(file);
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    setSelectedImagePreviews(prev => [...prev, event.target!.result as string]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const removeImage = (index: number) => {
+        setSelectedImagePreviews(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const sendStructuredBlock = (type: "shipping" | "warranty" | "condition") => {
+        let text = "";
+        switch (type) {
+            case "shipping":
+                text = "📦 Shipping Timeline: This item will be processed and handed over to GIG Logistics for delivery within 1-2 business days. Estimated arrival: 3-5 business days.";
+                break;
+            case "warranty":
+                text = "🛡️ Warranty Info: This product is covered by a 6-month limited warranty. Please retain your receipt/order ID for any claims.";
+                break;
+            case "condition":
+                text = "✨ Condition Confirmation: I've personally verified this item. It is in Pristine condition, exactly as described in the listing, with no visible wear.";
+                break;
+        }
+        setChatMessage(text);
     };
 
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!activeConvo || (!chatMessage.trim() && !selectedImagePreview)) return;
+        const hasImages = selectedImagePreviews.length > 0;
+        if (!activeConvo || (!chatMessage.trim() && !hasImages)) return;
 
         const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
@@ -454,14 +477,14 @@ export default function UniversalMessagesPage() {
 
         // In a real app, logic branches based on conversation type (DataSyncService handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
-            DataSyncService.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage, selectedImagePreview || undefined, replyingTo || undefined);
+            DataSyncService.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage, selectedImagePreviews[0] || undefined, replyingTo || undefined, selectedImagePreviews);
         } else if (activeConvo.id.startsWith("ord-")) {
             const orderId = activeConvo.id.replace("ord-", "");
-            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
+            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (hasImages ? "[Images Attached]" : ""), selectedImagePreviews[0] || undefined, selectedImagePreviews, replyingTo || undefined);
         } else if (activeConvo.id.startsWith("conc-")) {
             // Concierge chat — seller sends via order message system
             const orderId = activeConvo.orderId || activeConvo.id.replace("conc-", "");
-            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (selectedImagePreview ? "[Image Attached]" : ""), selectedImagePreview || undefined, replyingTo || undefined);
+            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (hasImages ? "[Images Attached]" : ""), selectedImagePreviews[0] || undefined, selectedImagePreviews, replyingTo || undefined);
             // If Ziva was active, take over
             if (activeConvo.zivaActive) {
                 DataSyncService.updateOrder(orderId, { zivaActive: false });
@@ -487,7 +510,7 @@ export default function UniversalMessagesPage() {
                 if (c.id === activeConvo.id) {
                     return {
                         ...c,
-                        chat_messages: [...c.chat_messages, { sender: "seller", text: chatMessage, timestamp: new Date(), imageUrl: selectedImagePreview || undefined, replyTo: replyingTo || undefined }]
+                        chat_messages: [...c.chat_messages, { sender: "seller", text: chatMessage, timestamp: new Date(), imageUrl: selectedImagePreviews[0] || undefined, imageUrls: selectedImagePreviews, replyTo: replyingTo || undefined }]
                     };
                 }
                 return c;
@@ -516,7 +539,7 @@ export default function UniversalMessagesPage() {
         }
 
         setChatMessage("");
-        setSelectedImagePreview(null);
+        setSelectedImagePreviews([]);
         setReplyingTo(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
         window.dispatchEvent(new Event("storage")); // mostly for negotiations
@@ -814,9 +837,47 @@ export default function UniversalMessagesPage() {
                                                                 <p className="truncate block max-w-[200px]">{msg.replyTo.text}</p>
                                                             </div>
                                                         )}
-                                                        {msg.imageUrl && (
+                                                        {msg.imageUrl && !msg.imageUrls && (
                                                             <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
                                                                 <img src={msg.imageUrl} alt="attachment" className="max-w-[200px] sm:max-w-xs h-auto" />
+                                                            </div>
+                                                        )}
+                                                        {msg.imageUrls && msg.imageUrls.length > 0 && (
+                                                            <div className={cn(
+                                                                "mt-2 mb-2 overflow-hidden rounded-2xl w-full max-w-[280px] border border-black/10 shadow-sm",
+                                                                msg.imageUrls.length === 1 ? "" : "grid gap-0.5",
+                                                                msg.imageUrls.length === 2 ? "grid-cols-2" : "",
+                                                                msg.imageUrls.length === 3 ? "grid-cols-2" : "",
+                                                                msg.imageUrls.length >= 4 ? "grid-cols-2" : ""
+                                                            )}>
+                                                                {msg.imageUrls.length === 1 && (
+                                                                    <img src={msg.imageUrls[0]} alt="Attachment" className="w-full h-auto max-h-[300px] object-cover" />
+                                                                )}
+                                                                {msg.imageUrls.length === 2 && msg.imageUrls.map((url, i) => (
+                                                                    <img key={i} src={url} alt={`Attachment ${i}`} className="w-full aspect-square object-cover" />
+                                                                ))}
+                                                                {msg.imageUrls.length === 3 && (
+                                                                    <>
+                                                                        <img src={msg.imageUrls[0]} alt="Attachment 0" className="w-full aspect-square object-cover col-span-2" />
+                                                                        <img src={msg.imageUrls[1]} alt="Attachment 1" className="w-full aspect-square object-cover" />
+                                                                        <img src={msg.imageUrls[2]} alt="Attachment 2" className="w-full aspect-square object-cover" />
+                                                                    </>
+                                                                )}
+                                                                {msg.imageUrls.length >= 4 && (
+                                                                    <>
+                                                                        {msg.imageUrls.slice(0, 3).map((url, i) => (
+                                                                            <img key={i} src={url} alt={`Attachment ${i}`} className="w-full aspect-square object-cover" />
+                                                                        ))}
+                                                                        <div className="relative aspect-square">
+                                                                            <img src={msg.imageUrls[3]} alt="Attachment 3" className="w-full h-full object-cover" />
+                                                                            {msg.imageUrls.length > 4 && (
+                                                                                <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center text-white font-black text-lg">
+                                                                                    +{msg.imageUrls.length - 4}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         )}
                                                         <p className="whitespace-pre-wrap">{msg.text}</p>
@@ -966,14 +1027,29 @@ export default function UniversalMessagesPage() {
                                 </div>
                             )}
 
-                            {selectedImagePreview && (
-                                <div className="mb-3 relative inline-block">
-                                    <div className="relative group">
-                                        <img src={selectedImagePreview} alt="upload preview" className="h-20 w-20 object-cover rounded-xl border-2 border-indigo-100 shadow-sm" />
-                                        <button onClick={() => setSelectedImagePreview(null)} className="absolute -top-2 -right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md scale-95 hover:scale-105 transition-transform border-2 border-white">
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
+                            {/* Removed redundant seller structured blocks per user feedback */}
+
+                            {selectedImagePreviews.length > 0 && (
+                                <div className="mb-3 flex flex-wrap gap-2">
+                                    {selectedImagePreviews.map((preview, idx) => (
+                                        <div key={idx} className="relative group">
+                                            <img src={preview} alt="upload preview" className="h-20 w-20 object-cover rounded-xl border-2 border-indigo-100 shadow-sm" />
+                                            <button 
+                                                onClick={() => removeImage(idx)} 
+                                                className="absolute -top-2 -right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md scale-95 hover:scale-105 transition-transform border-2 border-white"
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button 
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="h-20 w-20 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-all text-[10px] font-bold"
+                                    >
+                                        <ImageIcon className="h-5 w-5 mb-1" />
+                                        Add More
+                                    </button>
                                 </div>
                             )}
 
@@ -1051,6 +1127,7 @@ export default function UniversalMessagesPage() {
                                 <input
                                     type="file"
                                     accept="image/*"
+                                    multiple
                                     className="hidden"
                                     ref={fileInputRef}
                                     onChange={handleImageUpload}

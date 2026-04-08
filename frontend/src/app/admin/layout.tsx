@@ -68,7 +68,7 @@ export default function AdminLayout({
                 {/* Mobile overlay */}
                 {isSidebarOpen && (
                     <div
-                        className="fixed inset-0 bg-black/40 z-40 md:hidden"
+                        className="fixed inset-0 bg-black/40 z-40 lg:hidden"
                         onClick={() => setIsSidebarOpen(false)}
                     />
                 )}
@@ -76,7 +76,7 @@ export default function AdminLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto",
+                        "fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto",
                         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
@@ -142,7 +142,7 @@ export default function AdminLayout({
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="md:hidden h-10 w-10 bg-gray-50"
+                                className="lg:hidden h-10 w-10 bg-gray-50"
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                             >
                                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}

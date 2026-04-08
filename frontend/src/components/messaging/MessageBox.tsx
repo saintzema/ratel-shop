@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { DataSyncService } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
+import { cn } from "@/lib/utils";
 
 // ─── Notification types ─────────────────────────────────
 interface AppNotification {
@@ -132,9 +133,47 @@ const ChatMessageItem = React.memo(({
                     </div>
                 </div>
 
-                {msg.imageUrl && (
+                {msg.imageUrl && !msg.imageUrls && (
                     <div className="rounded-xl overflow-hidden mt-1.5 shadow-sm border border-gray-100">
                         <img src={msg.imageUrl} alt="Attachment" className="w-full max-h-48 object-contain bg-white" />
+                    </div>
+                )}
+                {msg.imageUrls && msg.imageUrls.length > 0 && (
+                    <div className={cn(
+                        "mt-2 overflow-hidden rounded-2xl w-full max-w-[280px] border border-black/5 shadow-sm",
+                        msg.imageUrls.length === 1 ? "" : "grid gap-0.5",
+                        msg.imageUrls.length === 2 ? "grid-cols-2" : "",
+                        msg.imageUrls.length === 3 ? "grid-cols-2" : "",
+                        msg.imageUrls.length >= 4 ? "grid-cols-2" : ""
+                    )}>
+                        {msg.imageUrls.length === 1 && (
+                            <img src={msg.imageUrls[0]} alt="Attachment" className="w-full h-auto max-h-[300px] object-cover bg-gray-50" />
+                        )}
+                        {msg.imageUrls.length === 2 && msg.imageUrls.map((url, i) => (
+                            <img key={i} src={url} alt={`Attachment ${i}`} className="w-full aspect-square object-cover bg-gray-50" />
+                        ))}
+                        {msg.imageUrls.length === 3 && (
+                            <>
+                                <img src={msg.imageUrls[0]} alt="Attachment 0" className="w-full aspect-square object-cover bg-gray-50 col-span-2" />
+                                <img src={msg.imageUrls[1]} alt="Attachment 1" className="w-full aspect-square object-cover bg-gray-50" />
+                                <img src={msg.imageUrls[2]} alt="Attachment 2" className="w-full aspect-square object-cover bg-gray-50" />
+                            </>
+                        )}
+                        {msg.imageUrls.length >= 4 && (
+                            <>
+                                {msg.imageUrls.slice(0, 3).map((url, i) => (
+                                    <img key={i} src={url} alt={`Attachment ${i}`} className="w-full aspect-square object-cover bg-gray-50" />
+                                ))}
+                                <div className="relative aspect-square">
+                                    <img src={msg.imageUrls[3]} alt="Attachment 3" className="w-full h-full object-cover bg-gray-50" />
+                                    {msg.imageUrls.length > 4 && (
+                                        <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center text-white font-black text-lg">
+                                            +{msg.imageUrls.length - 4}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
                 )}
                 {msg.negotiation && (
@@ -281,14 +320,21 @@ const ChatInputBar = React.memo(({
     setInput, 
     onSend, 
     replyingTo, 
-    setReplyingTo 
+    setReplyingTo, 
+    onImageSelect, 
+    selectedImagePreviews, 
+    removeImage 
 }: { 
     input: string, 
     setInput: (val: string) => void, 
     onSend: () => void,
     replyingTo: { sender: string; text: string } | null,
-    setReplyingTo: (val: { sender: string; text: string } | null) => void
+    setReplyingTo: (val: { sender: string; text: string } | null) => void,
+    onImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void,
+    selectedImagePreviews: string[],
+    removeImage: (idx: number) => void
 }) => {
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
     return (
         <div className="px-4 py-3 flex flex-col gap-2 bg-white shrink-0 border-t border-gray-100">
             {replyingTo && (
@@ -304,7 +350,42 @@ const ChatInputBar = React.memo(({
                     </button>
                 </div>
             )}
+            {selectedImagePreviews.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2 p-1">
+                    {selectedImagePreviews.map((preview, idx) => (
+                        <div key={idx} className="relative">
+                            <img src={preview} alt="preview" className="h-16 w-16 object-cover rounded-xl border border-gray-100 shadow-sm" />
+                            <button 
+                                onClick={() => removeImage(idx)}
+                                className="absolute -top-1.5 -right-1.5 h-5 w-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md scale-90 hover:scale-100 transition-transform border border-white"
+                            >
+                                <X className="h-3 w-3" />
+                            </button>
+                        </div>
+                    ))}
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="h-16 w-16 rounded-xl border border-dashed border-gray-200 flex items-center justify-center text-gray-400 hover:border-indigo-300 transition-colors bg-gray-50/50"
+                    >
+                        <ImageIcon className="h-5 w-5" />
+                    </button>
+                </div>
+            )}
             <div className="flex gap-2 items-center w-full">
+                <input 
+                    type="file"
+                    className="hidden"
+                    ref={fileInputRef}
+                    multiple
+                    accept="image/*"
+                    onChange={onImageSelect}
+                />
+                <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-10 w-10 shrink-0 flex items-center justify-center text-gray-400 hover:text-indigo-600 transition-colors"
+                >
+                    <ImageIcon className="h-5 w-5" />
+                </button>
                 <Input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
@@ -318,10 +399,7 @@ const ChatInputBar = React.memo(({
                     className="flex-1 rounded-full h-10 text-sm bg-white border-0 shadow-sm focus-visible:ring-1 focus-visible:ring-emerald-300 px-4"
                 />
                 <Button
-                    size="icon"
-                    onClick={onSend}
-                    disabled={!input.trim()}
-                    className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0"
+                    className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0 flex items-center justify-center"
                 >
                     <Send className="h-4 w-4" />
                 </Button>
@@ -350,7 +428,8 @@ export function MessageBox() {
     const [activeTab, setActiveTab] = useState<"chats" | "notifications">("chats");
     const [searchQuery, setSearchQuery] = useState("");
     const [notifications, setNotifications] = useState<AppNotification[]>([]);
-    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
+     const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
+    const [selectedImagePreviews, setSelectedImagePreviews] = useState<string[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     // kb-height handled globally by KeyboardAware.tsx via CSS variable --kb-height
@@ -551,34 +630,47 @@ export function MessageBox() {
     const unreadNotifCount = sortedNotifications.filter(n => !n.read).length;
     const totalChatUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
 
-    const handleSend = useCallback(() => {
-        if (!input.trim() || !selectedConvId) return;
-
-        // Security Filter: Detect and prevent sharing of account numbers and bank details
-        const cleanedText = input.replace(/[\s\-\.\,]/g, '');
-        const has10Digits = /\d{10}/.test(cleanedText);
-        const containsBankKeywords = /\b(opay|palmpay|kuda|bank|moniepoint|account|send money|transfer)\b/i.test(input);
-
-        if (has10Digits || (containsBankKeywords && /\d{8,}/.test(cleanedText))) {
-            alert("Security Alert: Sending account numbers or requesting direct transfers is strictly prohibited on FairPrice for your safety. Please use the secure Escrow checkout.");
-            return;
-        }
-
         // If this is a negotiation thread, sync the message to the negotiation history
         if (activeNegotiation) {
             DataSyncService.addNegotiationMessage(
                 activeNegotiation.id, 
                 "buyer", 
                 input.trim(), 
-                undefined, 
-                replyingTo ? { sender: replyingTo.sender, text: replyingTo.text } : undefined
+                selectedImagePreviews[0] || undefined, 
+                replyingTo ? { sender: replyingTo.sender, text: replyingTo.text } : undefined,
+                selectedImagePreviews
             );
         }
 
-        sendMessage(selectedConvId, { sender: "user", text: input.trim(), replyTo: replyingTo || undefined });
+        sendMessage(selectedConvId, { 
+            sender: "user", 
+            text: input.trim(), 
+            replyTo: replyingTo || undefined,
+            imageUrls: selectedImagePreviews
+        });
         setInput("");
         setReplyingTo(null);
-    }, [input, selectedConvId, activeNegotiation, replyingTo, sendMessage]);
+        setSelectedImagePreviews([]);
+    }, [input, selectedConvId, activeNegotiation, replyingTo, sendMessage, selectedImagePreviews]);
+
+    const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files) return;
+
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    setSelectedImagePreviews(prev => [...prev, event.target!.result as string]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    }, []);
+
+    const removeImage = useCallback((idx: number) => {
+        setSelectedImagePreviews(prev => prev.filter((_, i) => i !== idx));
+    }, []);
 
     const handleReply = useCallback((sender: string, text: string) => {
         setReplyingTo({ sender, text });
@@ -787,6 +879,9 @@ export function MessageBox() {
                                     onSend={handleSend}
                                     replyingTo={replyingTo}
                                     setReplyingTo={setReplyingTo}
+                                    onImageSelect={handleImageSelect}
+                                    selectedImagePreviews={selectedImagePreviews}
+                                    removeImage={removeImage}
                                 />
                             </>
                         ) : (

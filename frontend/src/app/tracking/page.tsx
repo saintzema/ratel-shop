@@ -10,9 +10,15 @@ import { Input } from "@/components/ui/input";
 import { DataSyncService } from "@/lib/sync-store";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
 import { Order } from "@/lib/types";
-import { Search, Package, ArrowRight, Truck } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { Search, Package, ArrowRight, Truck, Mail, Phone } from "lucide-react";
+import { formatPrice, cn } from "@/lib/utils";
 import Link from "next/link";
+
+const CARRIER_LOGOS: Record<string, string> = {
+    "GIG Logistics": "/images/logistics/gig.png",
+    "Speedaf": "/images/logistics/speedaf.png",
+    "FairPrice Logistics": "/images/logistics/fairprice.png"
+};
 
 export default function TrackingPage() {
     const [trackingId, setTrackingId] = useState("");
@@ -126,11 +132,22 @@ export default function TrackingPage() {
                                         </div>
                                     </div>
 
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-2">
-                                            <Truck className="h-4 w-4 text-gray-400 print:hidden" />
-                                            <span className="text-sm font-medium text-gray-600">Carrier: <span className="text-gray-900 font-bold">{order.carrier || "FairPrice Logistics"}</span></span>
-                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-3">
+                                                <span className="text-xs font-bold text-gray-400 mt-0.5 uppercase tracking-widest print:hidden">Carrier</span>
+                                                <div className="flex items-center gap-2 bg-white border border-gray-100 px-3 py-1.5 rounded-full shadow-sm">
+                                                    {CARRIER_LOGOS[order.carrier || ""] ? (
+                                                        <img 
+                                                            src={CARRIER_LOGOS[order.carrier || ""]} 
+                                                            alt={order.carrier} 
+                                                            className="h-4 w-auto object-contain" 
+                                                        />
+                                                    ) : (
+                                                        <Truck className="h-4 w-4 text-gray-400" />
+                                                    )}
+                                                    <span className="text-sm font-black text-gray-900">{order.carrier || "FairPrice Logistics"}</span>
+                                                </div>
+                                            </div>
                                         <Button
                                             variant="outline"
                                             size="sm"

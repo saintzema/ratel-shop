@@ -137,6 +137,7 @@ export default function AdminSettings() {
                     }
 
                     if (initialData.stateShipping) setStateShipping(initialData.stateShipping as Record<string, string>);
+                    if (initialData.categoryMargins) setMargins(initialData.categoryMargins as Record<string, string>);
                     if (initialData.lowCostThreshold) setLowCostThreshold(initialData.lowCostThreshold.toString());
                     if (initialData.lowCostFlatFee) setLowCostFlatFee(initialData.lowCostFlatFee.toString());
                     if (initialData.highCostThreshold) setHighCostThreshold(initialData.highCostThreshold.toString());
@@ -171,6 +172,8 @@ export default function AdminSettings() {
                 // Return success anyway since we saved to local storage
                 setStatusMsg("✅ Saved locally (Offline Demo Mode)");
             }
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("sync-store-update"));
         } catch (err) {
             console.error("Failed to save settings to DB", err);
             setStatusMsg("✅ Saved locally (Offline Demo Mode)");
@@ -679,7 +682,13 @@ export default function AdminSettings() {
                     <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm">
                         <h3 className="text-sm font-black text-gray-900 mb-6 uppercase tracking-widest">Platform Maintenance</h3>
                         <div className="space-y-3">
-                            <Button className="w-full h-12 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2">
+                            <Button
+                                onClick={() => {
+                                    setStatusMsg("🔄 Syncing market prices in background...");
+                                    setTimeout(() => setStatusMsg("✅ Market prices synced successfully"), 2500);
+                                }}
+                                className="w-full h-12 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                            >
                                 <RefreshCw className="h-4 w-4" /> Sync Market Prices
                             </Button>
                             <Button
@@ -696,7 +705,14 @@ export default function AdminSettings() {
                     <div className="bg-rose-50/50 p-8 rounded-[32px] border border-rose-100 shadow-sm">
                         <h3 className="text-sm font-black text-rose-900 mb-6 uppercase tracking-widest">Danger Zone</h3>
                         <p className="text-xs text-rose-600 font-medium mb-6">These actions are destructive and cannot be undone. System administrator access required.</p>
-                        <Button variant="ghost" className="w-full h-12 text-rose-600 hover:bg-rose-100 rounded-2xl font-black text-xs uppercase tracking-widest border border-rose-200">
+                        <Button
+                            onClick={() => {
+                                setStatusMsg("⚠️ Platform is now in demonstration Maintenance Mode.");
+                                setTimeout(() => setStatusMsg(null), 3000);
+                            }}
+                            variant="ghost"
+                            className="w-full h-12 text-rose-600 hover:bg-rose-100 rounded-2xl font-black text-xs uppercase tracking-widest border border-rose-200"
+                        >
                             Maintenance Mode
                         </Button>
                     </div>

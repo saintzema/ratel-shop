@@ -39,7 +39,9 @@ export async function generateMetadata(
         }
     }
 
-    const rawFallback = decodedId.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    // Use the slug as the fallback name since it contains the human-readable product name, unlike the ID which is likely a UUID.
+    const decodedSlug = params.slug ? decodeURIComponent(params.slug) : '';
+    const rawFallback = decodedSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     const titleProductName = (productDetails?.name || rawFallback || 'Product').replace(/^undefined$/i, 'Product');
 
     // Fallback Price representation

@@ -172,7 +172,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {cards.map((card) => (
                     <Link href={card.href} key={card.label} className="bg-white/40 backdrop-blur-xl p-6 rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 hover:shadow-2xl hover:shadow-green-900/20 hover:-translate-y-1 transition-all group block relative overflow-hidden">
                         <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent pointer-events-none" />

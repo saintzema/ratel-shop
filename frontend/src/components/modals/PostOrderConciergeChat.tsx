@@ -35,24 +35,24 @@ interface PostOrderChatProps {
 }
 
 const POST_ORDER_ACTIONS = [
-    { id: "images", label: "Request Product Images", icon: <ImageIcon className="h-3.5 w-3.5" /> },
-    { id: "shipping", label: "Shipping Timeline", icon: <Truck className="h-3.5 w-3.5" /> },
-    { id: "warranty", label: "Warranty Info", icon: <HelpCircle className="h-3.5 w-3.5" /> },
-    { id: "condition", label: "Confirm Condition", icon: <Box className="h-3.5 w-3.5" /> },
+    { id: "images", label: "Request Images", message: "Hi, could you send some real-time photos of the actual product before it ships?", icon: <ImageIcon className="h-3.5 w-3.5" /> },
+    { id: "shipping", label: "Shipping ETA", message: "Could you provide an update on the shipping timeline? When is the estimated delivery?", icon: <Truck className="h-3.5 w-3.5" /> },
+    { id: "warranty", label: "Warranty Details", message: "Can you confirm the warranty details and terms for this item?", icon: <HelpCircle className="h-3.5 w-3.5" /> },
+    { id: "condition", label: "Confirm Condition", message: "I'd like to confirm the condition of the item. Is everything as described in the listing?", icon: <Box className="h-3.5 w-3.5" /> },
 ];
 
 const RETURN_ACTIONS = [
-    { id: "wrong_item", label: "Wrong Item Received", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "damaged", label: "Item Damaged", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "not_as_described", label: "Not as Described", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "upload_photo", label: "Upload Photo Evidence", icon: <Camera className="h-3.5 w-3.5" /> },
+    { id: "wrong_item", label: "Wrong Item", message: "I received the wrong item. How can we resolve this?", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "damaged", label: "Item Damaged", message: "The item arrived damaged. What are the next steps for a return or replacement?", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "not_as_described", label: "Not as Described", message: "The item I received is not as described in the listing. I'd like to discuss a return.", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "upload_photo", label: "Upload Photos", message: "I have photos of the issue. I'll upload them now.", icon: <Camera className="h-3.5 w-3.5" /> },
 ];
 
 const CANCEL_ACTIONS = [
-    { id: "changed_mind", label: "Changed my mind", icon: <RotateCcw className="h-3.5 w-3.5" /> },
-    { id: "found_better", label: "Found a better price", icon: <Search className="h-3.5 w-3.5" /> },
-    { id: "mistake", label: "Ordered by mistake", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "too_long", label: "Shipping takes too long", icon: <Clock className="h-3.5 w-3.5" /> },
+    { id: "mistake", label: "Ordered by Mistake", message: "I'd like to cancel this order as it was made by mistake.", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "changed_mind", label: "Changed My Mind", message: "I've changed my mind about this purchase and would like to cancel the order.", icon: <RotateCcw className="h-3.5 w-3.5" /> },
+    { id: "found_better", label: "Found Better Price", message: "I found a better price elsewhere and would like to cancel this order.", icon: <Search className="h-3.5 w-3.5" /> },
+    { id: "too_long", label: "Taking Too Long", message: "Shipping is taking longer than expected. Can I still cancel this order?", icon: <Clock className="h-3.5 w-3.5" /> },
 ];
 
 export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, order, mode = "post_order" }: PostOrderChatProps) {
@@ -253,7 +253,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         if (!text.trim()) return;
 
         // If quick action triggers file upload
-        if (text === "Upload Photo Evidence") {
+        if (text === "Upload Photos" || text === "I have photos of the issue. I'll upload them now.") {
             fileInputRef.current?.click();
             return;
         }
@@ -699,7 +699,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 {quickActions.map(action => (
                                     <button
                                         key={action.id}
-                                        onClick={() => handleSend(action.label)}
+                                        onClick={() => handleSend(action.message || action.label)}
                                         className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${mode === "return"
                                             ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
                                             : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"

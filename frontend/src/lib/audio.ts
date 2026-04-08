@@ -3,8 +3,16 @@
  * Calming, rich, ~2.5s duration.
  * Generated via Web Audio API for zero latency and high fidelity.
  */
+let lastPlayedTime = 0;
+const DING_THROTTLE_MS = 3000; // 3 seconds
+
 export const playDingSound = () => {
     if (typeof window === 'undefined') return;
+    
+    // Throttle frequency to prevent multiple rapid ringings
+    const nowTime = Date.now();
+    if (nowTime - lastPlayedTime < DING_THROTTLE_MS) return;
+    lastPlayedTime = nowTime;
     try {
         const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
         if (!AudioContextClass) return;

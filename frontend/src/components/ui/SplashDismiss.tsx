@@ -10,7 +10,6 @@ export function SplashDismiss() {
     useEffect(() => {
         const splash = document.getElementById("fp-splash");
         if (splash) {
-            // Standard hydration-based dismissal
             const dismiss = () => {
                 if (!splash.classList.contains("fp-hide")) {
                     splash.classList.add("fp-hide");
@@ -21,13 +20,24 @@ export function SplashDismiss() {
             };
 
             // Small delay to let the first paint settle
-            requestAnimationFrame(() => {
-                dismiss();
-            });
+            requestAnimationFrame(() => dismiss());
 
-            // Bulletproof secondary fail-safe (redundant with layout.tsx but safe for client-side)
+            // Aggressive interval check in case of hydration hangs or UI freezes
+            const interval = setInterval(() => {
+                if (splash.classList.contains("fp-hide")) {
+                    clearInterval(interval);
+                    return;
+                }
+                dismiss();
+            }, 2000);
+
+            // Bulletproof secondary fail-safe
             const backup = setTimeout(dismiss, 5000);
-            return () => clearTimeout(backup);
+            
+            return () => {
+                clearInterval(interval);
+                clearTimeout(backup);
+            };
         }
     }, []);
 

@@ -315,7 +315,7 @@ export default function SellerDashboard() {
             {/* Stats Grid */}
             <motion.div 
                 layout
-                className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+                className="grid grid-cols-2 md:grid-cols-4 gap-4"
             >
                 <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={revenueTrend} color="emerald" href="/seller/orders?filter=delivered" delay={0.1} />
                 <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" delay={0.2} />
@@ -480,7 +480,7 @@ export default function SellerDashboard() {
             </div>
 
             {/* Revenue & Metrics Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Available Balance */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
@@ -568,7 +568,7 @@ export default function SellerDashboard() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 relative px-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 relative px-2">
                     <PayoutStep 
                         label="In Escrow" 
                         amount={escrowAmount} 

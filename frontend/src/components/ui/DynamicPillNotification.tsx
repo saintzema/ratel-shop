@@ -321,6 +321,8 @@ export function DynamicPillNotification() {
             router.push(customNotification.route);
         } else if (pendingConversationId) {
             openMessageBox(pendingConversationId);
+        } else {
+            openMessageBox();
         }
         
         setVisible(false);
@@ -481,7 +483,7 @@ export function DynamicPillNotification() {
                                         {isNegotiation ? <MessageSquare className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
                                         {isNegotiation 
                                             ? (isSellerAction ? "Reply / Counter" : "Reply with Counter") 
-                                            : "Open Concierge"}
+                                            : "Open Chat"}
                                     </button>
                                 </motion.div>
                             )}

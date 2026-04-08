@@ -2421,7 +2421,7 @@ class DataSyncServiceService {
         return order?.chat_messages || [];
     }
 
-    addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string, replyTo?: { sender: string; text: string }) {
+    addOrderMessage(orderId: string, sender: string, text: string, imageUrl?: string, imageUrls?: string[], replyTo?: { sender: string; text: string }) {
         const orders = this.getOrders();
 
         const updated = orders.map(o => {
@@ -2432,7 +2432,8 @@ class DataSyncServiceService {
                     text,
                     replyTo,
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    imageUrl
+                    imageUrl,
+                    imageUrls // Support multiple images
                 };
 
                 return {
@@ -2451,7 +2452,7 @@ class DataSyncServiceService {
         fetch("/api/orders/sync-messages", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId, sender, text, imageUrl, replyTo })
+            body: JSON.stringify({ orderId, sender, text, imageUrl, imageUrls, replyTo })
         }).catch(err => console.error("Message sync failed:", err));
 
         // Notifications: route messages to the right participants
@@ -3505,7 +3506,7 @@ class DataSyncServiceService {
         } catch { }
     }
     // --- Negotiation Chat Messaging ---
-    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string, imageUrl?: string, replyTo?: { sender: string; text: string }) {
+    addNegotiationMessage(negId: string, sender: "seller" | "buyer", text: string, imageUrl?: string, replyTo?: { sender: string; text: string }, imageUrls?: string[]) {
         const stored = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
         if (!stored) return;
         const negs = JSON.parse(stored);

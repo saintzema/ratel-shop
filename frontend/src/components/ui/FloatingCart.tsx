@@ -37,6 +37,10 @@ export function FloatingCart() {
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0, opacity: 0 }}
                 whileTap={{ scale: 0.9 }}
+                drag="y"
+                dragConstraints={{ top: -300, bottom: 300 }}
+                dragElastic={0.1}
+                dragMomentum={false}
                 onClick={() => {
                     if (pathname === "/cart") {
                         window.scrollTo({ top: 0, behavior: "smooth" });

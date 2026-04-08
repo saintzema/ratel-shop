@@ -16,10 +16,10 @@ const config: CapacitorConfig = {
   webDir: "out", // Static fallback — used for offline/initial load
 
   server: {
-    // Production loads from webDir static export. Localhost only manually used for local testing.
-    cleartext: IS_DEV, // Allow HTTP in dev (required for localhost)
-    // url: "https://fairprice-ten.vercel.app" for always-online mode
-    url: "https://fairprice-ten.vercel.app",
+    // Development: point to your local machine (e.g., http://192.168.1.100:3000)
+    // Simulator: use http://localhost:3000
+    // Production: https://fairprice-ten.vercel.app
+    url: "http://localhost:3000",
     allowNavigation: [
       "fairprice-ten.vercel.app",
       "*.vercel.app",
@@ -56,17 +56,17 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchAutoHide: true,
-      launchShowDuration: 2000,
-      backgroundColor: "#059669",       // FairPrice emerald
+      launchShowDuration: 3000,
+      backgroundColor: "#FFFFFF",       // White background to match app
       showSpinner: true,
-      spinnerColor: "#FFFFFF",
+      spinnerColor: "#059669",          // Green spinner
       androidScaleType: "CENTER_CROP",
       splashFullScreen: true,
       splashImmersive: true,
     },
     StatusBar: {
-      style: "LIGHT",                   // White text on dark bar
-      backgroundColor: "#059669",       // Android status bar color
+      style: "DARK",                    // Dark text on white bar
+      backgroundColor: "#FFFFFF",       // White status bar
     },
     Keyboard: {
       resize: KeyboardResize.None,     // Use manual resizing (bottom: var(--kb-height)) for 100% control
