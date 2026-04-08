@@ -1598,7 +1598,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                     onClick={() => setIsLocationModalOpen(true)}
                                                     className="flex items-center gap-1 text-[10px] font-bold text-gray-900 hover:text-brand-green-600 transition-colors group/loc"
                                                 >
-                                                    <span className="border-b border-dotted border-gray-400 group-hover/loc:border-brand-green-600 cursor:pointer">
+                                                    <span className="cursor-pointer border-b border-dotted border-gray-400 group-hover/loc:border-brand-green-600">
                                                         {location}
                                                     </span>
                                                     <ChevronDown className="h-2.5 w-2.5 text-gray-400 group-hover/loc:text-brand-green-600" />
@@ -1607,8 +1607,13 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         </div>
                                     </div>
                                     <div className="flex items-start gap-2 px-1">
-                                        <ShieldCheck className="h-4 w-4 shrink-0 text-gray-400" />
-                                        <p>Safe payments & Secure logistics. Protected by <span className="font-bold text-gray-700">FairPrice Escrow</span>.</p>
+                                        <ShieldCheck className="h-4 w-4 shrink-0 text-gray-400 mt-1" />
+                                        <div className="relative group/escrow inline-flex">
+                                            <p>Safe payments & Secure logistics. Protected by <span className="font-bold text-gray-700 underline decoration-dashed decoration-gray-300 cursor-help">FairPrice Escrow</span>.</p>
+                                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-gray-900 text-white text-[10px] sm:text-xs rounded-lg opacity-0 pointer-events-none group-hover/escrow:opacity-100 transition-opacity z-[9999] shadow-xl leading-snug text-center font-medium after:content-[''] after:absolute after:top-full after:left-1/2 after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-gray-900">
+                                                This means your funds are secure with us until you confirm delivery of the order.
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 

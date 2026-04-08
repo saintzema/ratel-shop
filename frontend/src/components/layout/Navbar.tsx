@@ -534,6 +534,10 @@ export function Navbar() {
                 url && url.trim().length > 4 &&
                 !url.toLowerCase().includes('no photo') &&
                 !url.toLowerCase().includes('no image') &&
+                !url.toLowerCase().includes('not found') &&
+                !url.toLowerCase().includes('sample') &&
+                !url.toLowerCase().includes('logo') &&
+                !url.toLowerCase().includes('avatar') &&
                 !url.toLowerCase().includes('n/a') &&
                 !url.toLowerCase().includes('undefined') &&
                 !url.includes('vertexaisearch.cloud.google.com') &&

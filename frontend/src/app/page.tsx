@@ -686,25 +686,27 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       </div>
 
       <div className="relative">
-        {/* Scroll Arrows */}
+        {/* Apple Liquid Glass Scroll Arrows */}
         <button
           onClick={() => scroll("left")}
-          className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-20 bg-white/90 border border-gray-200 rounded-md shadow-lg flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-opacity hover:bg-gray-100"
+          className="absolute -left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 group-hover/scroller:-translate-x-2"
           aria-label="Scroll left"
         >
-          <ChevronLeft className="h-5 w-5 text-gray-700" />
+          <ChevronLeft className="h-6 w-6 text-gray-800 drop-shadow-sm" />
         </button>
         <button
           onClick={() => scroll("right")}
-          className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-20 bg-white/90 border border-gray-200 rounded-md shadow-lg flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-opacity hover:bg-gray-100"
+          className="absolute -right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 group-hover/scroller:translate-x-2"
           aria-label="Scroll right"
         >
-          <ChevronRight className="h-5 w-5 text-gray-700" />
+          <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
         </button>
 
-        <div ref={scrollRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
+        <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
           {[...products, ...products, ...products].map((product, idx) => (
-            <ScrollerProductCard key={`${product.id}-${idx}`} product={product} />
+            <div key={`${product.id}-${idx}`} className="min-w-[190px] md:min-w-[220px] flex flex-col">
+              <ProductCard product={product} />
+            </div>
           ))}
         </div>
       </div>
@@ -713,132 +715,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 }
 
 
-// ─── ScrollerProductCard (Product Tile with Heart for BestSellers) ───
 
-function ScrollerProductCard({ product }: { product: any }) {
-  const router = useRouter();
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const { addToCart } = useCart();
-  const [showHeartBurst, setShowHeartBurst] = useState(false);
-  const [addedToCart, setAddedToCart] = useState(false);
-  const lastTapRef = useRef(0);
-  const liked = isFavorite(product.id);
-
-  const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 350) {
-      if (!liked) toggleFavorite(product.id);
-      setShowHeartBurst(true);
-      setTimeout(() => setShowHeartBurst(false), 800);
-    }
-    lastTapRef.current = now;
-  }, [liked, product.id, toggleFavorite]);
-
-  const handleHeartClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    toggleFavorite(product.id);
-    if (!liked) {
-      setShowHeartBurst(true);
-      setTimeout(() => setShowHeartBurst(false), 800);
-    }
-  }, [liked, product.id, toggleFavorite]);
-
-  const handleAddToCart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    addToCart(product);
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 1200);
-  }, [addToCart, product]);
-
-  return (
-    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3 cursor-pointer">
-      <div onClick={() => router.push(getProductUrl(product.id, product.name))} className="flex flex-col flex-1 h-full relative">
-        <div
-          className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
-          onClick={handleDoubleTap}
-        >
-          {/* Sponsored Ad Tag */}
-          {product.is_sponsored && (
-            <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-widest rounded-tl-lg rounded-br-lg shadow-md border-b border-r border-white/10 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Ad
-            </div>
-          )}
-          <img
-            src={product.image_url || "/assets/images/placeholder.png"}
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110"
-            loading="lazy"
-            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-          />
-          {/* Heart burst animation */}
-          {showHeartBurst && (
-            <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-              <Heart className="h-14 w-14 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col flex-1 pb-1 pt-1.5">
-          <p className="text-sm text-gray-900 line-clamp-2 font-bold leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6 mb-1 min-h-[40px]">
-            {product.name}
-          </p>
-
-          {/* Rating & Discount */}
-          <div className="flex items-center justify-between gap-1 mb-1 mt-auto">
-            <div className="flex text-amber-400">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className={`h-3 w-3 ${i < Math.round(product.avg_rating || 5) ? "fill-current" : "text-gray-300"}`}
-                />
-              ))}
-            </div>
-
-            {/* Inline Discount Badge */}
-            {product.original_price && product.original_price > product.price && (
-              <div className="font-black px-1.5 py-0.5 rounded bg-red-100 text-[10px] text-red-600 flex items-center justify-center leading-none">
-                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      {/* Price + Add to Cart row */}
-      <div className="flex flex-col mt-auto gap-0.5 shrink-0 px-0.5">
-        <span className="text-base font-black text-gray-900">{formatPrice(product.price)}</span>
-        <Button
-          size="sm"
-          onClick={handleAddToCart}
-          className={`w-full text-xs font-bold h-9 rounded-lg shadow-sm transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer active:scale-95 ${addedToCart
-            ? "bg-emerald-600 text-white"
-            : "bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow-md"
-            }`}
-        >
-          {addedToCart ? (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              Added
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-              Add to Cart
-            </>
-          )}
-        </Button>
-      </div>
-      {/* Persistent heart button */}
-      <button
-        onClick={handleHeartClick}
-        className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-        aria-label={liked ? "Remove from favorites" : "Add to favorites"}
-      >
-        <Heart className={`h-4 w-4 transition-colors ${liked ? "fill-red-500 text-red-500" : "text-gray-400 hover:text-red-400"}`} />
-      </button>
-    </div>
-  );
-}
 
 function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -939,14 +816,14 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       </div>
 
       <div className="relative">
-        {/* Left Arrow */}
+        {/* Apple Liquid Glass Scroll Arrows */}
         {canScrollLeft && !autoScroll && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute -left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:-translate-x-2"
             aria-label="Scroll left"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-6 w-6 text-gray-800 drop-shadow-sm" />
           </button>
         )}
 
@@ -954,10 +831,10 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         {canScrollRight && !autoScroll && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute -right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:translate-x-2"
             aria-label="Scroll right"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
           </button>
         )}
 

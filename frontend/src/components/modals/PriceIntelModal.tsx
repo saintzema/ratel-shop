@@ -722,7 +722,12 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                         <Globe className="h-4 w-4 text-blue-600" />
                                                         Global Internet Sources
                                                     </h4>
-                                                    <span className="text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold flex items-center gap-1"><ShieldCheck className="h-3 w-3" /> Escrow Protected</span>
+                                                    <div className="relative group/escrow inline-flex">
+                                                        <span className="text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 cursor-help"><ShieldCheck className="h-3 w-3" /> Escrow Protected</span>
+                                                        <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-gray-900 text-white text-[10px] rounded-lg opacity-0 pointer-events-none group-hover/escrow:opacity-100 transition-opacity z-[99999] shadow-xl leading-tight text-center font-medium after:content-[''] after:absolute after:top-full after:right-4 after:border-4 after:border-transparent after:border-t-gray-900">
+                                                            This means your funds are secure with us until you confirm delivery of the order.
+                                                        </div>
+                                                    </div>
                                                 </div>
                                                 <div className="space-y-2">
                                                     {searchResults.api.map((s, i) => (
@@ -918,6 +923,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [apiSuggestions, setApiSuggestions] = useState<ProductSuggestion[]>([]);
     const [localMatches, setLocalMatches] = useState<Product[]>([]);
+    const [textSuggestions, setTextSuggestions] = useState<string[]>([]);
     const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [activeIndex, setActiveIndex] = useState(-1);
 
@@ -942,12 +948,45 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
     useEffect(() => {
         const timer = setTimeout(async () => {
             if (value.length >= 2) {
-                // 1. Local Search
+                // 1. Local Search & Text Suggestions
+                const qLower = value.toLowerCase();
                 const local = SEED_PRODUCTS.filter(p =>
-                    p.name.toLowerCase().includes(value.toLowerCase()) ||
-                    p.category.toLowerCase().includes(value.toLowerCase())
+                    p.name.toLowerCase().includes(qLower) ||
+                    p.category.toLowerCase().includes(qLower)
                 ).slice(0, 4);
                 setLocalMatches(local);
+
+                const pool = new Set<string>();
+                SEED_PRODUCTS.forEach(p => {
+                    const nLower = p.name.toLowerCase();
+                    if (nLower.includes(qLower)) pool.add(p.name);
+                    const words = p.name.split(' ');
+                    if (words.length > 1 && words[0].toLowerCase().includes(qLower)) {
+                        pool.add(`${words[0]} ${words[1] || ''}`.trim());
+                    }
+                });
+                
+                const sortedSuggestions = Array.from(pool)
+                    .sort((a, b) => {
+                        const aStartsWith = a.toLowerCase().startsWith(qLower) ? -1 : 1;
+                        const bStartsWith = b.toLowerCase().startsWith(qLower) ? -1 : 1;
+                        if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+                        return a.length - b.length;
+                    })
+                    .slice(0, 4);
+                
+                const semanticSuggs: string[] = [];
+                const trimQ = value.trim();
+                const isCarQuery = /\b(car|suv|sedan|toyota|lexus|honda|benz)\b/i.test(qLower);
+                if (isCarQuery && trimQ.length > 2) {
+                    if (!qLower.includes("2024")) semanticSuggs.push(`${trimQ} 2024 Model`);
+                    if (!qLower.includes("tokunbo")) semanticSuggs.push(`${trimQ} Tokunbo`);
+                } else if (trimQ.length > 2) {
+                    if (!qLower.includes("brand new")) semanticSuggs.push(`${trimQ} Brand New`);
+                    if (!qLower.includes("uk used")) semanticSuggs.push(`${trimQ} UK Used`);
+                }
+                
+                setTextSuggestions([...sortedSuggestions, ...semanticSuggs].slice(0, 4));
 
                 // 2. API Search
                 try {
@@ -976,12 +1015,17 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
             if (activeIndex >= 0 && activeIndex < totalSuggestions) {
                 e.preventDefault();
                 setShowSuggestions(false);
-                if (activeIndex < localMatches.length) {
-                    const selected = localMatches[activeIndex];
+                
+                if (activeIndex < textSuggestions.length) {
+                    const selected = textSuggestions[activeIndex];
+                    onChange(selected);
+                    onSearch(selected);
+                } else if (activeIndex < textSuggestions.length + localMatches.length) {
+                    const selected = localMatches[activeIndex - textSuggestions.length];
                     onChange(selected.name);
                     onAnalyze(selected.name, selected);
                 } else {
-                    const selected = apiSuggestions[activeIndex - localMatches.length];
+                    const selected = apiSuggestions[activeIndex - textSuggestions.length - localMatches.length];
                     onChange(selected.name);
                     onAnalyze(selected.name, undefined, selected.sourceUrl, selected.approxPrice, selected.specs, selected.image_url);
                 }
@@ -1073,7 +1117,7 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
 
                         {/* Loading State for Search */}
                         {value.length >= 2 && isGlobalSearching && apiSuggestions.length === 0 && (
-                            <div className="p-4 bg-gradient-to-r from-emerald-50/50 to-emerald-100/30">
+                            <div className="p-4 bg-gradient-to-r from-emerald-50/50 to-emerald-100/30 border-b border-gray-100/50">
                                 <div className="flex items-center gap-3">
                                     <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center animate-pulse">
                                         <Sparkles className="h-4 w-4 text-emerald-600 animate-spin-slow" />
@@ -1083,6 +1127,31 @@ function SearchInput({ value, onChange, onSearch, onAnalyze, isLoading, hasResul
                                         <span className="text-[11px] font-medium text-emerald-600/80">Comparing best prices. Results appearing shortly.</span>
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Text Suggestions (Autocomplete) */}
+                        {value.trim().length >= 2 && textSuggestions.length > 0 && (
+                            <div className="border-b border-gray-100/50 py-2">
+                                {textSuggestions.map((suggestion, idx) => (
+                                    <button
+                                        key={`sug-${idx}`}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            onChange(suggestion);
+                                            document.querySelector('input')?.focus();
+                                        }}
+                                        className="w-full text-left px-4 py-2 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] text-gray-700 transition-all flex items-center justify-between group"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                            <span dangerouslySetInnerHTML={{
+                                                __html: suggestion.replace(new RegExp(value.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
+                                            }} />
+                                        </div>
+                                        <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </button>
+                                ))}
                             </div>
                         )}
 

@@ -252,7 +252,7 @@ export const SEED_PRODUCTS: Product[] = [
     ...generateMoreDemoProducts(),
     // Phones & Electronics
     {
-        id: "p1",
+        id: "samsung-galaxy-s24-ultra-256gb-titanium-black",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: 'Samsung Galaxy S24 Ultra 256GB — Titanium Black',
@@ -275,7 +275,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["200MP Adaptive Pixel sensor for stunning detail in any light", "Built-in S Pen with AI-powered handwriting recognition", "Titanium frame — strongest Galaxy build ever", "Circle to Search with Google and Live Translate", "Up to 30 hours battery life with 45W fast charging"],
     },
     {
-        id: "p2",
+        id: "iphone-15-pro-max-256gb-natural-titanium",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "iPhone 15 Pro Max 256GB — Natural Titanium",
@@ -298,7 +298,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["A17 Pro chip with hardware-accelerated ray tracing for console-quality gaming", "48MP main camera with 5x optical zoom for incredible detail", "Titanium design — the lightest Pro Max ever made", "Action button for instant access to your favorite feature", "USB-C with USB 3 speeds — up to 20x faster data transfer"],
     },
     {
-        id: "p3",
+        id: "iphone-15-pro-max-256gb-blue-titanium",
         seller_id: "s4",
         seller_name: "PhoneZone Nigeria",
         name: "iPhone 15 Pro Max 256GB — Blue Titanium",
@@ -320,7 +320,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["A17 Pro chip — the fastest chip ever in a smartphone", "48MP camera with 5x optical zoom for detailed shots", "Titanium design with Ceramic Shield front", "All-day battery life with fast charging support"],
     },
     {
-        id: "p6",
+        id: "macbook-pro-14",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: 'MacBook Pro 14" M3 Pro — Space Black',
@@ -343,7 +343,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Apple M3 Pro chip delivers exceptional performance and efficiency", "Liquid Retina XDR display with ProMotion and 1600 nits peak HDR", "Up to 17 hours of battery life — longest ever in a MacBook Pro", "Three Thunderbolt 4 ports, HDMI, SDXC, MagSafe 3", "6-speaker sound system with Spatial Audio support"],
     },
     {
-        id: "p8",
+        id: "sony-playstation-5-disc-edition-bundle",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "Sony PlayStation 5 — Disc Edition Bundle",
@@ -366,7 +366,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Ultra-high speed 825GB SSD for near-instant load times", "Stunning 4K gaming at up to 120fps with ray tracing", "DualSense controller with haptic feedback and adaptive triggers", "Bundle includes extra controller and 3 games", "Backwards compatible with thousands of PS4 games"],
     },
     {
-        id: "p9",
+        id: "samsung-galaxy-s24-ultra-256gb-suspicious-deal",
         seller_id: "s5",
         seller_name: "Lagos Gadget World",
         name: "Samsung Galaxy S24 Ultra 256GB — Suspicious Deal",
@@ -388,7 +388,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Brand new Samsung Galaxy S24 Ultra at unbeatable price"],
     },
     {
-        id: "p10",
+        id: "airpods-pro-2nd-gen-usb-c",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "AirPods Pro 2nd Gen — USB-C",
@@ -413,7 +413,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Energy & Cars
     {
-        id: "p4",
+        id: "tesla-model-3-dual-motor-2024-long-range",
         seller_id: "s2",
         seller_name: "EV & Power Hub",
         name: "Tesla Model 3 Dual Motor — 2024 Long Range",
@@ -436,7 +436,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Dual Motor AWD for all-weather performance and confidence", "Up to 358 miles of range on a single charge", "Full Self-Driving capability hardware included", "15.4-inch cinematic touchscreen with wireless updates", "Zero emissions — save on fuel and maintenance costs"],
     },
     {
-        id: "p5",
+        id: "luminous-solar-hybrid-inverter-5kva-plus-4-batteri",
         seller_id: "s2",
         seller_name: "EV & Power Hub",
         name: "Luminous Solar Hybrid Inverter — 5KVA + 4 Batteries",
@@ -459,7 +459,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Complete solar power system for Nigerian homes", "5KVA hybrid inverter handles heavy loads (AC, freezer, etc.)", "4x 200Ah tubular batteries for extended backup", "6x 400W monocrystalline panels for maximum solar harvest", "Professional installation guidance included"],
     },
     {
-        id: "p11",
+        id: "ecoflow-delta-pro-portable-power-station",
         seller_id: "s2",
         seller_name: "EV & Power Hub",
         name: "EcoFlow Delta Pro Portable Power Station",
@@ -482,7 +482,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["3.6kWh expandable capacity — power your entire home during outages", "3600W AC output handles heavy appliances (AC, fridge, etc.)", "Smart app control with real-time power monitoring", "Charges from 0-80% in under 2 hours via AC", "Compatible with EcoFlow Smart Home Panel for seamless integration"],
     },
     {
-        id: "p7",
+        id: "toyota-camry-2020plus-front-bumper-oem-quality",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
         name: "Toyota Camry 2020+ Front Bumper — OEM Quality",
@@ -504,7 +504,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Direct fit replacement for Toyota Camry 2020 and newer models", "OEM-quality polypropylene construction for durability", "Primed finish ready for your color match paint", "Includes all mounting hardware for easy installation"],
     },
     {
-        id: "p12",
+        id: "car-dash-camera-4k-dual-lens-night-vision",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
         name: "Car Dash Camera 4K — Dual Lens Night Vision",
@@ -526,7 +526,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["4K front + 1080p rear dual lens recording for complete coverage", "Infrared night vision captures clear footage in darkness", "G-sensor auto-locks footage during collisions", "24/7 parking mode monitors your car while parked", "Supports up to 128GB microSD card for extended recording"],
     },
     {
-        id: "p19",
+        id: "michelin-primacy-4-tires-20555-r16",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
         name: "Michelin Primacy 4 Tires — 205/55 R16",
@@ -548,7 +548,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Excellent wet braking performance ensuring safety", "Long-lasting tread life with Silent Rib technology", "Fuel-efficient design reduces rolling resistance", "Set of 4 tires for complete replacement"],
     },
     {
-        id: "p20",
+        id: "launch-x431-pro3splus-diagnostic-tool",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
         name: "Launch X431 PRO3S+ Diagnostic Tool",
@@ -570,7 +570,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Bi-directional control for active component testing", "ECU coding to match replaced modules or unlock hidden features", "31+ reset services including Oil, EPB, SAS, DPF, BMS", "Wide vehicle coverage supports 150+ brands"],
     },
     {
-        id: "p21",
+        id: "toyota-corolla-2022-le-foreign-used",
         seller_id: "s2",
         seller_name: "EV & Power Hub",
         name: "Toyota Corolla 2022 LE — foreign used",
@@ -592,7 +592,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Reliable 1.8L 4-cylinder engine with excellent fuel economy", "Toyota Safety Sense 2.0 suite of active safety features", "Apple CarPlay and Android Auto compatibility", "Clean title, foreign used with low mileage"],
     },
     {
-        id: "p22",
+        id: "baseus-car-vacuum-cleaner-portable",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
         name: "Baseus Car Vacuum Cleaner — Portable",
@@ -614,7 +614,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Powerful 15000Pa suction clears dust and debris easily", "Wireless design for unrestricted movement inside the car", "HEPA filter captures fine dust and allergens", "Type-C fast charging support"],
     },
     {
-        id: "p23",
+        id: "meguiar",
         seller_id: "s3",
         seller_name: "Naija Auto Parts",
         name: "Meguiar's Ultimate Car Care Kit",
@@ -638,7 +638,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Fashion & Beauty (New)
     {
-        id: "p13",
+        id: "gucci-marmont-matelass-shoulder-bag-authentic",
         seller_id: "s6",
         seller_name: "Luxe Fashion House",
         name: "Gucci Marmont Matelassé Shoulder Bag (Authentic)",
@@ -660,7 +660,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["100% Authentic Gucci with verification certificate", "Black matelassé chevron leather with antique gold-tone hardware", "Sliding chain strap can be worn as shoulder or crossbody", "Interior slip pocket and open compartment"],
     },
     {
-        id: "p14",
+        id: "nike-air-jordan-1-high-og-chicago-lost-and-found",
         seller_id: "s6",
         seller_name: "Luxe Fashion House",
         name: "Nike Air Jordan 1 High OG — Chicago Lost & Found",
@@ -682,7 +682,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Iconic Chicago colorway in the legendary Air Jordan 1 High OG silhouette", "Premium leather upper with vintage weathered look", "Air-Sole unit for lightweight cushioning", "Brand new in box with all original packaging"],
     },
     {
-        id: "p15",
+        id: "cerave-moisturizing-cream-16oz-jar",
         seller_id: "s8",
         seller_name: "Glow & Shine Beauty",
         name: "CeraVe Moisturizing Cream — 16oz Jar",
@@ -704,7 +704,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Developed with dermatologists for all skin types", "3 essential ceramides help restore and maintain skin's natural barrier", "MVE technology for 24-hour hydration", "Fragrance-free, non-comedogenic, and hypoallergenic", "Original US import — verified authentic"],
     },
     {
-        id: "p16",
+        id: "la-mer-crme-de-la-mer-60ml",
         seller_id: "s8",
         seller_name: "Glow & Shine Beauty",
         name: "La Mer Crème de la Mer — 60ml",
@@ -727,7 +727,7 @@ export const SEED_PRODUCTS: Product[] = [
     },
     // Home
     {
-        id: "p17",
+        id: "scanfrost-4-burner-gas-cooker-plus-oven",
         seller_id: "s7",
         seller_name: "Mama Nkechi Home Needs",
         name: "Scanfrost 4-Burner Gas Cooker + Oven",
@@ -749,7 +749,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["4 gas burners with auto ignition for easy cooking", "Built-in electric oven for baking and roasting", "Durable stainless steel body for long-lasting use", "Compact design fits any Nigerian kitchen"],
     },
     {
-        id: "p18",
+        id: "lg-55-inch-oled-4k-smart-tv",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "LG 55-inch OLED 4K Smart TV",
@@ -773,7 +773,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Gym & Fitness ──────────────────────────────────────────
     {
-        id: "p24",
+        id: "adjustable-dumbbell-set-20kg-pair",
         seller_id: "s9",
         seller_name: "FitNaija Gym Supplies",
         name: "Adjustable Dumbbell Set — 20kg Pair",
@@ -795,7 +795,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Adjustable from 2.5kg to 20kg per dumbbell", "Chrome-plated bars for comfortable grip", "Cast iron plates with rubber ring to prevent floor damage", "Carrying case included for easy storage"],
     },
     {
-        id: "p25",
+        id: "premium-yoga-mat-10mm-thick-non-slip",
         seller_id: "s9",
         seller_name: "FitNaija Gym Supplies",
         name: "Premium Yoga Mat — 10mm Thick Non-Slip",
@@ -817,7 +817,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["10mm extra thickness for joint protection", "Alignment lines guide proper positioning", "Non-slip textured surface for stability", "Lightweight with carry strap for portability"],
     },
     {
-        id: "p26",
+        id: "resistance-bands-set-5-levels-with-handles",
         seller_id: "s9",
         seller_name: "FitNaija Gym Supplies",
         name: "Resistance Bands Set — 5 Levels with Handles",
@@ -839,7 +839,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["5 resistance levels from beginner to advanced", "Includes handles, ankle straps, and door anchor", "Natural latex for durability and elasticity", "Perfect for home workouts without heavy equipment"],
     },
     {
-        id: "p27",
+        id: "foldable-treadmill-25hp-motor-with-lcd-display",
         seller_id: "s9",
         seller_name: "FitNaija Gym Supplies",
         name: "Foldable Treadmill — 2.5HP Motor with LCD Display",
@@ -861,7 +861,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["2.5HP motor supports walking to jogging speeds", "Foldable design saves space in Nigerian apartments", "12 preset workout programs for variety", "LCD display tracks speed, time, distance and calories"],
     },
     {
-        id: "p28",
+        id: "skipping-rope-weighted-speed-jump-rope",
         seller_id: "s9",
         seller_name: "FitNaija Gym Supplies",
         name: "Skipping Rope — Weighted Speed Jump Rope",
@@ -885,7 +885,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Office Accessories & Furniture ─────────────────────────
     {
-        id: "p29",
+        id: "ergonomic-office-chair-mesh-back-with-lumbar-suppo",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Ergonomic Office Chair — Mesh Back with Lumbar Support",
@@ -907,7 +907,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Breathable mesh back keeps you cool in Lagos heat", "Adjustable lumbar support prevents back pain", "3D armrests adapt to your desk height", "Heavy-duty base supports up to 150kg"],
     },
     {
-        id: "p30",
+        id: "standing-desk-electric-height-adjustable-120cm",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Standing Desk — Electric Height Adjustable 120cm",
@@ -929,7 +929,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Dual motor for smooth, quiet height adjustment", "4 programmable height presets for quick switching", "Cable management tray keeps workspace clean", "Anti-collision technology protects against obstacles"],
     },
     {
-        id: "p31",
+        id: "monitor-arm-dual-screen-gas-spring-mount",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Monitor Arm — Dual Screen Gas Spring Mount",
@@ -951,7 +951,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Gas spring mechanism for smooth one-hand adjustment", "Supports dual monitors 17-32 inches each", "Frees up desk space by lifting monitors off surface", "360° rotation and ±90° tilt for perfect viewing angle"],
     },
     {
-        id: "p32",
+        id: "desk-organizer-set-bamboo-desktop-storage",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Desk Organizer Set — Bamboo Desktop Storage",
@@ -973,7 +973,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Natural bamboo material — eco-friendly and durable", "5 pieces cover all desk organization needs", "Phone stand doubles as tablet holder", "Elegant design fits any office aesthetic"],
     },
     {
-        id: "p33",
+        id: "executive-leather-desk-pad-large-80x40cm",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Executive Leather Desk Pad — Large 80x40cm",
@@ -997,7 +997,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Home Furniture ─────────────────────────────────────────
     {
-        id: "p34",
+        id: "modern-3-seater-sofa-linen-fabric-grey",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Modern 3-Seater Sofa — Linen Fabric Grey",
@@ -1019,7 +1019,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Solid rubberwood frame for long-lasting durability", "High-density foam cushions for comfort", "Removable cushion covers for easy washing", "Assembly Lagos & Abuja — free delivery within city"],
     },
     {
-        id: "p35",
+        id: "queen-bed-frame-platform-with-headboard",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "Queen Bed Frame — Platform with Headboard",
@@ -1041,7 +1041,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["No box spring needed — wood slats provide support", "35cm clearance for under-bed storage", "Upholstered headboard for comfort", "Noise-free design with anti-squeak pads"],
     },
     {
-        id: "p36",
+        id: "3-door-sliding-wardrobe-mirror-front",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "3-Door Sliding Wardrobe — Mirror Front",
@@ -1063,7 +1063,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Full-length mirror on center door", "Space-saving sliding doors — no swing clearance needed", "Professional assembly included in Lagos and Abuja", "Internal layout with hanging rail, shelves, and drawers"],
     },
     {
-        id: "p37",
+        id: "6-seater-dining-table-set-solid-wood",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "6-Seater Dining Table Set — Solid Wood",
@@ -1085,7 +1085,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Solid mango wood — built to last generations", "Seats 6 comfortably for family dinners", "Natural lacquer finish protects against spills", "Rustic farmhouse style suits modern Nigerian homes"],
     },
     {
-        id: "p38",
+        id: "tv-stand-console-modern-160cm-with-storage",
         seller_id: "s10",
         seller_name: "OfficeHub Nigeria",
         name: "TV Stand Console — Modern 160cm with Storage",
@@ -1109,7 +1109,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Groceries & Supermarket ────────────────────────────────
     {
-        id: "p39",
+        id: "royal-stallion-rice-50kg-bag-long-grain-parboiled",
         seller_id: "s11",
         seller_name: "NaijaFoods Market",
         name: "Royal Stallion Rice — 50kg Bag (Long Grain Parboiled)",
@@ -1131,7 +1131,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Nigeria's most popular imported rice brand", "Long grain parboiled — perfect for jollof and fried rice", "50kg bag for household and bulk buying", "Premium Grade A quality with no broken grains"],
     },
     {
-        id: "p40",
+        id: "devon-king",
         seller_id: "s11",
         seller_name: "NaijaFoods Market",
         name: "Devon King's Vegetable Oil — 5 Litres",
@@ -1153,7 +1153,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Cholesterol-free for healthier cooking", "5-litre jerry can for extended use", "Refined and purified for clean taste", "Ideal for frying, baking, and general cooking"],
     },
     {
-        id: "p41",
+        id: "indomie-instant-noodles-super-pack-40-packs",
         seller_id: "s11",
         seller_name: "NaijaFoods Market",
         name: "Indomie Instant Noodles — Super Pack (40 Packs)",
@@ -1175,7 +1175,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Nigeria's #1 instant noodle brand", "Chicken flavour — the classic everybody loves", "40-pack super carton for family/bulk buying", "Ready in 3 minutes for quick meals"],
     },
     {
-        id: "p42",
+        id: "nestle-milo-1kg-tin-active-go",
         seller_id: "s11",
         seller_name: "NaijaFoods Market",
         name: "Nestle Milo — 1kg Tin (Active-Go)",
@@ -1197,7 +1197,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Nigeria's favourite chocolate malt drink", "Fortified with essential vitamins and minerals", "1kg tin for value and freshness", "Great hot or cold — perfect for all ages"],
     },
     {
-        id: "p43",
+        id: "golden-penny-semovita-10kg-bag",
         seller_id: "s11",
         seller_name: "NaijaFoods Market",
         name: "Golden Penny Semovita — 10kg Bag",
@@ -1221,7 +1221,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Baby Products ──────────────────────────────────────────
     {
-        id: "p44",
+        id: "pampers-premium-care-diapers-size-4-mega-box-104pc",
         seller_id: "s12",
         seller_name: "BabyLand Nigeria",
         name: "Pampers Premium Care Diapers — Size 4 (Mega Box 104pcs)",
@@ -1243,7 +1243,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Wetness indicator strip changes color when wet", "Air channels keep skin dry and comfortable", "Lotion layer protects delicate baby skin", "104-piece mega box offers best value"],
     },
     {
-        id: "p45",
+        id: "baby-stroller-lightweight-foldable-with-canopy",
         seller_id: "s12",
         seller_name: "BabyLand Nigeria",
         name: "Baby Stroller — Lightweight Foldable with Canopy",
@@ -1265,7 +1265,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["One-hand fold for busy parents", "UPF 50+ extendable canopy blocks Nigerian sun", "Lightweight at 6.5kg for easy carrying", "All-terrain wheels handle Lagos roads"],
     },
     {
-        id: "p46",
+        id: "baby-car-seat-isofix-group-0plus1-0-18kg",
         seller_id: "s12",
         seller_name: "BabyLand Nigeria",
         name: "Baby Car Seat — ISOFIX Group 0+/1 (0-18kg)",
@@ -1287,7 +1287,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["ISOFIX installation for secure, easy fitting", "Rear-facing for newborns, forward-facing for toddlers", "Side impact protection with energy-absorbing shell", "5-point harness with anti-escape buckle"],
     },
     {
-        id: "p47",
+        id: "baby-cot-convertible-4-in-1-with-mattress",
         seller_id: "s12",
         seller_name: "BabyLand Nigeria",
         name: "Baby Cot — Convertible 4-in-1 with Mattress",
@@ -1309,7 +1309,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["4-in-1 design grows with your child from birth to 6 years", "3 adjustable mattress heights for different stages", "Hypoallergenic mattress included — no extra cost", "Solid pine wood construction with non-toxic finish"],
     },
     {
-        id: "p48",
+        id: "baby-feeding-set-complete-12-piece-bpa-free",
         seller_id: "s12",
         seller_name: "BabyLand Nigeria",
         name: "Baby Feeding Set — Complete 12-Piece BPA Free",
@@ -1333,7 +1333,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Sports & Outdoors ──────────────────────────────────────
     {
-        id: "p49",
+        id: "nike-mercurial-vapor-15-football-boots-fg",
         seller_id: "s13",
         seller_name: "SportyNaija",
         name: "Nike Mercurial Vapor 15 Football Boots — FG",
@@ -1355,7 +1355,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Flyknit upper for sock-like fit and ball control", "Nike Aerotrak zone for explosive acceleration", "Lightweight at 190g for maximum speed", "Firm ground studs ideal for Nigerian pitches"],
     },
     {
-        id: "p50",
+        id: "adidas-telstar-official-match-football-size-5",
         seller_id: "s13",
         seller_name: "SportyNaija",
         name: "Adidas Telstar Official Match Football — Size 5",
@@ -1377,7 +1377,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["FIFA Quality Pro certified for official matches", "Thermally bonded panels for true flight", "Seamless surface for consistent touch", "Butyl bladder retains air pressure longer"],
     },
     {
-        id: "p51",
+        id: "camping-tent-4-person-waterproof-with-rainfly",
         seller_id: "s13",
         seller_name: "SportyNaija",
         name: "Camping Tent — 4-Person Waterproof with Rainfly",
@@ -1399,7 +1399,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Pop-up design sets up in under 2 minutes", "3000mm waterproof coating handles heavy rain", "Double-layer design with mesh inner for ventilation", "Perfect for Obudu, Erin-Ijesha, and Idanre trips"],
     },
     {
-        id: "p52",
+        id: "nigeria-super-eagles-jersey-2026-home-kit",
         seller_id: "s13",
         seller_name: "SportyNaija",
         name: "Nigeria Super Eagles Jersey 2026 — Home Kit",
@@ -1421,7 +1421,7 @@ export const SEED_PRODUCTS: Product[] = [
         highlights: ["Official Nike Super Eagles 2026 home jersey", "Dri-FIT ADV technology wicks sweat instantly", "100% recycled polyester — sustainable choice", "Iconic green & white design loved worldwide"],
     },
     {
-        id: "p53",
+        id: "table-tennis-set-4-rackets-plus-net-plus-6-balls",
         seller_id: "s13",
         seller_name: "SportyNaija",
         name: "Table Tennis Set — 4 Rackets + Net + 6 Balls",
@@ -1445,7 +1445,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── Solar Security Camera ──────────────────────────────────
     {
-        id: "p54",
+        id: "solar-security-camera-ptz-4mp-night-vision-two-way",
         seller_id: "s3",
         seller_name: "SolarGrid Nigeria",
         name: "Solar Security Camera — PTZ 4MP, Night Vision, Two-Way Audio",
@@ -1469,7 +1469,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: Gaming & Entertainment ─────────────────────────
     {
-        id: "p68", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "nintendo-switch-oled-white-joy-con-edition", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Nintendo Switch OLED — White Joy-Con Edition",
         description: "Vibrant 7-inch OLED screen, 64GB storage, enhanced audio, and wide adjustable stand. Play on TV or handheld.",
         price: 320000, original_price: 380000, recommended_price: 310000,
@@ -1478,7 +1478,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 2340, sold_count: 4120, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p69", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "xbox-series-x-1tb-game-pass-ultimate-bundle", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Xbox Series X 1TB — Game Pass Ultimate Bundle",
         description: "Most powerful Xbox ever. 12 teraflops GPU, 4K@120fps, Quick Resume, SSD storage. Includes 3 months Game Pass.",
         price: 580000, original_price: 650000, recommended_price: 570000,
@@ -1487,7 +1487,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 1890, sold_count: 2340, created_at: "2025-09-15T10:00:00Z",
     },
     {
-        id: "p70", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "razer-deathadder-v3-ergonomic-gaming-mouse", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Razer DeathAdder V3 — Ergonomic Gaming Mouse",
         description: "63g ultra-lightweight, 30K DPI optical sensor, 90-hour battery life. The esports champion's choice.",
         price: 75000, original_price: 95000, recommended_price: 72000,
@@ -1496,7 +1496,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 3450, sold_count: 5670, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p71", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "steelseries-arctis-nova-pro-wireless-gaming-headse", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "SteelSeries Arctis Nova Pro — Wireless Gaming Headset",
         description: "Hi-Res audio, active noise cancellation, hot-swappable batteries, dual wireless connectivity.",
         price: 245000, original_price: 290000, recommended_price: 240000,
@@ -1505,7 +1505,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 1230, sold_count: 1890, created_at: "2025-10-15T10:00:00Z",
     },
     {
-        id: "p72", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "logitech-g-pro-x-superlight-2-wireless-mouse", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Logitech G Pro X Superlight 2 — Wireless Mouse",
         description: "60g featherweight, HERO 2 sensor, 95-hour battery, zero-additive PTFE feet for effortless glide.",
         price: 110000, original_price: 135000, recommended_price: 105000,
@@ -1514,7 +1514,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 4560, sold_count: 7890, created_at: "2025-11-10T10:00:00Z",
     },
     {
-        id: "p73", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "corsair-k100-rgb-mechanical-gaming-keyboard", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Corsair K100 RGB — Mechanical Gaming Keyboard",
         description: "OPX optical-mechanical switches, iCUE control wheel, 4,000Hz hyper-polling, PBT double-shot keycaps.",
         price: 185000, original_price: 220000, recommended_price: 180000,
@@ -1525,7 +1525,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: Computers & Laptops ────────────────────────────
     {
-        id: "p74", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "macbook-air-m3-15-inch-16gb-ram-512gb-ssd", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "MacBook Air M3 15-inch — 16GB RAM 512GB SSD",
         description: "Apple M3 chip, Liquid Retina display, 18hr battery, MagSafe charging, fanless design. Space Gray.",
         price: 1250000, original_price: 1450000, recommended_price: 1200000,
@@ -1534,7 +1534,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.9, review_count: 5670, sold_count: 8900, created_at: "2025-09-01T10:00:00Z",
     },
     {
-        id: "p75", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "asus-rog-strix-g16-rtx-4070-gaming-laptop", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "ASUS ROG Strix G16 — RTX 4070 Gaming Laptop",
         description: "Intel i9-13980HX, 32GB DDR5, 1TB SSD, 16-inch 240Hz display, RGB keyboard. Built for serious gamers.",
         price: 1650000, original_price: 1900000, recommended_price: 1600000,
@@ -1543,7 +1543,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 890, sold_count: 1230, created_at: "2025-10-05T10:00:00Z",
     },
     {
-        id: "p76", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "hp-pavilion-15-amd-ryzen-7-16gb-512gb-ssd", seller_id: "s2", seller_name: "FairPrice Official",
         name: "HP Pavilion 15 — AMD Ryzen 7, 16GB, 512GB SSD",
         description: "All-purpose laptop with IPS display, long battery life, and reliable performance for work and entertainment.",
         price: 520000, original_price: 620000, recommended_price: 500000,
@@ -1552,7 +1552,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.4, review_count: 3400, sold_count: 5670, created_at: "2025-11-15T10:00:00Z",
     },
     {
-        id: "p77", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "dell-ultrasharp-27", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Dell UltraSharp 27\" 4K Monitor — USB-C Hub",
         description: "3840x2160 IPS, 100% sRGB, USB-C 90W charging, KVM switch, VESA mount compatible.",
         price: 480000, original_price: 550000, recommended_price: 470000,
@@ -1561,7 +1561,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 2100, sold_count: 3890, created_at: "2025-10-25T10:00:00Z",
     },
     {
-        id: "p78", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "lenovo-thinkpad-x1-carbon-gen-11-business-ultraboo", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "Lenovo ThinkPad X1 Carbon Gen 11 — Business Ultrabook",
         description: "Intel i7-1365U, 16GB, 512GB SSD, 14\" 2.8K OLED, fingerprint, IR camera. MIL-STD tested.",
         price: 1380000, original_price: 1600000, recommended_price: 1350000,
@@ -1572,7 +1572,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: Fashion & Style ────────────────────────────────
     {
-        id: "p79", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "nike-air-force-1", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Nike Air Force 1 '07 — Triple White Classic",
         description: "The iconic AF1 in all-white leather. Perforated toe box, Air-Sole cushioning, rubber cupsole.",
         price: 85000, original_price: 110000, recommended_price: 82000,
@@ -1581,7 +1581,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 12400, sold_count: 24500, created_at: "2025-08-01T10:00:00Z",
     },
     {
-        id: "p80", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "adidas-ultraboost-23-core-black-running-shoes", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "Adidas Ultraboost 23 — Core Black Running Shoes",
         description: "BOOST midsole, Primeknit+ upper, Continental rubber outsole. The ultimate daily trainer.",
         price: 120000, original_price: 145000, recommended_price: 115000,
@@ -1590,7 +1590,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 8900, sold_count: 15600, created_at: "2025-09-10T10:00:00Z",
     },
     {
-        id: "p81", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "ray-ban-wayfarer-classic-black-polarized", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Ray-Ban Wayfarer Classic — Black Polarized",
         description: "Iconic acetate frame, polarized G-15 lenses, UV400 protection. Timeless style.",
         price: 95000, original_price: 125000, recommended_price: 90000,
@@ -1599,7 +1599,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 5600, sold_count: 9800, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p82", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "casio-g-shock-ga-2100", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Casio G-Shock GA-2100 'CasiOak' — Carbon Core Guard",
         description: "Octagonal bezel, carbon core guard, 200m water resistance, world time, LED light.",
         price: 68000, original_price: 85000, recommended_price: 65000,
@@ -1608,7 +1608,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 7800, sold_count: 13200, created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p83", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "herschel-little-america-backpack-black-crosshatch", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "Herschel Little America Backpack — Black Crosshatch",
         description: "Classic mountaineering-inspired design, padded laptop sleeve, magnetic strap closures.",
         price: 42000, original_price: 55000, recommended_price: 40000,
@@ -1617,7 +1617,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 4500, sold_count: 7800, created_at: "2025-10-15T10:00:00Z",
     },
     {
-        id: "p84", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "zara-man-premium-slim-fit-blazer-navy-blue", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Zara Man Premium Slim Fit Blazer — Navy Blue",
         description: "Structured shoulder, two-button closure, notch lapel. Premium viscose blend for Nigerian weather.",
         price: 55000, original_price: 72000, recommended_price: 52000,
@@ -1628,7 +1628,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: Beauty & Skincare ──────────────────────────────
     {
-        id: "p85", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "the-ordinary-niacinamide-10-plus-zinc-1-30ml", seller_id: "s2", seller_name: "FairPrice Official",
         name: "The Ordinary Niacinamide 10% + Zinc 1% — 30ml",
         description: "Targets oil imbalance, enlarged pores, and blemishes. Lightweight water-based serum.",
         price: 12000, original_price: 18000, recommended_price: 11000,
@@ -1637,7 +1637,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 15600, sold_count: 34000, created_at: "2025-08-15T10:00:00Z",
     },
     {
-        id: "p86", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "dyson-supersonic-hair-dryer-fuchsianickel", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "Dyson Supersonic Hair Dryer — Fuchsia/Nickel",
         description: "Intelligent heat control, 4 styling attachments, powerful digital motor V9. Protects natural shine.",
         price: 320000, original_price: 380000, recommended_price: 310000,
@@ -1646,7 +1646,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.9, review_count: 6700, sold_count: 9800, created_at: "2025-09-25T10:00:00Z",
     },
     {
-        id: "p87", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "cerave-moisturizing-cream-340g-dry-to-very-dry-ski", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "CeraVe Moisturizing Cream — 340g (Dry to Very Dry Skin)",
         description: "3 essential ceramides, MVE technology for 24hr hydration, fragrance-free, developed with dermatologists.",
         price: 15000, original_price: 22000, recommended_price: 14000,
@@ -1655,7 +1655,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 12300, sold_count: 28000, created_at: "2025-10-10T10:00:00Z",
     },
     {
-        id: "p88", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "la-roche-posay-anthelios-uv-mune-spf50plus-50ml", seller_id: "s2", seller_name: "FairPrice Official",
         name: "La Roche-Posay Anthelios UV Mune SPF50+ — 50ml",
         description: "Mexoryl 400 UVA protection, ultra-light fluid, invisible finish, for all skin types.",
         price: 18000, original_price: 25000, recommended_price: 17000,
@@ -1664,7 +1664,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 8900, sold_count: 16500, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p89", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "maybelline-fit-me-foundation-shade-330-toffee", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "Maybelline Fit Me Foundation — Shade 330 Toffee",
         description: "Smooth, natural coverage, SPF 18, oil-free formula, available in 40 shades for melanin-rich skin.",
         price: 8500, original_price: 12000, recommended_price: 8000,
@@ -1675,7 +1675,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: Home & Living ──────────────────────────────────
     {
-        id: "p143", seller_id: "global-partners", seller_name: "Global Stores",
+        id: "rolls-royce-umbrella-genuine-teflon-waterproof", seller_id: "global-partners", seller_name: "Global Stores",
         name: "Rolls Royce Umbrella — Genuine Teflon Waterproof",
         description: "Official Teflon coated Rolls Royce style umbrella. Windproof luxury edition with authentic detailing.",
         price: 155000, original_price: 250000, recommended_price: 150000,
@@ -1684,7 +1684,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 56, sold_count: 120, created_at: "2025-08-20T10:00:00Z",
     },
     {
-        id: "p90", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "philips-smart-wi-fi-led-bulb-16-million-colors", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Philips Smart Wi-Fi LED Bulb — 16 Million Colors",
         description: "Dimmable, app-controlled, voice compatible with Alexa & Google. Set schedules, scenes, and timers.",
         price: 8500, original_price: 12000, recommended_price: 8000,
@@ -1693,7 +1693,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 5600, sold_count: 12300, created_at: "2025-08-20T10:00:00Z",
     },
     {
-        id: "p91", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "ninja-foodi-9-in-1-air-fryer-and-grill-6l-capacity", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Ninja Foodi 9-in-1 Air Fryer & Grill — 6L Capacity",
         description: "Air fry, roast, bake, dehydrate, grill and more. Ceramic-coated non-stick basket, dishwasher safe.",
         price: 145000, original_price: 180000, recommended_price: 140000,
@@ -1702,7 +1702,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 4500, sold_count: 7800, created_at: "2025-09-15T10:00:00Z",
     },
     {
-        id: "p92", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "irobot-roomba-j7plus-self-emptying-robot-vacuum", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "iRobot Roomba j7+ — Self-Emptying Robot Vacuum",
         description: "PrecisionVision navigation avoids pet waste & cords, auto-empty base, smart mapping, Alexa compatible.",
         price: 520000, original_price: 620000, recommended_price: 500000,
@@ -1711,7 +1711,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 3200, sold_count: 4500, created_at: "2025-10-05T10:00:00Z",
     },
     {
-        id: "p93", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "kenwood-multipro-express-weighplus-food-processor", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Kenwood MultiPro Express Weigh+ Food Processor",
         description: "3L bowl, integrated scale, variable speed, 8 attachments, 1000W motor for Nigerian cooking.",
         price: 175000, original_price: 210000, recommended_price: 170000,
@@ -1720,7 +1720,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 2800, sold_count: 5200, created_at: "2025-11-10T10:00:00Z",
     },
     {
-        id: "p94", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "samsung-75", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Samsung 75\" Crystal UHD 4K Smart TV — 2024 Model",
         description: "Crystal Processor 4K, HDR10+, Gaming Hub, SmartThings, AirSlim design. Tizen OS.",
         price: 980000, original_price: 1200000, recommended_price: 950000,
@@ -1731,7 +1731,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: Phones & Tablets ───────────────────────────────
     {
-        id: "p95", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "google-pixel-8-pro-256gb-obsidian", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Google Pixel 8 Pro — 256GB Obsidian",
         description: "Tensor G3 chip, 50MP triple camera with AI photography, 7 years of updates, IP68.",
         price: 680000, original_price: 780000, recommended_price: 660000,
@@ -1740,7 +1740,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 4500, sold_count: 7800, created_at: "2025-09-01T10:00:00Z",
     },
     {
-        id: "p96", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "ipad-air-m2-11-inch-256gb-wi-fi-space-gray", seller_id: "s2", seller_name: "FairPrice Official",
         name: "iPad Air M2 11-inch — 256GB Wi-Fi Space Gray",
         description: "Apple M2 chip, Liquid Retina display, Apple Pencil Pro support, USB-C, Touch ID.",
         price: 680000, original_price: 780000, recommended_price: 660000,
@@ -1749,7 +1749,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 3200, sold_count: 5600, created_at: "2025-10-10T10:00:00Z",
     },
     {
-        id: "p97", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "oneplus-12-16gb-ram-512gb-flowy-emerald", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "OnePlus 12 — 16GB RAM 512GB Flowy Emerald",
         description: "Snapdragon 8 Gen 3, Hasselblad camera, 100W SUPERVOOC, 2K LTPO AMOLED display.",
         price: 720000, original_price: 850000, recommended_price: 700000,
@@ -1758,7 +1758,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 2800, sold_count: 4200, created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p98", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "samsung-galaxy-tab-s9-fe-128gb-wi-fi-silver", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Samsung Galaxy Tab S9 FE — 128GB Wi-Fi Silver",
         description: "Exynos chip, 10.9\" TFT display, IP68 rated, S Pen included, DeX mode for productivity.",
         price: 350000, original_price: 420000, recommended_price: 340000,
@@ -1769,7 +1769,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // ─── NEW: More Electronics ───────────────────────────────
     {
-        id: "p99", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "sony-wh-1000xm5-wireless-noise-cancelling-headphon", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Sony WH-1000XM5 — Wireless Noise Cancelling Headphones",
         description: "Industry-leading ANC, 30hr battery, multipoint connection, speak-to-chat, fold flat design.",
         price: 280000, original_price: 340000, recommended_price: 270000,
@@ -1778,7 +1778,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 8900, sold_count: 15600, created_at: "2025-09-10T10:00:00Z",
     },
     {
-        id: "p100", seller_id: "s3", seller_name: "GadgetZone Abuja",
+        id: "dji-mini-4-pro-4k-60fps-drone-with-rc2-controller", seller_id: "s3", seller_name: "GadgetZone Abuja",
         name: "DJI Mini 4 Pro — 4K 60fps Drone with RC2 Controller",
         description: "Under 249g, omnidirectional sensing, 34-min flight time, ActiveTrack 360°, 4K HDR video.",
         price: 650000, original_price: 780000, recommended_price: 630000,
@@ -1787,7 +1787,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 2300, sold_count: 3400, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p101", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "jbl-charge-5-portable-bluetooth-speaker", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "JBL Charge 5 — Portable Bluetooth Speaker",
         description: "IP67 waterproof, 20hr battery, built-in powerbank, PartyBoost, JBL Pro Sound driver.",
         price: 95000, original_price: 120000, recommended_price: 90000,
@@ -1796,7 +1796,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 6700, sold_count: 11200, created_at: "2025-11-15T10:00:00Z",
     },
     {
-        id: "p102", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "apple-watch-ultra-2-49mm-titanium-with-alpine-loop", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Apple Watch Ultra 2 — 49mm Titanium with Alpine Loop",
         description: "S9 SiP, precision dual GPS, 36hr battery, 100m water resistance, Action Button, Siren.",
         price: 680000, original_price: 800000, recommended_price: 660000,
@@ -1808,7 +1808,7 @@ export const SEED_PRODUCTS: Product[] = [
     // ─── Wave 3: Additional products for fuller sections ─────────────
     // Phones (+4)
     {
-        id: "p103", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "samsung-galaxy-z-fold-5-512gb-phantom-black", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Samsung Galaxy Z Fold 5 — 512GB Phantom Black",
         description: "7.6-inch Dynamic AMOLED 2X foldable display, Snapdragon 8 Gen 2, 50MP triple camera, S Pen support.",
         price: 1200000, original_price: 1450000, recommended_price: 1180000,
@@ -1817,7 +1817,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 890, sold_count: 1200, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p104", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "google-pixel-8-pro-256gb-obsidian-2", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Google Pixel 8 Pro — 256GB Obsidian",
         description: "Tensor G3, 6.7-inch LTPO OLED, 50MP main camera with Magic Eraser, 7 years of updates.",
         price: 520000, original_price: 650000, recommended_price: 500000,
@@ -1826,7 +1826,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 1230, sold_count: 2400, created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p105", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "oneplus-12-16gb512gb-flowy-emerald", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "OnePlus 12 — 16GB/512GB Flowy Emerald",
         description: "Snapdragon 8 Gen 3, 6.82-inch 2K LTPO, Hasselblad camera, 100W SUPERVOOC charging.",
         price: 450000, original_price: 520000, recommended_price: 430000,
@@ -1835,7 +1835,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 670, sold_count: 980, created_at: "2025-12-01T10:00:00Z",
     },
     {
-        id: "p106", seller_id: "s3", seller_name: "SolarTech Solutions",
+        id: "xiaomi-14-ultra-leica-summilux-camera", seller_id: "s3", seller_name: "SolarTech Solutions",
         name: "Xiaomi 14 Ultra — Leica Summilux Camera",
         description: "Snapdragon 8 Gen 3, quad Leica camera system, 120W HyperCharge, 6.73-inch LTPO AMOLED.",
         price: 680000, original_price: 780000, recommended_price: 660000,
@@ -1846,7 +1846,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Gaming (+5)
     {
-        id: "p107", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "xbox-series-x-1tb-black", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Xbox Series X — 1TB Black",
         description: "12 teraflops GPU, 4K gaming at 120fps, 1TB NVMe SSD, backward compatible.",
         price: 580000, original_price: 680000, recommended_price: 560000,
@@ -1855,7 +1855,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 1100, sold_count: 1800, created_at: "2025-09-10T10:00:00Z",
     },
     {
-        id: "p108", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "nintendo-switch-oled-white-joy-con-edition-2", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Nintendo Switch OLED — White Joy-Con Edition",
         description: "7-inch OLED screen, enhanced audio, wide adjustable stand, 64GB internal storage.",
         price: 320000, original_price: 380000, recommended_price: 300000,
@@ -1864,7 +1864,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 2300, sold_count: 4500, created_at: "2025-08-20T10:00:00Z",
     },
     {
-        id: "p109", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "razer-kraken-v3-hypersense-rgb-gaming-headset", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Razer Kraken V3 HyperSense — RGB Gaming Headset",
         description: "THX Spatial Audio, HyperSense haptic technology, TriForce Titanium drivers.",
         price: 85000, original_price: 110000, recommended_price: 80000,
@@ -1873,7 +1873,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 890, sold_count: 1600, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p110", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "logitech-g-pro-x-superlight-2-wireless-gaming-mous", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Logitech G Pro X Superlight 2 — Wireless Gaming Mouse",
         description: "HERO 2 sensor, 95-hour battery, 60g ultralight, 5 programmable buttons.",
         price: 95000, original_price: 120000, recommended_price: 90000,
@@ -1882,7 +1882,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 1560, sold_count: 2800, created_at: "2025-10-05T10:00:00Z",
     },
     {
-        id: "p111", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "samsung-odyssey-g9-49", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Samsung Odyssey G9 — 49\" DQHD Curved Gaming Monitor",
         description: "5120x1440, 240Hz, 1ms, Quantum Mini-LED, DisplayHDR 2000, 1000R curve.",
         price: 1250000, original_price: 1500000, recommended_price: 1200000,
@@ -1893,7 +1893,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Computers (+4)
     {
-        id: "p112", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "dell-xps-15-9530-i932gb1tb-rtx-4070", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Dell XPS 15 9530 — i9/32GB/1TB RTX 4070",
         description: "15.6-inch 3.5K OLED InfinityEdge, Intel Core i9-13900H, Studio-grade color accuracy.",
         price: 1650000, original_price: 1900000, recommended_price: 1600000,
@@ -1902,7 +1902,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 780, sold_count: 560, created_at: "2025-10-20T10:00:00Z",
     },
     {
-        id: "p113", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "hp-spectre-x360-14-2-in-1-oled-touchscreen", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "HP Spectre x360 14 — 2-in-1 OLED Touchscreen",
         description: "Intel Evo, 14-inch 2.8K OLED, Intel Arc graphics, 32GB RAM, 1TB SSD.",
         price: 1100000, original_price: 1350000, recommended_price: 1050000,
@@ -1911,7 +1911,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 450, sold_count: 670, created_at: "2025-11-10T10:00:00Z",
     },
     {
-        id: "p114", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "asus-rog-zephyrus-g14-ryzen-9rtx-4090", seller_id: "s2", seller_name: "FairPrice Official",
         name: "ASUS ROG Zephyrus G14 — Ryzen 9/RTX 4090",
         description: "14-inch QHD+ 165Hz, AMD Ryzen 9 7940HS, 32GB, 1TB, AniMe Matrix LED lid.",
         price: 1800000, original_price: 2100000, recommended_price: 1750000,
@@ -1920,7 +1920,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 670, sold_count: 430, created_at: "2025-09-25T10:00:00Z",
     },
     {
-        id: "p115", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "lenovo-thinkpad-x1-carbon-gen-11-i716gb512gb", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Lenovo ThinkPad X1 Carbon Gen 11 — i7/16GB/512GB",
         description: "14-inch 2.8K OLED, 1.12kg ultralight, Intel vPro, Dolby Atmos, fingerprint reader.",
         price: 950000, original_price: 1150000, recommended_price: 920000,
@@ -1931,7 +1931,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Electronics (+4)
     {
-        id: "p116", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "sony-wh-1000xm5-wireless-noise-cancelling-headphon-2", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Sony WH-1000XM5 — Wireless Noise Cancelling Headphones",
         description: "Industry-leading ANC, 30-hour battery, multipoint Bluetooth, Hi-Res Audio.",
         price: 280000, original_price: 350000, recommended_price: 260000,
@@ -1940,7 +1940,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 3400, sold_count: 5600, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p117", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "jbl-charge-5-portable-bluetooth-speaker-2", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "JBL Charge 5 — Portable Bluetooth Speaker",
         description: "IP67 waterproof/dustproof, 20-hour battery, PartyBoost, powerbank function.",
         price: 95000, original_price: 120000, recommended_price: 88000,
@@ -1949,7 +1949,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 2100, sold_count: 3800, created_at: "2025-11-15T10:00:00Z",
     },
     {
-        id: "p118", seller_id: "s3", seller_name: "SolarTech Solutions",
+        id: "dji-mini-4-pro-drone-with-4k-camera", seller_id: "s3", seller_name: "SolarTech Solutions",
         name: "DJI Mini 4 Pro — Drone with 4K Camera",
         description: "Under 249g, 4K/60fps HDR, 34-min flight, omnidirectional obstacle sensing.",
         price: 680000, original_price: 800000, recommended_price: 650000,
@@ -1958,7 +1958,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 560, sold_count: 340, created_at: "2025-09-20T10:00:00Z",
     },
     {
-        id: "p119", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "bose-soundlink-max-portable-bluetooth-speaker", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Bose SoundLink Max — Portable Bluetooth Speaker",
         description: "Stereo sound, deep bass, IP67 rated, 20-hour playtime, built-in mic.",
         price: 185000, original_price: 220000, recommended_price: 175000,
@@ -1969,7 +1969,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Cars & Automotive (+4)
     {
-        id: "p120", seller_id: "s4", seller_name: "AutoParts Nigeria",
+        id: "toyota-rav4-2023-le-awd-certified-pre-owned", seller_id: "s4", seller_name: "AutoParts Nigeria",
         name: "Toyota RAV4 2023 — LE AWD Certified Pre-Owned",
         description: "2.5L Dynamic Force, Toyota Safety Sense, 8-inch touchscreen, all-wheel drive.",
         price: 28000000, original_price: 32000000, recommended_price: 27000000,
@@ -1978,7 +1978,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 34, sold_count: 8, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p121", seller_id: "s4", seller_name: "AutoParts Nigeria",
+        id: "honda-cr-v-2024-sport-hybrid", seller_id: "s4", seller_name: "AutoParts Nigeria",
         name: "Honda CR-V 2024 — Sport Hybrid",
         description: "2.0L hybrid, 204hp combined, Honda Sensing suite, wireless Apple CarPlay.",
         price: 32000000, original_price: 36000000, recommended_price: 31000000,
@@ -1987,7 +1987,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 18, sold_count: 5, created_at: "2025-10-15T10:00:00Z",
     },
     {
-        id: "p122", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "vantrue-n4-pro-3-channel-dash-cam-4kplus1080pplus1", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Vantrue N4 Pro — 3-Channel Dash Cam 4K+1080P+1080P",
         description: "Front/interior/rear, Sony STARVIS 2 sensor, 24hr parking mode, GPS, WiFi.",
         price: 120000, original_price: 150000, recommended_price: 110000,
@@ -1996,7 +1996,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 780, sold_count: 1200, created_at: "2025-12-01T10:00:00Z",
     },
     {
-        id: "p123", seller_id: "s4", seller_name: "AutoParts Nigeria",
+        id: "michelin-pilot-sport-5-22545-r18-set-of-4", seller_id: "s4", seller_name: "AutoParts Nigeria",
         name: "Michelin Pilot Sport 5 — 225/45 R18 Set of 4",
         description: "Max performance summer tire, asymmetric tread pattern, excellent wet grip.",
         price: 420000, original_price: 500000, recommended_price: 400000,
@@ -2007,7 +2007,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Fashion (+5)
     {
-        id: "p124", seller_id: "s5", seller_name: "Fashion Forward NG",
+        id: "adidas-ultraboost-light-running-shoes", seller_id: "s5", seller_name: "Fashion Forward NG",
         name: "Adidas Ultraboost Light — Running Shoes",
         description: "LIGHT BOOST midsole, Continental rubber outsole, Primeknit+ upper, 30% lighter.",
         price: 145000, original_price: 180000, recommended_price: 135000,
@@ -2016,7 +2016,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 1890, sold_count: 3400, created_at: "2025-10-20T10:00:00Z",
     },
     {
-        id: "p125", seller_id: "s5", seller_name: "Fashion Forward NG",
+        id: "ray-ban-wayfarer-classic-polarized-sunglasses", seller_id: "s5", seller_name: "Fashion Forward NG",
         name: "Ray-Ban Wayfarer Classic — Polarized Sunglasses",
         description: "Iconic design, polarized G-15 lenses, acetate frame, UV400 protection.",
         price: 85000, original_price: 110000, recommended_price: 80000,
@@ -2025,7 +2025,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 2300, sold_count: 4100, created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p126", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "louis-vuitton-neverfull-mm-monogram-canvas", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Louis Vuitton Neverfull MM — Monogram Canvas",
         description: "Classic tote bag, removable zippered clutch, microfiber lining, brass hardware.",
         price: 2800000, original_price: 3200000, recommended_price: 2700000,
@@ -2034,7 +2034,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.9, review_count: 45, sold_count: 12, created_at: "2025-09-10T10:00:00Z",
     },
     {
-        id: "p127", seller_id: "s5", seller_name: "Fashion Forward NG",
+        id: "zara-men", seller_id: "s5", seller_name: "Fashion Forward NG",
         name: "Zara Men's Wool Blend Overcoat — Navy",
         description: "Premium Italian wool blend, notch lapel, two-button front, fully lined.",
         price: 95000, original_price: 130000, recommended_price: 88000,
@@ -2043,7 +2043,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.4, review_count: 560, sold_count: 890, created_at: "2025-12-01T10:00:00Z",
     },
     {
-        id: "p128", seller_id: "s5", seller_name: "Fashion Forward NG",
+        id: "new-balance-990v6-made-in-usa-grey", seller_id: "s5", seller_name: "Fashion Forward NG",
         name: "New Balance 990v6 — Made in USA Grey",
         description: "Premium suede/mesh upper, ENCAP midsole, pigskin lining, classic silhouette.",
         price: 195000, original_price: 240000, recommended_price: 185000,
@@ -2054,7 +2054,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Beauty (+4)
     {
-        id: "p129", seller_id: "s6", seller_name: "GlowUp Beauty",
+        id: "the-ordinary-aha-30-plus-bha-2-peeling-solution", seller_id: "s6", seller_name: "GlowUp Beauty",
         name: "The Ordinary AHA 30% + BHA 2% — Peeling Solution",
         description: "10-minute exfoliating facial, glycolic/salicylic acid blend, Tasmanian pepperberry.",
         price: 12000, original_price: 18000, recommended_price: 10000,
@@ -2063,7 +2063,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 5600, sold_count: 12000, created_at: "2025-10-01T10:00:00Z",
     },
     {
-        id: "p130", seller_id: "s6", seller_name: "GlowUp Beauty",
+        id: "dyson-airwrap-multi-styler-complete-long", seller_id: "s6", seller_name: "GlowUp Beauty",
         name: "Dyson Airwrap Multi-Styler — Complete Long",
         description: "Coanda airflow styling, 6 attachments, intelligent heat control, no extreme heat damage.",
         price: 450000, original_price: 550000, recommended_price: 430000,
@@ -2072,7 +2072,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 2300, sold_count: 3400, created_at: "2025-11-10T10:00:00Z",
     },
     {
-        id: "p131", seller_id: "s6", seller_name: "GlowUp Beauty",
+        id: "fenty-beauty-gloss-bomb-universal-lip-luminizer", seller_id: "s6", seller_name: "GlowUp Beauty",
         name: "Fenty Beauty Gloss Bomb — Universal Lip Luminizer",
         description: "Shea butter enriched, non-sticky formula, universally flattering shade.",
         price: 18000, original_price: 25000, recommended_price: 16000,
@@ -2081,7 +2081,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 3400, sold_count: 7800, created_at: "2025-09-15T10:00:00Z",
     },
     {
-        id: "p132", seller_id: "s6", seller_name: "GlowUp Beauty",
+        id: "drunk-elephant-protini-polypeptide-cream-50ml", seller_id: "s6", seller_name: "GlowUp Beauty",
         name: "Drunk Elephant Protini Polypeptide Cream — 50ml",
         description: "Signal peptides, amino acids, pygmy waterlily, non-comedogenic, fragrance-free.",
         price: 45000, original_price: 58000, recommended_price: 42000,
@@ -2092,7 +2092,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Home & Living (+4)
     {
-        id: "p133", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "philips-hue-starter-kit-4-smart-bulbs-plus-bridge", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Philips Hue Starter Kit — 4 Smart Bulbs + Bridge",
         description: "16 million colors, voice control, Zigbee, works with Alexa/Google/HomeKit.",
         price: 85000, original_price: 110000, recommended_price: 80000,
@@ -2101,7 +2101,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 1200, sold_count: 2100, created_at: "2025-11-01T10:00:00Z",
     },
     {
-        id: "p134", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "dyson-v15-detect-cordless-vacuum-cleaner", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Dyson V15 Detect — Cordless Vacuum Cleaner",
         description: "Laser dust detection, piezo sensor, LCD screen, 60-min runtime, HEPA filtration.",
         price: 520000, original_price: 650000, recommended_price: 500000,
@@ -2110,7 +2110,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 890, sold_count: 1200, created_at: "2025-10-10T10:00:00Z",
     },
     {
-        id: "p135", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "instant-pot-duo-plus-6-quart-9-in-1-pressure-cooke", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Instant Pot Duo Plus 6-Quart — 9-in-1 Pressure Cooker",
         description: "Pressure cook, slow cook, rice cooker, steamer, sauté, yogurt maker, sterilizer.",
         price: 65000, original_price: 85000, recommended_price: 60000,
@@ -2119,7 +2119,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 4500, sold_count: 8900, created_at: "2025-09-20T10:00:00Z",
     },
     {
-        id: "p136", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "samsung-family-hub-refrigerator-28-cu-ft", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Samsung Family Hub Refrigerator — 28 Cu. Ft.",
         description: "21.5-inch touchscreen, SmartThings, internal cameras, Bixby voice control.",
         price: 1800000, original_price: 2200000, recommended_price: 1750000,
@@ -2130,7 +2130,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Fitness & Sports (+3)
     {
-        id: "p137", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "garmin-forerunner-965-premium-gps-running-smartwat", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Garmin Forerunner 965 — Premium GPS Running Smartwatch",
         description: "AMOLED display, advanced training metrics, 23-day battery, multi-band GPS.",
         price: 380000, original_price: 450000, recommended_price: 360000,
@@ -2139,7 +2139,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.8, review_count: 890, sold_count: 1200, created_at: "2025-10-05T10:00:00Z",
     },
     {
-        id: "p138", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "bowflex-selecttech-552-adjustable-dumbbells-pair", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Bowflex SelectTech 552 — Adjustable Dumbbells (Pair)",
         description: "5-52.5 lbs per dumbbell, dial system, replaces 15 sets of weights.",
         price: 280000, original_price: 350000, recommended_price: 260000,
@@ -2148,7 +2148,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.7, review_count: 1560, sold_count: 2300, created_at: "2025-11-15T10:00:00Z",
     },
     {
-        id: "p139", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "peloton-bikeplus-indoor-exercise-bike-with-24", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Peloton Bike+ — Indoor Exercise Bike with 24\" Screen",
         description: "360° swivel screen, auto-follow resistance, Apple GymKit, Dolby Atmos sound.",
         price: 1200000, original_price: 1500000, recommended_price: 1150000,
@@ -2159,7 +2159,7 @@ export const SEED_PRODUCTS: Product[] = [
 
     // Smartwatch (+3 — contributes to Phones filter)
     {
-        id: "p140", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "samsung-galaxy-watch-6-classic-47mm-silver", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Samsung Galaxy Watch 6 Classic — 47mm Silver",
         description: "Physical rotating bezel, sapphire crystal, BioActive sensor, WearOS.",
         price: 280000, original_price: 340000, recommended_price: 265000,
@@ -2168,7 +2168,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.5, review_count: 1200, sold_count: 2100, created_at: "2025-10-15T10:00:00Z",
     },
     {
-        id: "p141", seller_id: "s2", seller_name: "FairPrice Official",
+        id: "garmin-venu-3s-amoled-gps-smartwatch", seller_id: "s2", seller_name: "FairPrice Official",
         name: "Garmin Venu 3S — AMOLED GPS Smartwatch",
         description: "Health monitoring, Body Battery, nap & sleep tracking, wheelchair mode.",
         price: 320000, original_price: 380000, recommended_price: 300000,
@@ -2177,7 +2177,7 @@ export const SEED_PRODUCTS: Product[] = [
         avg_rating: 4.6, review_count: 670, sold_count: 980, created_at: "2025-11-05T10:00:00Z",
     },
     {
-        id: "p142", seller_id: "s1", seller_name: "TechHub Lagos",
+        id: "apple-watch-se-2nd-gen-44mm-midnight-aluminum", seller_id: "s1", seller_name: "TechHub Lagos",
         name: "Apple Watch SE 2nd Gen — 44mm Midnight Aluminum",
         description: "S8 SiP, crash detection, heart rate notifications, carbon neutral case.",
         price: 220000, original_price: 280000, recommended_price: 210000,
@@ -2275,31 +2275,31 @@ const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 const in3days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString();
 
 export const SEED_DEALS: Deal[] = [
-    { id: "d1", product_id: "p1", product: SEED_PRODUCTS[0], discount_pct: 15, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
-    { id: "d2", product_id: "p5", product: SEED_PRODUCTS[8], discount_pct: 20, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p5 index changes
-    { id: "d3", product_id: "p8", product: SEED_PRODUCTS[4], discount_pct: 13, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true }, // p8 index changes
-    { id: "d4", product_id: "p10", product: SEED_PRODUCTS[6], discount_pct: 16, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p10 index changes
-    { id: "d5", product_id: "p12", product: SEED_PRODUCTS[11], discount_pct: 31, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
+    { id: "d1", product_id: "samsung-galaxy-s24-ultra-256gb-titanium-black", product: SEED_PRODUCTS[0], discount_pct: 15, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
+    { id: "d2", product_id: "luminous-solar-hybrid-inverter-5kva-plus-4-batteri", product: SEED_PRODUCTS[8], discount_pct: 20, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p5 index changes
+    { id: "d3", product_id: "sony-playstation-5-disc-edition-bundle", product: SEED_PRODUCTS[4], discount_pct: 13, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true }, // p8 index changes
+    { id: "d4", product_id: "airpods-pro-2nd-gen-usb-c", product: SEED_PRODUCTS[6], discount_pct: 16, start_at: "2026-02-10T00:00:00Z", end_at: in3days, is_active: true }, // p10 index changes
+    { id: "d5", product_id: "car-dash-camera-4k-dual-lens-night-vision", product: SEED_PRODUCTS[11], discount_pct: 31, start_at: "2026-02-10T00:00:00Z", end_at: tomorrow, is_active: true },
 ];
 
 // ─── Reviews ────────────────────────────────────────────────
 
 export const DEMO_REVIEWS: Review[] = [
-    { id: "r1", user_id: "u10", user_name: "Chidi O.", product_id: "p1", rating: 5, title: "Standard item and fast delivery", body: "I was looking for this S24 everywhere. This store is legit. Arrived Lagos in 24 hours. FairPrice escrow gave me peace of mind, no stories.", verified_purchase: true, created_at: "2026-01-15T10:00:00Z" },
-    { id: "r2", user_id: "u11", user_name: "Amaka N.", product_id: "p1", rating: 5, title: "Cheaper than other stores", body: "Compared the price on other marketplaces and FairPrice was the best. Very smooth transaction and the seller was very responsive.", verified_purchase: true, created_at: "2026-01-20T10:00:00Z" },
-    { id: "r3", user_id: "u12", user_name: "Emeka I.", product_id: "p2", rating: 5, title: "100% Original iPhone", body: "Don't bother going elsewhere. This platform is the real deal. The iPhone came sealed and verified. Delivery was sharp.", verified_purchase: true, created_at: "2026-01-10T10:00:00Z" },
-    { id: "r4", user_id: "u13", user_name: "Funke A.", product_id: "p4", rating: 5, title: "Smooth car purchase", body: "Buying a Tesla in Nigeria can be scary, but FairPrice made it easy. The tracking was accurate and the customer service was top-notch. Legit store.", verified_purchase: true, created_at: "2026-01-05T10:00:00Z" },
-    { id: "r5", user_id: "u14", user_name: "Tunde B.", product_id: "p9", rating: 5, title: "Verified deal", body: "I almost bought this elsewhere for a higher price. Glad I checked FairPrice first. The 'Fair Price' badge is not for show, it's real.", verified_purchase: true, created_at: "2026-02-01T10:00:00Z" },
-    { id: "r6", user_id: "u15", user_name: "Ngozi E.", product_id: "p16", rating: 5, title: "Legit skin care", body: "Finally found a place for original La Mer. No fakes here. Arrived Abuja in 2 days. Great service from the FairPrice team.", verified_purchase: true, created_at: "2026-02-05T09:30:00Z" },
-    { id: "r10", user_id: "u19", user_name: "Mustapha I.", product_id: "p54", rating: 5, title: "No NEPA Wahala", body: "Setup was fast. No issues since it arrived. FairPrice delivery is very reliable, even to the North.", verified_purchase: true, created_at: "2026-02-03T16:20:00Z" },
-    { id: "r11", user_id: "u20", user_name: "Efe M.", product_id: "p39", rating: 5, title: "Clean rice, no stones", body: "Excellent quality. Cheaper than the open market and they delivered it right to my kitchen. FairPrice is a lifesaver.", verified_purchase: true, created_at: "2025-12-25T14:00:00Z" },
+    { id: "r1", user_id: "u10", user_name: "Chidi O.", product_id: "samsung-galaxy-s24-ultra-256gb-titanium-black", rating: 5, title: "Standard item and fast delivery", body: "I was looking for this S24 everywhere. This store is legit. Arrived Lagos in 24 hours. FairPrice escrow gave me peace of mind, no stories.", verified_purchase: true, created_at: "2026-01-15T10:00:00Z" },
+    { id: "r2", user_id: "u11", user_name: "Amaka N.", product_id: "samsung-galaxy-s24-ultra-256gb-titanium-black", rating: 5, title: "Cheaper than other stores", body: "Compared the price on other marketplaces and FairPrice was the best. Very smooth transaction and the seller was very responsive.", verified_purchase: true, created_at: "2026-01-20T10:00:00Z" },
+    { id: "r3", user_id: "u12", user_name: "Emeka I.", product_id: "iphone-15-pro-max-256gb-natural-titanium", rating: 5, title: "100% Original iPhone", body: "Don't bother going elsewhere. This platform is the real deal. The iPhone came sealed and verified. Delivery was sharp.", verified_purchase: true, created_at: "2026-01-10T10:00:00Z" },
+    { id: "r4", user_id: "u13", user_name: "Funke A.", product_id: "tesla-model-3-dual-motor-2024-long-range", rating: 5, title: "Smooth car purchase", body: "Buying a Tesla in Nigeria can be scary, but FairPrice made it easy. The tracking was accurate and the customer service was top-notch. Legit store.", verified_purchase: true, created_at: "2026-01-05T10:00:00Z" },
+    { id: "r5", user_id: "u14", user_name: "Tunde B.", product_id: "samsung-galaxy-s24-ultra-256gb-suspicious-deal", rating: 5, title: "Verified deal", body: "I almost bought this elsewhere for a higher price. Glad I checked FairPrice first. The 'Fair Price' badge is not for show, it's real.", verified_purchase: true, created_at: "2026-02-01T10:00:00Z" },
+    { id: "r6", user_id: "u15", user_name: "Ngozi E.", product_id: "la-mer-crme-de-la-mer-60ml", rating: 5, title: "Legit skin care", body: "Finally found a place for original La Mer. No fakes here. Arrived Abuja in 2 days. Great service from the FairPrice team.", verified_purchase: true, created_at: "2026-02-05T09:30:00Z" },
+    { id: "r10", user_id: "u19", user_name: "Mustapha I.", product_id: "solar-security-camera-ptz-4mp-night-vision-two-way", rating: 5, title: "No NEPA Wahala", body: "Setup was fast. No issues since it arrived. FairPrice delivery is very reliable, even to the North.", verified_purchase: true, created_at: "2026-02-03T16:20:00Z" },
+    { id: "r11", user_id: "u20", user_name: "Efe M.", product_id: "royal-stallion-rice-50kg-bag-long-grain-parboiled", rating: 5, title: "Clean rice, no stones", body: "Excellent quality. Cheaper than the open market and they delivered it right to my kitchen. FairPrice is a lifesaver.", verified_purchase: true, created_at: "2025-12-25T14:00:00Z" },
 ];
 
 // ─── Price Alerts ───────────────────────────────────────────
 
 export const DEMO_PRICE_ALERTS: PriceAlert[] = [
-    { id: "pa1", product_id: "p3", product_name: "iPhone 15 Pro Max 256GB", seller_id: "s4", seller_name: "PhoneZone Nigeria", alert_type: "overpriced", market_avg: 1200000, seller_price: 1450000, created_at: "2026-02-10T14:30:00Z" },
-    { id: "pa2", product_id: "p9", product_name: "Samsung Galaxy S24 Ultra 256GB", seller_id: "s5", seller_name: "Lagos Gadget World", alert_type: "great_deal", market_avg: 880000, seller_price: 420000, created_at: "2026-02-10T15:00:00Z" },
+    { id: "pa1", product_id: "iphone-15-pro-max-256gb-blue-titanium", product_name: "iPhone 15 Pro Max 256GB", seller_id: "s4", seller_name: "PhoneZone Nigeria", alert_type: "overpriced", market_avg: 1200000, seller_price: 1450000, created_at: "2026-02-10T14:30:00Z" },
+    { id: "pa2", product_id: "samsung-galaxy-s24-ultra-256gb-suspicious-deal", product_name: "Samsung Galaxy S24 Ultra 256GB", seller_id: "s5", seller_name: "Lagos Gadget World", alert_type: "great_deal", market_avg: 880000, seller_price: 420000, created_at: "2026-02-10T15:00:00Z" },
 ];
 
 // ─── KYC ────────────────────────────────────────────────────
@@ -2341,7 +2341,7 @@ export const DEMO_ORDERS: Order[] = [];
 export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
     {
         id: "neg_1",
-        product_id: "p3",
+        product_id: "iphone-15-pro-max-256gb-blue-titanium",
         customer_id: "u1",
         customer_name: "Tunde B.",
         proposed_price: 1300000,
@@ -2351,7 +2351,7 @@ export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
     },
     {
         id: "neg_2",
-        product_id: "p9",
+        product_id: "samsung-galaxy-s24-ultra-256gb-suspicious-deal",
         customer_id: "u1",
         customer_name: "Tunde B.",
         proposed_price: 400000,
@@ -2360,7 +2360,7 @@ export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
     },
     {
         id: "neg_3",
-        product_id: "p1", // iPhone 15 Pro Max
+        product_id: "samsung-galaxy-s24-ultra-256gb-titanium-black", // iPhone 15 Pro Max
         customer_id: "u2",
         customer_name: "Sarah J.",
         proposed_price: 1350000,
@@ -2373,7 +2373,7 @@ export const DEMO_NEGOTIATIONS: NegotiationRequest[] = [
     },
     {
         id: "neg_4",
-        product_id: "p1", // iPhone 15 Pro Max
+        product_id: "samsung-galaxy-s24-ultra-256gb-titanium-black", // iPhone 15 Pro Max
         customer_id: "u3",
         customer_name: "Mike O.",
         proposed_price: 1250000,

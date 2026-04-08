@@ -202,7 +202,7 @@ export function RecommendedProducts({
                                 <span className="text-[11px] text-gray-500">{product.review_count > 0 ? product.review_count.toLocaleString() : Math.floor(product.sold_count / 8)}</span>
                             </div>
 
-                            <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
+                            <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
                                 <span className="text-[15px] sm:text-[16px] font-black text-gray-900 tracking-tight leading-none">
                                     ₦{product.price.toLocaleString()}
                                 </span>

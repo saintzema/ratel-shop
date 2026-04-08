@@ -2,7 +2,7 @@ import { Product } from "./types";
 
 export const NIGERIA_TOP_PRODUCTS: Product[] = [
     {
-        id: "nj_p1",
+        id: "3-in-1-laptop-backpack-anti-theft-usb-charging-por",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "3 in 1 Laptop Backpack — Anti-theft, USB Charging Port, Water Resistant",
@@ -24,7 +24,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Includes 3 pieces: Main backpack, shoulder bag, and small pouch", "Built-in USB charging port for on-the-go power", "Water-resistant material protects your electronics", "Anti-theft combination lock for main compartment"],
     },
     {
-        id: "nj_p2",
+        id: "oraimo-freepods-4-true-wireless-earbuds",
         seller_id: "s4",
         seller_name: "PhoneZone Nigeria",
         name: "Oraimo FreePods 4 True Wireless Earbuds",
@@ -46,7 +46,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Active Noise Cancellation blocks up to 30dB", "Oraimo exclusive HeavyBass technology", "Transparency mode lets in ambient sound", "Companion app for custom EQ settings"],
     },
     {
-        id: "nj_p3",
+        id: "oraimo-20000mah-power-bank-toast-10-flash",
         seller_id: "s5",
         seller_name: "Lagos Gadget World",
         name: "Oraimo 20000mAh Power Bank (Toast 10 Flash)",
@@ -68,7 +68,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Massive 20000mAh capacity provides weeks of power", "Dual fast charging output for simultaneous device charging", "Anti-scratch texture and elegant design", "Multiprotect safety system"],
     },
     {
-        id: "nj_p4",
+        id: "starlink-standard-kit-gen-2",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "Starlink Standard Kit (Gen 2)",
@@ -90,7 +90,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["High-speed satellite internet anywhere in Nigeria", "Easy self-install kit includes dish, router, cable and base", "Dual band Wi-Fi 5 router for strong home coverage", "Durable design withstands extreme weather"],
     },
     {
-        id: "nj_p5",
+        id: "silver-crest-extra-large-commercial-blender-4500w",
         seller_id: "s7",
         seller_name: "Mama Nkechi Home Needs",
         name: "Silver Crest Extra Large Commercial Blender 4500W",
@@ -112,7 +112,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Massive 4500W motor easily grinds beans, seeds and ice", "Unbreakable 2L polycarbonate jar", "6-blade stainless steel assembly for smooth blending", "Overheat protection safety system"],
     },
     {
-        id: "nj_p6",
+        id: "qasa-18-inch-rechargeable-standing-fan",
         seller_id: "s2",
         seller_name: "EV & Power Hub",
         name: "Qasa 18-inch Rechargeable Standing Fan",
@@ -134,7 +134,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Powerful 5-blade 18-inch fan for maximum airflow", "Built-in battery provides up to 8 hours of cooling", "Remote control for convenience", "Includes USB port to charge your phone during outages"],
     },
     {
-        id: "nj_p7",
+        id: "tecno-spark-20-pro-256gb-8gb-ram",
         seller_id: "s4",
         seller_name: "PhoneZone Nigeria",
         name: "Tecno Spark 20 Pro 256GB / 8GB RAM",
@@ -156,7 +156,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["108MP ultra-clear main camera for stunning photos", "Massive 256GB storage and up to 16GB extended RAM", "Smooth 120Hz hole-screen display", "Premium design with 33W super charge"],
     },
     {
-        id: "nj_p8",
+        id: "infinix-note-40-pro-256gb-8gb-ram",
         seller_id: "s4",
         seller_name: "PhoneZone Nigeria",
         name: "Infinix Note 40 Pro 256GB / 8GB RAM",
@@ -178,7 +178,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Incredible 70W multi-speed fast charging and 20W wireless charging", "Stunning 3D curved 120Hz AMOLED display", "108MP camera with Optical Image Stabilization (OIS)", "Active Halo AI lighting design"],
     },
     {
-        id: "nj_p9",
+        id: "hisense-43-inch-smart-full-hd-tv",
         seller_id: "s7",
         seller_name: "Mama Nkechi Home Needs",
         name: "Hisense 43-inch Smart Full HD TV",
@@ -200,7 +200,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Smart TV includes Netflix, YouTube, Prime Video apps", "Natural color enhancer for vibrant picture quality", "DTS Virtual:X creates immersive surround sound experience", "Bezel-less design maximizes viewing area"],
     },
     {
-        id: "nj_p10",
+        id: "hp-15-laptop-intel-celeron-n4020-8gb-ram-512gb-ssd",
         seller_id: "s1",
         seller_name: "TechHub Lagos",
         name: "HP 15 Laptop - Intel Celeron N4020, 8GB RAM, 512GB SSD",
@@ -222,7 +222,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Great budget laptop for students and office workers", "Fast 512GB SSD for quick boot times and app loading", "Large 15.6-inch display with micro-edge bezel", "Long-lasting battery with HP Fast Charge"],
     },
     {
-        id: "nj_p11",
+        id: "dr-rashel-vitamin-c-face-serum",
         seller_id: "s8",
         seller_name: "Glow & Shine Beauty",
         name: "Dr. Rashel Vitamin C Face Serum",
@@ -244,7 +244,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Highly effective antioxidant prevents environmental skin damage", "Hyaluronic acid provides deep and natural moisturizing", "Visibly brightens skin and evens out tone", "Reduces appearance of wrinkles and fine lines"],
     },
     {
-        id: "nj_p12",
+        id: "nivea-radiant-and-beauty-advanced-care-lotion",
         seller_id: "s8",
         seller_name: "Glow & Shine Beauty",
         name: "Nivea Radiant & Beauty Advanced Care Lotion",
@@ -266,7 +266,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Specifically formulated for the needs of melanin rich skin", "Visibly reduces the appearance of stretch marks", "Enriched with 5 natural oils and vitamins", "Provides intensive 48-hour moisture"],
     },
     {
-        id: "nj_p13",
+        id: "bone-straight-100-human-hair-wig-24-inches",
         seller_id: "s6",
         seller_name: "Luxe Fashion House",
         name: "Bone Straight 100% Human Hair Wig - 24 Inches",
@@ -288,7 +288,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["100% unprocessed virgin human hair, cut from single donor", "Super double drawn for fullness from root to tip", "Can be bleached, dyed, permed, and restyled", "Shedding and tangle free with proper care"],
     },
     {
-        id: "nj_p14",
+        id: "125kg-standard-empty-gas-cylinder",
         seller_id: "s7",
         seller_name: "Mama Nkechi Home Needs",
         name: "12.5Kg Standard empty Gas Cylinder",
@@ -310,7 +310,7 @@ export const NIGERIA_TOP_PRODUCTS: Product[] = [
         highlights: ["Standard 12.5kg capacity ideal for family cooking demands", "Built with high-quality carbon steel for maximum safety", "Coated with durable anti-rust paint for longevity", "Compatible with standard Nigerian gas regulators"],
     },
     {
-        id: "nj_p15",
+        id: "super-eagles-20242025-home-jersey",
         seller_id: "s13",
         seller_name: "SportyNaija",
         name: "Super Eagles 2024/2025 Home Jersey",

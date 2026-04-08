@@ -180,7 +180,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     />
                 </div>
 
-                <div className="flex flex-col flex-1 px-3 pb-2 pt-2.5">
+                <div className="flex flex-col px-3 pb-1.5 pt-2">
                     <h3 className="text-sm font-bold line-clamp-2 mb-1 group-hover:text-brand-green-600 transition-colors leading-tight min-h-[36px]">
                         {product.name}
                     </h3>
@@ -219,7 +219,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
             </div>
 
             {/* Action Buttons */}
-            <div className="px-3 pb-3 mt-auto">
+            <div className="px-3 pb-3 mt-1.5">
                 {product.price_flag === "overpriced" ? (
                     <div className="flex gap-1.5 overflow-hidden">
                         <Button
