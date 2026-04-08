@@ -85,14 +85,13 @@ export default function RootLayout({
         {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
         <style dangerouslySetInnerHTML={{
           __html: `
-           #fp-splash{position:fixed;top:0;left:0;right:0;bottom:env(safe-area-inset-bottom,0px);z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .35s ease-out}
-          html,body,#__next,main { background-color: #ffffff !important; }
-          * { -webkit-tap-highlight-color: transparent; }
-          #fp-splash img{width:80px;height:80px;border-radius:20px;margin-bottom:16px;animation:fp-pulse 2s ease-in-out infinite}
-          #fp-splash .fp-name{color:#FFD700;font-size:24px;font-weight:900;letter-spacing:-0.02em;margin-top:16px;font-family:system-ui,-apple-system,sans-serif}
-          #fp-splash .fp-tagline{color:rgba(255,255,255,0.7);font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-top:4px;font-family:system-ui,-apple-system,sans-serif;text-align:center;max-width:280px}
-          #fp-splash .fp-spin{margin-top:32px;width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,255,255,.15);border-top-color:#FFD700;animation:fp-spin .8s linear infinite}
-          @keyframes fp-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.85;transform:scale(.97)}}
+           #fp-splash{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .4s ease-out;pointer-events:all}
+          #fp-splash .logo-container{width:100px;height:100px;border-radius:22px;background:rgba(255,255,255,0.1);backdrop-filter:blur(20px);padding:15px;border:1px solid rgba(255,255,255,0.2);box-shadow:0 20px 40px rgba(0,0,0,0.3);animation:fp-pulse 2s ease-in-out infinite}
+          #fp-splash img{width:100%;height:100%;object-fit:cover;scale:1.3}
+          #fp-splash .fp-name{color:#FFFFFF;font-size:28px;font-weight:900;letter-spacing:-0.03em;margin-top:24px;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 2px 10px rgba(0,0,0,0.3)}
+          #fp-splash .fp-tagline{color:#FFD700;font-size:11px;font-weight:800;letter-spacing:0.15em;text-transform:uppercase;margin-top:6px;font-family:system-ui,-apple-system,sans-serif;text-align:center;max-width:300px;opacity:0.9}
+          #fp-splash .fp-spin{margin-top:40px;width:28px;height:28px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:#FFD700;animation:fp-spin .8s linear infinite}
+          @keyframes fp-pulse{0%,100%{transform:scale(1);box-shadow:0 20px 40px rgba(0,0,0,0.3)}50%{transform:scale(0.96);box-shadow:0 10px 20px rgba(0,0,0,0.2)}}
           @keyframes fp-spin{to{transform:rotate(360deg)}}
           #fp-splash.fp-hide{opacity:0;pointer-events:none}
         `}} />
@@ -102,10 +101,11 @@ export default function RootLayout({
             setTimeout(function() {
               var s = document.getElementById("fp-splash");
               if (s && !s.classList.contains("fp-hide")) {
+                 console.log("Splash fail-safe triggered");
                  s.classList.add("fp-hide");
-                 setTimeout(function() { s.style.display = "none"; }, 400);
+                 setTimeout(function() { s.style.display = "none"; }, 500);
               }
-            }, 8000);
+            }, 5000);
           `
         }} />
         <Script
@@ -179,7 +179,9 @@ export default function RootLayout({
       >
         {/* ─── Branded Splash (raw HTML — renders before React/JS) ─── */}
         <div id="fp-splash" suppressHydrationWarning>
-          <img src="/logo.png" alt="FairPrice" width={100} height={100} fetchPriority="high" decoding="sync" />
+          <div className="logo-container">
+            <img src="/logo.png" alt="FairPrice" width={100} height={100} fetchPriority="high" decoding="sync" />
+          </div>
           <p className="fp-name">FairPrice</p>
           <p className="fp-tagline">VERIFY REAL MARKET PRICES | NEGOTIATE BEST DEALS</p>
           <div className="fp-spin" />

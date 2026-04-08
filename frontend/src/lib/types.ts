@@ -101,6 +101,10 @@ export interface Product {
     condition?: "brand_new" | "used" | "refurbished";
     colors?: string[];
     subcategory?: string;
+    financing_available?: boolean;
+    seller_trust_score?: number;
+    negotiation_rate?: number;
+    _source?: string;
 }
 
 export interface Order {

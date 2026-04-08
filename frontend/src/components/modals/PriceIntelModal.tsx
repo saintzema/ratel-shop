@@ -928,7 +928,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         animate={{ opacity: 1, y: 0 }}
                                         className="space-y-4"
                                     >
-                                        {/* Verdict Card */}
+                                        {/* Tier 1: Verdict Card */}
                                         <VerdictCard
                                             result={result}
                                             onAddToCart={(product) => {
@@ -939,8 +939,49 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                             onRequestProduct={() => setRequestModalOpen(true)}
                                         />
 
-                                        {/* Tier 2: Customers Also Bought (Strictly tied to this product) */}
-                                        <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm">
+                                        {/* Tier 2: Market Logic & Details (Moved Up) */}
+                                        <div className="pt-2 space-y-4">
+                                            <PriceComparison result={result} />
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                <GlassCard className="bg-white/95 shadow-md">
+                                                    <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
+                                                        <Globe className="h-3 w-3 text-blue-600" />
+                                                        Market Context
+                                                    </div>
+                                                    <p className="text-gray-900 text-[11px] leading-relaxed font-medium">
+                                                        {result.justification}
+                                                    </p>
+                                                </GlassCard>
+                                                <GlassCard className="bg-white/95 shadow-md">
+                                                    <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
+                                                        <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                                        Analysis Flags
+                                                    </div>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {result.flags.map((flag, i) => (
+                                                            <span
+                                                                key={i}
+                                                                className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                                                                style={{
+                                                                    background: "rgba(0,0,0,0.04)",
+                                                                    border: "1px solid rgba(0,0,0,0.1)",
+                                                                    color: "rgba(0,0,0,0.8)"
+                                                                }}
+                                                            >
+                                                                {flag}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </GlassCard>
+                                            </div>
+
+                                            {/* Price History Chart */}
+                                            <PriceHistoryChart result={result} />
+                                        </div>
+
+                                        {/* Tier 3: Customers Also Bought */}
+                                        <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm mt-6">
                                             <RecommendedProducts
                                                 products={[
                                                     ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 3) || [],
@@ -949,59 +990,49 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                 title="Customers Also Bought"
                                                 subtitle="Frequently paired with this item"
                                                 icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
+                                                onItemClick={onClose}
                                             />
                                         </div>
 
-                                        {/* Tier 3: Recommended/Trending Products (Wider scroller) */}
+                                        {/* Tier 4: Similar Products from Catalog (NEW) */}
+                                        <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm">
+                                            {(() => {
+                                                const firstWord = result.name.toLowerCase().split(' ')[0];
+                                                let similar = SEED_PRODUCTS.filter(p => 
+                                                    p.category === result.category && 
+                                                    p.id !== result.matchedProduct?.id &&
+                                                    p.name.toLowerCase().includes(firstWord)
+                                                );
+                                                
+                                                // Fallback to general category if specific match is too thin
+                                                if (similar.length < 2) {
+                                                    similar = SEED_PRODUCTS.filter(p => 
+                                                        p.category === result.category && 
+                                                        p.id !== result.matchedProduct?.id
+                                                    );
+                                                }
+
+                                                return (
+                                                    <RecommendedProducts
+                                                        products={similar.slice(0, 4)}
+                                                        title="Similar Products In Catalog"
+                                                        subtitle="Managed alternatives for local order"
+                                                        icon={<Box className="h-4 w-4 text-blue-600" />}
+                                                        onItemClick={onClose}
+                                                    />
+                                                );
+                                            })()}
+                                        </div>
+
+                                        {/* Tier 5: Trending in Market */}
                                         <div className="-mx-2">
                                             <RecommendedProducts
                                                 products={SEED_PRODUCTS.filter(p => p.is_trending).sort((a,b) => b.avg_rating - a.avg_rating).slice(0, 8)}
                                                 title="Trending in Market"
-                                                subtitle="Top-rated alternatives"
+                                                subtitle="Top-rated choices in Nigeria"
                                                 icon={<Sparkles className="h-4 w-4 text-amber-500" />}
+                                                onItemClick={onClose}
                                             />
-                                        </div>
-
-                                        {/* Tier 4: Market Analysis Details */}
-                                        <div className="pt-2">
-                                            <PriceComparison result={result} />
-                                        </div>
-
-                                        {/* Price History Chart */}
-                                        <PriceHistoryChart result={result} />
-
-                                        {/* Context & Flags */}
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <GlassCard className="bg-white/95 shadow-md">
-                                                <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
-                                                    <Globe className="h-3 w-3 text-blue-600" />
-                                                    Market Context
-                                                </div>
-                                                <p className="text-gray-900 text-[11px] leading-relaxed font-medium">
-                                                    {result.justification}
-                                                </p>
-                                            </GlassCard>
-                                            <GlassCard className="bg-white/95 shadow-md">
-                                                <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider mb-2">
-                                                    <AlertTriangle className="h-3 w-3 text-amber-500" />
-                                                    Analysis Flags
-                                                </div>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {result.flags.map((flag, i) => (
-                                                        <span
-                                                            key={i}
-                                                            className="text-[10px] px-2 py-0.5 rounded-full font-bold"
-                                                            style={{
-                                                                background: "rgba(0,0,0,0.04)",
-                                                                border: "1px solid rgba(0,0,0,0.1)",
-                                                                color: "rgba(0,0,0,0.8)"
-                                                            }}
-                                                        >
-                                                            {flag}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </GlassCard>
                                         </div>
 
                                         <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold pt-3" style={{ borderTop: "1px solid rgba(0,0,0,0.05)" }}>

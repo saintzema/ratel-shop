@@ -1,43 +1,31 @@
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool as NeonPool, neonConfig } from "@neondatabase/serverless";
+import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
+import ws from "ws";
 
-// --- NEON SERVERLESS DB CONFIGURATION (COMMENTED OUT) ---
-// If Neon Database is back online and you want to switch to it,
-// uncomment the following block and update your DATBASE_URL to the Neon string.
-// 
-// import { neonConfig, Pool as NeonPool } from "@neondatabase/serverless";
-// import { PrismaNeon } from "@prisma/adapter-neon";
-// import ws from "ws";
-// neonConfig.webSocketConstructor = ws;
-// 
-// function createNeonPrismaClient() {
-//     const pool = new NeonPool({ connectionString: process.env.DATABASE_URL });
-//     const adapter = new PrismaNeon(pool);
-//     return new PrismaClient({ adapter, log: ["error", "warn"] });
-// }
-// ---------------------------------------------------------
+// Set up Neon serverless to use WebSockets
+neonConfig.webSocketConstructor = ws;
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
-    // Current Local Postgres Configuration
-    const pool = new Pool({ 
-        connectionString: process.env.DATABASE_URL + (process.env.DATABASE_URL?.includes('?') ? '&' : '?') + 'statement_timeout=15000', // 15s hard query timeout
-        max: 10,
-        idleTimeoutMillis: 30000, 
-        connectionTimeoutMillis: 30000,
+    // Determine the connection string with a safe timeout
+    const connectionString = process.env.DATABASE_URL || "";
+    const urlWithTimeout = connectionString + (connectionString.includes('?') ? '&' : '?') + 'statement_timeout=15000';
+
+    // Use Neon Serverless Pool (highly resilient for Vercel/Serverless)
+    const pool = new NeonPool({ 
+        connectionString: urlWithTimeout,
     });
 
     pool.on('error', (err) => {
-        console.warn('Postgres connection pool error:', err.message);
+        console.warn('Neon connection pool error:', err.message);
     });
 
-    const adapter = new PrismaPg(pool as any);
+    const adapter = new PrismaNeon(pool);
     return new PrismaClient({ adapter, log: ["error", "warn"] });
 }
 
-// export const db = globalForPrisma.prisma ?? createNeonPrismaClient(); // Use when Neon is enabled
 export const db = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;

@@ -4,10 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
-import { ShieldCheck, Heart, Star, Check, ShoppingCart } from "lucide-react";
+import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
 import { cn, getProductUrl } from "@/lib/utils";
+import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 export const SearchGridCard = ({
   product,
@@ -103,6 +104,10 @@ export const SearchGridCard = ({
       setTimeout(() => { }, 1500);
     }
   };
+
+  const productPrice = product.price || product.approxPrice || 0;
+  const showFinancing = isVehicle(product) && (product._source === "global" || product.financing_available || product.seller_id === 'global-partners');
+  const financingResult = showFinancing ? calculateMonthlyPayment(productPrice) : null;
 
   return (
     <NextLink
@@ -200,15 +205,24 @@ export const SearchGridCard = ({
           </span>
         </div>
 
-        {/* Phase 5: Compact Trust & Negotiation Indicators */}
+        {/* Phase 5: Compact Trust & Negotiation Indicators OR Financing */}
         <div className="flex items-center gap-1.5 mb-2.5">
-            <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded-md" title="Trust Score: 85%">
-                <ShieldCheck className="h-2 w-2 text-emerald-600" />
-                <span className="text-[8px] font-bold text-emerald-700">85%</span>
-            </div>
-            <div className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1 py-0.5 rounded-md">
-                80% Accept
-            </div>
+            {financingResult ? (
+                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
+                    <Coins className="h-2 w-2 text-emerald-600" />
+                    <span className="text-[8px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
+                </div>
+            ) : (
+                <>
+                    <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded-md" title={`Trust Score: ${product.seller_trust_score || 85}%`}>
+                        <ShieldCheck className="h-2 w-2 text-emerald-600" />
+                        <span className="text-[8px] font-bold text-emerald-700">{product.seller_trust_score || 85}%</span>
+                    </div>
+                    <div className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1 py-0.5 rounded-md">
+                        {product.negotiation_rate || 80}% Accept
+                    </div>
+                </>
+            )}
         </div>
 
         <div className="flex items-baseline gap-1.5 mb-3 flex-wrap">

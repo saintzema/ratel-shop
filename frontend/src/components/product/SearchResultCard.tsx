@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataSyncService } from "@/lib/sync-store";
 import { nativeBridge } from "@/lib/native-bridge";
+import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 // Category icon map for product image fallback
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -81,6 +82,9 @@ export function SearchResultCard({
     })();
     const listPrice = product.original_price || product.price * 1.2;
     const savingsPct = Math.round(((listPrice - product.price) / listPrice) * 100);
+
+    const showFinancing = isVehicle(product) && (product._source === "global" || product.financing_available || product.seller_id === 'global-partners');
+    const financingResult = showFinancing ? calculateMonthlyPayment(product.price) : null;
 
     return (
         <div className={cn(
@@ -177,15 +181,24 @@ export function SearchResultCard({
                 <div className="flex items-center gap-3 text-xs text-gray-500 mb-1">
                     <span>by <span className="text-blue-600 hover:underline cursor-pointer font-medium">{product.seller_name}</span></span>
                     
-                    {/* Phase 5: Trust Shield & Acceptance Rate */}
+                    {/* Phase 5: Trust Shield & Acceptance Rate OR Financing */}
                     <div className="flex items-center gap-1.5 ml-1">
-                        <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full" title={`Trust Score: ${seller?.trust_score || 80}%`}>
-                           <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                           <span className="text-[10px] font-bold text-emerald-700">{seller?.trust_score || 80}%</span>
-                        </div>
-                        <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-                            85% Acceptance
-                        </span>
+                        {financingResult ? (
+                             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full shadow-sm" title="Financing Available via FairPrice">
+                                <Coins className="h-3 w-3 text-emerald-600" />
+                                <span className="text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
+                             </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full" title={`Trust Score: ${seller?.trust_score || 80}%`}>
+                                   <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                                   <span className="text-[10px] font-bold text-emerald-700">{seller?.trust_score || 80}%</span>
+                                </div>
+                                <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                                    85% Acceptance
+                                </span>
+                            </>
+                        )}
                     </div>
 
                     {seller?.verified && (

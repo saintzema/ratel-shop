@@ -13,6 +13,7 @@ interface RecommendedProductsProps {
     title?: string;
     subtitle?: string;
     icon?: React.ReactNode;
+    onItemClick?: () => void;
 }
 
 export function RecommendedProducts({
@@ -20,6 +21,7 @@ export function RecommendedProducts({
     title = "Recommended For You",
     subtitle = "Based on your activity",
     icon = <TrendingUp className="h-5 w-5 text-brand-green-600" />,
+    onItemClick,
 }: RecommendedProductsProps) {
     const [displayedProducts, setDisplayedProducts] = useState<Product[]>([]);
     const [page, setPage] = useState(1);
@@ -140,10 +142,11 @@ export function RecommendedProducts({
             {/* Grid with smaller card design to match sliders and improve density */}
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-3 w-full">
                 {displayedProducts.map((product) => (
-                    <div
+                    <Link
                         key={product.id}
+                        href={getProductUrl(product.id, product.name)}
+                        onClick={() => onItemClick?.()}
                         className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-xl overflow-hidden cursor-pointer border border-gray-100"
-                        onClick={() => router.push(getProductUrl(product.id, product.name))}
                     >
                         <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
                             <img
@@ -170,7 +173,11 @@ export function RecommendedProducts({
 
                             {/* Round Cart Button — high visibility */}
                             <button
-                                onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                                onClick={(e) => { 
+                                    e.preventDefault();
+                                    e.stopPropagation(); 
+                                    addToCart(product); 
+                                }}
                                 className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-emerald-600 shadow-lg shadow-emerald-600/30 flex items-center justify-center transition-all z-10 hover:bg-emerald-700 hover:scale-110 active:scale-95"
                             >
                                 <ShoppingCart className="h-4 w-4 text-white" strokeWidth={2.5} />
@@ -216,7 +223,7 @@ export function RecommendedProducts({
                                 {product.sold_count > 1000 ? `${Math.floor(product.sold_count / 1000)}K+` : product.sold_count} sold
                             </span>
                         </div>
-                    </div>
+                    </Link>
                 ))}
             </div>
 
