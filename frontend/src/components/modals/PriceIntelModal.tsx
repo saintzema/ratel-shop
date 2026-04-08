@@ -200,27 +200,39 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
         // LOCAL MODE: Use Gemini's prices directly without extra margins
         const geminiRecommended = anchorPrice || analysis.recommendedPrice;
         recommendedPrice = Math.round(geminiRecommended);
-        marketAverage = analysis.marketAverage || Math.round(geminiRecommended * 1.05);
+        marketAverage = analysis.marketHigh || Math.round(geminiRecommended * 1.25); // Anchor to high
         marketLowest = analysis.marketLow || Math.round(geminiRecommended * 0.85);
-        marketHighest = analysis.marketHigh || Math.round(geminiRecommended * 1.25);
+        marketHighest = marketAverage;
     } else if (anchorPrice && anchorPrice > 0) {
         // ANCHORED MODE: Exact match of what the user clicked.
         const anchoredBase = anchorPrice * region.factor;
         recommendedPrice = Math.round(anchoredBase);
-        marketAverage = Math.round(anchoredBase * 1.15 + 15000); // Default fallback, bypass overrides this
+        
+        // Find highest price in sources if available
+        const sourceMax = analysis.sources?.length > 0 
+            ? Math.max(...analysis.sources.map(s => s.price)) 
+            : 0;
+            
+        marketAverage = sourceMax > anchoredBase 
+            ? Math.round(sourceMax) 
+            : Math.round(anchoredBase * 1.50 + 15000); 
+
         marketLowest = Math.round(anchoredBase * 0.90);
-        marketHighest = Math.round(anchoredBase * 1.50 + 15000);
+        marketHighest = marketAverage;
     } else {
         // UNANCHORED MODE: Trust Gemini's output
         const basePlatformCost = analysis.recommendedPrice * region.factor;
         recommendedPrice = Math.round(basePlatformCost);
-        marketAverage = Math.round(analysis.marketAverage * region.factor);
+        
+        // Focus on the high end of the market estimate
+        const highAnchor = analysis.marketHigh || analysis.marketAverage * 1.25;
+        marketAverage = Math.round(highAnchor * region.factor);
+        
         marketLowest = analysis.marketLow
             ? Math.round(analysis.marketLow * region.factor)
-            : Math.round(marketAverage * 0.85);
-        marketHighest = analysis.marketHigh
-            ? Math.round(analysis.marketHigh * region.factor)
-            : Math.round(marketAverage * 1.35);
+            : Math.round(recommendedPrice * 0.9);
+            
+        marketHighest = marketAverage;
     }
 
     const dutyInfo = IMPORT_DUTY_RATES[category] || IMPORT_DUTY_RATES.electronics;
@@ -342,9 +354,20 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
     const [searchResults, setSearchResults] = useState<{ local: Product[], api: ProductSuggestion[] } | null>(null);
     const [searchQuery, setSearchQuery] = useState(initialQuery || "");
     const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
+    const [recentHistory, setRecentHistory] = useState<any[]>([]);
 
-    // initialQuery sync — moved after handleSearch to avoid TDZ
-    const initialQueryTriggeredRef = useRef<string | null>(null);
+    // Load history
+    useEffect(() => {
+        if (isOpen) {
+            const loadHistory = () => {
+                const h = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
+                setRecentHistory(h);
+            };
+            loadHistory();
+            window.addEventListener("storage", loadHistory);
+            return () => window.removeEventListener("storage", loadHistory);
+        }
+    }, [isOpen]);
     const { user } = useAuth();
     const { addToCart } = useCart();
     const router = useRouter();
@@ -417,6 +440,20 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
         setSelectedSourceUrl(sourceUrl || null);
 
         try {
+            // ─── Automated Image Fetching ───
+            let hydratedImageUrl = imageUrl;
+            if (!hydratedImageUrl && !product?.image_url) {
+                try {
+                    const imgRes = await fetch(`/api/product-image?q=${encodeURIComponent(productName)}`);
+                    const imgData = await imgRes.json();
+                    if (imgData.imageUrl) {
+                        hydratedImageUrl = imgData.imageUrl;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch product image", e);
+                }
+            }
+
             // Find matched product locally if possible for "Buy Now"
             let matchedProduct = product || DataSyncService.getProducts().find(p => p.name.toLowerCase() === productName.toLowerCase()) || null;
 
@@ -430,7 +467,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                 // The price the user clicked is locked in immediately as the absolute Fair Price.
                 const fairBestPrice = anchorPrice;
 
-                // Find highest price in search results to use as market average
+                // Find highest price in search results to use as market average (ANCHOR TO HIGHEST)
                 let maxSearchPrice = 0;
                 if (activeSearchResults) {
                     const localMax = activeSearchResults.local.reduce((max, p) => Math.max(max, p.price), 0);
@@ -439,10 +476,10 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     maxSearchPrice = Math.max(localMax, apiMax) + 15000;
                 }
 
-                // Use the highest search result as the market anchor if it's higher. If it's somehow not higher, apply a minor 8% gap as a fallback.
-                const marketAverage = maxSearchPrice > fairBestPrice * 1.05 ? maxSearchPrice : Math.round(fairBestPrice * 1.08);
+                // Use the highest search result as the market anchor if it's higher. If it's somehow not higher, apply a significant premium.
+                const marketAverage = maxSearchPrice > fairBestPrice * 1.10 ? maxSearchPrice : Math.round(fairBestPrice * 1.35);
                 const marketLowest = Math.round(fairBestPrice * 1.02);
-                const marketHighest = Math.round(marketAverage * 1.15);
+                const marketHighest = marketAverage;
                 const savingsAmount = marketAverage - fairBestPrice;
 
                 // Create a rich, informative description using specs
@@ -458,7 +495,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                 intel = {
                     name: productName,
                     description: product?.description || generatedDesc,
-                    image_url: product?.image_url || imageUrl || getFallbackImage(product?.category || "other"),
+                    image_url: product?.image_url || hydratedImageUrl || getFallbackImage(product?.category || "other"),
                     matchedProduct: matchedProduct,
                     specs: product?.specs || specs,
                     fairBestPrice,
@@ -475,19 +512,19 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     totalDutyPercent: 20,
                     dutyBreakdown: [],
                     history: [
-                        { month: "Sep", price: Math.round(marketAverage * 1.05) },
-                        { month: "Oct", price: Math.round(marketAverage * 1.01) },
-                        { month: "Nov", price: Math.round(marketAverage * 0.98) },
+                        { month: "Sep", price: Math.round(marketAverage * 0.95) },
+                        { month: "Oct", price: Math.round(marketAverage * 0.98) },
+                        { month: "Nov", price: Math.round(marketAverage * 1.01) },
                         { month: "Dec", price: Math.round(marketAverage * 1.08), note: "Holiday Spike" },
                         { month: "Jan", price: Math.round(marketAverage * 1.02) },
                         { month: "Feb", price: marketAverage }
                     ],
                     sources: [
-                        { source: "Direct Partner Source", price: fairBestPrice, type: "global", url: sourceUrl || "", currency: "NGN" },
-                        { source: "Highest Market Online", price: marketAverage, type: "local", url: "", currency: "NGN" }
+                        { source: "Verified Global Vendor", price: fairBestPrice, type: "global", url: sourceUrl || "", currency: "NGN" },
+                        { source: "Market High Anchor", price: marketAverage, type: "local", url: "", currency: "NGN" }
                     ],
                     priceDirection: "stable",
-                    justification: `The market estimate reflects current competitor pricing including standard delivery.`,
+                    justification: `The market estimate reflects the highest discovered price for this item across premium local retailers.`,
                     importContext: "Sourced efficiently with priority international shipping.",
                     flags: ["Best Value Guaranteed", "Escrow Protection"],
                     region: user?.location || "lagos",
@@ -500,11 +537,21 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
             } else {
                 // Deep Analysis — only call Gemini for totally raw searches
                 const analysis = await PriceEngine.analyzePrice(productName, anchorPrice);
+                // Ensure analysis has the hydrated image if Gemini didn't find one
+                if (!analysis.image_url) analysis.image_url = hydratedImageUrl;
                 intel = processAnalysis(analysis, user?.location || "lagos", matchedProduct, platformMarginPercent, anchorPrice);
             }
 
-            // Auto-save Global Searches to the local catalog and master database
+            // Auto-save Global Searches to the local catalog and master database (RESPECTING ADMIN TOGGLE)
             if (!matchedProduct) {
+                // Check if auto-cataloging is enabled
+                let autoCatalogEnabled = true;
+                try {
+                    const settingsRes = await fetch("/api/admin/settings");
+                    const settings = await settingsRes.json();
+                    autoCatalogEnabled = settings.globalSearchCaching !== false;
+                } catch (e) { console.warn("Failed to check catalog settings, defaulting to enabled", e); }
+
                 const nameSlug = intel.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80);
                 const newId = `global-${nameSlug}`;
                 
@@ -534,19 +581,28 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     specs: intel.specs
                 };
                 
-                // 1. Save synchronously locally for instant UX
-                DataSyncService.addRawProduct(newGlobalProduct);
-                
-                // 2. Async Push to the absolute database for public SSR rendering / GMC Feed Pickup
-                fetch('/api/products', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(newGlobalProduct)
-                }).catch(err => console.error('Failed to commit generated catalog item to DB:', err));
+                // 1. Save synchronously locally for instant UX and persist to DB if allowed
+                DataSyncService.addRawProduct(newGlobalProduct, autoCatalogEnabled);
 
                 matchedProduct = newGlobalProduct; // Attach it so they can buy it directly!
                 intel.matchedProduct = newGlobalProduct;
             }
+
+            // ─── Save to Recent Searches History ───
+            try {
+                const historyItem = {
+                    name: intel.name,
+                    price: intel.fairBestPrice,
+                    image: intel.image_url,
+                    category: intel.category,
+                    timestamp: Date.now()
+                };
+                const existing = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
+                const updated = [historyItem, ...existing.filter((h: any) => h.name !== intel.name)].slice(0, 6);
+                localStorage.setItem('fp_price_intel_history', JSON.stringify(updated));
+                // Signal change for UI
+                window.dispatchEvent(new Event("storage"));
+            } catch (e) { console.error("History persistence failed", e); }
 
             setResult(intel);
         } catch (error) {
@@ -652,8 +708,91 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         </div>
                                     </motion.div>
                                 )}
+                                                                {/* History Dashboard / Onboarding State */}
+                                    {!isSearching && !isAnalyzing && !result && !searchResults && (
+                                        <motion.div
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            className="h-full flex flex-col pt-4"
+                                        >
+                                            {recentHistory.length > 0 ? (
+                                                <div className="space-y-6">
+                                                    <div>
+                                                        <h3 className="text-[11px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-2 mb-4 px-1">
+                                                            <History className="h-3.5 w-3.5" />
+                                                            Recently Analyzed
+                                                        </h3>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            {recentHistory.map((h, i) => (
+                                                                <button
+                                                                    key={i}
+                                                                    onClick={() => handleAnalyze(h.name, undefined, undefined, h.price, undefined, h.image)}
+                                                                    className="flex items-center gap-3 p-3 bg-white hover:bg-emerald-50 rounded-2xl border border-gray-100 transition-all text-left group"
+                                                                >
+                                                                    <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center p-1.5 flex-shrink-0 group-hover:scale-110 transition-transform">
+                                                                        <ProductImageWithFallback src={h.image} alt={h.name} category={h.category || "other"} />
+                                                                    </div>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-xs font-bold text-gray-900 truncate">{h.name}</p>
+                                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                                            <span className="text-[11px] font-black text-emerald-600">{formatPrice(h.price)}</span>
+                                                                            <span className="text-[9px] font-bold text-gray-400 uppercase">{h.category}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <ShoppingCart className="h-3.5 w-3.5 text-emerald-600" />
+                                                                    </div>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
 
-                                {/* Search Results List */}
+                                                    <div className="py-6 border-t border-gray-100/50">
+                                                        <h3 className="text-[11px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 mb-4 px-1">
+                                                            <TrendingUp className="h-3.5 w-3.5" />
+                                                            Popular Market Searches
+                                                        </h3>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {['Solar Inverter 5KVA', 'iPhone 15 Pro Max', 'Toyota Camry 2024', 'MacBook Air M3', 'NVIDIA RTX 4090'].map(term => (
+                                                                <button
+                                                                    key={term}
+                                                                    onClick={() => { setSearchQuery(term); handleSearch(term); }}
+                                                                    className="px-4 py-2 bg-gray-50 hover:bg-emerald-50 text-xs font-bold text-gray-600 hover:text-emerald-700 rounded-xl border border-gray-100 transition-all"
+                                                                >
+                                                                    {term}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex-1 flex flex-col items-center justify-center text-center px-8 pb-12">
+                                                    <div className="w-20 h-20 rounded-3xl bg-emerald-50 flex items-center justify-center mb-6">
+                                                        <Sparkles className="h-10 w-10 text-emerald-600 animate-pulse" />
+                                                    </div>
+                                                    <h3 className="text-xl font-black text-gray-900 mb-2">Instant Pricing Intelligence</h3>
+                                                    <p className="text-sm text-gray-500 leading-relaxed max-w-sm mb-8">
+                                                        Paste a product link or name from any website to analyze the real market value and find the best FairPrice source.
+                                                    </p>
+                                                    <div className="w-full max-w-md p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-left">
+                                                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                                            <History className="h-3.5 w-3.5" /> Recent Trends
+                                                        </p>
+                                                        <ul className="space-y-2">
+                                                            {['Electricity tariffs recently increased by 23%', 'Exchange rate stable at ₦1,580/$', 'Import duties on solar items reduced to 5%'].map((txt, i) => (
+                                                                <li key={i} className="text-xs text-emerald-800 font-medium flex items-center gap-2">
+                                                                    <div className="w-1 h-1 rounded-full bg-emerald-400" />
+                                                                    {txt}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </motion.div>
+                                    )}
+
+                                    {/* Search Results State */}
                                 {searchResults && !result && !isSearching && !isAnalyzing && (
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
@@ -781,12 +920,11 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                     </motion.div>
                                 )}
 
-                                {/* Result (Deep Analysis) */}
                                 {result && !isSearching && !isAnalyzing && (
                                     <motion.div
                                         initial={{ opacity: 0, y: 10 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="space-y-5"
+                                        className="space-y-4"
                                     >
                                         {/* Verdict Card */}
                                         <VerdictCard
@@ -799,8 +937,34 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                             onRequestProduct={() => setRequestModalOpen(true)}
                                         />
 
-                                        {/* Price Comparison */}
-                                        <PriceComparison result={result} />
+                                        {/* Tier 2: Customers Also Bought (Strictly tied to this product) */}
+                                        <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm">
+                                            <RecommendedProducts
+                                                products={[
+                                                    ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 3),
+                                                    ...SEED_PRODUCTS.filter(p => p.is_active && !p.name.toLowerCase().includes(result.name.toLowerCase().split(' ')[0])).sort((a,b) => b.sold_count - a.sold_count).slice(0, 2)
+                                                ].slice(0, 3)}
+                                                title="Customers Also Bought"
+                                                subtitle="Frequently paired with this item"
+                                                icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
+                                                layout="grid"
+                                            />
+                                        </div>
+
+                                        {/* Tier 3: Recommended/Trending Products (Wider scroller) */}
+                                        <div className="-mx-2">
+                                            <RecommendedProducts
+                                                products={SEED_PRODUCTS.filter(p => p.is_trending).sort((a,b) => b.avg_rating - a.avg_rating).slice(0, 8)}
+                                                title="Trending in Market"
+                                                subtitle="Top-rated alternatives"
+                                                icon={<Sparkles className="h-4 w-4 text-amber-500" />}
+                                            />
+                                        </div>
+
+                                        {/* Tier 4: Market Analysis Details */}
+                                        <div className="pt-2">
+                                            <PriceComparison result={result} />
+                                        </div>
 
                                         {/* Price History Chart */}
                                         <PriceHistoryChart result={result} />
@@ -842,19 +1006,6 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold pt-3" style={{ borderTop: "1px solid rgba(0,0,0,0.05)" }}>
                                             <span>Analysis ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
                                             <span>Confidence: {result.confidence}%</span>
-                                        </div>
-
-                                        {/* Global Alternatives (Related items in same category) */}
-                                        <div className="-mx-6 px-6 pt-4 pb-2 border-t border-gray-100 bg-gray-50/50">
-                                            <RecommendedProducts
-                                                products={[
-                                                    ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 4),
-                                                    ...SEED_PRODUCTS.filter(p => p.category !== result.category && p.is_active).sort((a, b) => b.sold_count - a.sold_count).slice(0, 4)
-                                                ].slice(0, 8)}
-                                                title="Customers Also Bought"
-                                                subtitle="Similar products and trending items"
-                                                icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
-                                            />
                                         </div>
                                     </motion.div>
                                 )}

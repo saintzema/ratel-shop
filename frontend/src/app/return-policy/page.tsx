@@ -6,10 +6,10 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
     title: 'Return Policy | FairPrice.ng',
-    description: 'FairPrice.ng return and exchange policy for Nigeria. We accept returns for defective products within 7 days. Read our full policy here.',
+    description: 'FairPrice.ng return and exchange policy for Nigeria. We accept returns for defective products within 14 days. Read our full policy here.',
     openGraph: {
         title: 'Return Policy | FairPrice.ng',
-        description: 'FairPrice.ng return and exchange policy. Defective product returns accepted within 7 days of delivery.',
+        description: 'FairPrice.ng return and exchange policy. Defective product returns accepted within 14 days of delivery.',
     }
 };
 
@@ -30,7 +30,7 @@ export default function ReturnPolicyPage() {
                             Return &amp; Exchange Policy
                         </h1>
                         <p className="text-lg text-gray-500 max-w-2xl font-medium">
-                            Your satisfaction matters. We accept returns for defective products and offer exchanges to ensure you always get what you paid for.
+                            We want you to shop with confidence. Our policy is designed to be fair, transparent, and compliant with global consumer standards.
                         </p>
                     </div>
                 </div>
@@ -48,22 +48,32 @@ export default function ReturnPolicyPage() {
                                 We accept returns for defective products delivered in damaged or non-functional condition.
                             </p>
                         </div>
-                        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative overflow-hidden group">
+                            <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-tighter">Extended</div>
                             <div className="bg-blue-100 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
                                 <Clock className="h-5 w-5 text-blue-600" />
                             </div>
-                            <h3 className="font-black text-gray-900 text-sm mb-1">7-Day Window</h3>
-                            <p className="text-xs text-gray-500 font-medium">
-                                Return requests must be initiated within 7 days of delivery confirmation.
+                            <h3 className="font-black text-gray-900 text-sm mb-1">14-Day Window</h3>
+                            <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                                Standard 14-day window. <span className="text-amber-600 font-bold">Holiday Exception:</span> Orders placed Dec 22, 2026 – Jan 3, 2027 qualify for 16 days.
                             </p>
                         </div>
                         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                            <div className="bg-amber-100 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
-                                <Truck className="h-5 w-5 text-amber-600" />
+                            <div className="bg-purple-100 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
+                                <ShieldCheck className="h-5 w-5 text-purple-600" />
                             </div>
-                            <h3 className="font-black text-gray-900 text-sm mb-1">Exchanges Available</h3>
+                            <h3 className="font-black text-gray-900 text-sm mb-1">New Condition Only</h3>
+                            <p className="text-xs text-gray-500 font-medium leading-relaxed">
+                                Items must be unopened, in original packaging, with all tags attached and no signs of wear.
+                            </p>
+                        </div>
+                        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                            <div className="bg-emerald-100 w-10 h-10 rounded-xl flex items-center justify-center mb-3">
+                                <RotateCcw className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <h3 className="font-black text-gray-900 text-sm mb-1">No Restocking Fee</h3>
                             <p className="text-xs text-gray-500 font-medium">
-                                We offer product exchanges for eligible items when available stock permits.
+                                We charge $0 restocking fees. Refunds are processed within 7 business days.
                             </p>
                         </div>
                     </div>
@@ -76,10 +86,10 @@ export default function ReturnPolicyPage() {
                         </h2>
                         <div className="space-y-4">
                             {[
-                                { title: "Defective or damaged products", desc: "Items that arrive broken, malfunctioning, or with factory defects." },
+                                { title: "Defective or Damaged", desc: "If your item arrives broken or malfunctioning, we provide a full refund or exchange at no cost." },
+                                { title: "Change of Mind (Buyer's Remorse)", desc: "We accept returns if you changed your mind, provided the item is in 'New Only' condition." },
+                                { title: "Condition: New Only", desc: "Unopened in original packaging, tags attached, unused, and no signs of wear." },
                                 { title: "Wrong item delivered", desc: "You received a product that does not match your order confirmation." },
-                                { title: "Missing parts or accessories", desc: "The product arrived incomplete, with missing accessories that were listed in the description." },
-                                { title: "Significantly different from listing", desc: "The delivered product is materially different from the images and description on our platform." },
                             ].map((item, i) => (
                                 <div key={i} className="flex gap-3 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100/50">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
@@ -104,7 +114,7 @@ export default function ReturnPolicyPage() {
                                 { title: "Used or altered products", desc: "Products that have been used, washed, modified, or damaged by the buyer after delivery." },
                                 { title: "Digital products & services", desc: "Software licenses, digital vouchers, and subscription services cannot be returned." },
                                 { title: "Perishable goods", desc: "Food items, fresh groceries, and other perishable products are not eligible for return." },
-                                { title: "Products past the 7-day return window", desc: "Return requests must be made within 7 calendar days of delivery." },
+                                { title: "Products past the 14-day return window", desc: "Return requests must be made within 14 calendar days of delivery." },
                             ].map((item, i) => (
                                 <div key={i} className="flex gap-3 p-4 bg-red-50/50 rounded-xl border border-red-100/50">
                                     <XCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
@@ -119,13 +129,13 @@ export default function ReturnPolicyPage() {
 
                     {/* How to Return */}
                     <div className="bg-white rounded-[24px] p-8 border border-gray-100 shadow-sm">
-                        <h2 className="text-xl font-black text-gray-900 mb-6">How to Initiate a Return</h2>
+                        <h2 className="text-xl font-black text-gray-900 mb-6 font-display">How to Initiate a Return</h2>
                         <div className="space-y-6">
                             {[
-                                { step: "1", title: "Contact Us", desc: "Send a message through your Order page or email support@fairprice.ng with your Order ID, photos of the defect, and a description of the issue." },
-                                { step: "2", title: "Verification", desc: "Our team will review your request within 24-48 hours and confirm eligibility." },
-                                { step: "3", title: "Return Shipping", desc: "If approved, we will arrange for the item to be picked up or provide a return shipping label at no cost to you." },
-                                { step: "4", title: "Refund or Exchange", desc: "Once the returned item is received and inspected, we will issue a full refund to your original payment method or ship a replacement product." },
+                                { step: "1", title: "Contact Us", desc: "Send a message through your Order page or email support@fairprice.ng with your Order ID and photos of the item." },
+                                { step: "2", title: "Verification", desc: "Our team reviews eligibility. For domestic orders, we arrange pick-up. International customers (Canada/US/UK) are responsible for return shipping unless defective." },
+                                { step: "3", title: "Shipment", desc: "Once the item is shipped back and received, we inspection for 'New Only' condition (unopened, tags attached, no wear)." },
+                                { step: "4", title: "Refund Processing", desc: "Refunds are processed within 7 business days of receipt to your original payment method. Restocking fee is $0." },
                             ].map((item, i) => (
                                 <div key={i} className="flex gap-4">
                                     <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-black text-xs shrink-0">
@@ -165,17 +175,45 @@ export default function ReturnPolicyPage() {
                     <div className="bg-white rounded-[24px] p-8 border border-gray-100 shadow-sm">
                         <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
                             <Truck className="h-5 w-5 text-gray-400" />
-                            Return Shipping Costs
+                            Fees & Shipping
                         </h2>
                         <div className="space-y-3">
                             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
                                 <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
-                                <p className="text-sm text-gray-700"><span className="font-bold">Defective/Wrong Item:</span> Return shipping is <span className="font-bold text-emerald-600">FREE</span>. We cover all costs.</p>
+                                <p className="text-sm text-gray-700 font-medium"><span className="font-bold">Restocking Fee:</span> $0 (No cost for returns).</p>
                             </div>
                             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
                                 <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                                <p className="text-sm text-gray-700"><span className="font-bold">Buyer&apos;s remorse (if approved):</span> The buyer is responsible for return shipping costs.</p>
+                                <p className="text-sm text-gray-700 font-medium"><span className="font-bold">International Return Shipping:</span> Customers in Canada, US, and UK are responsible for return shipping costs unless the item is defective.</p>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Return Policy Exceptions */}
+                    <div className="bg-white rounded-[24px] p-8 border border-gray-100 shadow-sm border-l-4 border-l-amber-500">
+                        <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
+                            <AlertTriangle className="h-5 w-5 text-amber-500" />
+                            Return Policy Exceptions
+                        </h2>
+                        <p className="text-sm text-gray-600 mb-4 font-medium leading-relaxed">
+                            While our standard policy offers a 14-day window, some special products or high-value electronics may have different return policies or windows. These are listed on individual product pages as &quot;Return Policy Exceptions.&quot;
+                        </p>
+                        <div className="bg-amber-50 rounded-xl p-4 border border-amber-100">
+                            <p className="text-xs text-amber-800 font-bold mb-2 uppercase tracking-wide">Common Exceptions:</p>
+                            <ul className="space-y-2">
+                                <li className="text-xs text-amber-700 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                    <span>Certain hygiene-sensitive beauty tools (No returns once seal is broken)</span>
+                                </li>
+                                <li className="text-xs text-amber-700 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                    <span>High-value custom electronics (7-day window only)</span>
+                                </li>
+                                <li className="text-xs text-amber-700 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                    <span>Clearance or &quot;As-Is&quot; final sale items (Non-returnable)</span>
+                                </li>
+                            </ul>
                         </div>
                     </div>
 
@@ -185,8 +223,8 @@ export default function ReturnPolicyPage() {
                         <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
                             <span className="text-2xl">🇳🇬</span>
                             <div>
-                                <p className="font-bold text-gray-900 text-sm">Nigeria</p>
-                                <p className="text-xs text-gray-500">This return policy applies to all orders shipped within Nigeria.</p>
+                                <p className="font-bold text-gray-900 text-sm">Standard for Nigeria</p>
+                                <p className="text-xs text-gray-500">This return policy applies to all orders shipped within Nigeria and meets international verifications.</p>
                             </div>
                         </div>
                     </div>

@@ -2058,7 +2058,7 @@ class DataSyncServiceService {
     }
 
     /** Promote a cached product into the main catalog */
-    promoteFromCache(productId: string): Product | null {
+    promoteFromCache(productId: string, persist: boolean = true): Product | null {
         const all = this.getAllCachedProducts();
         const cached = all.find(p => p.id === productId);
         if (!cached) return null;
@@ -2070,7 +2070,7 @@ class DataSyncServiceService {
             seller_id: cached.seller_id || 'global-partners',
             seller_name: cached.seller_name || 'Global Stores',
         };
-        this.addRawProduct(product as Product);
+        this.addRawProduct(product as Product, persist);
         return product as Product;
     }
 
@@ -2581,7 +2581,7 @@ class DataSyncServiceService {
         return newProduct;
     }
 
-    addRawProduct(product: Product) {
+    addRawProduct(product: Product, persist: boolean = true) {
         // Enforce 50-character limit for GMC compliance on all newly added products
         if (product.id.length > 50) {
             product.id = product.id.slice(0, 50).replace(/-+$/, "");
@@ -2604,8 +2604,10 @@ class DataSyncServiceService {
             localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         }
 
-        // Persist to Postgres (queued if offline)
-        resilientFetch("/api/products", { method: "POST", body: product, type: "product_update" });
+        // Persist to Postgres if allowed (queued if offline)
+        if (persist) {
+            resilientFetch("/api/products", { method: "POST", body: product, type: "product_update" });
+        }
 
         try {
             this.addToHistory(product);

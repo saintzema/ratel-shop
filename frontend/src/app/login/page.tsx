@@ -1161,11 +1161,11 @@ export default function UnifiedAuthPage() {
                     {/* Jumia Style Legal Footer Links */}
                     <div className="mt-8 text-center text-[12px] text-[#86868b]">
                         <div className="flex flex-wrap justify-center gap-x-4 mb-4 font-medium uppercase tracking-wider text-[10px]">
-                            <Link href="#" className="hover:text-[#1d1d1f]">Terms of Use</Link>
+                            <Link href="/terms" className="hover:text-[#1d1d1f]">Terms of Use</Link>
                             <span>|</span>
-                            <Link href="#" className="hover:text-[#1d1d1f]">Privacy Policy</Link>
+                            <Link href="/privacy" className="hover:text-[#1d1d1f]">Privacy Policy</Link>
                             <span>|</span>
-                            <Link href="#" className="hover:text-[#1d1d1f]">FAQ</Link>
+                            <Link href="/help" className="hover:text-[#1d1d1f]">FAQ</Link>
                         </div>
                         <div className="p-4 border border-gray-200 rounded-xl bg-gray-50/50">
 
@@ -1173,20 +1173,20 @@ export default function UnifiedAuthPage() {
                                 <div>
                                     <h4 className="font-bold text-[#1d1d1f] mb-2">NEED HELP?</h4>
                                     <ul className="space-y-1.5">
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Chat with us</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Help Center</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Contact Us</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Chat with us</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Help Center</Link></li>
+                                        <li><Link href="/contact" className="hover:text-emerald-600 hover:underline transition-colors">Contact Us</Link></li>
                                     </ul>
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-[#1d1d1f] mb-2">USEFUL LINKS</h4>
                                     <ul className="space-y-1.5">
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Service Center</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">How to shop on FairPrice?</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Delivery options and timelines</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Service Center</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">How to shop on FairPrice?</Link></li>
+                                        <li><Link href="/shipping" className="hover:text-emerald-600 hover:underline transition-colors">Delivery options and timelines</Link></li>
                                         <li><Link href="/legal/consumer-protection" className="hover:text-emerald-600 hover:underline transition-colors">Dispute Resolution Policy</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Returns & Refund Timeline</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Pickup Stations</Link></li>
+                                        <li><Link href="/returns" className="hover:text-emerald-600 hover:underline transition-colors">Returns & Refund Timeline</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Pickup Stations</Link></li>
                                     </ul>
                                 </div>
                             </div>

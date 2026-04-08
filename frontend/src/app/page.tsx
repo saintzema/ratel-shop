@@ -529,7 +529,7 @@ function LazySection({ children, height = 340, skeletonTitle }: { children: Reac
           observer.disconnect();
         }
       },
-      { rootMargin: "400px" } // Load 400px before it enters the viewport
+      { rootMargin: "1000px" } // Load 1000px before it enters the viewport for seamless rendering
     );
     observer.observe(ref);
     return () => observer.disconnect();
@@ -702,7 +702,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
           <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
         </button>
 
-        <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
+        <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-8 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
           {[...products, ...products, ...products].map((product, idx) => (
             <div key={`${product.id}-${idx}`} className="min-w-[190px] md:min-w-[220px] flex flex-col">
               <ProductCard product={product} />
@@ -841,8 +841,8 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         <div
           ref={scrollRef}
           onScroll={!autoScroll ? checkScroll : undefined}
-          className="flex gap-2 md:gap-2 overflow-x-auto pb-2 scrollbar-hide snap-none items-stretch"
-          style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1rem' }}
+          className="flex gap-2 md:gap-2 overflow-x-auto pb-8 scrollbar-hide snap-none items-stretch"
+          style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
         >
           {displayProducts.map((product, idx) => (
             <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">

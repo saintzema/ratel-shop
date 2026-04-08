@@ -580,7 +580,7 @@ export default function AdminSettings() {
                             <div className="flex items-center justify-between py-4 border-b border-gray-50">
                                 <div className="max-w-md">
                                     <h4 className="text-sm font-bold text-gray-900">Escrow Auto-Release</h4>
-                                    <p className="text-xs text-gray-400 mt-0.5">Release funds 7 days after confirmed delivery</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">Release funds 14 days after confirmed delivery</p>
                                 </div>
                                 <Switch checked={escrowRelease} onCheckedChange={setEscrowRelease} />
                             </div>
@@ -594,7 +594,7 @@ export default function AdminSettings() {
                             <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
                                 <div className="max-w-md">
                                     <h4 className="text-sm font-bold text-gray-900">Global Search Caching</h4>
-                                    <p className="text-xs text-gray-400 mt-0.5">Auto-capture AI-generated search results into the public catalogue</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">Auto-capture and add AI-generated products from Navbar & Modal Search into the public catalogue</p>
                                 </div>
                                 <Switch checked={globalSearchCaching} onCheckedChange={setGlobalSearchCaching} />
                             </div>

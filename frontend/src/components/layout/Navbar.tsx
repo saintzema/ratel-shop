@@ -106,6 +106,7 @@ export function Navbar() {
     const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
     const [cachedResults, setCachedResults] = useState<any[]>([]);
+    const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
     const { totalUnread, openMessageBox } = useMessages();
@@ -149,6 +150,18 @@ export function Navbar() {
             setIsSeller(false);
         }
     }, [user]);
+
+    // Load global settings
+    useEffect(() => {
+        fetch('/api/admin/settings')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.globalSearchCaching !== undefined) {
+                    setGlobalSearchCaching(data.globalSearchCaching);
+                }
+            })
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         const loadNotifs = async () => {
@@ -466,16 +479,16 @@ export function Navbar() {
                 const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
                 if (globalAsProducts[idx]) {
                     resolvedClickedId = globalAsProducts[idx].id;
-                    // ONLY promote the clicked product from cache to catalog
-                    DataSyncService.promoteFromCache(resolvedClickedId) ||
-                        DataSyncService.addRawProduct(globalAsProducts[idx] as any);
+                    // ONLY promote the clicked product from cache to catalog (respecting admin toggle)
+                    DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching) ||
+                        DataSyncService.addRawProduct(globalAsProducts[idx] as any, globalSearchCaching);
                 }
             } else if (clickedProductId.startsWith('__cached_')) {
                 const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
                 if (cachedResults[idx]) {
                     resolvedClickedId = cachedResults[idx].id;
-                    // Promote the cached result to catalog
-                    DataSyncService.promoteFromCache(resolvedClickedId);
+                    // Promote the cached result to catalog (respecting admin toggle)
+                    DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching);
                 }
             }
 

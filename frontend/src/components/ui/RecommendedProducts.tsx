@@ -137,8 +137,8 @@ export function RecommendedProducts({
                 </Link>
             </div>
 
-            {/* Grid with round-button card design matching categories page */}
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2 md:gap-3 w-full">
+            {/* Grid with smaller card design to match sliders and improve density */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-3 w-full">
                 {displayedProducts.map((product) => (
                     <div
                         key={product.id}

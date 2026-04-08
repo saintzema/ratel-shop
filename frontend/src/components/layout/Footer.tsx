@@ -38,7 +38,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/help"
+                href="/contact"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Contact us
