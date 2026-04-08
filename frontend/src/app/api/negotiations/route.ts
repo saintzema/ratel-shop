@@ -19,15 +19,40 @@ export async function GET(request: Request) {
         try {
             const negotiations = await db.negotiationRequest.findMany({
                 where: whereClause,
-                include: {
-                    product: true,
+                select: {
+                    id: true,
+                    productId: true,
+                    customerId: true,
+                    customerName: true,
+                    sellerId: true,
+                    proposedPrice: true,
+                    message: true,
+                    status: true,
+                    chatMessages: true,
+                    counterPrice: true,
+                    counterMessage: true,
+                    counterStatus: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    product: {
+                        select: {
+                            name: true,
+                            imageUrl: true,
+                            price: true
+                        }
+                    }
                 },
                 orderBy: {
                     createdAt: 'desc',
-                }
+                },
+                take: 100 // Optimization: Limit to most recent records
             });
             
-            return NextResponse.json({ success: true, negotiations });
+            return NextResponse.json({ success: true, negotiations }, {
+                headers: {
+                    "Cache-Control": "public, s-maxage=30, stale-while-revalidate=15"
+                }
+            });
         } catch (dbError: any) {
             console.error("Database fetch error:", dbError);
             throw dbError;
@@ -36,7 +61,10 @@ export async function GET(request: Request) {
         console.error("Negotiations GET Error:", error);
         return NextResponse.json({ success: true, negotiations: [] }, {
             status: 200,
-            headers: { "X-DB-Status": "offline" }
+            headers: { 
+                "X-DB-Status": "offline",
+                "Cache-Control": "no-store"
+            }
         });
     }
 }

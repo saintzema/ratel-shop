@@ -16,36 +16,46 @@ export async function GET(req: Request) {
 
         const sellers = await db.seller.findMany({
             where: whereClause,
+            select: {
+                id: true,
+                userId: true,
+                businessName: true,
+                description: true,
+                logoUrl: true,
+                coverImageUrl: true,
+                category: true,
+                verified: true,
+                rating: true,
+                trustScore: true,
+                status: true,
+                kycStatus: true,
+                storeUrl: true,
+                location: true,
+                createdAt: true,
+                ownerName: true,
+            },
+            take: 100
         });
 
         const mappedSellers = sellers.map(s => ({
-            id: s.id,
+            ...s,
             user_id: s.userId,
             business_name: s.businessName,
-            description: s.description,
             logo_url: s.logoUrl,
             cover_image_url: s.coverImageUrl,
-            category: s.category,
-            verified: s.verified,
-            rating: s.rating,
             trust_score: s.trustScore,
-            status: s.status,
             kyc_status: s.kycStatus,
-            bank_name: s.bankName,
-            account_number: s.accountNumber,
-            account_name: s.accountName,
             store_url: s.storeUrl,
-            location: s.location,
-            weekly_orders: s.weeklyOrders,
-            currencies: s.currencies,
-            staff_count: s.staffCount,
-            physical_stores: s.physicalStores,
-            created_at: s.createdAt.toISOString(),
             owner_name: s.ownerName,
-            owner_email: s.ownerEmail,
+            created_at: s.createdAt.toISOString(),
         }));
 
-        return NextResponse.json(mappedSellers);
+        return NextResponse.json(mappedSellers, {
+            headers: {
+                // Sellers change less often, cache for 5 min
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60"
+            }
+        });
     } catch (error: any) {
         console.error("Database fetch error:", error);
         // Return empty array instead of 500 so the client falls back to SEED_SELLERS

@@ -21,22 +21,48 @@ export async function GET(request: Request) {
 
         const orders = await db.order.findMany({
             where: whereClause,
-            include: {
-                product: true,
+            select: {
+                id: true,
+                customerId: true,
+                customerName: true,
+                productId: true,
+                sellerId: true,
+                sellerName: true,
+                amount: true,
+                quantity: true,
+                shippingAddress: true,
+                paymentMethod: true,
+                status: true,
+                escrowStatus: true,
+                payoutStatus: true,
+                createdAt: true,
+                product: {
+                    select: {
+                        name: true,
+                        imageUrl: true,
+                        price: true
+                    }
+                }
             },
             orderBy: {
                 createdAt: 'desc',
             },
-            ...(fetchAll ? { take: 200 } : {}), // Limit for admin sync to prevent overload
+            take: fetchAll ? 200 : 100, // Safety limit
         });
 
-        return NextResponse.json({ success: true, orders });
+        return NextResponse.json({ success: true, orders }, {
+            headers: {
+                "Cache-Control": "public, s-maxage=30, stale-while-revalidate=15"
+            }
+        });
     } catch (error: any) {
         console.error("Orders API Error:", error);
-        // Return empty array so client falls back to local orders
         return NextResponse.json({ success: true, orders: [] }, {
             status: 200,
-            headers: { "X-DB-Status": "offline" }
+            headers: { 
+                "X-DB-Status": "offline",
+                "Cache-Control": "no-store"
+            }
         });
     }
 }

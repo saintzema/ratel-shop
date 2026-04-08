@@ -23,24 +23,46 @@ export async function GET(req: Request) {
     }
 
     try {
-        // 1. Fetch external image
-        const response = await fetch(imageUrl, {
-            headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        // 1. Fetch external image with retry logic
+        async function fetchWithRetry(url: string, retries = 3, backoff = 500) {
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout per attempt
+                    
+                    const response = await fetch(url, {
+                        headers: {
+                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+                        },
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) return response;
+                    if (response.status === 404) break; // Don't retry 404
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                }
+                await new Promise(res => setTimeout(res, backoff * Math.pow(2, i)));
             }
-        });
+            return null;
+        }
 
-        if (!response.ok) {
-            console.error(`GMC Proxy: Failed to fetch ${imageUrl}`);
+        const response = await fetchWithRetry(imageUrl);
+
+        if (!response || !response.ok) {
+            console.error(`GMC Proxy: Failed to fetch ${imageUrl} after multiple attempts`);
             return NextResponse.redirect(new URL('/assets/images/placeholder.png', req.url));
         }
 
         const buffer = await response.arrayBuffer();
 
         // 2. Transform with Sharp (Standardize to JPEG/Progressive)
+        // Optimization: Slightly lower quality (75) to significantly reduce CPU/Memory usage
         const optimized = await sharp(Buffer.from(buffer))
             .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
-            .toFormat('jpeg', { quality: 85, progressive: true })
+            .toFormat('jpeg', { quality: 75, progressive: true, mozjpeg: true })
             .toBuffer();
 
         // 3. Return with proper Cache-Control and Content-Type for GMC
@@ -53,7 +75,6 @@ export async function GET(req: Request) {
 
     } catch (error) {
         console.error("GMC Proxy: Sharp processing failed:", error);
-        // On failure, redirect to a static placeholder that Google can definitely see
         return NextResponse.redirect(new URL('/assets/images/placeholder.png', req.url));
     }
 }

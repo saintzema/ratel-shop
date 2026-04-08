@@ -23,28 +23,45 @@ export async function GET(req: Request) {
             whereClause.updatedAt = { gte: new Date(updatedAfter) };
         }
 
+        // Optimization: Use 'select' instead of 'include' to fetch only what the frontend needs
+        // and avoid returning full Seller objects which bloats memory and CPU.
         const products = await db.product.findMany({
             where: whereClause,
-            include: {
-                seller: true
+            select: {
+                id: true,
+                sellerId: true,
+                sellerName: true,
+                name: true,
+                description: true,
+                price: true,
+                originalPrice: true,
+                recommendedPrice: true,
+                category: true,
+                imageUrl: true,
+                images: true,
+                stock: true,
+                priceFlag: true,
+                isSponsored: true,
+                isTrending: true,
+                isActive: true,
+                avgRating: true,
+                reviewCount: true,
+                soldCount: true,
+                highlights: true,
+                specs: true,
+                createdAt: true,
             },
             orderBy: { createdAt: "desc" },
+            take: includeInactive ? undefined : 200, // Safety limit for summary view
         });
 
-        // Map camelCase DB fields back to snake_case for the frontend types if needed
         const mappedProducts = products.map(p => ({
-            id: p.id,
+            ...p,
             seller_id: p.sellerId,
             seller_name: p.sellerName,
-            name: p.name,
-            description: p.description,
-            price: p.price,
             original_price: p.originalPrice,
             recommended_price: p.recommendedPrice,
-            category: p.category,
             image_url: p.imageUrl,
-            images: p.images,
-            stock: p.stock,
             price_flag: p.priceFlag,
             is_sponsored: p.isSponsored,
             is_trending: p.isTrending,
@@ -52,18 +69,23 @@ export async function GET(req: Request) {
             avg_rating: p.avgRating,
             review_count: p.reviewCount,
             sold_count: p.soldCount,
-            highlights: p.highlights,
-            specs: p.specs,
             created_at: p.createdAt.toISOString(),
         }));
 
-        return NextResponse.json(mappedProducts);
+        return NextResponse.json(mappedProducts, {
+            headers: {
+                // Cache for 1 min on Edge, allow stale for 30s
+                "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30"
+            }
+        });
     } catch (error: any) {
         console.error("Database fetch error:", error);
-        // Return empty array instead of 500 so the client falls back to SEED_PRODUCTS
         return NextResponse.json([], {
             status: 200,
-            headers: { "X-DB-Status": "offline" }
+            headers: { 
+                "X-DB-Status": "offline",
+                "Cache-Control": "no-store" 
+            }
         });
     }
 }

@@ -24,15 +24,19 @@ jobs:
 
     - name: Create Database Dump
       env:
-        # This securely injects the Neon DB connection string from GitHub Secrets
         DATABASE_URL: ${{ secrets.DATABASE_URL }}
       run: |
+        if [ -z "$DATABASE_URL" ]; then
+          echo "❌ Error: DATABASE_URL secret is missing!"
+          exit 1
+        fi
+        
         TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
         FILENAME="backups/ratelshop_backup_$TIMESTAMP.sql"
         
         echo "Creating backup: $FILENAME"
         # Export the database schema and data
-        pg_dump $DATABASE_URL > $FILENAME
+        pg_dump "$DATABASE_URL" > $FILENAME || { echo "❌ pg_dump failed"; exit 1; }
         
         echo "Backup created successfully."
         ls -la backups/
@@ -42,8 +46,12 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         
+        # Ensure we are on the right branch context or create it
+        git fetch origin db-backups || true
+        
         git add backups/
         git commit -m "Automated Postgres Backup: $(date +%Y-%m-%d)" || echo "No changes to commit"
         
-        # Pushes specifically to a 'backups' branch to keep 'dev' and 'main' clean
-        git push origin HEAD:db-backups || git push origin HEAD:refs/heads/db-backups
+        # Pushes specifically to a 'db-backups' branch. 
+        # Using --force or specific refspec to ensure branch creation works.
+        git push origin HEAD:db-backups --force || git push origin HEAD:refs/heads/db-backups --force
