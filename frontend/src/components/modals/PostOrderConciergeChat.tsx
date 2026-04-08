@@ -416,7 +416,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–7 business days**.`;
                     }
                 } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
-                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 7-day return window after delivery.";
+                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 14-day return window after delivery.";
                 } else if (lowerText.includes("condition") || lowerText.includes("confirm")) {
                     zivaText = "I can request a condition check from the merchant. They'll be asked to verify the item's quality and packaging before shipping. This is part of our FairPrice Quality Assurance process.";
                 }

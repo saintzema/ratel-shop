@@ -110,7 +110,6 @@ export default function ReturnPolicyPage() {
                         </h2>
                         <div className="space-y-4">
                             {[
-                                { title: "Change of mind", desc: "We cannot accept returns simply because you changed your mind about the purchase." },
                                 { title: "Used or altered products", desc: "Products that have been used, washed, modified, or damaged by the buyer after delivery." },
                                 { title: "Digital products & services", desc: "Software licenses, digital vouchers, and subscription services cannot be returned." },
                                 { title: "Perishable goods", desc: "Food items, fresh groceries, and other perishable products are not eligible for return." },

@@ -7,7 +7,7 @@ import {
     ShieldCheck, MapPin, Scale, ArrowRight,
     BarChart3, Globe, AlertTriangle, CheckCircle, ShoppingCart,
     Loader2, ExternalLink, ChevronRight, Box, Heart,
-    Phone, Monitor, Sofa, Home as HomeIcon, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Sparkles
+    Phone, Monitor, Sofa, Home as HomeIcon, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Sparkles, History
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -355,6 +355,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
     const [searchQuery, setSearchQuery] = useState(initialQuery || "");
     const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
     const [recentHistory, setRecentHistory] = useState<any[]>([]);
+    const initialQueryTriggeredRef = useRef<string | null>(null);
 
     // Load history
     useEffect(() => {
