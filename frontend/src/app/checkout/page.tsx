@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SEED_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice, cn } from "@/lib/utils";
-import { isVehicle, calculateMonthlyPayment } from "@/lib/financing-utils";
+import { isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 import { 
     calculateTieredEscrowFee, 
     ESCROW_TIERS 
@@ -601,9 +601,11 @@ function CheckoutContent() {
     const hasGlobalProduct = checkoutItems.some(item => item.product.seller_id === "global-partners" || item.product.seller_name.toLowerCase().includes("global"));
     const hasVehicleItem = checkoutItems.some(item => isVehicle(item.product));
     
-    // Calculate 15% deposit for vehicles
+    // Calculate dynamic deposit for vehicles (admin-configurable)
+    const vehicleDepositRate = getVehicleDepositPercent();
+    const vehicleDepositPctDisplay = Math.round(vehicleDepositRate * 100);
     const carSubtotal = checkoutItems.reduce((acc, item) => isVehicle(item.product) ? acc + (item.price * item.quantity) : acc, 0);
-    const carDeposit = Math.round(carSubtotal * 0.15);
+    const carDeposit = Math.round(carSubtotal * vehicleDepositRate);
     const nonCarSubtotal = subtotal - carSubtotal;
     const itemsPayableNow = carDeposit + nonCarSubtotal;
 
@@ -1817,12 +1819,12 @@ function CheckoutContent() {
                                     <div className="flex justify-between text-gray-900 font-bold">
                                         <span className="flex items-center gap-1.5">
                                             <Sparkles className="h-3.5 w-3.5 text-brand-orange animate-pulse" />
-                                            Loan Deposit (15%):
+                                            Loan Deposit ({vehicleDepositPctDisplay}%):
                                         </span>
                                         <span>{formatPrice(carDeposit)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-[11px] leading-tight">
-                                        <span>Pay 15% now to secure your vehicle. Our concierge will contact you for physical inspection and financing.</span>
+                                        <span>Pay {vehicleDepositPctDisplay}% now to secure your vehicle. Our concierge will contact you for physical inspection and financing.</span>
                                     </div>
                                     {nonCarSubtotal > 0 && (
                                         <div className="flex justify-between text-gray-600 text-xs mt-1">

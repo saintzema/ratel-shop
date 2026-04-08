@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 export default function AdminSettings() {
     const [platformMargin, setPlatformMargin] = useState("15");
     const [vehicleMarkup, setVehicleMarkup] = useState("12"); // Default 12% markup for vehicles
+    const [vehicleDepositPct, setVehicleDepositPct] = useState("15"); // Default 15% loan deposit for vehicles
     const [serviceCharge, setServiceCharge] = useState("25");
     const [standardCommission, setStandardCommission] = useState("2.5");
     const [escrowFee, setEscrowFee] = useState("1000");
@@ -107,6 +108,10 @@ export default function AdminSettings() {
                         setVehicleMarkup(initialData.vehicleMarkup.toString());
                         localStorage.setItem("fp_vehicle_markup", initialData.vehicleMarkup.toString());
                     }
+                    if (initialData.vehicleDepositPct !== undefined) {
+                        setVehicleDepositPct(initialData.vehicleDepositPct.toString());
+                        localStorage.setItem("fp_vehicle_deposit_pct", initialData.vehicleDepositPct.toString());
+                    }
                     if (initialData.serviceCharge !== undefined) setServiceCharge(initialData.serviceCharge.toString());
                     if (initialData.standardCommission !== undefined) setStandardCommission(initialData.standardCommission.toString());
                     if (initialData.escrowFee !== undefined) setEscrowFee(initialData.escrowFee.toString());
@@ -179,9 +184,11 @@ export default function AdminSettings() {
         // Also persist to localStorage for client-side pickup
         localStorage.setItem("fp_max_negotiation_discount", maxNegotiationDiscount || "10");
         localStorage.setItem("fp_vehicle_markup", vehicleMarkup || "12");
+        localStorage.setItem("fp_vehicle_deposit_pct", vehicleDepositPct || "15");
         return saveSection({
             platformMargin: parseFloat(platformMargin) || 15.0,
             vehicleMarkup: parseFloat(vehicleMarkup) || 12.0,
+            vehicleDepositPct: parseFloat(vehicleDepositPct) || 15,
             serviceCharge: parseFloat(serviceCharge) || 25.0,
             standardCommission: parseFloat(standardCommission) || 2.5,
             escrowFee: parseFloat(escrowFee) || 1000,
@@ -272,6 +279,14 @@ export default function AdminSettings() {
                                         <InfoTooltip content="Specialized markup for vehicle categories to cover loan processing and inspection costs." />
                                     </div>
                                     <Input value={vehicleMarkup} onChange={(e) => setVehicleMarkup(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-amber-200 ring-2 ring-amber-50" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Vehicle Loan Deposit (%)</label>
+                                        <InfoTooltip content="The percentage of the vehicle price a buyer must pay upfront as a deposit to secure the vehicle. The remaining balance is financed through the loan." />
+                                    </div>
+                                    <Input value={vehicleDepositPct} onChange={(e) => setVehicleDepositPct(e.target.value)} type="number" min="5" max="50" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-amber-200 ring-2 ring-amber-50" />
+                                    <p className="text-[10px] text-gray-400 pl-1">Buyers pay this % upfront for vehicle transactions (default: 15%)</p>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Standard Commission (%)</label>

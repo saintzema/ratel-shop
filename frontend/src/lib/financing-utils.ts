@@ -18,13 +18,32 @@ export type LoanType = 'bnpl' | 'lease';
 export const LOAN_CONSTANTS = {
     BNPL_MARKUP_PA: 0.34, // 34% p.a. markup
     LEASE_MARKUP_PA: 0.395, // 39.5% p.a. markup (includes insurance/reg)
-    BNPL_DEPOSIT_PERCENT: 0.15, // 15% deposit loan requirement
+    BNPL_DEPOSIT_PERCENT: 0.15, // 15% deposit loan requirement (default, overridable by admin)
     TENORS: {
         new: 5, // 5 years
         foreign_used: 4, // 4 years
         nigerian_used: 3, // 3 years
     }
 };
+
+/**
+ * Returns the current vehicle deposit percentage as a decimal (e.g., 0.15 for 15%).
+ * Reads from admin settings in localStorage, falls back to LOAN_CONSTANTS default.
+ */
+export function getVehicleDepositPercent(): number {
+    if (typeof window !== "undefined") {
+        try {
+            const stored = localStorage.getItem("fp_vehicle_deposit_pct");
+            if (stored) {
+                const val = parseFloat(stored);
+                if (!isNaN(val) && val >= 1 && val <= 100) {
+                    return val / 100;
+                }
+            }
+        } catch {}
+    }
+    return LOAN_CONSTANTS.BNPL_DEPOSIT_PERCENT;
+}
 
 /**
  * Calculates monthly payment based on user-provided baseline profit rates.
@@ -65,7 +84,7 @@ export function calculateMonthlyPayment(
     // Deposit Logic
     let deposit = 0;
     if (type === 'bnpl') {
-        deposit = price * LOAN_CONSTANTS.BNPL_DEPOSIT_PERCENT;
+        deposit = price * getVehicleDepositPercent();
     } else {
         // Lease-to-Own: 3 months rental deposit
         deposit = monthlyPayment * 3;

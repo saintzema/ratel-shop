@@ -22,7 +22,7 @@ import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
-import { isVehicle, calculateMonthlyPayment } from "@/lib/financing-utils";
+import { isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 import {
     Handshake,
     MessageSquare,
@@ -65,7 +65,10 @@ import {
     ShoppingBag,
     Package,
     Plus,
-    Minus
+    Minus,
+    Banknote,
+    CreditCard,
+    TrendingUp
 } from "lucide-react";
 import { LocationModal } from "@/components/modals/LocationModal";
 import React, { useState, useRef, useEffect, useMemo } from "react";
@@ -609,6 +612,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
     const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
     const [loanAnalysis, setLoanAnalysis] = useState<any>(null);
+    const vehicleDepositPctDisplay = Math.round(getVehicleDepositPercent() * 100);
 
     // Calculate loan options if vehicle
     useEffect(() => {
@@ -1540,41 +1544,56 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </div>
 
-                                {/* FairPrice Vehicle Loan Discovery */}
+                                {/* Vehicle Loan Discovery & Breakdown */}
                                 {isVehicle(product) && loanAnalysis && (
-                                    <div className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-4 space-y-3 relative overflow-hidden group/loan">
-                                        <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl shadow-sm z-10">
+                                    <div className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10">
+                                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
                                             LOAN AVAILABLE
                                         </div>
                                         
-                                        <div className="flex items-start gap-3">
-                                            <div className="h-10 w-10 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
-                                                <Zap className="h-5 w-5" />
+                                        <div className="flex items-start gap-4">
+                                            <div className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0 group-hover/loan:scale-110 transition-transform duration-500">
+                                                <Banknote className="h-6 w-6" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1">Down Payment Required</p>
-                                                <p className="text-xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</p>
+                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1.5">Secure This Vehicle With</p>
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-2xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</span>
+                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded-full">({vehicleDepositPctDisplay}% Deposit)</span>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="bg-white/60 p-2 rounded-lg border border-emerald-100">
-                                                <p className="text-[9px] text-gray-500 font-bold uppercase tabular-nums">Monthly</p>
-                                                <p className="text-xs font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="bg-white/80 p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <CreditCard className="h-3 w-3 text-emerald-500" />
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Monthly</p>
+                                                </div>
+                                                <p className="text-sm font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
                                             </div>
-                                            <div className="bg-white/60 p-2 rounded-lg border border-emerald-100">
-                                                <p className="text-[9px] text-gray-500 font-bold uppercase">Tenor</p>
-                                                <p className="text-xs font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years</p>
+                                            <div className="bg-white/80 p-3 rounded-2xl border border-emerald-100 shadow-sm">
+                                                <div className="flex items-center gap-1.5 mb-1">
+                                                    <TrendingUp className="h-3 w-3 text-emerald-500" />
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Tenor</p>
+                                                </div>
+                                                <p className="text-sm font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-gray-400 font-bold">({loanAnalysis.tenorMonths}mo)</span></p>
                                             </div>
+                                        </div>
+                                        
+                                        <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50">
+                                            <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">
+                                                Funds are held in <span className="font-bold">Escrow Protection</span>. The seller only receives payment after you've inspected and accepted the vehicle.
+                                            </p>
                                         </div>
                                         
                                         <Button 
                                             variant="ghost" 
                                             size="sm" 
                                             onClick={() => setIsPriceIntelOpen(true)}
-                                            className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-bold h-8 transition-all"
+                                            className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-black h-10 rounded-xl transition-all border border-emerald-200"
                                         >
-                                            Customize Loan & Compare Pricing <ChevronRight className="h-3 w-3 ml-1" />
+                                            Explore Full Loan Terms <ChevronRight className="h-3 w-3 ml-1" />
                                         </Button>
                                     </div>
                                 )}
@@ -1602,15 +1621,16 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
 
                                     <Button
-                                        className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02]"
+                                        className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/20"
                                         onClick={() => {
                                             if (product) {
+                                                // Vehicle specific checkout logic is handled inside checkout page based on product category
                                                 for (let i = 0; i < quantity; i++) addToCart(product);
                                                 router.push('/checkout');
                                             }
                                         }}
                                     >
-                                        Buy Now
+                                        {isVehicle(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
                                     </Button>
 
 

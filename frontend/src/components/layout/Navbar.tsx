@@ -428,7 +428,7 @@ export function Navbar() {
                     name: r.name,
                     price: r.approxPrice || 0,
                     original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
-                    category: r.category || 'electronics',
+                    category: (catKey.includes('car') || catKey.includes('vehicle') || catKey.includes('auto')) ? 'cars' : (r.category || 'electronics'),
                     description,
                     image_url: imageUrl,
                     images: [imageUrl],
