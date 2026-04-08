@@ -2179,7 +2179,9 @@ class DataSyncServiceService {
 
     getOrders(): Order[] {
         if (typeof window === "undefined") return [];
-        const allOrders: Order[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || "[]");
+        const DEMO_PATTERNS = ["FP-DEMO", "TEST-", "mock_", "demo_"];
+        const allOrders: Order[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.ORDERS) || "[]")
+            .filter((o: any) => !DEMO_PATTERNS.some(p => String(o.id).includes(p)));
         const allSellers = this.getSellers();
 
         return allOrders.map(order => {
@@ -3888,7 +3890,9 @@ class DataSyncServiceService {
 
     getComplaints(): Complaint[] {
         if (typeof window === "undefined") return [];
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS) || "[]");
+        const DEMO_PATTERNS = ["FP-DEMO", "TEST-", "mock_", "demo_"];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS) || "[]")
+            .filter((c: any) => !DEMO_PATTERNS.some(p => String(c.id).includes(p)) && !DEMO_PATTERNS.some(p => c.order_id && String(c.order_id).includes(p)));
     }
 
     getPayouts(): any[] {
@@ -4143,7 +4147,9 @@ class DataSyncServiceService {
     }
     // ─── Dispute Management ─────────────────────────────
     getDisputes(): Dispute[] {
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DISPUTES) || "[]");
+        const DEMO_PATTERNS = ["FP-DEMO", "TEST-", "mock_", "demo_"];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DISPUTES) || "[]")
+            .filter((d: any) => !DEMO_PATTERNS.some(p => String(d.id).includes(p)) && !DEMO_PATTERNS.some(p => d.order_id && String(d.order_id).includes(p)));
     }
 
     raiseDispute(orderId: string, buyerId: string, buyerName: string, buyerEmail: string, reason: DisputeReason, description: string): Dispute {
@@ -4498,8 +4504,9 @@ class DataSyncServiceService {
     // ─── Reviews ────────────────────────────────────────────
     getReviews(productId?: string): any[] {
         if (typeof window === "undefined") return [];
+        const DEMO_PATTERNS = ["FP-DEMO", "TEST-", "mock_", "demo_"];
         const stored = localStorage.getItem(this.STORAGE_KEYS.REVIEWS);
-        const all = stored ? JSON.parse(stored) : [];
+        const all = stored ? JSON.parse(stored).filter((r: any) => !DEMO_PATTERNS.some(p => String(r.id).includes(p)) && !DEMO_PATTERNS.some(p => r.product_id && String(r.product_id).includes(p))) : [];
         if (!productId) return all;
 
         // Exact match

@@ -44,8 +44,8 @@ export default function AdminDashboard() {
         setStats(DataSyncService.getAdminStats());
 
         // Governance: merge complaints + disputed/cancelled orders
-        const rawComplaints = DataSyncService.getComplaints();
-        const allOrders = DataSyncService.getOrders();
+        const rawComplaints = DataSyncService.getComplaints().filter((c: any) => !String(c.id).includes("FP-DEMO-ORD"));
+        const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
         const disputedOrders = allOrders
             .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
             .map(o => ({
@@ -75,9 +75,9 @@ export default function AdminDashboard() {
             }));
         setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
 
-        const actualDisputes = DataSyncService.getDisputes();
+        const actualDisputes = DataSyncService.getDisputes().filter((d: any) => !String(d.order_id).includes("FP-DEMO"));
         setOpenDisputeCount(actualDisputes.filter(d => !d.status.startsWith("resolved")).length);
-        setRecentReviews(dSort(DataSyncService.getReviews()).slice(0, 5));
+        setRecentReviews(dSort(DataSyncService.getReviews().filter((r: any) => !String(r.id).includes("FP-DEMO"))).slice(0, 5));
         setRecentOrders(dSort(allOrders).slice(0, 5));
     };
 
