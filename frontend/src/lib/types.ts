@@ -148,6 +148,19 @@ export interface Order {
     source?: string;
     seller_name?: string;
     discount_id?: string;
+    // Vehicle Loan Financing details (set when isVehicle is true)
+    financing?: {
+        is_vehicle_loan: boolean;
+        vehicle_price: number;       // Full listing price of the vehicle
+        deposit_paid: number;        // 15% deposit amount paid upfront
+        loan_balance: number;        // Remaining balance after deposit
+        monthly_payment: number;     // Estimated monthly repayment
+        tenor_months: number;        // Repayment period in months
+        interest_rate: number;       // Annual markup rate (e.g. 0.34 = 34%)
+        total_repayment: number;     // Total amount over the loan term
+        condition?: string;          // new | foreign_used | nigerian_used
+        loan_type?: string;          // bnpl | lease
+    };
 }
 
 export interface ReturnRequest {
@@ -299,7 +312,7 @@ export interface Notification {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
+export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
 
 export const CATEGORIES: { value: ProductCategory; label: string }[] = [
     { value: "phones", label: "Phones" },
@@ -315,6 +328,8 @@ export const CATEGORIES: { value: ProductCategory; label: string }[] = [
     { value: "baby", label: "Baby" },
     { value: "sports", label: "Sports" },
     { value: "cars", label: "Cars" },
+    { value: "vehicles", label: "Vehicles" },
+    { value: "automotive", label: "Automotive" },
     { value: "energy", label: "Energy" },
     { value: "gaming", label: "Gaming" },
 ];

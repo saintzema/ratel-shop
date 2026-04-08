@@ -178,6 +178,7 @@ model Order {
   payoutStatus      String?        @default("none")
   unreadAdmin       Boolean?       @default(false)
   zivaActive        Boolean?       @default(false)
+  financing         Json?
   disputes          Dispute[]
   customer          User           @relation(fields: [customerId], references: [id])
   product           Product        @relation(fields: [productId], references: [id])

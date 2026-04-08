@@ -1,5 +1,5 @@
 /**
- * Financing Utilities for Vehicle Loans
+ * Loan Utilities for Vehicle Financing
  * Includes BNPL and Lease-to-Own calculations based on Altbank/Altdrive baseline rates.
  */
 
@@ -18,7 +18,7 @@ export type LoanType = 'bnpl' | 'lease';
 export const LOAN_CONSTANTS = {
     BNPL_MARKUP_PA: 0.34, // 34% p.a. markup
     LEASE_MARKUP_PA: 0.395, // 39.5% p.a. markup (includes insurance/reg)
-    BNPL_DEPOSIT_PERCENT: 0.15, // 15% deposit
+    BNPL_DEPOSIT_PERCENT: 0.15, // 15% deposit loan requirement
     TENORS: {
         new: 5, // 5 years
         foreign_used: 4, // 4 years

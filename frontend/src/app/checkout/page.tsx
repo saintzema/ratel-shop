@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SEED_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice, cn } from "@/lib/utils";
-import { isVehicle } from "@/lib/financing-utils";
+import { isVehicle, calculateMonthlyPayment } from "@/lib/financing-utils";
 import { 
     calculateTieredEscrowFee, 
     ESCROW_TIERS 
@@ -800,6 +800,11 @@ function CheckoutContent() {
 
             const createdOrders: any[] = [];
             checkoutItems.forEach(item => {
+                // Calculate financing details for vehicle products
+                const isVehicleProduct = isVehicle(item.product);
+                const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * 0.15) : 0;
+                const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 'bnpl', 'foreign_used') : null;
+
                 const newOrder = DataSyncService.addOrder({
                     product_id: item.product.id,
                     customer_id: orderUserId,
@@ -807,7 +812,7 @@ function CheckoutContent() {
                     customer_email: user?.email || address.email,
                     seller_id: item.product.seller_id,
                     seller_name: item.product.seller_name,
-                    amount: item.price * item.quantity,
+                    amount: isVehicleProduct ? vehicleDeposit : item.price * item.quantity,
                     status: "pending",
                     escrow_status: "held",
                     shipping_address: deliveryMethod === "pickup"
@@ -816,7 +821,22 @@ function CheckoutContent() {
                     delivery_method: deliveryMethod,
                     customer_phone: `${countryCode} ${address.phone}`,
                     customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
-                    discount_id: appliedCoupon?.id
+                    discount_id: appliedCoupon?.id,
+                    // Attach full financing breakdown for vehicle orders
+                    ...(isVehicleProduct && loanCalc ? {
+                        financing: {
+                            is_vehicle_loan: true,
+                            vehicle_price: item.price * item.quantity,
+                            deposit_paid: vehicleDeposit,
+                            loan_balance: (item.price * item.quantity) - vehicleDeposit,
+                            monthly_payment: loanCalc.monthlyPayment,
+                            tenor_months: loanCalc.tenorMonths,
+                            interest_rate: loanCalc.interestRate,
+                            total_repayment: loanCalc.totalAmount,
+                            condition: 'foreign_used',
+                            loan_type: 'bnpl',
+                        }
+                    } : {})
                 }, item.product);
                 createdOrders.push({ order: newOrder, product: item.product, item });
             });
@@ -1797,7 +1817,7 @@ function CheckoutContent() {
                                     <div className="flex justify-between text-gray-900 font-bold">
                                         <span className="flex items-center gap-1.5">
                                             <Sparkles className="h-3.5 w-3.5 text-brand-orange animate-pulse" />
-                                            Vehicle Deposit (15%):
+                                            Loan Deposit (15%):
                                         </span>
                                         <span>{formatPrice(carDeposit)}</span>
                                     </div>

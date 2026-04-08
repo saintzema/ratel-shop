@@ -26,7 +26,10 @@ import {
     Wallet,
     MessageSquare,
     ArrowUpDown,
-    XCircle
+    XCircle,
+    Car,
+    Banknote,
+    CreditCard
 } from "lucide-react";
 
 export default function SellerOrders() {
@@ -295,6 +298,11 @@ export default function SellerOrders() {
                                                     <Badge variant="outline" className={`text-[10px] font-bold py-0 px-2 border ${statusConfig.color}`}>
                                                         {statusConfig.icon} <span className="ml-1">{statusConfig.label}</span>
                                                     </Badge>
+                                                    {order.financing?.is_vehicle_loan && (
+                                                        <span className="inline-flex items-center gap-1 text-[9px] font-black bg-gradient-to-r from-emerald-500 to-indigo-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                                                            <Car className="h-2.5 w-2.5" /> FINANCED
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <h4 className="font-bold text-sm text-gray-900 mt-1 truncate">{order.product?.name}</h4>
                                                 <p className="text-[11px] text-gray-400">{formatDateExact(order.created_at)} · Qty: 1</p>
@@ -303,6 +311,11 @@ export default function SellerOrders() {
                                         <div className="flex items-center gap-4 shrink-0">
                                             <div className="text-right hidden sm:block">
                                                 <p className="font-black text-gray-900">{formatPrice(order.amount)}</p>
+                                                {order.financing?.is_vehicle_loan && (
+                                                    <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                                                        15% Deposit · Full: {formatPrice(order.financing.vehicle_price)}
+                                                    </p>
+                                                )}
                                                 <div className="flex flex-col items-end gap-1">
                                                     <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${escrowConfig.color}`}>
                                                         {escrowConfig.icon} {escrowConfig.label}
@@ -342,6 +355,85 @@ export default function SellerOrders() {
                                                     <span className="font-bold text-sm text-gray-900">3-5 business days</span>
                                                 </div>
                                             </div>
+
+                                            {/* Vehicle Loan Financing Details */}
+                                            {order.financing?.is_vehicle_loan && (
+                                                <div className="mb-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-indigo-50 overflow-hidden">
+                                                    <div className="px-4 py-3 bg-gradient-to-r from-emerald-600 to-indigo-600 flex items-center gap-2">
+                                                        <Car className="h-4 w-4 text-white" />
+                                                        <h5 className="text-xs font-black text-white tracking-wide uppercase">Vehicle Loan Financing Details</h5>
+                                                        <span className="ml-auto text-[9px] font-black bg-white/20 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">LOAN ACTIVE</span>
+                                                    </div>
+                                                    <div className="p-4">
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                                                            <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Car className="h-3 w-3 text-gray-400" />
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Vehicle Price</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-gray-900">{formatPrice(order.financing.vehicle_price)}</span>
+                                                            </div>
+                                                            <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                                                                    <span className="text-[9px] font-bold text-emerald-600 uppercase">Deposit Paid (15%)</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-emerald-700">{formatPrice(order.financing.deposit_paid)}</span>
+                                                                <span className="block text-[9px] text-emerald-500 font-medium mt-0.5">Held in Escrow</span>
+                                                            </div>
+                                                            <div className="bg-amber-50 rounded-lg p-3 border border-amber-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Banknote className="h-3 w-3 text-amber-500" />
+                                                                    <span className="text-[9px] font-bold text-amber-600 uppercase">Loan Balance</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-amber-700">{formatPrice(order.financing.loan_balance)}</span>
+                                                                <span className="block text-[9px] text-amber-500 font-medium mt-0.5">Outstanding</span>
+                                                            </div>
+                                                            <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <CreditCard className="h-3 w-3 text-indigo-500" />
+                                                                    <span className="text-[9px] font-bold text-indigo-600 uppercase">Monthly Payment</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-indigo-700">{formatPrice(order.financing.monthly_payment)}</span>
+                                                                <span className="block text-[9px] text-indigo-400 font-medium mt-0.5">Per Month</span>
+                                                            </div>
+                                                            <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Clock className="h-3 w-3 text-gray-400" />
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Loan Term</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-gray-900">{order.financing.tenor_months} Months</span>
+                                                                <span className="block text-[9px] text-gray-400 font-medium mt-0.5">{order.financing.tenor_months / 12} Years</span>
+                                                            </div>
+                                                            <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Wallet className="h-3 w-3 text-gray-400" />
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Markup Rate</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-gray-900">{(order.financing.interest_rate * 100).toFixed(1)}% p.a.</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 flex items-center justify-between">
+                                                            <div>
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase block">Total Repayment Over Loan Term</span>
+                                                                <span className="font-black text-lg text-gray-900">{formatPrice(order.financing.total_repayment)}</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                {order.financing.condition && (
+                                                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                                                        {order.financing.condition.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                                                    </span>
+                                                                )}
+                                                                {order.financing.loan_type && (
+                                                                    <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                                                                        {order.financing.loan_type === 'bnpl' ? 'BNPL Loan' : 'Lease-to-Own'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             {/* Status progression */}
                                             <div className="flex items-center gap-1 mb-4">
@@ -741,8 +833,39 @@ export default function SellerOrders() {
                                                         <div className="min-w-0">
                                                             <h4 className="font-bold text-sm text-gray-900 leading-tight line-clamp-2">{order.product?.name}</h4>
                                                             <p className="font-black text-xs text-gray-900 mt-1">{formatPrice(order.amount)}</p>
+                                                            {order.financing?.is_vehicle_loan && (
+                                                                <p className="text-[9px] font-bold text-emerald-600 mt-0.5">15% Deposit · Full: {formatPrice(order.financing.vehicle_price)}</p>
+                                                            )}
                                                         </div>
                                                     </div>
+
+                                                    {/* Financing quick summary for Kanban */}
+                                                    {order.financing?.is_vehicle_loan && (
+                                                        <div className="mb-3 px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-50 to-indigo-50 border border-emerald-100">
+                                                            <div className="flex items-center gap-1 mb-1.5">
+                                                                <Car className="h-3 w-3 text-emerald-600" />
+                                                                <span className="text-[9px] font-black text-emerald-700 uppercase">Vehicle Loan</span>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Monthly</span>
+                                                                    <span className="text-gray-900 font-black">{formatPrice(order.financing.monthly_payment)}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Term</span>
+                                                                    <span className="text-gray-900 font-black">{order.financing.tenor_months / 12}yr ({order.financing.tenor_months}mo)</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Balance</span>
+                                                                    <span className="text-amber-700 font-black">{formatPrice(order.financing.loan_balance)}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Rate</span>
+                                                                    <span className="text-gray-900 font-black">{(order.financing.interest_rate * 100).toFixed(1)}% p.a.</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
 
                                                     <div className="pt-3 border-t border-gray-100">
                                                         {order.status === "pending" && (

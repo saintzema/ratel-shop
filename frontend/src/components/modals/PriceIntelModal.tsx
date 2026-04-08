@@ -1579,7 +1579,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                                     <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">INSTANT</span>
                                 </h4>
                                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                                    Pay only <strong className="text-emerald-700">15% down payment</strong> of {formatPrice(loan.deposit)} and finance the rest.
+                                    Pay only <strong className="text-emerald-700">15% down payment</strong> of {formatPrice(loan.deposit)} and spread the balance with a loan.
                                 </p>
                                 <div className="flex flex-wrap gap-3 mt-2.5">
                                     <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg">
