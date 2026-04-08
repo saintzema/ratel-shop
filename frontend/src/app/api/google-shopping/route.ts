@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_PRODUCTS } from '@/lib/data';
 
-// Set revalidation to 24 hours (86,400 seconds) for Google Crawler performance
-export const revalidate = 86400;
+// Set revalidation to 0 for immediate updates during GMC review phase
+export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
     const baseUrl = "https://fairprice.ng";
@@ -147,7 +148,9 @@ export async function GET() {
     return new NextResponse(xml, {
         headers: {
             'Content-Type': 'application/xml',
-            'Cache-Control': 's-maxage=86400, stale-while-revalidate',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
         },
     });
 }
