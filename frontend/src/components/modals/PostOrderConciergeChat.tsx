@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { ShoppingCart } from "lucide-react";
 import { playDingSound } from "@/lib/audio";
 import { getProductUrl } from "@/lib/utils";
+import { isVehicle } from "@/lib/financing-utils";
 
 interface Message {
     id: string;
@@ -127,10 +128,17 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
                 : `Your order is currently being **processed**.`;
             
+            let zivaText = `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`;
+
+            // Specialized Welcome for Vehicles
+            if (isVehicle(product)) {
+                zivaText = `Congratulations on your new vehicle! 🚗\n\nI'm Ziva, your Dedicated Vehicle Concierge. I've confirmed your **15% down payment** for the **${product.name}**. \n\n🛡️ **Escrow Protection Active**: Your funds are secured and will only be released to the seller after you perform a physical inspection and confirm the vehicle meets all specifications upon delivery. \n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n\nWould you like me to request real-time inspection photos or verify the shipping timeline for you?`;
+            }
+
             const zivaMsg: Message = {
                 id: Date.now().toString(),
                 sender: "ziva",
-                text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`,
+                text: zivaText,
                 timestamp: new Date(),
             };
             initialMessages.push(zivaMsg);

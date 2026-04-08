@@ -227,16 +227,33 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     </p>
                                 </div>
                             ) : (
-                                <div className="space-y-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleAnalyze}
-                                        className="w-full border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-blue-50/50 animate-pulse-grow"
-                                    >
-                                        <Tag className="h-4 w-4 mr-2" />
-                                        {proposedPrice ? "Recalculate with AI" : "AI Price Checker"}
-                                    </Button>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleAnalyze}
+                                            className="flex-1 border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-blue-50/50 animate-pulse-grow"
+                                        >
+                                            <Tag className="h-4 w-4 mr-2" />
+                                            AI Price Checker
+                                        </Button>
+                                        
+                                        {(product.category === 'cars' || product.category === 'vehicles' || product.name.toLowerCase().includes('car') || product.name.toLowerCase().includes('toyota') || product.name.toLowerCase().includes('honda')) && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setProposedPrice(minAllowedPrice.toString());
+                                                    setMessage(`What is the last price for this ${product.name}? I am interested and ready to pay.`);
+                                                }}
+                                                className="flex-1 border-amber-200 text-amber-600 hover:text-amber-700 hover:bg-amber-50 bg-amber-50/50"
+                                            >
+                                                <MessageSquare className="h-4 w-4 mr-2" />
+                                                Last price?
+                                            </Button>
+                                        )}
+                                    </div>
 
                                     {isSystemCalculated && (
                                         <div className="flex items-center gap-2 text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100">

@@ -21,6 +21,7 @@ import { Product } from "@/lib/types";
 import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { calculateMonthlyPayment, isVehicle } from "@/lib/financing-utils";
 
 // ─── Constants ──────────────────────────────────────────────
 
@@ -302,9 +303,9 @@ function processAnalysis(analysis: PriceAnalysis, regionKey: string, matchedProd
         matchedProduct,
         fairBestPrice: recommendedPrice,
         fairAvgPrice: Math.round(recommendedPrice * 1.05),
-        marketLowest,
-        marketAverage,
-        marketHighest,
+        marketLowest: Math.round(recommendedPrice * 1.15), // Ensure low end is always > fairPrice
+        marketAverage: Math.round(marketAverage),
+        marketHighest: Math.round(marketAverage * 1.08), // Range extends slightly above average
         priceVerdict,
         verdictLabel,
         verdictColor,
@@ -501,9 +502,9 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     specs: product?.specs || specs,
                     fairBestPrice,
                     fairAvgPrice: fairBestPrice,
-                    marketLowest,
-                    marketAverage,
-                    marketHighest,
+                    marketLowest: Math.round(fairBestPrice * 1.12), // Higher than fairBestPrice
+                    marketAverage: marketAverage,
+                    marketHighest: Math.round(marketAverage * 1.05),
                     priceVerdict: savingsAmount > (fairBestPrice * 0.05) ? "great_deal" : "fair",
                     verdictLabel: savingsAmount > (fairBestPrice * 0.05) ? "Great Deal" : "Fair Value",
                     verdictColor: "emerald",
@@ -942,13 +943,12 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         <div className="bg-white/40 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm">
                                             <RecommendedProducts
                                                 products={[
-                                                    ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 3),
+                                                    ...SEED_PRODUCTS.filter(p => p.category === result.category && p.id !== result.matchedProduct?.id).slice(0, 3) || [],
                                                     ...SEED_PRODUCTS.filter(p => p.is_active && !p.name.toLowerCase().includes(result.name.toLowerCase().split(' ')[0])).sort((a,b) => b.sold_count - a.sold_count).slice(0, 2)
                                                 ].slice(0, 3)}
                                                 title="Customers Also Bought"
                                                 subtitle="Frequently paired with this item"
                                                 icon={<ShoppingCart className="h-4 w-4 text-emerald-600" />}
-                                                layout="grid"
                                             />
                                         </div>
 
@@ -1562,52 +1562,54 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                 </div>
             </div>
 
-            {/* EV / Car Financing Option */}
-            {(result.category === "cars" || result.category === "vehicles") && result.fairBestPrice >= 5000000 && (() => {
+            {/* EV / Car Loan Option */}
+            {isVehicle({ category: result.category, name: result.name }) && result.fairBestPrice >= 5000000 && (() => {
+                const loan = calculateMonthlyPayment(result.fairBestPrice, 'bnpl', 'foreign_used');
                 const price = result.fairBestPrice;
-                const deposit = price * 0.5;
-                const remaining = deposit;
-                // 3/6/12 months with low interest rates
-                const tier = price < 15000000 ? { months: 3, rate: 0.03, label: '3 months' }
-                    : price < 30000000 ? { months: 6, rate: 0.05, label: '6 months' }
-                        : { months: 12, rate: 0.08, label: '12 months' };
-                const monthlyPayment = Math.round((remaining * (1 + tier.rate)) / tier.months);
+                
                 return (
-                    <div className="mt-4 rounded-xl p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+                    <div className="mt-4 rounded-xl p-4 bg-gradient-to-r from-emerald-50 to-indigo-50 border border-emerald-100/50">
                         <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md">
-                                <Scale className="h-5 w-5 text-white" />
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-indigo-600 flex items-center justify-center shrink-0 shadow-md">
+                                <Zap className="h-5 w-5 text-white" />
                             </div>
                             <div className="flex-1">
                                 <h4 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-                                    FairPrice Financing Available
-                                    <span className="text-[9px] font-black bg-green-100 text-green-700 px-2 py-0.5 rounded-full">NEW</span>
+                                    FairPrice Vehicle Loan Available
+                                    <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">INSTANT</span>
                                 </h4>
                                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                                    Pay <strong className="text-blue-700">50% deposit</strong> of ₦{deposit.toLocaleString()} and finance the rest.
+                                    Pay only <strong className="text-emerald-700">15% down payment</strong> of {formatPrice(loan.deposit)} and finance the rest.
                                 </p>
                                 <div className="flex flex-wrap gap-3 mt-2.5">
                                     <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg">
-                                        {tier.label} repayment
+                                        {loan.tenorMonths / 12} Years repayment
+                                    </span>
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
+                                        ~{formatPrice(loan.monthlyPayment)}/mo
                                     </span>
                                     <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
-                                        ~₦{monthlyPayment.toLocaleString()}/mo
-                                    </span>
-                                    <span className="text-[10px] font-bold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-lg">
-                                        {(tier.rate * 100).toFixed(0)}% interest
+                                        {(loan.interestRate * 100).toFixed(1)}% Markup p.a.
                                     </span>
                                     <span className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                                        <ShieldCheck className="h-3 w-3 text-green-500" /> Concierge follow-up
+                                        <ShieldCheck className="h-3 w-3 text-emerald-500" /> Secure Escrow
                                     </span>
                                 </div>
                                 <button
                                     onClick={() => {
-                                        window.open(`mailto:adeshop@protonmail.com?subject=Financing%20Inquiry%20-%20${encodeURIComponent(result.name)}&body=I%20would%20like%20to%20apply%20for%20financing%20for%20${encodeURIComponent(result.name)}%20at%20₦${price.toLocaleString()}.%0A%0ADeposit:%20₦${deposit.toLocaleString()}%0ARepayment:%20${tier.label}%0AMonthly:%20₦${monthlyPayment.toLocaleString()}/mo`, '_blank');
+                                        const body = `I would like to apply for a vehicle loan for ${encodeURIComponent(result.name)} at ${formatPrice(price)}.
+                                        
+Current Price: ${formatPrice(price)}
+Required Down Payment (15%): ${formatPrice(loan.deposit)}
+Repayment Term: ${loan.tenorMonths} months
+Estimated Monthly Payment: ${formatPrice(loan.monthlyPayment)}`;
+                                        
+                                        window.open(`mailto:adeshop@protonmail.com?subject=Loan Inquiry - ${encodeURIComponent(result.name)}&body=${encodeURIComponent(body)}`, '_blank');
                                     }}
-                                    className="mt-3 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
+                                    className="mt-3 flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-indigo-600 hover:from-emerald-500 hover:to-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
                                 >
                                     <Scale className="h-3.5 w-3.5" />
-                                    Apply for Financing
+                                    Check Eligibility
                                 </button>
                             </div>
                         </div>
@@ -1731,8 +1733,8 @@ function PriceComparison({ result }: { result: PriceIntel }) {
             {/* Open Market Average */}
             <GlassCard>
                 <p className="text-[10px] font-bold text-gray-700 uppercase tracking-wide mb-1">Market Estimate</p>
-                <p className="text-2xl font-bold text-gray-900 tracking-tight">
-                    {formatPrice(result.marketAverage)}
+                <p className="text-xl font-bold text-gray-900 tracking-tight mt-1">
+                    {formatPrice(result.marketLowest)} ~ {formatPrice(result.marketHighest)}
                 </p>
                 <p className="text-[10px] font-semibold text-gray-500 mt-2 flex items-center gap-1">
                     <MapPin className="h-3 w-3 text-gray-600" />

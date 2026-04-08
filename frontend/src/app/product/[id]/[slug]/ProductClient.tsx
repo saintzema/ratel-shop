@@ -21,6 +21,8 @@ import { useAuth } from "@/context/AuthContext";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
+import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
+import { isVehicle, calculateMonthlyPayment } from "@/lib/financing-utils";
 import {
     Handshake,
     MessageSquare,
@@ -450,13 +452,42 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             (product as any).description = generateEnhancedDescription(product.name);
         }
     }
-    const similarProducts = allProducts
-        .filter((p) => p.category === product?.category && p.id !== product?.id)
-        .sort((a, b) => b.sold_count - a.sold_count);
+    const similarProducts = useMemo(() => {
+        if (!product) return [];
+        const isProdVehicle = isVehicle(product);
+        const prodBrand = (product.specs?.Brand || product.specs?.Make || "").toLowerCase();
+        const prodModel = (product.specs?.Model || product.specs?.["Model Name"] || "").toLowerCase();
 
-    const alsoBoughtProducts = allProducts
-        .filter((p) => p.id !== product?.id && !similarProducts.some(s => s.id === p.id))
-        .sort((a, b) => b.sold_count - a.sold_count);
+        return allProducts
+            .filter((p) => p.category === product?.category && p.id !== product?.id)
+            .sort((a, b) => {
+                if (isProdVehicle) {
+                    const brandA = (a.specs?.Brand || a.specs?.Make || "").toLowerCase();
+                    const brandB = (b.specs?.Brand || b.specs?.Make || "").toLowerCase();
+                    const modelA = (a.specs?.Model || a.specs?.["Model Name"] || "").toLowerCase();
+                    const modelB = (b.specs?.Model || b.specs?.["Model Name"] || "").toLowerCase();
+
+                    // Score matching
+                    let scoreA = 0;
+                    let scoreB = 0;
+
+                    if (brandA === prodBrand) scoreA += 10;
+                    if (brandB === prodBrand) scoreB += 10;
+                    if (modelA === prodModel) scoreA += 5;
+                    if (modelB === prodModel) scoreB += 5;
+
+                    if (scoreA !== scoreB) return scoreB - scoreA;
+                }
+                return b.sold_count - a.sold_count;
+            });
+    }, [product, allProducts]);
+
+    const alsoBoughtProducts = useMemo(() => {
+        if (!product) return [];
+        return allProducts
+            .filter((p) => p.id !== product?.id && !similarProducts.some(s => s.id === p.id))
+            .sort((a, b) => b.sold_count - a.sold_count);
+    }, [product, allProducts, similarProducts]);
 
     // Fetch Real Reviews from DataSyncService
     const realReviews = DataSyncService.getReviews(product?.id);
@@ -576,6 +607,16 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     }, [location]);
     const isGlobalProduct = product?.id?.startsWith('global-') || product?.seller_id === 'global-partners';
     const [isNegotiationOpen, setIsNegotiationOpen] = useState(false);
+    const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
+    const [loanAnalysis, setLoanAnalysis] = useState<any>(null);
+
+    // Calculate loan options if vehicle
+    useEffect(() => {
+        if (product && isVehicle(product)) {
+            const loan = calculateMonthlyPayment(product.price);
+            setLoanAnalysis(loan);
+        }
+    }, [product]);
 
     // For global products, getDemoPriceComparison returns zeros. Use product price to compute market estimates.
     let priceComparison = product ? getDemoPriceComparison(product.id) : null;
@@ -1499,6 +1540,45 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </div>
 
+                                {/* FairPrice Vehicle Loan Discovery */}
+                                {isVehicle(product) && loanAnalysis && (
+                                    <div className="rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-4 space-y-3 relative overflow-hidden group/loan">
+                                        <div className="absolute top-0 right-0 bg-emerald-500 text-white text-[9px] font-black px-3 py-1 rounded-bl-xl shadow-sm z-10">
+                                            LOAN AVAILABLE
+                                        </div>
+                                        
+                                        <div className="flex items-start gap-3">
+                                            <div className="h-10 w-10 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                                                <Zap className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1">Down Payment Required</p>
+                                                <p className="text-xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="bg-white/60 p-2 rounded-lg border border-emerald-100">
+                                                <p className="text-[9px] text-gray-500 font-bold uppercase tabular-nums">Monthly</p>
+                                                <p className="text-xs font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
+                                            </div>
+                                            <div className="bg-white/60 p-2 rounded-lg border border-emerald-100">
+                                                <p className="text-[9px] text-gray-500 font-bold uppercase">Tenor</p>
+                                                <p className="text-xs font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            onClick={() => setIsPriceIntelOpen(true)}
+                                            className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-bold h-8 transition-all"
+                                        >
+                                            Customize Loan & Compare Pricing <ChevronRight className="h-3 w-3 ml-1" />
+                                        </Button>
+                                    </div>
+                                )}
+
                                 {/* Quantity Selector */}
                                 <div className="mt-2 flex items-center justify-between p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
                                     <span className="text-sm font-bold text-emerald-800">Quantity</span>
@@ -2014,6 +2094,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     </div>
                 </div>
             )}
+            <PriceIntelModal 
+                isOpen={isPriceIntelOpen} 
+                onClose={() => setIsPriceIntelOpen(false)} 
+                initialQuery={product?.name || ""}
+            />
         </div>
     );
 }

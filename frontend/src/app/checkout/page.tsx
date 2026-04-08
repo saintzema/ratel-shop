@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { SEED_PRODUCTS, DEMO_NEGOTIATIONS } from "@/lib/data";
 import { formatPrice, cn } from "@/lib/utils";
+import { isVehicle } from "@/lib/financing-utils";
 import { 
     calculateTieredEscrowFee, 
     ESCROW_TIERS 
@@ -598,6 +599,14 @@ function CheckoutContent() {
 
     // Global items logic: Apply 1.5x multiplier to bases if any product is globally sourced
     const hasGlobalProduct = checkoutItems.some(item => item.product.seller_id === "global-partners" || item.product.seller_name.toLowerCase().includes("global"));
+    const hasVehicleItem = checkoutItems.some(item => isVehicle(item.product));
+    
+    // Calculate 15% deposit for vehicles
+    const carSubtotal = checkoutItems.reduce((acc, item) => isVehicle(item.product) ? acc + (item.price * item.quantity) : acc, 0);
+    const carDeposit = Math.round(carSubtotal * 0.15);
+    const nonCarSubtotal = subtotal - carSubtotal;
+    const itemsPayableNow = carDeposit + nonCarSubtotal;
+
     const shippingMultiplier = hasGlobalProduct ? 1.5 : 1;
 
     // Shipping Policy (GMC-compliant):
@@ -643,14 +652,14 @@ function CheckoutContent() {
     const deliverySavings = shipping === 0 ? (deliveryMethod === "pickup" ? Math.round(basePickupFee * shippingMultiplier) : Math.round(baseDoorFee * shippingMultiplier)) : 0;
     const totalSavings = productSavings + deliverySavings + (appliedCoupon?.amount || 0);
 
-    const total = Math.max(0, subtotal + shipping + escrowFee - (appliedCoupon?.amount || 0));
+    const total = Math.max(0, itemsPayableNow + shipping + escrowFee - (appliedCoupon?.amount || 0));
 
     // COD eligibility: admin-configurable threshold + expensive category override
     const EXPENSIVE_CATEGORIES = ["cars", "automotive", "vehicles"];
     const hasExpensiveCategoryItem = checkoutItems.some(item =>
         EXPENSIVE_CATEGORIES.some(cat => (item.product.category || "").toLowerCase().includes(cat))
     );
-    const canPayOnDelivery = codEnabled && (
+    const canPayOnDelivery = codEnabled && !hasVehicleItem && (
         // Local products: standard COD rules
         (!hasGlobalProduct && (total <= codThreshold || (codAllowExpensiveCategories && hasExpensiveCategoryItem))) ||
         // Global products: only if global COD is enabled & within global threshold
@@ -1780,8 +1789,29 @@ function CheckoutContent() {
                             <h3 className="font-bold text-lg mb-4 lg:hidden">Order Summary</h3>
                             <div className="flex justify-between text-gray-600">
                                 <span>Item's total ({checkoutItems.reduce((a, b) => a + b.quantity, 0)}):</span>
-                                <span className="font-medium">{formatPrice(subtotal)}</span>
+                                <span className={cn("font-medium", hasVehicleItem && "line-through text-gray-400 opacity-50")}>{formatPrice(subtotal)}</span>
                             </div>
+
+                            {hasVehicleItem && (
+                                <div className="space-y-2 py-2 border-y border-dashed border-gray-100 animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex justify-between text-gray-900 font-bold">
+                                        <span className="flex items-center gap-1.5">
+                                            <Sparkles className="h-3.5 w-3.5 text-brand-orange animate-pulse" />
+                                            Vehicle Deposit (15%):
+                                        </span>
+                                        <span>{formatPrice(carDeposit)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-gray-500 text-[11px] leading-tight">
+                                        <span>Pay 15% now to secure your vehicle. Our concierge will contact you for physical inspection and financing.</span>
+                                    </div>
+                                    {nonCarSubtotal > 0 && (
+                                        <div className="flex justify-between text-gray-600 text-xs mt-1">
+                                            <span>Other items:</span>
+                                            <span>{formatPrice(nonCarSubtotal)}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <div className="flex justify-between text-gray-600">
                                 <span>Delivery fees:</span>
                                 {shipping === 0 ? (

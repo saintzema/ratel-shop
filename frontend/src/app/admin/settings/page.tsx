@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 
 export default function AdminSettings() {
     const [platformMargin, setPlatformMargin] = useState("15");
+    const [vehicleMarkup, setVehicleMarkup] = useState("12"); // Default 12% markup for vehicles
     const [serviceCharge, setServiceCharge] = useState("25");
     const [standardCommission, setStandardCommission] = useState("2.5");
     const [escrowFee, setEscrowFee] = useState("1000");
@@ -102,6 +103,10 @@ export default function AdminSettings() {
 
                 if (initialData) {
                     if (initialData.platformMargin !== undefined) setPlatformMargin(initialData.platformMargin.toString());
+                    if (initialData.vehicleMarkup !== undefined) {
+                        setVehicleMarkup(initialData.vehicleMarkup.toString());
+                        localStorage.setItem("fp_vehicle_markup", initialData.vehicleMarkup.toString());
+                    }
                     if (initialData.serviceCharge !== undefined) setServiceCharge(initialData.serviceCharge.toString());
                     if (initialData.standardCommission !== undefined) setStandardCommission(initialData.standardCommission.toString());
                     if (initialData.escrowFee !== undefined) setEscrowFee(initialData.escrowFee.toString());
@@ -173,8 +178,10 @@ export default function AdminSettings() {
     const handleSaveCommission = () => {
         // Also persist to localStorage for client-side pickup
         localStorage.setItem("fp_max_negotiation_discount", maxNegotiationDiscount || "10");
+        localStorage.setItem("fp_vehicle_markup", vehicleMarkup || "12");
         return saveSection({
             platformMargin: parseFloat(platformMargin) || 15.0,
+            vehicleMarkup: parseFloat(vehicleMarkup) || 12.0,
             serviceCharge: parseFloat(serviceCharge) || 25.0,
             standardCommission: parseFloat(standardCommission) || 2.5,
             escrowFee: parseFloat(escrowFee) || 1000,
@@ -258,6 +265,13 @@ export default function AdminSettings() {
                                         <InfoTooltip content="The base markup applied by RatelShop on top of seller prices." />
                                     </div>
                                     <Input value={platformMargin} onChange={(e) => setPlatformMargin(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-indigo-200 ring-2 ring-indigo-50" />
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Vehicle Loan Markup (%)</label>
+                                        <InfoTooltip content="Specialized markup for vehicle categories to cover loan processing and inspection costs." />
+                                    </div>
+                                    <Input value={vehicleMarkup} onChange={(e) => setVehicleMarkup(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-amber-200 ring-2 ring-amber-50" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Standard Commission (%)</label>

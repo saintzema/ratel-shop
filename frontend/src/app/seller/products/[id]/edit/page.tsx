@@ -541,6 +541,91 @@ export default function EditProduct() {
                 </div>
             </motion.section>
 
+            {/* ─── Section 5: Vehicle Identity (Conditional) ─── */}
+            {formData.category === "vehicles" && (
+                <motion.section
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.19 }}
+                    className="bg-gradient-to-br from-amber-50/40 to-orange-50/40 rounded-2xl border border-amber-100 shadow-sm p-8 mb-6"
+                >
+                    <div className="flex items-center gap-2 mb-1">
+                        <Check className="h-4 w-4 text-amber-600" />
+                        <h2 className="text-lg font-bold text-gray-900 leading-tight">Vehicle Identity & History</h2>
+                    </div>
+                    <p className="text-xs text-amber-700 font-medium mb-6 uppercase tracking-wider">Required for Loan Approval & FairPrice Inspection</p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-700 uppercase tracking-widest pl-1">Mileage (km)</label>
+                            <Input
+                                type="number"
+                                placeholder="e.g. 45000"
+                                className="h-11 bg-white border-amber-100 rounded-xl font-bold"
+                                value={formData.specs.find(s => s.key.toLowerCase() === "mileage")?.value || ""}
+                                onChange={(e) => {
+                                    const index = formData.specs.findIndex(s => s.key.toLowerCase() === "mileage");
+                                    if (index >= 0) handleSpecChange(index, "value", e.target.value);
+                                    else setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "Mileage", value: e.target.value }] }));
+                                }}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-700 uppercase tracking-widest pl-1">Transmission</label>
+                            <select
+                                className="flex h-11 w-full rounded-xl border border-amber-100 bg-white px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 transition-all appearance-none cursor-pointer"
+                                value={formData.specs.find(s => s.key.toLowerCase() === "transmission")?.value || ""}
+                                onChange={(e) => {
+                                    const index = formData.specs.findIndex(s => s.key.toLowerCase() === "transmission");
+                                    if (index >= 0) handleSpecChange(index, "value", e.target.value);
+                                    else setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "Transmission", value: e.target.value }] }));
+                                }}
+                            >
+                                <option value="">Select</option>
+                                <option value="Automatic">Automatic</option>
+                                <option value="Manual">Manual</option>
+                                <option value="CVT">CVT</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-700 uppercase tracking-widest pl-1">Fuel Type</label>
+                            <select
+                                className="flex h-11 w-full rounded-xl border border-amber-100 bg-white px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 transition-all appearance-none cursor-pointer"
+                                value={formData.specs.find(s => s.key.toLowerCase() === "fuel type")?.value || ""}
+                                onChange={(e) => {
+                                    const index = formData.specs.findIndex(s => s.key.toLowerCase() === "fuel type");
+                                    if (index >= 0) handleSpecChange(index, "value", e.target.value);
+                                    else setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "Fuel Type", value: e.target.value }] }));
+                                }}
+                            >
+                                <option value="">Select</option>
+                                <option value="Petrol">Petrol</option>
+                                <option value="Diesel">Diesel</option>
+                                <option value="Electric">Electric</option>
+                                <option value="Hybrid">Hybrid</option>
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-700 uppercase tracking-widest pl-1">Accident History</label>
+                            <select
+                                className="flex h-11 w-full rounded-xl border border-amber-100 bg-white px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 transition-all appearance-none cursor-pointer"
+                                value={formData.specs.find(s => s.key.toLowerCase() === "accident history")?.value || ""}
+                                onChange={(e) => {
+                                    const index = formData.specs.findIndex(s => s.key.toLowerCase() === "accident history");
+                                    if (index >= 0) handleSpecChange(index, "value", e.target.value);
+                                    else setFormData(prev => ({ ...prev, specs: [...prev.specs, { key: "Accident History", value: e.target.value }] }));
+                                }}
+                            >
+                                <option value="None">None / Clean</option>
+                                <option value="Minor">Minor (Scratches/Dents)</option>
+                                <option value="Moderate">Moderate Repairs</option>
+                                <option value="Significant">Significant (Salvage/Restored)</option>
+                            </select>
+                        </div>
+                    </div>
+                </motion.section>
+            )}
+
             {/* ─── Sticky Save Bar ─── */}
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
