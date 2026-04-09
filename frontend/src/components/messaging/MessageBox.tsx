@@ -629,6 +629,10 @@ export function MessageBox() {
 
     const unreadNotifCount = sortedNotifications.filter(n => !n.read).length;
     const totalChatUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+    
+    const handleSend = useCallback(() => {
+        if (!input.trim() && selectedImagePreviews.length === 0) return;
+        if (!selectedConvId) return;
 
         // If this is a negotiation thread, sync the message to the negotiation history
         if (activeNegotiation) {

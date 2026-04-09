@@ -9,7 +9,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 type Props = {
-    params: { slug: string }
+    params: Promise<{ slug: string }>
 };
 
 function slugify(text: string) {
@@ -23,7 +23,8 @@ function slugify(text: string) {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-    const name = params.slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    const { slug } = await params;
+    const name = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     const title = `${name} Price in Nigeria (Verified Market Rate) | FairPrice.ng`;
     const description = `Verify the current real market price of ${name} in Nigeria. See the 30-day price trend, compare Jumia vs Konga vs Jiji rates, and find verified FairPrice deals. Avoid overpaying today.`;
 
@@ -39,7 +40,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PriceCheckPage({ params }: Props) {
-    const query = params.slug.replace(/-/g, ' ');
+    const { slug } = await params;
+    const query = slug.replace(/-/g, ' ');
     
     // 1. Find matching products
     const allProducts = [...SEED_PRODUCTS];

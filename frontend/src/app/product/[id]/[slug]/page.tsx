@@ -5,14 +5,15 @@ import { SEED_PRODUCTS, DEMO_REVIEWS } from '@/lib/data';
 import Script from 'next/script';
 
 type Props = {
-    params: { id: string, slug: string }
+    params: Promise<{ id: string, slug: string }>
 };
 
 export async function generateMetadata(
     { params }: Props,
     parent: ResolvingMetadata
 ): Promise<Metadata> {
-    const decodedId = decodeURIComponent(params.id);
+    const resolvedParams = await params;
+    const decodedId = decodeURIComponent(resolvedParams.id);
 
     // 1. Try DB fetch first (for generated/new products)
     let productDetails = null;
@@ -32,7 +33,7 @@ export async function generateMetadata(
     // 2. Fallback to Local/Seed Data for static rendering
     if (!productDetails) {
         const allSeeds = [...SEED_PRODUCTS];
-        const seedMatch = allSeeds.find(p => p.id === decodedId || p.id === params.id);
+        const seedMatch = allSeeds.find(p => p.id === decodedId || p.id === resolvedParams.id);
         if (seedMatch) {
             productDetails = seedMatch;
             price = seedMatch.price;
@@ -40,7 +41,7 @@ export async function generateMetadata(
     }
 
     // Use the slug as the fallback name since it contains the human-readable product name, unlike the ID which is likely a UUID.
-    const decodedSlug = params.slug ? decodeURIComponent(params.slug) : '';
+    const decodedSlug = resolvedParams.slug ? decodeURIComponent(resolvedParams.slug) : '';
     const rawFallback = decodedSlug.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
     const titleProductName = (productDetails?.name || rawFallback || 'Product').replace(/^undefined$/i, 'Product');
 
@@ -62,13 +63,14 @@ export async function generateMetadata(
             description: `Save money on ${titleProductName} with FairPrice verification.`,
         },
         alternates: {
-            canonical: `/product/${params.id}`,
+            canonical: `/product/${resolvedParams.id}`,
         }
     };
 }
 
 export default async function ProductPage({ params }: Props) {
-    const decodedId = decodeURIComponent(params.id);
+    const resolvedParams = await params;
+    const decodedId = decodeURIComponent(resolvedParams.id);
     let productDetails = null;
     
     // Fetch for Schema mapping
@@ -78,11 +80,11 @@ export default async function ProductPage({ params }: Props) {
     } catch(e) {}
     
     if (!productDetails) {
-        productDetails = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === params.id);
+        productDetails = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === resolvedParams.id);
     }
 
     // Filter reviews for this product for schema
-    const productReviews = DEMO_REVIEWS.filter(r => r.product_id === decodedId || r.product_id === params.id);
+    const productReviews = DEMO_REVIEWS.filter(r => r.product_id === decodedId || r.product_id === resolvedParams.id);
 
     const breadcrumbListJsonLd = {
         '@context': 'https://schema.org',
@@ -104,7 +106,7 @@ export default async function ProductPage({ params }: Props) {
                 '@type': 'ListItem',
                 position: 3,
                 name: productDetails?.name || 'Product',
-                item: `https://fairprice.ng/product/${params.id}`
+                item: `https://fairprice.ng/product/${resolvedParams.id}`
             }
         ]
     };
@@ -133,7 +135,7 @@ export default async function ProductPage({ params }: Props) {
         },
         offers: {
             '@type': 'Offer',
-            url: `https://fairprice.ng/product/${params.id}`,
+            url: `https://fairprice.ng/product/${resolvedParams.id}`,
             priceCurrency: 'NGN',
             price: productDetails?.price || 0,
             itemCondition: 'https://schema.org/NewCondition',

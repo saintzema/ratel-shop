@@ -69,8 +69,7 @@ export const viewport = {
   viewportFit: "cover",
 };
 
-import { Suspense } from "react";
-import { SessionWrapper } from "@/components/auth/SessionWrapper";
+import { GlobalErrorBoundary } from "@/components/ui/GlobalErrorBoundary";
 
 export default function RootLayout({
   children,
@@ -82,7 +81,7 @@ export default function RootLayout({
       <head>
         <meta name="google-site-verification" content="_BT79N3Ti1Smba1864DQYGqrtDIwFamIygQqu6R9Xxc" />
         <link rel="preload" href="/logo.png" as="image" />
-        {/* ─── Instant Splash: raw CSS that paints BEFORE any JS compiles ─── */}
+        {/* ─── Instant Splash: raw CSS ─── */}
         <style dangerouslySetInnerHTML={{
           __html: `
            #fp-splash{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#052e16 0%,#064e3b 50%,#059669 100%);transition:opacity .4s ease-out;pointer-events:all}
@@ -95,7 +94,7 @@ export default function RootLayout({
           @keyframes fp-spin{to{transform:rotate(360deg)}}
           #fp-splash.fp-hide{opacity:0;pointer-events:none}
         `}} />
-        {/* Fail-safe: dismiss splash even if hydration hangs due to DB timeouts */}
+        {/* Fail-safe script: Hardens against iOS White/Green Screen hangs */}
         <script dangerouslySetInnerHTML={{
           __html: `
             (function() {
@@ -108,9 +107,9 @@ export default function RootLayout({
               };
               // Auto-dismiss if ANY fatal JS error occurs during boot
               window.onerror = function() { hideSplash(); };
-              // Timeout fail-safe (3s for better mobile responsiveness)
+              window.onunhandledrejection = function() { hideSplash(); };
+              // Timeout fail-safes (3s, 6s)
               setTimeout(hideSplash, 3000);
-              // Secondary ultra fail-safe
               setTimeout(hideSplash, 6000);
             })();
           `
@@ -193,37 +192,40 @@ export default function RootLayout({
           <p className="fp-tagline">VERIFY REAL MARKET PRICES | NEGOTIATE BEST DEALS</p>
           <div className="fp-spin" />
         </div>
-        <SplashDismiss />
-        <KeyboardAware />
-        <SwipeToBack />
-        <ClientImageFallback />
-        <PopupCloser />
-        <Suspense fallback={<div className="min-h-screen bg-white" />}>
-          <SessionWrapper>
-            <LocationProvider>
-              <AuthProvider>
-                <CartProvider>
-                  <FavoritesProvider>
-                    <MessageProvider>
-                      <NotificationProvider>
-                        <CurrencyBanner />
-                        {children}
-                        <ZivaChat />
-                        <DynamicPillNotification />
-                        <MessageBox />
-                      </NotificationProvider>
-                      <MobileBottomNav />
-                    </MessageProvider>
-                  </FavoritesProvider>
-                  <FloatingCart />
-                  <PwaManager />
-                  <WaitlistModal />
-                </CartProvider>
-              </AuthProvider>
-            </LocationProvider>
-          </SessionWrapper>
-        </Suspense>
-        <Analytics />
+        
+        <GlobalErrorBoundary>
+          <SplashDismiss />
+          <KeyboardAware />
+          <SwipeToBack />
+          <ClientImageFallback />
+          <PopupCloser />
+          <Suspense fallback={<div className="min-h-screen bg-white" />}>
+            <SessionWrapper>
+              <LocationProvider>
+                <AuthProvider>
+                  <CartProvider>
+                    <FavoritesProvider>
+                      <MessageProvider>
+                        <NotificationProvider>
+                          <CurrencyBanner />
+                          {children}
+                          <ZivaChat />
+                          <DynamicPillNotification />
+                          <MessageBox />
+                        </NotificationProvider>
+                        <MobileBottomNav />
+                      </MessageProvider>
+                    </FavoritesProvider>
+                    <FloatingCart />
+                    <PwaManager />
+                    <WaitlistModal />
+                  </CartProvider>
+                </AuthProvider>
+              </LocationProvider>
+            </SessionWrapper>
+          </Suspense>
+          <Analytics />
+        </GlobalErrorBoundary>
       </body>
     </html>
   );

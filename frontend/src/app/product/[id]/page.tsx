@@ -4,11 +4,12 @@ import { SEED_PRODUCTS } from '@/lib/data';
 import { getProductUrl } from '@/lib/utils';
 
 type Props = {
-    params: { id: string }
+    params: Promise<{ id: string }>
 };
 
 export default async function ProductRedirect({ params }: Props) {
-    const decodedId = decodeURIComponent(params.id);
+    const { id } = await params;
+    const decodedId = decodeURIComponent(id);
     let productName = "product";
     
     // Attempt to fetch the real product name from DB
@@ -21,7 +22,7 @@ export default async function ProductRedirect({ params }: Props) {
     
     // Fallback to static seed data if not found in DB
     if (productName === "product") {
-        const seedMatch = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === params.id);
+        const seedMatch = SEED_PRODUCTS.find(p => p.id === decodedId || p.id === id);
         if (seedMatch) {
             productName = seedMatch.name;
         } else {

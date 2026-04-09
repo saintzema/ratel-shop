@@ -23,6 +23,7 @@ import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
+import { motion, AnimatePresence } from "framer-motion";
 import {
     Handshake,
     MessageSquare,
@@ -1546,44 +1547,68 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                                 {/* Vehicle Loan Discovery & Breakdown */}
                                 {isVehicle(product) && loanAnalysis && (
-                                    <div className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10">
+                                    <motion.div 
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10"
+                                    >
                                         <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
-                                            LOAN AVAILABLE
+                                            FINANCING AVAILABLE
                                         </div>
                                         
                                         <div className="flex items-start gap-4">
-                                            <div className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0 group-hover/loan:scale-110 transition-transform duration-500">
+                                            <motion.div 
+                                                whileHover={{ scale: 1.1, rotate: 5 }}
+                                                className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0"
+                                            >
                                                 <Banknote className="h-6 w-6" />
-                                            </div>
+                                            </motion.div>
                                             <div>
-                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1.5">Secure This Vehicle With</p>
+                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1.5">Unlock ownership with a deposit of</p>
                                                 <div className="flex items-baseline gap-1">
-                                                    <span className="text-2xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</span>
-                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-1.5 py-0.5 rounded-full">({vehicleDepositPctDisplay}% Deposit)</span>
+                                                    <span className="text-3xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</span>
+                                                    <motion.span 
+                                                        initial={{ opacity: 0, scale: 0.8 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50"
+                                                    >
+                                                        {vehicleDepositPctDisplay}% Deposit
+                                                    </motion.span>
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-white/80 p-3 rounded-2xl border border-emerald-100 shadow-sm">
-                                                <div className="flex items-center gap-1.5 mb-1">
-                                                    <CreditCard className="h-3 w-3 text-emerald-500" />
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Monthly</p>
+                                            <motion.div 
+                                                whileHover={{ y: -2 }}
+                                                className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-center"
+                                            >
+                                                <div className="flex items-center gap-1.5 mb-1.5">
+                                                    <div className="h-4 w-4 rounded-md bg-emerald-100 flex items-center justify-center">
+                                                        <CreditCard className="h-2.5 w-2.5 text-emerald-600" />
+                                                    </div>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Monthly Pay</p>
                                                 </div>
-                                                <p className="text-sm font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
-                                            </div>
-                                            <div className="bg-white/80 p-3 rounded-2xl border border-emerald-100 shadow-sm">
-                                                <div className="flex items-center gap-1.5 mb-1">
-                                                    <TrendingUp className="h-3 w-3 text-emerald-500" />
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Tenor</p>
+                                                <p className="text-base font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
+                                            </motion.div>
+                                            <motion.div 
+                                                whileHover={{ y: -2 }}
+                                                className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-center"
+                                            >
+                                                <div className="flex items-center gap-1.5 mb-1.5">
+                                                    <div className="h-4 w-4 rounded-md bg-blue-100 flex items-center justify-center">
+                                                        <TrendingUp className="h-2.5 w-2.5 text-blue-600" />
+                                                    </div>
+                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Duration</p>
                                                 </div>
-                                                <p className="text-sm font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-gray-400 font-bold">({loanAnalysis.tenorMonths}mo)</span></p>
-                                            </div>
+                                                <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
+                                            </motion.div>
                                         </div>
                                         
-                                        <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50">
-                                            <p className="text-[10px] text-emerald-700 font-medium leading-relaxed">
-                                                Funds are held in <span className="font-bold">Escrow Protection</span>. The seller only receives payment after you've inspected and accepted the vehicle.
+                                        <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50 flex gap-3 items-start">
+                                            <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                                            <p className="text-[10px] text-emerald-700 font-medium leading-normal">
+                                                Funds are held in <span className="font-bold">Escrow Protection</span>. Payment is only released to the seller after the vehicle is delivered and inspected.
                                             </p>
                                         </div>
                                         
@@ -1591,11 +1616,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             variant="ghost" 
                                             size="sm" 
                                             onClick={() => setIsPriceIntelOpen(true)}
-                                            className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-black h-10 rounded-xl transition-all border border-emerald-200"
+                                            className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-black h-10 rounded-xl transition-all border border-emerald-200 group/btn"
                                         >
-                                            Explore Full Loan Terms <ChevronRight className="h-3 w-3 ml-1" />
+                                            View Detailed Payment Plan <ChevronRight className="h-3 w-3 ml-1 group-hover/btn:translate-x-1 transition-transform" />
                                         </Button>
-                                    </div>
+                                    </motion.div>
                                 )}
 
                                 {/* Quantity Selector */}
