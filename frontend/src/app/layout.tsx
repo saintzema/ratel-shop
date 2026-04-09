@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import "@fontsource-variable/manrope";
 import "./globals.css";
@@ -19,10 +20,8 @@ import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
-import { SessionProvider } from "@/context/SessionProvider";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
+import { SessionWrapper } from "@/components/auth/SessionWrapper";
 import Script from 'next/script';
 import { Analytics } from "@vercel/analytics/next";
 
