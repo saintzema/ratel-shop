@@ -51,7 +51,7 @@ interface Conversation {
     negotiations?: NegotiationRequest[]; // Multiple negotiations grouped by customer
     order?: Order;
     // mock support chat
-    chat_messages: { sender: "seller" | "buyer" | "system" | "admin" | "ziva"; text: string; timestamp: Date; imageUrl?: string; replyTo?: { sender: string; text: string } }[];
+    chat_messages: { sender: "seller" | "buyer" | "system" | "admin" | "ziva"; text: string; timestamp: Date; imageUrl?: string; imageUrls?: string[]; replyTo?: { sender: string; text: string } }[];
     // Concierge-specific
     orderId?: string;
     zivaActive?: boolean;
@@ -207,7 +207,10 @@ export default function UniversalMessagesPage() {
                         preview: lastMsg.text?.substring(0, 60) || "Concierge chat",
                         updated_at: new Date(order.updated_at || order.created_at),
                         unread: !!order.chat_messages.find((m: any) => m.sender === 'user' && !m.read_by?.includes(sellerId)),
-                            timestamp: new Date(),
+                        chat_messages: order.chat_messages.map((m: any) => ({
+                            sender: m.sender as any,
+                            text: m.text,
+                            timestamp: new Date(m.timestamp || order.updated_at || order.created_at),
                             imageUrl: m.imageUrl,
                             imageUrls: m.imageUrls
                         })),
@@ -493,7 +496,7 @@ export default function UniversalMessagesPage() {
         } else if (activeConvo.id.startsWith("chat-")) {
             // New direct chat created from stub
             const newConv = DataSyncService.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
-            DataSyncService.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""), replyingTo || undefined);
+            DataSyncService.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (hasImages ? "[Image Uploaded]" : ""), replyingTo || undefined);
             setSelectedId(newConv.id);
         } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-")) {
             // It's a real DM conversation
@@ -501,7 +504,7 @@ export default function UniversalMessagesPage() {
                 activeConvo.id,
                 sellerId,
                 sellerName,
-                chatMessage || (selectedImagePreview ? "[Image Uploaded]" : ""),
+                chatMessage || (hasImages ? "[Image Uploaded]" : ""),
                 replyingTo || undefined
             );
         } else {
@@ -1144,7 +1147,7 @@ export default function UniversalMessagesPage() {
                                     type="submit"
                                     size="icon"
                                     className="h-12 w-12 rounded-full bg-indigo-600 hover:bg-indigo-700 shrink-0 shadow-md shadow-indigo-600/30 transition-transform active:scale-95 disabled:opacity-50"
-                                    disabled={!chatMessage.trim() && !selectedImagePreview}
+                                    disabled={!chatMessage.trim() && selectedImagePreviews.length === 0}
                                 >
                                     <Send className="h-5 w-5 text-white ml-0.5" />
                                 </Button>
