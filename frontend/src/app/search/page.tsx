@@ -471,6 +471,22 @@ function SearchContent() {
       setIsGlobalSearching(false);
       return;
     }
+    // Check cache first
+    const cachedItems = DataSyncService.getAllSearchCache()[effectiveQuery];
+    if (cachedItems && cachedItems.length > 0) {
+        setGlobalResults(cachedItems.map((c: any) => ({
+            name: c.name,
+            category: c.category,
+            approxPrice: c.price,
+            image_url: c.image_url,
+            description: c.description,
+            specs: c.specs
+        })));
+        setShowGlobalResults(true);
+        setIsGlobalSearching(false);
+        return;
+    }
+
     setIsGlobalSearching(true);
     setGlobalResults([]);
     const timer = setTimeout(() => {
@@ -1122,7 +1138,7 @@ function SearchContent() {
                           onClick={() => {
                             const params = new URLSearchParams();
                             params.set("q", brand.name);
-                            if (selectedCategory) params.set("category", selectedCategory);
+                            params.set("category", cat);
                             router.push(`/search?${params.toString()}`, { scroll: false });
                           }}
                           className={cn(
@@ -1146,6 +1162,7 @@ function SearchContent() {
                         const brandQuery = `${cat === "cars" ? "cars" : cat === "phones" ? "phones" : cat === "computers" ? "laptops" : cat === "fashion" ? "fashion" : "electronics"} Nigeria`;
                         const params = new URLSearchParams();
                         params.set("q", brandQuery);
+                        params.set("category", cat);
                         router.push(`/search?${params.toString()}`, { scroll: false });
                       }}
                       className="flex items-center gap-1 px-3.5 py-2 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 active:scale-95 shrink-0"

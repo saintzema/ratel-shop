@@ -118,7 +118,7 @@ export default function ConsumerProtectionPage() {
                     <section>
                         <h2 className="text-xl font-bold text-gray-900 mb-3">8. Report an Issue</h2>
                         <p>
-                            To report a consumer protection issue, contact us at <a href="mailto:protection@fairprice.ng" className="text-emerald-600 font-medium hover:underline">protection@fairprice.ng</a> or use the complaint form in your account settings. You may also contact the Federal Competition and Consumer Protection Commission (FCCPC) directly.
+                            To report a consumer protection issue, contact us at <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-medium hover:underline">hello@fairprice.ng</a> or use the complaint form in your account settings. You may also contact the Federal Competition and Consumer Protection Commission (FCCPC) directly.
                         </p>
                     </section>
                 </div>

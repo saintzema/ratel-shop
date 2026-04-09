@@ -45,7 +45,7 @@ export default function CareersPage() {
                     </div>
                     <div className="mt-12 text-center bg-indigo-50 rounded-2xl p-8 border border-indigo-100">
                         <h3 className="font-bold text-gray-900 mb-2">Don&apos;t see a perfect fit?</h3>
-                        <p className="text-sm text-gray-600 mb-4">Send your CV to <a href="mailto:careers@fairprice.ng" className="text-indigo-600 font-bold hover:underline">careers@fairprice.ng</a> and we&apos;ll keep you in mind for future openings.</p>
+                        <p className="text-sm text-gray-600 mb-4">Send your CV to <a href="mailto:hello@fairprice.ng" className="text-indigo-600 font-bold hover:underline">hello@fairprice.ng</a> and we&apos;ll keep you in mind for future openings.</p>
                     </div>
                 </div>
             </main>

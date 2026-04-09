@@ -1615,16 +1615,15 @@ class DataSyncServiceService {
         
         let guestId = localStorage.getItem("fp_guest_id");
         if (!guestId) {
-            // Unique ID pattern: USR_<timestamp>_<random>
-            const ts = Date.now();
-            const rnd = Math.floor(1000 + Math.random() * 9000);
-            guestId = `USR_${ts}_${rnd}`;
+            // Unify with AuthContext pattern: gst_<timestamp>_<random_string>
+            guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
             localStorage.setItem("fp_guest_id", guestId);
             
             // Also initialize a matching guest name if not already set
             if (!localStorage.getItem("fp_guest_name")) {
-                localStorage.setItem("fp_guest_name", `Guest #${rnd}`);
+                localStorage.setItem("fp_guest_name", "Guest Buyer");
             }
+            console.log(`👤 SyncStore: Initialized unique guest identity: ${guestId}`);
         }
         return guestId;
     }

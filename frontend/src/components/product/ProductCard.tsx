@@ -220,7 +220,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     {/* Vehicle Payment Range */}
                     {isVehicle(product) && (
                         <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-emerald-600 leading-tight bg-emerald-50 w-fit px-1.5 py-0.5 rounded border border-emerald-100">
-                            <span>EST. ₦{formatNumber(getVehiclePaymentRange(product.price).min)} ~ ₦{formatNumber(getVehiclePaymentRange(product.price).max)} MONTHLY</span>
+                            <span>₦{formatNumber(getVehiclePaymentRange(product.price).min)} ~ ₦{formatNumber(getVehiclePaymentRange(product.price).max)} MONTHLY</span>
                         </div>
                     )}
                 </div>

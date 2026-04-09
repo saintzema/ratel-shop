@@ -766,7 +766,14 @@ export function Navbar() {
                                                         <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> Recent Searches</h3>
                                                         <div className="flex flex-wrap gap-2">
                                                             {recentSearches.map(term => (
-                                                                <button key={term} onMouseDown={(e) => { e.preventDefault(); setSearchQuery(term); setShowSuggestions(true); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                                <button key={term} onMouseDown={(e) => { 
+                                                                    e.preventDefault(); 
+                                                                    setSearchQuery(term); 
+                                                                    setShowSuggestions(false); 
+                                                                    const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                                                                    const catValue = catMatch ? catMatch.value : "All";
+                                                                    router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
+                                                                }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
                                                                     <History className="h-3 w-3 text-gray-400" />
                                                                     {term}
                                                                 </button>
@@ -779,7 +786,14 @@ export function Navbar() {
                                                 <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Right Now</h3>
                                                 <div className="flex flex-wrap gap-2">
                                                     {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
-                                                        <button key={term} onMouseDown={(e) => { e.preventDefault(); setSearchQuery(term); setShowSuggestions(true); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                        <button key={term} onMouseDown={(e) => { 
+                                                            e.preventDefault(); 
+                                                            setSearchQuery(term); 
+                                                            setShowSuggestions(false);
+                                                            const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                                                            const catValue = catMatch ? catMatch.value : "All";
+                                                            router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
+                                                        }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
                                                             <Zap className="h-3 w-3" />
                                                             {term}
                                                         </button>

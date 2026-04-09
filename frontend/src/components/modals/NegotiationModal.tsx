@@ -120,17 +120,23 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         await new Promise(resolve => setTimeout(resolve, 800));
 
         let tempGuestName = "Guest Buyer";
+        let currentUserId = user?.id;
+
         if (typeof window !== "undefined") {
+            // Priority 1: Use specific guest name if set (e.g. from a form field in the future)
+            // Priority 2: Use the globally persistent fp_guest_name
             const savedGuestName = localStorage.getItem("fp_guest_name");
             if (savedGuestName) {
                 tempGuestName = savedGuestName;
-            } else {
-                tempGuestName = `Guest #${Math.floor(1000 + Math.random() * 9000)}`;
-                localStorage.setItem("fp_guest_name", tempGuestName);
+            }
+
+            // Ensure we have a stable guest ID if not logged in
+            if (!currentUserId) {
+                currentUserId = DataSyncService.getOrInitializeGuestId();
             }
         }
 
-        const currentUserId = user?.id || DataSyncService.getCurrentUserId() || "guest_session";
+        if (!currentUserId) currentUserId = "guest_session";
 
         // Create a conversation thread message string
         const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;

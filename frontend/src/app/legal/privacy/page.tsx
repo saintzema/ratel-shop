@@ -82,7 +82,7 @@ export default function PrivacyNoticePage() {
                     <section>
                         <h2 className="text-xl font-bold text-gray-900 mb-3">8. Contact Us</h2>
                         <p>
-                            For privacy-related inquiries, contact our Data Protection Officer at <a href="mailto:privacy@fairprice.ng" className="text-emerald-600 font-medium hover:underline">privacy@fairprice.ng</a>.
+                            For privacy-related inquiries, contact our Data Protection Officer at <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-medium hover:underline">hello@fairprice.ng</a>.
                         </p>
                     </section>
                 </div>

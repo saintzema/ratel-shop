@@ -210,7 +210,7 @@ export const SearchGridCard = ({
             {financingResult ? (
                 <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
                     <Coins className="h-2 w-2 text-emerald-600" />
-                    <span className="text-[8px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
+                    <span className="text-[10px] sm:text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)} MONTHLY</span>
                 </div>
             ) : (
                 <>

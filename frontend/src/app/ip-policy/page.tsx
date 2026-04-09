@@ -21,7 +21,7 @@ export default function IPPolicyPage() {
                     </section>
                     <section>
                         <h2 className="text-xl font-black text-gray-900 flex items-center gap-2"><FileText className="h-5 w-5 text-blue-600" /> Reporting IP Violations</h2>
-                        <p className="text-gray-600 leading-relaxed">If you believe your intellectual property rights have been infringed upon by a listing on FairPrice, you can submit a report by emailing <a href="mailto:ip@fairprice.ng" className="text-emerald-600 font-bold hover:underline">ip@fairprice.ng</a> with the following information:</p>
+                        <p className="text-gray-600 leading-relaxed">If you believe your intellectual property rights have been infringed upon by a listing on FairPrice, you can submit a report by emailing <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-bold hover:underline">hello@fairprice.ng</a> with the following information:</p>
                         <ul className="list-disc pl-6 text-gray-600 space-y-1 text-sm">
                             <li>Your full name and contact information</li>
                             <li>Description of the copyrighted work or trademark</li>

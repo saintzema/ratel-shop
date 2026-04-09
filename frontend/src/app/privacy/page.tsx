@@ -103,7 +103,7 @@ export default function PrivacyPage() {
 
                     <div className="text-center pt-8 border-t border-gray-200">
                         <p className="text-sm text-gray-500">
-                            Questions regarding this privacy policy? Contact our data protection team at <a href="mailto:privacy@fairprice.ng" className="text-brand-green-600 font-medium hover:underline">privacy@fairprice.ng</a>
+                            Questions regarding this privacy policy? Contact our data protection team at <a href="mailto:hello@fairprice.ng" className="text-brand-green-600 font-medium hover:underline">hello@fairprice.ng</a>
                         </p>
                     </div>
                 </div>

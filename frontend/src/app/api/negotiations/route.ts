@@ -89,22 +89,29 @@ export async function POST(request: Request) {
         }
 
         // Ensure customer exists (to satisfy Foreign Key constraint)
-        let resolvedCustomerId = body.customer_id;
+        let resolvedCustomerId = body.customer_id || "guest";
+        
+        // --- Unique Guest Identity Support ---
+        // We avoid crashing if specific user is not found, instead we create a transient shell user
         const existingCustomer = await db.user.findUnique({
             where: { id: resolvedCustomerId },
             select: { id: true }
         });
 
         if (!existingCustomer) {
-            // If it's a guest or an old local session ID, ensure there's at least a guest record
-            resolvedCustomerId = "guest";
+            // If it's a unique guest ID or an old session ID, ensure there's a unique guest record
+            // Use a pattern: guest_[id]@fairprice.ng to ensure unique constraint
+            const guestEmail = `guest_${resolvedCustomerId.replace(/[^a-zA-Z0-9]/g, '')}@fairprice.ng`;
+            
             const guestStats = await db.user.upsert({
-                where: { email: "guest@fairprice.ng" },
-                update: {},
+                where: { email: guestEmail },
+                update: { 
+                    name: body.customer_name || "Guest Buyer"
+                },
                 create: {
-                    id: "guest",
-                    email: "guest@fairprice.ng",
-                    name: "Guest Buyer",
+                    id: resolvedCustomerId,
+                    email: guestEmail,
+                    name: body.customer_name || "Guest Buyer",
                     role: "customer"
                 }
             });

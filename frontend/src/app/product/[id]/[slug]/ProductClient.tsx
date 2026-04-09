@@ -1165,7 +1165,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             <h2 className="text-sm font-black text-gray-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
                                 <Share2 className="h-4 w-4 text-emerald-600 shrink-0" /> Share With Friends
                             </h2>
-                            <div className="grid grid-cols-4 gap-2 sm:gap-3 lg:grid-cols-4">
+                            <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:grid-cols-5">
                                 <a
                                     href={`https://wa.me/?text=${encodeURIComponent((product?.name || '') + ' — ₦' + (product?.price || 0).toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? window.location.href : ''))}`}
                                     target="_blank"
@@ -1177,13 +1177,23 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </a>
                                 <a
-                                    href={`https://twitter.com/intent/tweet?text=${encodeURIComponent('Check out ' + (product?.name || '') + ' on FairPrice!')}&url=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
+                                    href={`https://instagram.com`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-pink-500/20 bg-pink-500/5 group"
+                                >
+                                    <div className="h-8 w-8 shrink-0 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                                    </div>
+                                </a>
+                                <a
+                                    href={`https://tiktok.com`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-gray-300 bg-gray-50 group"
                                 >
                                     <div className="h-8 w-8 shrink-0 rounded-full bg-black text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>
+                                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 2.63-1.87 5.09-4.39 6-2.5.89-5.46.46-7.55-1.12-2.06-1.55-3.08-4.22-2.58-6.72.5-2.47 2.5-4.37 4.97-4.8 2.05-.36 4.19.12 5.86 1.34v4.32c-1.07-.63-2.39-.77-3.56-.37-1.16.39-2.02 1.36-2.28 2.56-.25 1.18.15 2.45.98 3.28 1.11 1.1 3.02 1.11 4.15.15 1.25-1.05 1.66-2.73 1.66-4.32-.03-5.74-.01-11.48-.01-17.22h.01z"/></svg>
                                     </div>
                                 </a>
                                 <a
@@ -1525,40 +1535,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 )}
 
-                                {/* Price History Embedded Widget */}
-                                {priceComparison && (
-                                    <div className="mt-1">
-                                        <PriceGraphWidget 
-                                            history={[
-                                                { month: "Sep", price: Math.round(priceComparison.market_avg * 1.05) },
-                                                { month: "Oct", price: Math.round(priceComparison.market_avg * 1.01) },
-                                                { month: "Nov", price: Math.round(priceComparison.market_avg * 0.98) },
-                                                { month: "Dec", price: Math.round(priceComparison.market_avg * 1.08) },
-                                                { month: "Jan", price: Math.round(priceComparison.market_avg * 1.02) },
-                                                { month: "Feb", price: priceComparison.market_avg }
-                                            ]} 
-                                            priceDirection="falling" 
-                                        />
-                                    </div>
-                                )}
-
-                                {/* ─── GOOGLE 2026 TRUST SIGNAL: 14-DAY RETURNS ─── */}
-                                <div className="mt-1 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 backdrop-blur-md flex items-center gap-4 transition-all hover:bg-emerald-50/50 group">
-                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
-                                        <RotateCcw className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-black text-gray-900 leading-tight">14-Day Easy Returns</span>
-                                        <p className="text-[10px] text-gray-500 font-medium tracking-wide uppercase">Consumer Protection Guaranteed</p>
-                                    </div>
-                                </div>
-
                                 {/* Vehicle Loan Discovery & Breakdown */}
                                 {isVehicle(product) && loanAnalysis && (
                                     <motion.div 
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10"
+                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10 mt-1"
                                     >
                                         <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
                                             FINANCING AVAILABLE
@@ -1665,6 +1647,34 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         </Button>
                                     </motion.div>
                                 )}
+
+                                {/* Price History Embedded Widget */}
+                                {priceComparison && (
+                                    <div className="mt-1">
+                                        <PriceGraphWidget 
+                                            history={[
+                                                { month: "Sep", price: Math.round(priceComparison.market_avg * 1.05) },
+                                                { month: "Oct", price: Math.round(priceComparison.market_avg * 1.01) },
+                                                { month: "Nov", price: Math.round(priceComparison.market_avg * 0.98) },
+                                                { month: "Dec", price: Math.round(priceComparison.market_avg * 1.08) },
+                                                { month: "Jan", price: Math.round(priceComparison.market_avg * 1.02) },
+                                                { month: "Feb", price: priceComparison.market_avg }
+                                            ]} 
+                                            priceDirection="falling" 
+                                        />
+                                    </div>
+                                )}
+
+                                {/* ─── GOOGLE 2026 TRUST SIGNAL: 14-DAY RETURNS ─── */}
+                                <div className="mt-1 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 backdrop-blur-md flex items-center gap-4 transition-all hover:bg-emerald-50/50 group">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
+                                        <RotateCcw className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-black text-gray-900 leading-tight">14-Day Easy Returns</span>
+                                        <p className="text-[10px] text-gray-500 font-medium tracking-wide uppercase">Consumer Protection Guaranteed</p>
+                                    </div>
+                                </div>
 
                                 {/* Quantity Selector */}
                                 <div className="mt-2 flex items-center justify-between p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">

@@ -76,6 +76,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         // Initialize from localStorage
         const storedUser = localStorage.getItem("fp_user");
+        
+        // --- Unique Guest Identity Fingerprinting ---
+        // If not logged in, ensure we have a stable guest ID for this browser
+        if (!storedUser) {
+            let guestId = localStorage.getItem("fp_guest_id");
+            if (!guestId) {
+                // Generate a robust unique ID: gst_ + timestamp + random chars
+                guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+                localStorage.setItem("fp_guest_id", guestId);
+                localStorage.setItem("fp_guest_name", "Guest Buyer");
+                console.log(`👤 Auth: Generated new unique guest identity: ${guestId}`);
+            }
+        }
+
         if (storedUser) {
             try {
                 const parsed = JSON.parse(storedUser);
@@ -231,6 +245,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem("fp_guest_id");
             localStorage.removeItem("fp_guest_name");
 
+            // Trigger re-sync across the application
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("sync-store-update"));
+            DataSyncService.syncWithDB();
+
             // Migrate Postgres records
             await fetch("/api/auth/migrate-guest", {
                 method: "POST",
@@ -246,10 +265,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const login = async (userData: User) => {
-        await migrateGuestData(userData);
-
+        // Persist user FIRST so subsequent fetches in migrateGuestData have context
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
+        
+        // HOT migration: reconcile guest data with new identity immediately
+        await migrateGuestData(userData);
+        
         window.dispatchEvent(new Event("fp-auth-update"));
     };
 
@@ -295,10 +317,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const register = async (userData: User) => {
-        await migrateGuestData(userData);
-
+        // Persist user FIRST for context
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
+
+        // HOT migration for new account creation
+        await migrateGuestData(userData);
 
         // Persist to Postgres
         fetch("/api/users", {

@@ -1826,7 +1826,7 @@ function CheckoutContent() {
                                                 removeFromCart(item.product.id);
                                             }
                                         }}
-                                        className="p-1 hover:bg-gray-100 rounded-full transition-colors text-gray-400 hover:text-black opacity-0 group-hover:opacity-100"
+                                        className="p-1.5 bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-600 rounded-full transition-colors shadow-sm"
                                         title="Remove item"
                                     >
                                         <X className="h-3.5 w-3.5" />

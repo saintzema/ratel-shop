@@ -37,90 +37,85 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: true, migrated: 0 });
         }
 
-        let totalMigrated = 0;
+        // --- Atomic Migration Transaction ---
+        // We use a transaction to ensure no data is left in a partial migration state
+        const results = await db.$transaction(async (tx) => {
+            const customerName = email ? email.split('@')[0] : "Authenticated Buyer";
 
-        // Migrate Negotiations
-        const negResult = await db.negotiationRequest.updateMany({
-            where: { customerId: { in: idsToMigrate } },
-            data: { 
-                customerId: newId,
-                customerName: email ? email.split('@')[0] : "Authenticated Buyer"
-            },
-        });
-        totalMigrated += negResult.count;
+            // 1. Migrate Negotiations
+            const negs = await tx.negotiationRequest.updateMany({
+                where: { customerId: { in: idsToMigrate } },
+                data: { customerId: newId, customerName }
+            });
 
-        // Migrate Orders
-        const orderResult = await db.order.updateMany({
-            where: { customerId: { in: idsToMigrate } },
-            data: { customerId: newId },
-        });
-        totalMigrated += orderResult.count;
+            // 2. Migrate Orders
+            const orders = await tx.order.updateMany({
+                where: { customerId: { in: idsToMigrate } },
+                data: { customerId: newId }
+            });
 
-        // Migrate Notifications
-        const notifResult = await db.notification.updateMany({
-            where: { userId: { in: idsToMigrate } },
-            data: { userId: newId },
-        });
-        totalMigrated += notifResult.count;
+            // 3. Migrate Notifications
+            const notifs = await tx.notification.updateMany({
+                where: { userId: { in: idsToMigrate } },
+                data: { userId: newId }
+            });
 
-        // Migrate Addresses
-        const addrResult = await db.address.updateMany({
-            where: { userId: { in: idsToMigrate } },
-            data: { userId: newId },
-        });
-        totalMigrated += addrResult.count;
+            // 4. Migrate Addresses
+            const addrs = await tx.address.updateMany({
+                where: { userId: { in: idsToMigrate } },
+                data: { userId: newId }
+            });
 
-        // Migrate Reviews
-        const reviewResult = await db.review.updateMany({
-            where: { userId: { in: idsToMigrate } },
-            data: { userId: newId },
-        });
-        totalMigrated += reviewResult.count;
+            // 5. Migrate Reviews
+            const reviews = await tx.review.updateMany({
+                where: { userId: { in: idsToMigrate } },
+                data: { userId: newId }
+            });
 
-        // Migrate Support Messages
-        const supportResult = await db.supportMessage.updateMany({
-            where: { userId: { in: idsToMigrate } },
-            data: { userId: newId },
-        });
-        totalMigrated += supportResult.count;
+            // 6. Migrate Support Messages
+            const support = await tx.supportMessage.updateMany({
+                where: { userId: { in: idsToMigrate } },
+                data: { userId: newId }
+            });
 
-        // Migrate Disputes
-        const disputeResult = await db.dispute.updateMany({
-            where: { buyerId: { in: idsToMigrate } },
-            data: { buyerId: newId },
-        });
-        totalMigrated += disputeResult.count;
+            // 7. Migrate Disputes
+            const disputes = await tx.dispute.updateMany({
+                where: { buyerId: { in: idsToMigrate } },
+                data: { buyerId: newId }
+            });
 
-        // Migrate Complaints
-        const complaintResult = await db.complaint.updateMany({
-            where: { userId: { in: idsToMigrate } },
-            data: { userId: newId },
-        });
-        totalMigrated += complaintResult.count;
+            // 8. Migrate Complaints
+            const complaints = await tx.complaint.updateMany({
+                where: { userId: { in: idsToMigrate } },
+                data: { userId: newId }
+            });
 
-        // Clean up duplicate user records (keep the newId one)
-        for (const oldUserId of idsToMigrate) {
-            if (oldUserId === "guest") continue; // Keep the guest record for future use
-            try {
-                await db.user.delete({ where: { id: oldUserId } });
-            } catch {
-                // May fail if there are remaining FK constraints, that's ok
+            // 9. Clean up Shell Records (the unique Guest User records)
+            // We keep "guest" (the legacy shared ID) but delete transient unique IDs (gst_...)
+            for (const oldUserId of idsToMigrate) {
+                if (oldUserId !== "guest" && oldUserId !== newId) {
+                    await tx.user.delete({ where: { id: oldUserId } }).catch(() => null);
+                }
             }
-        }
+
+            return {
+                negotiations: negs.count,
+                orders: orders.count,
+                notifications: notifs.count,
+                addresses: addrs.count,
+                reviews: reviews.count,
+                support: support.count,
+                disputes: disputes.count,
+                complaints: complaints.count,
+            };
+        });
+
+        const totalMigrated = Object.values(results).reduce((a, b) => a + b, 0);
 
         return NextResponse.json({
             success: true,
             migrated: totalMigrated,
-            details: {
-                negotiations: negResult.count,
-                orders: orderResult.count,
-                notifications: notifResult.count,
-                addresses: addrResult.count,
-                reviews: reviewResult.count,
-                support: supportResult.count,
-                disputes: disputeResult.count,
-                complaints: complaintResult.count,
-            }
+            details: results
         });
     } catch (error: any) {
         console.error("Guest migration error:", error);
