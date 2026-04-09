@@ -115,7 +115,7 @@ export default function AdminOrdersTakeoverPage() {
             handleTakeover();
         }
         
-        DataSyncService.addOrderMessage(selectedOrder.id, "admin", chatInput, undefined, replyingTo || undefined);
+        DataSyncService.addOrderMessage(selectedOrder.id, "admin", chatInput, undefined, undefined, replyingTo || undefined);
         setChatInput("");
         setReplyingTo(null);
     };
@@ -131,7 +131,7 @@ export default function AdminOrdersTakeoverPage() {
         const reader = new FileReader();
         reader.onloadend = () => {
             const base64String = reader.result as string;
-            DataSyncService.addOrderMessage(selectedOrder.id, "admin", "Sent an image", base64String, replyingTo || undefined);
+            DataSyncService.addOrderMessage(selectedOrder.id, "admin", "Sent an image", base64String, undefined, replyingTo || undefined);
             setReplyingTo(null);
         };
         reader.readAsDataURL(file);
