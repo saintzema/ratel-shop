@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
     X, Send, MessageCircle, ChevronLeft, Search,
     Bell, Check, CheckCheck, ShoppingBag, Megaphone,
-    Truck, Sparkles, Package, Bot, Headphones, Store, Coins
+    Truck, Sparkles, Package, Bot, Headphones, Store, Coins,
+    Image as ImageIcon
 } from "lucide-react";
 import { useMessages, Conversation, ChatMessage } from "@/context/MessageContext";
 import { Button } from "@/components/ui/button";

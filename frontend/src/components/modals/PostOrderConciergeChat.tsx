@@ -205,7 +205,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             replyTo: replyingTo || undefined
         };
 
-        DataSyncService.addOrderMessage(orderId!, "user", userMsg.text, imageUrl, replyingTo || undefined);
+        DataSyncService.addOrderMessage(orderId!, "user", userMsg.text, imageUrl, undefined, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
         setReplyingTo(null);
@@ -266,7 +266,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             replyTo: replyingTo || undefined
         };
 
-        DataSyncService.addOrderMessage(orderId!, "user", text, undefined, replyingTo || undefined);
+        DataSyncService.addOrderMessage(orderId!, "user", text, undefined, undefined, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);

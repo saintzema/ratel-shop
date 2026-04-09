@@ -18,11 +18,12 @@ function createPrismaClient() {
         connectionString: urlWithTimeout,
     });
 
-    pool.on('error', (err) => {
+    pool.on('error', (err: Error) => {
         console.warn('Neon connection pool error:', err.message);
     });
 
-    const adapter = new PrismaNeon(pool);
+    // Cast pool to any to bypass version mismatch in @neondatabase/serverless vs @prisma/adapter-neon types
+    const adapter = new PrismaNeon(pool as any);
     return new PrismaClient({ adapter, log: ["error", "warn"] });
 }
 

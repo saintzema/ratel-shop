@@ -10,6 +10,7 @@ export interface ChatMessage {
     text: string;
     timestamp: string;
     imageUrl?: string;
+    imageUrls?: string[];
     /** For negotiation counter-offers */
     negotiation?: {
         type?: 'countered' | 'accepted' | 'rejected' | string;

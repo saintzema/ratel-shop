@@ -135,6 +135,7 @@ export interface Order {
         text: string;
         timestamp: string;
         imageUrl?: string;
+        imageUrls?: string[];
         replyTo?: { sender: string; text: string };
     }[];
     zivaActive?: boolean;
@@ -200,6 +201,7 @@ export interface NegotiationRequest {
         text: string;
         timestamp: string;
         imageUrl?: string;
+        imageUrls?: string[];
         replyTo?: { sender: string; text: string };
         readByRecipient?: boolean;
         negotiation?: any;
@@ -400,6 +402,8 @@ export interface ChatMessage {
     sender_name: string;
     text: string;
     timestamp: string;
+    imageUrl?: string;
+    imageUrls?: string[];
     read_by: string[];
 }
 

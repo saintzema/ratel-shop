@@ -90,7 +90,7 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
                                         {isVehicle(product) && (
                                             <div className="mt-1 flex items-center gap-1.5 translate-y-[-2px]">
                                                 <span className="text-[11px] font-black text-brand-orange">
-                                                    {formatPrice(calculateMonthlyPayment(product.price))}
+                                                    {formatPrice(calculateMonthlyPayment(product.price).monthlyPayment)}
                                                 </span>
                                                 <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">/ month</span>
                                             </div>
