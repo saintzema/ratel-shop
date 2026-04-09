@@ -3,8 +3,30 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { HelpCircle, MessageSquare, Phone, Mail, Package, CreditCard, Truck, Shield, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 
 export default function HelpPage() {
+    const [config, setConfig] = useState({
+        email: "hello@fairprice.ng",
+        whatsapp: "2348162816305",
+        hours: "Mon-Sat"
+    });
+
+    useEffect(() => {
+        fetch("/api/admin/settings")
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data?.supportConfig) {
+                    setConfig(prev => ({
+                        ...prev,
+                        email: data.supportConfig.email || prev.email,
+                        whatsapp: data.supportConfig.whatsapp || prev.whatsapp,
+                        hours: data.supportConfig.hours?.split(":")[0] || "Mon-Sat"
+                    }));
+                }
+            })
+            .catch(err => console.error("Failed to load help settings", err));
+    }, []);
     const topics = [
         { icon: Package, title: "Orders & Tracking", desc: "Track, cancel, or manage your orders", href: "/account/orders" },
         { icon: Truck, title: "Shipping & Delivery", desc: "Delivery times, rates, and policies", href: "/shipping" },
@@ -41,21 +63,38 @@ export default function HelpPage() {
                 <div className="bg-gradient-to-br from-emerald-900 to-emerald-700 text-white rounded-2xl p-8">
                     <h2 className="text-xl font-bold mb-4">Still need help?</h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white/10 backdrop-blur rounded-xl p-4 text-center">
-                            <MessageSquare className="h-6 w-6 mx-auto mb-2 text-emerald-300" />
+                        <button 
+                            onClick={() => {
+                                const zivaImg = document.querySelector('img[alt="Ziva AI"]');
+                                if (zivaImg) {
+                                    const btn = zivaImg.closest('button');
+                                    if (btn) btn.click();
+                                }
+                            }}
+                            className="w-full bg-white/10 backdrop-blur rounded-xl p-4 text-center hover:bg-white/20 transition-colors cursor-pointer group"
+                        >
+                            <MessageSquare className="h-6 w-6 mx-auto mb-2 text-emerald-300 group-hover:scale-110 transition-transform" />
                             <h3 className="font-bold text-sm mb-1">Chat with Ziva</h3>
                             <p className="text-xs text-emerald-200">Our AI assistant is available 24/7</p>
-                        </div>
-                        <div className="bg-white/10 backdrop-blur rounded-xl p-4 text-center">
-                            <Mail className="h-6 w-6 mx-auto mb-2 text-emerald-300" />
+                        </button>
+                        <a 
+                            href={`mailto:${config.email}`}
+                            className="bg-white/10 backdrop-blur rounded-xl p-4 text-center hover:bg-white/20 transition-colors cursor-pointer group block"
+                        >
+                            <Mail className="h-6 w-6 mx-auto mb-2 text-emerald-300 group-hover:scale-110 transition-transform" />
                             <h3 className="font-bold text-sm mb-1">Email Support</h3>
-                            <p className="text-xs text-emerald-200">support@fairprice.ng</p>
-                        </div>
-                        <div className="bg-white/10 backdrop-blur rounded-xl p-4 text-center">
-                            <Phone className="h-6 w-6 mx-auto mb-2 text-emerald-300" />
-                            <h3 className="font-bold text-sm mb-1">Call Us</h3>
-                            <p className="text-xs text-emerald-200">+234 800 FAIR (Mon-Sat)</p>
-                        </div>
+                            <p className="text-xs text-emerald-200">{config.email}</p>
+                        </a>
+                        <a 
+                            href={`https://wa.me/${config.whatsapp.replace(/\D/g, '')}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-white/10 backdrop-blur rounded-xl p-4 text-center hover:bg-white/20 transition-colors cursor-pointer group block"
+                        >
+                            <Phone className="h-6 w-6 mx-auto mb-2 text-emerald-300 group-hover:scale-110 transition-transform" />
+                            <h3 className="font-bold text-sm mb-1">WhatsApp</h3>
+                            <p className="text-xs text-emerald-200">+{config.whatsapp} ({config.hours})</p>
+                        </a>
                     </div>
                 </div>
             </main>

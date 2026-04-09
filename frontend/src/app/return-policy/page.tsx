@@ -131,7 +131,7 @@ export default function ReturnPolicyPage() {
                         <h2 className="text-xl font-black text-gray-900 mb-6 font-display">How to Initiate a Return</h2>
                         <div className="space-y-6">
                             {[
-                                { step: "1", title: "Contact Us", desc: "Send a message through your Order page or email support@fairprice.ng with your Order ID and photos of the item." },
+                                { step: "1", title: "Contact Us", desc: "Send a message through your Order page or email hello@fairprice.ng with your Order ID and photos of the item." },
                                 { step: "2", title: "Verification", desc: "Our team reviews eligibility. For domestic orders, we arrange pick-up. International customers (Canada/US/UK) are responsible for return shipping unless defective." },
                                 { step: "3", title: "Shipment", desc: "Once the item is shipped back and received, we inspection for 'New Only' condition (unopened, tags attached, no wear)." },
                                 { step: "4", title: "Refund Processing", desc: "Refunds are processed within 7 business days of receipt to your original payment method. Restocking fee is $0." },
@@ -236,7 +236,7 @@ export default function ReturnPolicyPage() {
                         </p>
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                             <Link
-                                href="mailto:support@fairprice.ng"
+                                href="mailto:hello@fairprice.ng"
                                 className="bg-white text-emerald-700 px-6 py-3 rounded-full font-black text-sm hover:bg-emerald-50 transition-all shadow-lg flex items-center gap-2"
                             >
                                 Email Support <ArrowRight className="h-4 w-4" />

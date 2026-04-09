@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { SEED_PRODUCTS, SEED_SELLERS } from '@/lib/data';
+import { getProductUrl } from '@/lib/utils';
 
 export async function GET() {
     const baseUrl = 'https://fairprice.ng';
@@ -13,19 +14,36 @@ export async function GET() {
         '/contact',
         '/terms',
         '/privacy',
+        '/category/baby',
+        '/category/beauty',
+        '/category/cars',
+        '/category/computers',
+        '/category/electronics',
+        '/category/energy',
+        '/category/fashion',
+        '/category/fitness',
+        '/category/furniture',
+        '/category/gaming',
+        '/category/grocery',
+        '/category/home',
+        '/category/office',
+        '/category/phones',
+        '/category/smartwatch',
+        '/category/solar',
+        '/category/sports',
     ];
 
     // Dynamic Product Routes (Try DB first, fallback to SEED)
-    let productIds: string[] = [];
+    let productUrls: string[] = [];
     try {
         const dbProducts = await db.product.findMany({
             where: { isActive: true },
-            select: { id: true },
+            select: { id: true, name: true },
             take: 1000,
         });
-        productIds = dbProducts.map((p) => p.id);
+        productUrls = dbProducts.map((p) => getProductUrl(p.id, p.name));
     } catch (e) {
-        productIds = SEED_PRODUCTS.map((p) => p.id);
+        productUrls = SEED_PRODUCTS.map((p) => getProductUrl(p.id, p.name));
     }
 
     // Dynamic Store Routes
@@ -50,9 +68,9 @@ export async function GET() {
         <changefreq>daily</changefreq>
         <priority>${route === '' ? '1.0' : '0.8'}</priority>
     </url>`).join('')}
-    ${productIds.map(id => `
+    ${productUrls.map(url => `
     <url>
-        <loc>${baseUrl}/product/${id}</loc>
+        <loc>${baseUrl}${url}</loc>
         <lastmod>${new Date().toISOString()}</lastmod>
         <changefreq>weekly</changefreq>
         <priority>0.6</priority>

@@ -108,7 +108,7 @@ function BaseTemplate(title: string, contentHTML: string) {
                                 </div>
                                 <div style="margin-top:40px;padding-top:24px;border-top:1px solid #e5e5ea;text-align:center;" class="divider">
                                     <p style="margin:0;font-size:13px;color:#86868b;font-weight:500;" class="text-muted">
-                                        If you need help, please contact us at <a href="mailto:support@fairprice.ng" style="color:${BRAND_COLOR};text-decoration:none;">support@fairprice.ng</a>
+                                        If you need help, please contact us at <a href="mailto:hello@fairprice.ng" style="color:${BRAND_COLOR};text-decoration:none;">hello@fairprice.ng</a>
                                     </p>
                                 </div>
                             </td>

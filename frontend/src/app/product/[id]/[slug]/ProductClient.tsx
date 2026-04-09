@@ -615,13 +615,21 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const [loanAnalysis, setLoanAnalysis] = useState<any>(null);
     const vehicleDepositPctDisplay = Math.round(getVehicleDepositPercent() * 100);
 
+    const [isFinancingDetailsOpen, setIsFinancingDetailsOpen] = useState(false);
+    const [selectedTenorYears, setSelectedTenorYears] = useState<number>(0);
+    const [showDurationSelector, setShowDurationSelector] = useState(false);
+
     // Calculate loan options if vehicle
     useEffect(() => {
         if (product && isVehicle(product)) {
-            const loan = calculateMonthlyPayment(product.price);
+            const conditionStr = (product.specs?.Condition || '').toLowerCase();
+            const condition = conditionStr.includes('new') && !conditionStr.includes('used') ? 'new' : 
+                             conditionStr.includes('nigerian') ? 'nigerian_used' : 'foreign_used';
+            const defaultYears = selectedTenorYears > 0 ? selectedTenorYears : undefined;
+            const loan = calculateMonthlyPayment(product.price * quantity, 'bnpl', condition as any, defaultYears);
             setLoanAnalysis(loan);
         }
-    }, [product]);
+    }, [product, selectedTenorYears, quantity]);
 
     // For global products, getDemoPriceComparison returns zeros. Use product price to compute market estimates.
     let priceComparison = product ? getDemoPriceComparison(product.id) : null;
@@ -1359,7 +1367,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                 <span className="text-[10px] uppercase font-bold text-gray-400">Available Colors</span>
                                                 <div className="flex gap-1 mt-0.5 mt-0.5 flex-wrap">
                                                     {product.colors.filter(Boolean).map((color, idx) => (
-                                                        <span key={idx} className="text-[10px] font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{color}</span>
+                                        <span key={idx} className="text-[10px] font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{color}</span>
                                                     ))}
                                                 </div>
                                             </div>
@@ -1556,14 +1564,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             FINANCING AVAILABLE
                                         </div>
                                         
-                                        <div className="flex items-start gap-4">
+                                        <div className="flex items-start gap-4 mt-4">
                                             <motion.div 
                                                 whileHover={{ scale: 1.1, rotate: 5 }}
                                                 className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0"
                                             >
                                                 <Banknote className="h-6 w-6" />
                                             </motion.div>
-                                            <div>
+                                            <div className="pt-1">
                                                 <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1.5">Unlock ownership with a deposit of</p>
                                                 <div className="flex items-baseline gap-1">
                                                     <span className="text-3xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</span>
@@ -1591,18 +1599,53 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                 </div>
                                                 <p className="text-base font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
                                             </motion.div>
-                                            <motion.div 
-                                                whileHover={{ y: -2 }}
-                                                className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-center"
-                                            >
-                                                <div className="flex items-center gap-1.5 mb-1.5">
-                                                    <div className="h-4 w-4 rounded-md bg-blue-100 flex items-center justify-center">
-                                                        <TrendingUp className="h-2.5 w-2.5 text-blue-600" />
+                                            <div className="relative">
+                                                <motion.div 
+                                                    whileHover={{ y: -2 }}
+                                                    onClick={() => setShowDurationSelector(!showDurationSelector)}
+                                                    className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-blue-200 shadow-sm flex flex-col justify-center cursor-pointer hover:border-blue-400 transition-colors"
+                                                >
+                                                    <div className="flex items-center justify-between mb-1.5">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <div className="h-4 w-4 rounded-md bg-blue-100 flex items-center justify-center">
+                                                                <TrendingUp className="h-2.5 w-2.5 text-blue-600" />
+                                                            </div>
+                                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Duration</p>
+                                                        </div>
+                                                        <ChevronDown className={`h-3 w-3 text-blue-500 transition-transform ${showDurationSelector ? 'rotate-180' : ''}`} />
                                                     </div>
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Duration</p>
-                                                </div>
-                                                <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
-                                            </motion.div>
+                                                    <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
+                                                </motion.div>
+
+                                                {/* Dropdown for Duration */}
+                                                <AnimatePresence>
+                                                    {showDurationSelector && (
+                                                        <motion.div 
+                                                            initial={{ opacity: 0, y: -10 }}
+                                                            animate={{ opacity: 1, y: 0 }}
+                                                            exit={{ opacity: 0, y: -10 }}
+                                                            className="absolute top-full mt-2 w-full bg-white rounded-xl border border-blue-100 shadow-xl z-50 overflow-hidden"
+                                                        >
+                                                            {[1, 2, 3, 4, 5].map((year) => (
+                                                                <div 
+                                                                    key={year}
+                                                                    onClick={() => {
+                                                                        setSelectedTenorYears(year);
+                                                                        setShowDurationSelector(false);
+                                                                    }}
+                                                                    className={`px-4 py-2.5 text-sm font-bold cursor-pointer transition-colors ${
+                                                                        selectedTenorYears === year || (selectedTenorYears === 0 && loanAnalysis.tenorMonths / 12 === year)
+                                                                            ? 'bg-blue-50 text-blue-700' 
+                                                                            : 'text-gray-700 hover:bg-gray-50'
+                                                                    }`}
+                                                                >
+                                                                    {year} Year{year > 1 ? 's' : ''} {year === 1 && <span className="text-[10px] font-medium text-gray-400 ml-1">(Higher Pay)</span>}
+                                                                </div>
+                                                            ))}
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
+                                            </div>
                                         </div>
                                         
                                         <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50 flex gap-3 items-start">
@@ -1615,7 +1658,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         <Button 
                                             variant="ghost" 
                                             size="sm" 
-                                            onClick={() => setIsPriceIntelOpen(true)}
+                                            onClick={() => setIsFinancingDetailsOpen(true)}
                                             className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-black h-10 rounded-xl transition-all border border-emerald-200 group/btn"
                                         >
                                             View Detailed Payment Plan <ChevronRight className="h-3 w-3 ml-1 group-hover/btn:translate-x-1 transition-transform" />
@@ -1651,7 +1694,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             if (product) {
                                                 // Vehicle specific checkout logic is handled inside checkout page based on product category
                                                 for (let i = 0; i < quantity; i++) addToCart(product);
-                                                router.push('/checkout');
+                                                window.location.href = '/checkout';
                                             }
                                         }}
                                     >

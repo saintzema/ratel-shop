@@ -1504,10 +1504,10 @@ export function ZivaChat() {
                 initial={false}
                 whileHover={{ scale: 1.08 }}
                 drag="y"
-                dragConstraints={{ top: -300, bottom: 50 }}
+                dragConstraints={{ top: -300, bottom: 50, left: -50, right: 50 }}
                 dragElastic={0.1}
                 dragMomentum={false}
-                className="pointer-events-auto transition-opacity duration-200 opacity-100"
+                className="pointer-events-auto transition-opacity duration-200 opacity-100 touch-none"
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}
@@ -1526,7 +1526,12 @@ export function ZivaChat() {
                     {isOpen ? (
                         <X className="h-6 w-6 text-white z-10" strokeWidth={2.5} />
                     ) : (
-                        <img src="/assets/images/image_v2.png" className="w-full h-full object-cover z-10 scale-110 rounded-full" alt="Ziva AI" />
+                        <img 
+                            src="/assets/images/image_v2.png" 
+                            className="w-full h-full object-cover z-10 scale-110 rounded-full select-none" 
+                            alt="Ziva AI" 
+                            draggable={false} 
+                        />
                     )}
 
                     {/* Unread pulse - top right exterior */}

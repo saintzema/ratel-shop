@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl } from "@/lib/utils";
+import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { nativeBridge } from "@/lib/native-bridge";
+import { isVehicle, getVehiclePaymentRange } from "@/lib/financing-utils";
 
 interface ProductCardProps {
     product: Product;
@@ -215,6 +216,13 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             </span>
                         )}
                     </div>
+                    
+                    {/* Vehicle Payment Range */}
+                    {isVehicle(product) && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-emerald-600 leading-tight bg-emerald-50 w-fit px-1.5 py-0.5 rounded border border-emerald-100">
+                            <span>EST. ₦{formatNumber(getVehiclePaymentRange(product.price).min)} ~ ₦{formatNumber(getVehiclePaymentRange(product.price).max)} MONTHLY</span>
+                        </div>
+                    )}
                 </div>
             </div>
 

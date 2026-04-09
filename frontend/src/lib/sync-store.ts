@@ -3167,11 +3167,11 @@ class DataSyncServiceService {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 to: buyerEmail,
-                subject: `Order Cancelled — #${orderId.substring(0, 8)}`,
+                subject: `Order Cancelled — #${orderId}`,
                 type: "ORDER_CANCELLED",
                 payload: {
                     name: customerUser?.name || order.customer_name || "Customer",
-                    orderId: orderId.substring(0, 8),
+                    orderId: orderId,
                     productName,
                     amount: order.amount
                 }
@@ -3185,12 +3185,12 @@ class DataSyncServiceService {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 to: sellerEmail,
-                subject: `Order Cancelled Confirmation — #${orderId.substring(0, 8)}`,
+                subject: `Order Cancelled Confirmation — #${orderId}`,
                 type: "ORDER_CANCELLED",
                 payload: {
                     name: seller?.business_name || "Seller",
                     sellerName: seller?.business_name || "Seller",
-                    orderId: orderId.substring(0, 8),
+                    orderId: orderId,
                     productName
                 }
             })

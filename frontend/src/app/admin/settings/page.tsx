@@ -55,9 +55,17 @@ export default function AdminSettings() {
     const [strictSeller, setStrictSeller] = useState(true);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
 
+    // Support Configuration
+    const [supportEmail, setSupportEmail] = useState("hello@fairprice.ng");
+    const [supportWhatsapp, setSupportWhatsapp] = useState("2348162816305");
+    const [supportOffice, setSupportOffice] = useState("Victoria Island, Lagos, Nigeria");
+    const [supportHours, setSupportHours] = useState("Mon - Sat: 8am - 10pm WAT");
+    const [serviceCenters, setServiceCenters] = useState<{name: string, address: string, phone: string}[]>([]);
+
     const [isSavingCommission, setIsSavingCommission] = useState(false);
     const [isSavingShipping, setIsSavingShipping] = useState(false);
     const [isSavingSecurity, setIsSavingSecurity] = useState(false);
+    const [isSavingSupport, setIsSavingSupport] = useState(false);
     const [isFlushing, setIsFlushing] = useState(false);
     const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -142,6 +150,15 @@ export default function AdminSettings() {
                     if (initialData.lowCostFlatFee) setLowCostFlatFee(initialData.lowCostFlatFee.toString());
                     if (initialData.highCostThreshold) setHighCostThreshold(initialData.highCostThreshold.toString());
                     if (initialData.highCostCap) setHighCostCap(initialData.highCostCap.toString());
+
+                    if (initialData.supportConfig) {
+                        const sc = initialData.supportConfig;
+                        if (sc.email) setSupportEmail(sc.email);
+                        if (sc.whatsapp) setSupportWhatsapp(sc.whatsapp);
+                        if (sc.office) setSupportOffice(sc.office);
+                        if (sc.hours) setSupportHours(sc.hours);
+                        if (sc.serviceCenters) setServiceCenters(sc.serviceCenters);
+                    }
                 }
             } catch (err) {
                 console.error("Failed to load settings from DB", err);
@@ -219,6 +236,16 @@ export default function AdminSettings() {
     const handleSaveSecurity = () => saveSection({
         aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching
     }, setIsSavingSecurity);
+
+    const handleSaveSupport = () => saveSection({
+        supportConfig: {
+            email: supportEmail,
+            whatsapp: supportWhatsapp,
+            office: supportOffice,
+            hours: supportHours,
+            serviceCenters
+        }
+    }, setIsSavingSupport);
 
     const handleReset = () => {
         setAiMonitoring(true);
@@ -673,6 +700,93 @@ export default function AdminSettings() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Support & Contact Management */}
+                    <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm mt-8 xl:col-span-2">
+                        <div className="flex items-center gap-3 mb-8">
+                            <div className="h-10 w-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center">
+                                <Truck className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900">Customer Support Locations & Contact</h3>
+                                <p className="text-xs text-gray-500">Contact details managed across help screens and pickup centers</p>
+                            </div>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Primary Email</label>
+                                    <Input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} placeholder="hello@fairprice.ng" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">WhatsApp Target (Format: 234...)</label>
+                                    <Input value={supportWhatsapp} onChange={(e) => setSupportWhatsapp(e.target.value)} placeholder="2348162816305" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
+                                    <p className="text-[10px] text-gray-400 pl-1">Don't include '+', spaces, or hyphens</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Head Office Address</label>
+                                    <Input value={supportOffice} onChange={(e) => setSupportOffice(e.target.value)} placeholder="Victoria Island, Lagos" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Working Hours</label>
+                                    <Input value={supportHours} onChange={(e) => setSupportHours(e.target.value)} placeholder="Mon - Sat: 8am - 10pm WAT" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
+                                </div>
+                            </div>
+                            <div className="pt-6 border-t border-gray-50">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-bold text-gray-900">Registered Service Centers</h4>
+                                    <Button onClick={() => setServiceCenters([...serviceCenters, { name: "", address: "", phone: "" }])} variant="outline" size="sm" className="h-8 text-xs font-bold rounded-xl text-cyan-600 border-cyan-200 hover:bg-cyan-50">
+                                        + Add Location
+                                    </Button>
+                                </div>
+                                <div className="space-y-4">
+                                    {serviceCenters.map((center, i) => (
+                                        <div key={i} className="flex flex-col md:flex-row gap-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                            <Input
+                                                placeholder="Location Name (e.g. Abuja Hub)"
+                                                value={center.name}
+                                                onChange={(e) => {
+                                                    const s = [...serviceCenters];
+                                                    s[i].name = e.target.value;
+                                                    setServiceCenters(s);
+                                                }}
+                                                className="bg-white border-none h-10 flex-1 rounded-xl"
+                                            />
+                                            <Input
+                                                placeholder="Full Address"
+                                                value={center.address}
+                                                onChange={(e) => {
+                                                    const s = [...serviceCenters];
+                                                    s[i].address = e.target.value;
+                                                    setServiceCenters(s);
+                                                }}
+                                                className="bg-white border-none h-10 flex-2 rounded-xl"
+                                            />
+                                            <Input
+                                                placeholder="Phone (Optional)"
+                                                value={center.phone}
+                                                onChange={(e) => {
+                                                    const s = [...serviceCenters];
+                                                    s[i].phone = e.target.value;
+                                                    setServiceCenters(s);
+                                                }}
+                                                className="bg-white border-none h-10 flex-1 rounded-xl"
+                                            />
+                                            <Button onClick={() => {
+                                                setServiceCenters(serviceCenters.filter((_, idx) => idx !== i));
+                                            }} variant="ghost" className="h-10 px-3 text-red-500 hover:bg-red-50 rounded-xl">Remove</Button>
+                                        </div>
+                                    ))}
+                                    {serviceCenters.length === 0 && <p className="text-xs text-gray-400 italic">No additional service centers registered.</p>}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-8 flex justify-end pt-6 border-t border-gray-100">
+                            <Button disabled={isSavingSupport} onClick={handleSaveSupport} className="bg-cyan-600 hover:bg-cyan-700 text-white rounded-2xl font-black text-xs h-12 px-8 flex items-center gap-2">
+                                {isSavingSupport ? "Saving..." : <><Save className="h-4 w-4" /> Save Contacts</>}
+                            </Button>
                         </div>
                     </div>
                 </div>

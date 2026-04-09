@@ -59,7 +59,7 @@ export default function SupportPage() {
                     <div className="mt-12 bg-gray-50 rounded-2xl p-8 border border-gray-200 text-center">
                         <MessageSquare className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
                         <h3 className="font-bold text-gray-900 mb-1">Still need help?</h3>
-                        <p className="text-sm text-gray-600">Chat with <strong>Ziva AI</strong> on any page or email us at <a href="mailto:support@fairprice.ng" className="text-emerald-600 font-bold hover:underline">support@fairprice.ng</a></p>
+                        <p className="text-sm text-gray-600">Chat with <strong>Ziva AI</strong> on any page or email us at <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-bold hover:underline">hello@fairprice.ng</a></p>
                     </div>
                 </div>
             </main>

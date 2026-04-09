@@ -53,9 +53,10 @@ export function getVehicleDepositPercent(): number {
 export function calculateMonthlyPayment(
     price: number,
     type: LoanType = 'bnpl',
-    condition: VehicleCondition = 'foreign_used'
+    condition: VehicleCondition = 'foreign_used',
+    requestedYears?: number
 ): LoanResult {
-    const years = LOAN_CONSTANTS.TENORS[condition] || 4;
+    const years = requestedYears !== undefined ? requestedYears : (LOAN_CONSTANTS.TENORS[condition] || 4);
     const months = years * 12;
     let annualMarkup = type === 'bnpl' ? LOAN_CONSTANTS.BNPL_MARKUP_PA : LOAN_CONSTANTS.LEASE_MARKUP_PA;
     
@@ -97,6 +98,46 @@ export function calculateMonthlyPayment(
         totalAmount: Math.round(totalAmount),
         markupAmount: Math.round(totalMarkup),
         interestRate: annualMarkup,
+    };
+}
+
+/**
+ * Calculates the min and max estimated monthly payments for a vehicle
+ * Returns { min: number, max: number }
+ */
+export function getVehiclePaymentRange(
+    price: number,
+    type: LoanType = 'bnpl',
+    condition: VehicleCondition = 'foreign_used'
+): { min: number; max: number } {
+    const minYears = 1;
+    const maxYears = LOAN_CONSTANTS.TENORS[condition] || 4;
+    
+    let annualMarkup = type === 'bnpl' ? LOAN_CONSTANTS.BNPL_MARKUP_PA : LOAN_CONSTANTS.LEASE_MARKUP_PA;
+    
+    if (typeof window !== "undefined") {
+        try {
+            const dynamicMarkup = localStorage.getItem("fp_vehicle_markup");
+            if (dynamicMarkup) {
+                const markupVal = parseFloat(dynamicMarkup) / 100;
+                if (!isNaN(markupVal)) {
+                    annualMarkup = Math.max(annualMarkup, markupVal * 3);
+                }
+            }
+        } catch (e) {}
+    }
+
+    // Min years = highest monthly payment
+    const totalMarkup1 = price * annualMarkup * minYears;
+    const monthlyPaymentHighest = (price + totalMarkup1) / (minYears * 12);
+    
+    // Max years = lowest monthly payment
+    const totalMarkupMax = price * annualMarkup * maxYears;
+    const monthlyPaymentLowest = (price + totalMarkupMax) / (maxYears * 12);
+
+    return {
+        min: Math.round(monthlyPaymentLowest),
+        max: Math.round(monthlyPaymentHighest)
     };
 }
 

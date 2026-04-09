@@ -478,6 +478,8 @@ function CheckoutContent() {
         }
     };
 
+    const [dynamicPickups, setDynamicPickups] = useState<Record<string, Record<string, string[]>>>(PICKUP_STATIONS);
+
     const searchParams = useSearchParams();
     const negotiationId = searchParams?.get("negotiation");
 
@@ -551,6 +553,21 @@ function CheckoutContent() {
                     if (data.codGlobalEnabled != null) setCodGlobalEnabled(data.codGlobalEnabled);
                     if (data.codGlobalThreshold != null) setCodGlobalThreshold(Number(data.codGlobalThreshold));
                     if (data.escrowFeePayNow != null) setEscrowFeePayNow(Number(data.escrowFeePayNow));
+
+                    if (data.supportConfig?.serviceCenters?.length > 0) {
+                        setDynamicPickups(prev => {
+                            const updated = { ...prev };
+                            if (!updated["Platform Offices / Hubs"]) updated["Platform Offices / Hubs"] = {};
+                            if (!updated["Platform Offices / Hubs"]["Service Centers"]) updated["Platform Offices / Hubs"]["Service Centers"] = [];
+                            
+                            data.supportConfig.serviceCenters.forEach((center: any) => {
+                                if (center.name && !updated["Platform Offices / Hubs"]["Service Centers"].includes(center.name)) {
+                                    updated["Platform Offices / Hubs"]["Service Centers"].push(center.name);
+                                }
+                            });
+                            return updated;
+                        });
+                    }
                 }
             })
             .catch(() => { });
@@ -1286,7 +1303,7 @@ function CheckoutContent() {
                                                 </div>
 
                                                 {/* Nearest Landmark — helps delivery rider */}
-                                                {pickupDetails.state && address.city && PICKUP_STATIONS[pickupDetails.state]?.[address.city] && (
+                                                {pickupDetails.state && address.city && dynamicPickups[pickupDetails.state]?.[address.city] && (
                                                     <div className="space-y-1">
                                                         <label className="text-xs font-bold uppercase text-gray-400">Nearest Landmark <span className="text-gray-300 normal-case">(helps our rider find you faster)</span></label>
                                                         <div className="relative">
@@ -1296,7 +1313,7 @@ function CheckoutContent() {
                                                                 onChange={e => setPickupDetails({ ...pickupDetails, station: e.target.value })}
                                                             >
                                                                 <option value="">Select nearest landmark (optional)</option>
-                                                                {(PICKUP_STATIONS[pickupDetails.state]?.[address.city] || []).map(landmark => (
+                                                                {(dynamicPickups[pickupDetails.state]?.[address.city] || []).map(landmark => (
                                                                     <option key={landmark} value={landmark}>{landmark}</option>
                                                                 ))}
                                                             </select>
@@ -1320,7 +1337,7 @@ function CheckoutContent() {
                                                                 onChange={e => setPickupDetails({ state: e.target.value, city: "", station: "" })}
                                                             >
                                                                 <option value="" disabled>Select State</option>
-                                                                {Object.keys(PICKUP_STATIONS).map(state => (
+                                                                {Object.keys(dynamicPickups).map(state => (
                                                                     <option key={state} value={state}>{state}</option>
                                                                 ))}
                                                             </select>
@@ -1340,7 +1357,7 @@ function CheckoutContent() {
                                                                 required
                                                             >
                                                                 <option value="" disabled>Select City</option>
-                                                                {pickupDetails.state && PICKUP_STATIONS[pickupDetails.state] && Object.keys(PICKUP_STATIONS[pickupDetails.state]).map(city => (
+                                                                {pickupDetails.state && dynamicPickups[pickupDetails.state] && Object.keys(dynamicPickups[pickupDetails.state]).map(city => (
                                                                     <option key={city} value={city}>{city}</option>
                                                                 ))}
                                                             </select>
@@ -1361,7 +1378,7 @@ function CheckoutContent() {
                                                             required
                                                         >
                                                             <option value="" disabled>Select a Station</option>
-                                                            {pickupDetails.city && PICKUP_STATIONS[pickupDetails.state]?.[pickupDetails.city] && PICKUP_STATIONS[pickupDetails.state][pickupDetails.city].map(station => (
+                                                            {pickupDetails.city && dynamicPickups[pickupDetails.state]?.[pickupDetails.city] && dynamicPickups[pickupDetails.state][pickupDetails.city].map(station => (
                                                                 <option key={station} value={station}>{station}</option>
                                                             ))}
                                                         </select>
