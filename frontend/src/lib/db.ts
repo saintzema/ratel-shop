@@ -14,6 +14,11 @@ function createPrismaClient() {
     // Definitive source of truth for the URL
     const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
+    // THE ULTIMATE HARDENING: 
+    // Set the environment variable explicitly for the Prisma engine.
+    // This prevents Prisma from defaulting to 'localhost' when the schema lacks a URL.
+    process.env.DATABASE_URL = dbUrl;
+
     // Add timeout for serverless reliability
     const urlWithTimeout = `${dbUrl}&statement_timeout=15000`;
 
@@ -26,15 +31,11 @@ function createPrismaClient() {
     // Configure Neon adapter
     const adapter = new PrismaNeon(pool as any);
     
-    // THE DEFINITIVE FIX: Use adapter + explicit datasources for Prisma 7
-    // This absolutely ensures Prisma doesn't default to 'localhost'.
+    // Note: In Prisma 7, the 'datasources' property is removed from the constructor 
+    // when using an 'adapter' to avoid type conflicts. We satisfy connection requirements
+    // via the environment variable above and the adapter here.
     return new PrismaClient({ 
         adapter,
-        datasources: {
-            db: {
-                url: dbUrl
-            }
-        },
         log: ["error", "warn"] 
     });
 }
