@@ -11,8 +11,7 @@ if (typeof window === 'undefined') {
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
-    // HARDCODED CONNECTION STRING: The ultimate resilience against environment stripping
-    const dbUrl = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
+    const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
     // Add timeout for serverless reliability
     const urlWithTimeout = `${dbUrl}&statement_timeout=15000`;
