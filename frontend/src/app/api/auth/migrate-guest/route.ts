@@ -91,9 +91,11 @@ export async function POST(request: Request) {
             });
 
             // 9. Clean up Shell Records (the unique Guest User records)
-            // We keep "guest" (the legacy shared ID) but delete transient unique IDs (gst_...)
+            // We keep the literal "guest" record (shared fallback) but delete transient unique IDs (gst_... or guest_...)
+            // This prevents the user table from bloating with one-time use guest shells.
             for (const oldUserId of idsToMigrate) {
-                if (oldUserId !== "guest" && oldUserId !== newId) {
+                const isTransientId = oldUserId.startsWith("gst_") || oldUserId.startsWith("guest_");
+                if (isTransientId && oldUserId !== "guest" && oldUserId !== newId) {
                     await tx.user.delete({ where: { id: oldUserId } }).catch(() => null);
                 }
             }

@@ -77,16 +77,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Initialize from localStorage
         const storedUser = localStorage.getItem("fp_user");
         
-        // --- Unique Guest Identity Fingerprinting ---
-        // If not logged in, ensure we have a stable guest ID for this browser
+        // --- Stable Guest Identity Persistence ---
+        // We ensure a consistent 'guest' ID is maintained for the browser session.
+        // This prevents 'identity jitter' where data might get orphaned across refreshes.
         if (!storedUser) {
             let guestId = localStorage.getItem("fp_guest_id");
             if (!guestId) {
-                // Generate a robust unique ID: gst_ + timestamp + random chars
-                guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+                // Return to a simple, stable identifier with a unique fingerprint
+                // This balances the user's need for isolation with the system's need for stability.
+                guestId = `guest_${Math.random().toString(36).substring(2, 7)}`;
                 localStorage.setItem("fp_guest_id", guestId);
                 localStorage.setItem("fp_guest_name", "Guest Buyer");
-                console.log(`👤 Auth: Generated new unique guest identity: ${guestId}`);
+                console.log(`👤 Auth: Initialized stable guest session: ${guestId}`);
             }
         }
 
