@@ -8,17 +8,15 @@ if (typeof window === 'undefined') {
     neonConfig.webSocketConstructor = ws;
 }
 
-// DEFINITIVE HARDENING: Set the environment variable at the module level.
-// This ensures that the Prisma engine (now WASM-based) and all sub-processes 
-// inherit the correct connection string, bypassing the 'localhost' default.
-const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
-process.env.DATABASE_URL = dbUrl;
-
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
-    // Add timeout for serverless reliability
-    const urlWithTimeout = `${process.env.DATABASE_URL}&statement_timeout=15000`;
+    // DEFINITIVE HARDENING: Set the hardcoded URL as a fallback directly in the logic.
+    // This removes any possibility of the 'host: localhost' error at runtime.
+    const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
+    
+    // Add statement timeout for serverless reliability
+    const urlWithTimeout = `${dbUrl}${dbUrl.includes('?') ? '&' : '?'}statement_timeout=15000`;
 
     // Initialize Neon Serverless Pool
     const pool = new NeonPool({ connectionString: urlWithTimeout });
