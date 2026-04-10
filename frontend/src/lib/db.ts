@@ -41,11 +41,9 @@ function createPrismaClient() {
     });
 
     // Create standard Prisma Client passing the Neon Adapter.
-    // Also explicitly pass datasource url to force Prisma core engine to recognize it natively.
     const adapter = new PrismaNeon(pool as any);
     return new PrismaClient({ 
         adapter, 
-        datasourceUrl: connectionString, 
         log: ["error", "warn"] 
     });
 }
