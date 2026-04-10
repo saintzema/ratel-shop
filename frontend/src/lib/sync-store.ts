@@ -313,7 +313,6 @@ class DataSyncServiceService {
         };
     }
 
-    public isSyncing = false;
     public async syncWithDB(collection?: string) {
         if (typeof window === "undefined" || this.isSyncing) return;
         this.isSyncing = true;
