@@ -729,7 +729,7 @@ export function Navbar() {
                                 autoComplete="off"
                                 suppressHydrationWarning
                                 className="flex-1 border-0 bg-transparent px-2 md:px-5 text-[13px] md:text-sm focus-visible:ring-0 placeholder:text-gray-400 rounded-none h-full text-gray-900 font-medium"
-                                placeholder="Neck massager"
+                                placeholder="Search products here..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onFocus={() => setShowSuggestions(true)}
