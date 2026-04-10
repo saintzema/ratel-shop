@@ -297,6 +297,20 @@ class DataSyncServiceService {
         if (typeof window === "undefined" || this.isSyncing) return;
         this.isSyncing = true;
         try {
+            const fetchWithTimeout = async (url: string, options: any = {}) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s hard timeout
+                try {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    return response;
+                } catch (err: any) {
+                    clearTimeout(timeoutId);
+                    if (err.name === 'AbortError') throw new Error(`Timeout: ${url}`);
+                    throw err;
+                }
+            };
+
             const user = this.getCurrentUser();
             const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
 
@@ -328,17 +342,17 @@ class DataSyncServiceService {
                 negotiationsResult, notificationsResult, conversationsResult,
                 disputesResult, complaintsResult, kycResult, reviewsResult
             ] = await Promise.allSettled([
-                fetchProducts ? fetch(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
-                fetchSellers ? fetch(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
-                fetchSearchCache ? fetch("/api/search-cache") : mockUnfetched,
-                fetchOrders ? fetch(ordersUrl) : mockUnfetched,
-                fetchNegotiations ? fetch(`/api/negotiations?all=true`) : mockUnfetched,
-                fetchNotifications && notificationUrl ? fetch(notificationUrl) : mockUnfetched,
-                fetchConversations && user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
-                fetchDisputes ? fetch("/api/disputes?all=true") : mockUnfetched,
-                fetchComplaints ? fetch("/api/complaints?all=true") : mockUnfetched,
-                fetchKYC ? fetch("/api/kyc?all=true") : mockUnfetched,
-                fetchReviews ? fetch("/api/reviews?all=true") : mockUnfetched
+                fetchProducts ? fetchWithTimeout(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
+                fetchSellers ? fetchWithTimeout(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
+                fetchSearchCache ? fetchWithTimeout("/api/search-cache") : mockUnfetched,
+                fetchOrders ? fetchWithTimeout(ordersUrl) : mockUnfetched,
+                fetchNegotiations ? fetchWithTimeout(`/api/negotiations?all=true`) : mockUnfetched,
+                fetchNotifications && notificationUrl ? fetchWithTimeout(notificationUrl) : mockUnfetched,
+                fetchConversations && user?.email ? fetchWithTimeout(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
+                fetchDisputes ? fetchWithTimeout("/api/disputes?all=true") : mockUnfetched,
+                fetchComplaints ? fetchWithTimeout("/api/complaints?all=true") : mockUnfetched,
+                fetchKYC ? fetchWithTimeout("/api/kyc?all=true") : mockUnfetched,
+                fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched
             ]);
 
             if (!collection) {
@@ -699,7 +713,10 @@ class DataSyncServiceService {
         // Circuit breaker: skip for 30s after a failure to avoid hammering a dead DB
         if (this._syncFailedAt && Date.now() - this._syncFailedAt < 30000) return;
         try {
-            const res = await fetch("/api/negotiations?all=true", { signal: AbortSignal.timeout(4000) });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const res = await fetch("/api/negotiations?all=true", { signal: controller.signal });
+            clearTimeout(timeoutId);
             if (!res.ok) return;
             const negData = await res.json();
             const dbNegotiations: any[] = negData.negotiations || [];

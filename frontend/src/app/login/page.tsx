@@ -164,10 +164,11 @@ export default function UnifiedAuthPage() {
         setIsLoading(true);
         const normalizedId = identifier.toLowerCase().trim();
 
-        // 5 second timeout for DB lookup
+        // 12 second timeout for DB lookup (accommodates Neon Postgres cold starts)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
 
+        let dbError = false;
         try {
             const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`, { signal: controller.signal });
             clearTimeout(timeoutId);
@@ -191,17 +192,28 @@ export default function UnifiedAuthPage() {
             }
         } catch (err: any) {
             clearTimeout(timeoutId);
+            dbError = true;
             console.warn("DB lookup failed or timed out. Falling back to local cache.", err.name === 'AbortError' ? 'Timeout' : err);
         }
 
         // --- FALLBACK LOGIC ---
         // If DB lookup fails or user not found in DB, check local registry before assuming NEW user
         setTimeout(() => {
-            const isExisting =
-                checkRegisteredUser(normalizedId) ||
+            const isRegisteredLocally = checkRegisteredUser(normalizedId);
+            const isKnownDemo = 
                 normalizedId === "techzema@gmail.com" ||
                 normalizedId === "seller@example.com" ||
                 normalizedId === "apple-review@fairprice.app";
+
+            const isExisting = isRegisteredLocally || isKnownDemo;
+
+            if (dbError && !isExisting) {
+                // If DB failed AND we don't know them locally, we can't be sure they are NEW.
+                // Warn them instead of funneling them into "Create Password" which might fail later.
+                setError("Database is connecting... Please try again in a few seconds.");
+                setIsLoading(false);
+                return;
+            }
 
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
@@ -215,7 +227,7 @@ export default function UnifiedAuthPage() {
         setIsLoading(true);
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s for full verify + bcrypt
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for full verify + bcrypt + cold start
 
         try {
             // 1. Try server-side password verification first (bcrypt against DB)
