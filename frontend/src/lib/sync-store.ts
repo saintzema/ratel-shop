@@ -172,7 +172,7 @@ class DataSyncServiceService {
                 const saved = localStorage.getItem(this._PENDING_KEY);
                 if (saved) this._pendingEdits = new Set(JSON.parse(saved));
                 const savedSellers = localStorage.getItem(this._PENDING_SELLER_KEY);
-                if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
+                if (savedSellers) this._pendingSellerEdits = JSON.parse(savedSellers);
                 const savedNegs = localStorage.getItem(this._PENDING_NEGOTIATION_KEY);
                 if (savedNegs) this._pendingNegotiationEdits = new Set(JSON.parse(savedNegs));
             } catch { /* ignore */ }
@@ -1713,8 +1713,10 @@ class DataSyncServiceService {
         const updated = sellers.map(s => s.id === id ? mergedSeller : s);
 
         // Mark as pending BEFORE writing — protects from syncWithDB overwrite
-        this._pendingSellerEdits.add(id);
-        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+        if (!this._pendingSellerEdits.includes(id)) {
+            this._pendingSellerEdits.push(id);
+        }
+        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify(this._pendingSellerEdits)); } catch { /* quota */ }
 
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         
@@ -1729,8 +1731,8 @@ class DataSyncServiceService {
             body: JSON.stringify(mergedSeller),
         }).then(res => {
             if (res.ok) {
-                this._pendingSellerEdits.delete(id);
-                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+                this._pendingSellerEdits = this._pendingSellerEdits.filter(pid => pid !== id);
+                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify(this._pendingSellerEdits)); } catch { /* quota */ }
             }
         }).catch(() => {
             // Keep in pendingSellerEdits so syncWithDB doesn't overwrite
