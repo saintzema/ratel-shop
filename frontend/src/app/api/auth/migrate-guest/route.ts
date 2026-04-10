@@ -112,7 +112,7 @@ export async function POST(request: Request) {
             };
         });
 
-        const totalMigrated = Object.values(results).reduce((a, b) => a + b, 0);
+        const totalMigrated = Object.values(results).reduce((a: number, b: number) => a + b, 0);
 
         return NextResponse.json({
             success: true,

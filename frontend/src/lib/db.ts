@@ -1,7 +1,7 @@
 import { Pool as NeonPool, neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
-import ws from "ws";
+import * as ws from "ws";
 
 // Definitive Source of Truth for Database Connection
 const NEON_POOLER_URL = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
@@ -44,7 +44,7 @@ function createPrismaClient() {
             }
         },
         log: ["error", "warn"] 
-    });
+    } as any);
 }
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
