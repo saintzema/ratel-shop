@@ -4,6 +4,7 @@ import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, N
 export type { NegotiationRequest };
 import { formatPrice, getProxiedImageUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
+import { TEMU_PRODUCTS } from "./demo-data-temu";
 
 export interface Category {
     id: string;
@@ -57,7 +58,27 @@ class DataSyncServiceService {
     private _pendingEdits: Set<string> = new Set();
     private readonly _PENDING_KEY = "fp_pending_product_edits";
     // Track seller IDs with local edits (KYC approve/reject) not yet confirmed by DB
-    private _pendingSellerEdits: Set<string> = new Set();
+    private _pendingSellerEdits: string[] = [];
+    
+    /**
+     * seedDemoData: Safety net that populates the marketplace with 
+     * existing TEMU_PRODUCTS if the database is offline and the store is empty.
+     */
+    public seedDemoData() {
+        if (typeof window === "undefined") return;
+        
+        const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
+        if (currentProducts.length === 0) {
+            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding TEMU_PRODUCTS fallback.");
+            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(TEMU_PRODUCTS));
+            
+            // Trigger UI update
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("sync-store-update"));
+        }
+    }
+
+    public isSyncing = false;
     private readonly _PENDING_SELLER_KEY = "fp_pending_seller_edits";
     // Track negotiation IDs with local edits not confirmed by DB
     private _pendingNegotiationEdits: Set<string> = new Set();
@@ -354,6 +375,19 @@ class DataSyncServiceService {
                 fetchKYC ? fetchWithTimeout("/api/kyc?all=true") : mockUnfetched,
                 fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched
             ]);
+
+            // Resilience Check: If any critical results are 503 (offline), 
+            // handle gracefully instead of clearing data.
+            const isDbOffline = [productsResult, sellersResult].some(r => 
+                r.status === "fulfilled" && r.value.status === 503
+            );
+
+            if (isDbOffline) {
+                console.warn("📢 Resilience: Database reported offline (503). Preserving local cache.");
+                this.seedDemoData(); // Last resort: seed if totally empty
+                this.isSyncing = false;
+                return;
+            }
 
             if (!collection) {
                 localStorage.setItem("fp_last_sync_time", new Date().toISOString());

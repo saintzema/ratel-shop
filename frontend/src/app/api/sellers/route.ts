@@ -58,10 +58,16 @@ export async function GET(req: Request) {
         });
     } catch (error: any) {
         console.error("Database fetch error:", error);
-        // Return empty array instead of 500 so the client falls back to SEED_SELLERS
-        return NextResponse.json([], {
-            status: 200,
-            headers: { "X-DB-Status": "offline" }
+        return NextResponse.json({
+            error: "Service Temporarily Unavailable",
+            message: "The seller registry is currently unreachable.",
+            code: "DB_OFFLINE"
+        }, {
+            status: 503,
+            headers: { 
+                "X-DB-Status": "offline",
+                "Cache-Control": "no-store" 
+            }
         });
     }
 }

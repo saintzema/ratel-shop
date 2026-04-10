@@ -215,6 +215,14 @@ export default function UnifiedAuthPage() {
                 return;
             }
 
+            if (dbError && isExisting) {
+                // If DB failed but they are a KNOWN seller/admin, we CANNOT let them in with a random ID.
+                // It would break their dashboard. Force them to wait for the real DB.
+                setError("Database is optimizing your session. Please verify again in a moment.");
+                setIsLoading(false);
+                return;
+            }
+
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
             setIsLoading(false);
@@ -307,6 +315,15 @@ export default function UnifiedAuthPage() {
 
             const userEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
             const userName = existingUser?.name || displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+            
+            // CRITICAL FIX: If DB is offline, we check if this is a known privileged account.
+            // If so, and we don't have a stable ID for them, we MUST block.
+            if (!existingUser?.id && (determinedRole === "admin" || determinedRole === "seller")) {
+                setError("Critical: Database connection required for seller access. Please try again.");
+                setIsLoading(false);
+                return;
+            }
+
             const finalUser = existingUser || {
                 id: "user_" + Math.random().toString(36).substr(2, 9),
                 name: userName,
