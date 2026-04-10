@@ -71,27 +71,37 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
                         });
                 } else {
                     // SECURITY LOCKDOWN: Even if local role IS allowed, if it's a high-privilege role (admin/seller), 
-                    // double-check with DB to prevent 'localStorage' tampering.
-                    if (user.role === "admin" || (user.role === "seller" && allowedRoles?.includes("seller"))) {
-                         fetch(`/api/users?email=${encodeURIComponent(user.email)}`)
-                            .then(res => res.json())
-                            .then(dbUser => {
-                                if (!dbUser || dbUser.role !== user.role) {
-                                    console.error("SECURITY: Local role mismatch detected! Reverting to DB state.");
-                                    if (dbUser && dbUser.role) {
-                                        updateUser({ role: dbUser.role });
-                                    } else {
-                                        router.push("/login");
-                                    }
-                                } else {
-                                    setIsAuthorized(true);
-                                }
-                            })
-                            .catch(e => {
-                                console.warn("Background security check failed. Assuming persistent session.");
+                    // double-check with DB to prevent 'localStorage' tampering with a strict 5s timeout.
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                    fetch(`/api/users?email=${encodeURIComponent(user.email)}`, { signal: controller.signal })
+                        .then(res => res.json())
+                        .then(dbUser => {
+                            clearTimeout(timeoutId);
+                            // If API returns an error structure (e.g. DB offline), trust local session to provide offline resilience
+                            if (dbUser && dbUser.error) {
+                                console.warn("DB offline or error, trusting local session.", dbUser.error);
                                 setIsAuthorized(true);
-                            });
-                    } else {
+                                return;
+                            }
+
+                            if (!dbUser || dbUser.role !== user.role) {
+                                console.error("SECURITY: Local role mismatch detected! Reverting to DB state.");
+                                if (dbUser && dbUser.role) {
+                                    updateUser({ role: dbUser.role });
+                                } else {
+                                    router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);
+                                }
+                            } else {
+                                setIsAuthorized(true);
+                            }
+                        })
+                        .catch(e => {
+                            clearTimeout(timeoutId);
+                            console.warn("Background security check failed or timed out. Assuming persistent session.", e.name === 'AbortError' ? 'Timeout' : e);
+                            setIsAuthorized(true);
+                        });
                         if (process.env.NODE_ENV === 'development') {
                             console.log("ProtectedRoute: Authorized (Low Privilege)");
                         }

@@ -164,8 +164,14 @@ export default function UnifiedAuthPage() {
         setIsLoading(true);
         const normalizedId = identifier.toLowerCase().trim();
 
+        // 5 second timeout for DB lookup
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
         try {
-            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`);
+            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            
             if (res.ok) {
                 const fetched = await res.json();
                 if (fetched && fetched.email) {
@@ -183,12 +189,14 @@ export default function UnifiedAuthPage() {
                     return;
                 }
             }
-        } catch (err) {
-            console.error("Failed to lookup user:", err);
+        } catch (err: any) {
+            clearTimeout(timeoutId);
+            console.warn("DB lookup failed or timed out. Falling back to local cache.", err.name === 'AbortError' ? 'Timeout' : err);
         }
 
+        // --- FALLBACK LOGIC ---
+        // If DB lookup fails or user not found in DB, check local registry before assuming NEW user
         setTimeout(() => {
-            // Check registered users first, then known demo accounts
             const isExisting =
                 checkRegisteredUser(normalizedId) ||
                 normalizedId === "techzema@gmail.com" ||
@@ -198,7 +206,7 @@ export default function UnifiedAuthPage() {
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
             setIsLoading(false);
-        }, 600);
+        }, 300);
     };
 
     const handleExistingLogin = async (e: React.FormEvent) => {
@@ -206,13 +214,18 @@ export default function UnifiedAuthPage() {
         setError("");
         setIsLoading(true);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000); // 7s for full verify + bcrypt
+
         try {
             // 1. Try server-side password verification first (bcrypt against DB)
             const res = await fetch("/api/auth/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier.trim(), password })
+                body: JSON.stringify({ email: identifier.trim(), password }),
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
             const data = await res.json();
 
             if (data.success && data.user) {
