@@ -15,6 +15,9 @@ function createPrismaClient() {
     // This removes any possibility of the 'host: localhost' error at runtime.
     const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
+    // Explicitly inject into process.env to satisfy any internal engine checks
+    process.env.DATABASE_URL = dbUrl;
+
     // Add statement timeout for serverless reliability
     const urlWithTimeout = `${dbUrl}${dbUrl.includes('?') ? '&' : '?'}statement_timeout=15000`;
 
@@ -27,7 +30,7 @@ function createPrismaClient() {
     // Configure Neon adapter
     const adapter = new PrismaNeon(pool as any);
     
-    // Initialize Prisma Client with the Neon adapter
+    // Initialize Prisma Client with the Neon adapter and the new Rust-free engine
     return new PrismaClient({ 
         adapter,
         log: ["error", "warn"] 
