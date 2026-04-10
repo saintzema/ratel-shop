@@ -33,16 +33,14 @@ function createPrismaClient() {
     // Configure Neon adapter
     const adapter = new PrismaNeon(pool as any);
     
+    // Ensure the environment variable is set for internal engine readiness
+    process.env.DATABASE_URL = ACTIVE_DATABASE_URL;
+
     // THE NUCLEAR FIX: Direct constructor injection
-    // This forces Prisma to use the specific URL regardless of the environment's state.
-    // It is the most robust way to handle Vercel's environment stripping.
+    // We use 'datasourceUrl' (Prisma 7) and cast to 'any' for type safety
     return new PrismaClient({ 
         adapter,
-        datasources: {
-            db: {
-                url: ACTIVE_DATABASE_URL
-            }
-        },
+        datasourceUrl: ACTIVE_DATABASE_URL,
         log: ["error", "warn"] 
     } as any);
 }
