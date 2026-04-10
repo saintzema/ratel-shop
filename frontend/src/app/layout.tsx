@@ -46,9 +46,9 @@ export const metadata: Metadata = {
     locale: "en_NG",
     url: "https://fairprice.ng",
     siteName: "FairPrice Shop Negotiate & Verify Market Prices",
-    title: "FairPrice Shop | Nigeria's #1 Price Verification & Negotiation Engine",
-    description: "Don't overpay or undersell. Verify real prices, negotiate the best deals, or start selling to millions of buyers in Nigeria. Secure every transaction with built-in Escrow protection.",
-    images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Shop Logo" }],
+    title: "FairPrice Shop | Nigeria's #1 Price Verification & Negotiation Marketplace",
+    description: "Don't overpay or undersell. Verify real market prices, negotiate the best deals, or start selling to millions of buyers in Nigeria. Secure transactions with built-in Escrow protection.",
+    images: [{ url: "/logo.png", width: 800, height: 800, alt: "FairPrice Shop Logo" }],  
   },
   twitter: {
     card: "summary_large_image",
