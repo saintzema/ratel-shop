@@ -34,15 +34,17 @@ function createPrismaClient() {
     const adapter = new PrismaNeon(pool as any);
     
     // Ensure the environment variable is set for internal engine readiness
-    process.env.DATABASE_URL = ACTIVE_DATABASE_URL;
+    // This satisfies the Prisma engine's provider check without using the restricted constructor property.
+    if (!process.env.DATABASE_URL || process.env.DATABASE_URL === "undefined") {
+        process.env.DATABASE_URL = ACTIVE_DATABASE_URL;
+    }
 
-    // THE NUCLEAR FIX: Direct constructor injection
-    // We use 'datasourceUrl' (Prisma 7) and cast to 'any' for type safety
+    // THE DEFINITIVE FIX: Use only the 'adapter' in the constructor
+    // Prisma 7 with an adapter is often mutually exclusive with other datasource overrides.
     return new PrismaClient({ 
         adapter,
-        datasourceUrl: ACTIVE_DATABASE_URL,
         log: ["error", "warn"] 
-    } as any);
+    });
 }
 
 export const db = globalForPrisma.prisma ?? createPrismaClient();
