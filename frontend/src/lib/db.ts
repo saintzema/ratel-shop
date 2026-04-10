@@ -16,7 +16,9 @@ function createPrismaClient() {
         || process.env.DATABASE_POSTGRES_URL_NON_POOLING 
         || process.env.DATABASE_URL 
         || process.env.DATABASE_POSTGRES_PRISMA_URL 
-        || process.env.POSTGRES_PRISMA_URL;
+        || process.env.POSTGRES_PRISMA_URL
+        // HARDCODED FALLBACK FOR VERCEL DEPLOYMENT DEBUGGING
+        || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
     // Safety check with explicit console logging to catch silently bad bindings (e.g. on Vercel preview)
     if (!connectionString || connectionString.length < 10) {
