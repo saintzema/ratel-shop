@@ -174,6 +174,7 @@ export default function UnifiedAuthPage() {
             clearTimeout(timeoutId);
             
             if (res.ok) {
+                // DB returned a real user — use it
                 const fetched = await res.json();
                 if (fetched && fetched.email) {
                     setIsExistingUser(true);
@@ -190,6 +191,13 @@ export default function UnifiedAuthPage() {
                     return;
                 }
             }
+            
+            if (res.status === 503) {
+                // DB confirmed offline — set flag for fallback logic
+                dbError = true;
+            }
+            // 404 = DB is online but user genuinely doesn't exist → new user flow
+            // Other errors → also fall through to local check
         } catch (err: any) {
             clearTimeout(timeoutId);
             dbError = true;
@@ -216,9 +224,12 @@ export default function UnifiedAuthPage() {
             }
 
             if (dbError && isExisting) {
-                // If DB failed but they are a KNOWN seller/admin, we CANNOT let them in with a random ID.
-                // It would break their dashboard. Force them to wait for the real DB.
-                setError("Database is optimizing your session. Please verify again in a moment.");
+                // DB offline but they are a KNOWN user — allow them to proceed to password step.
+                // The password step will validate against hardcoded demo passwords or local passwords.
+                // This is safe because: (1) they must still enter the correct password,
+                // (2) known demo accounts have hardcoded IDs (admin_1, seller_1) not random ones.
+                setIsExistingUser(true);
+                setStep("password_existing");
                 setIsLoading(false);
                 return;
             }

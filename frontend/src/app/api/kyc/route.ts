@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("KYC API Error:", error);
         return NextResponse.json({ success: true, submissions: [] }, {
-            status: 200,
+            status: 503,
             headers: { "X-DB-Status": "offline" }
         });
     }

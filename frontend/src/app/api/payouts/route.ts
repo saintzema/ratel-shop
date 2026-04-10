@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("Payouts GET Error:", error);
         return NextResponse.json({ success: true, payouts: [] }, {
-            status: 200,
+            status: 503,
             headers: { "X-DB-Status": "offline" },
         });
     }

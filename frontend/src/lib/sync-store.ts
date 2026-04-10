@@ -397,6 +397,13 @@ class DataSyncServiceService {
                 const dbProducts = await productsResult.value.json();
                 if (Array.isArray(dbProducts)) {
                     const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
+                    
+                    // SAFETY NET: If the API returned 0 products but we have local data,
+                    // this is almost certainly a silent DB failure (Prisma returned empty
+                    // instead of throwing). Preserve local cache and abort.
+                    if (dbProducts.length === 0 && localProducts.length > 0 && !collection) {
+                        console.warn("🛡️ Resilience: API returned 0 products but local cache has", localProducts.length, "— preserving cache.");
+                    } else if (dbProducts.length > 0 || localProducts.length === 0) {
                     // MAP CamelCase to snake_case for senior tech lead consistency
                     const mappedDbProducts = dbProducts.map((p: any) => ({
                         ...p,
@@ -435,6 +442,7 @@ class DataSyncServiceService {
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
+                    }
                 }
             }
 
@@ -443,6 +451,12 @@ class DataSyncServiceService {
                 const dbSellers = await sellersResult.value.json();
                 if (Array.isArray(dbSellers)) {
                     const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
+                    
+                    // SAFETY NET: Same as products — if API returns 0 sellers but we have local sellers,
+                    // treat as silent DB failure and preserve cache.
+                    if (dbSellers.length === 0 && localSellers.length > 0 && !collection) {
+                        console.warn("🛡️ Resilience: API returned 0 sellers but local cache has", localSellers.length, "— preserving cache.");
+                    } else {
                     const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'payout_history'];
                     
                     // START from existing local sellers, then overlay DB updates on top.
@@ -479,6 +493,7 @@ class DataSyncServiceService {
                         localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
+                    }
                     }
                 }
             }
