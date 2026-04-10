@@ -1,7 +1,7 @@
 import { Pool as NeonPool, neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaClient } from "@prisma/client";
-import * as ws from "ws";
+import { WebSocket } from "ws";
 
 // Definitive Source of Truth for Database Connection
 const NEON_POOLER_URL = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
@@ -13,7 +13,7 @@ const ACTIVE_DATABASE_URL = (process.env.DATABASE_URL && process.env.DATABASE_UR
 
 // WebSocket polyfill for Neon serverless in Node.js environments
 if (typeof window === 'undefined') {
-    neonConfig.webSocketConstructor = ws;
+    neonConfig.webSocketConstructor = WebSocket as any;
 }
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
