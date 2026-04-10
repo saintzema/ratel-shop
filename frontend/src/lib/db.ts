@@ -11,9 +11,13 @@ if (typeof window === 'undefined') {
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
-    // DEFINITIVE HARDENING: Set the hardcoded URL as a fallback directly in the logic.
-    // This removes any possibility of the 'host: localhost' error at runtime.
-    const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
+    // AGGRESSIVE HARDENING: 
+    // Vercel sometimes injects an empty "" or "undefined" string for DATABASE_URL during 
+    // the static generation phase. We ignore anything that doesn't start with "postgres".
+    const rawUrl = process.env.DATABASE_URL;
+    const dbUrl = (rawUrl && rawUrl.startsWith("postgres")) 
+        ? rawUrl 
+        : "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
     // Explicitly inject into process.env to satisfy any internal engine checks
     process.env.DATABASE_URL = dbUrl;
