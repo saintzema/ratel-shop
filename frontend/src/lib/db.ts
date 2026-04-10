@@ -8,7 +8,8 @@ neonConfig.webSocketConstructor = ws;
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createPrismaClient() {
-    const rawUrl = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp.eu-west-2.aws.neon.tech/neondb?sslmode=require";
+    // Inject '-pooler' to the Neon endpoint to ensure Vercel edge endpoints don't exhaust cold start scaling connections
+    const rawUrl = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     const urlWithTimeout = rawUrl + '&statement_timeout=15000';
 
     const pool = new NeonPool({ connectionString: urlWithTimeout });
@@ -18,8 +19,10 @@ function createPrismaClient() {
     });
 
     const adapter = new PrismaNeon(pool as any);
+    
+    // Pass adapter, bypassing Prisma's strict engine requirements
     return new PrismaClient({ 
-        adapter, 
+        adapter,
         log: ["error", "warn"] 
     });
 }
