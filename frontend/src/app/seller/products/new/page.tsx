@@ -320,49 +320,78 @@ export default function NewProduct() {
                         </div>
                     </motion.section>
 
-                    {/* Section 2: Gallery Images */}
+                    {/* Section 2: Visual Gallery Images */}
                     <motion.section
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
                         className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
                     >
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900">Gallery Images</h2>
-                                <p className="text-sm text-gray-500 mt-1">Add multiple angles and views of your product.</p>
+                                <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
+                                <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid.</p>
                             </div>
-                            <Button variant="outline" size="sm" onClick={addGallerySlot} className="rounded-full text-xs font-semibold gap-1.5 border-gray-200 hover:bg-gray-50 h-9 px-4">
-                                <Plus className="h-3.5 w-3.5" /> Add Image
-                            </Button>
                         </div>
-                        <div className="space-y-4">
-                            {formData.images.map((url, i) => (
-                                <div key={`gallery-${i}`} className="flex items-start gap-4">
-                                    <div
-                                        className="w-16 h-16 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:border-gray-300 transition-colors"
-                                        onClick={() => galleryFileRefs.current.get(i)?.click()}
-                                    >
-                                        {url ? (
-                                            <img src={url} alt={`Gallery ${i + 1}`} className="h-full w-full object-contain p-1" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                        ) : (
-                                            <ImagePlus className="h-5 w-5 text-gray-300" />
-                                        )}
-                                        <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(i, el); }} onChange={(e) => handleGalleryImageUpload(i, e)} />
+                        
+                        <div className="space-y-6">
+                            {/* Fast URL Add */}
+                            <div>
+                                <Input 
+                                    placeholder="Paste image URLs (comma separated) & hit Enter to add"
+                                    className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const val = e.currentTarget.value;
+                                            if (!val) return;
+                                            const newUrls = val.split(',').map(u => u.trim()).filter(Boolean);
+                                            setFormData(prev => {
+                                                const current = prev.images.filter(x => x.trim() !== "");
+                                                return { ...prev, images: [...current, ...newUrls] };
+                                            });
+                                            e.currentTarget.value = "";
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            {/* Visual Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                {formData.images.filter(url => url.trim() !== "").map((url, i) => (
+                                    <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
+                                        <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
+                                        
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                            <Button variant="ghost" size="icon" onClick={() => {
+                                                const newImages = formData.images.filter(x => x.trim() !== "");
+                                                newImages.splice(i, 1);
+                                                setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
+                                            }} className="h-8 w-8 text-white hover:text-red-400 hover:bg-white/20 rounded-full">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
                                     </div>
-                                    <div className="flex-1">
-                                        <Input
-                                            value={url}
-                                            onChange={(e) => handleGalleryUrlChange(i, e.target.value)}
-                                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                            placeholder={`Image URL ${i + 1} or click thumbnail to upload...`}
-                                        />
-                                    </div>
-                                    <Button variant="ghost" size="icon" onClick={() => removeGallerySlot(i)} className="h-11 w-11 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl shrink-0">
-                                        <X className="h-4 w-4" />
-                                    </Button>
+                                ))}
+
+                                {/* Add New Slot (Upload File) */}
+                                <div 
+                                    className="aspect-square bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-500"
+                                    onClick={() => galleryFileRefs.current.get(999)?.click()}
+                                >
+                                    <ImagePlus className="h-6 w-6 mb-2" />
+                                    <span className="text-xs font-semibold">Upload Photo</span>
+                                    <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(999, el); }} onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            compressImage(file, (url) => {
+                                                setFormData(prev => ({ ...prev, images: [...prev.images.filter(x => x.trim() !== ""), url] }));
+                                            });
+                                        }
+                                        e.target.value = ''; // Reset
+                                    }} />
                                 </div>
-                            ))}
+                            </div>
                         </div>
                     </motion.section>
 

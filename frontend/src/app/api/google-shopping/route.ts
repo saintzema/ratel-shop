@@ -57,8 +57,10 @@ export async function GET() {
         // Priority: product.images[0] (higher res) > product.image_url > placeholder.
         const rawImageUrl = (product.images && product.images.length > 0) ? product.images[0] : (product.image_url || '');
         const isExternal = rawImageUrl && rawImageUrl.startsWith('http');
+        
+        // Cache bust: Add &v=1 to force Google Merchant Center to re-scrape the images.
         const finalImageUrl = isExternal 
-            ? `${baseUrl}/api/image-cdn?url=${encodeURIComponent(rawImageUrl)}`
+            ? `${baseUrl}/api/image-cdn?url=${encodeURIComponent(rawImageUrl)}&v=1`
             : `${baseUrl}/assets/images/placeholder.png`;
 
         // ─── Attribute Extraction from Specs ───

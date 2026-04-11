@@ -238,6 +238,7 @@ export function ZivaChat() {
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [adminActive, setAdminActive] = useState(false);
+    const [awaitingContact, setAwaitingContact] = useState(false);
     const messagesAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -595,7 +596,82 @@ export function ZivaChat() {
 
             // ─── LOCAL: Human Support / Escalation ─────────────────────
             const isHumanRequest = /\b(talk\s*to\s*(a\s*)?(human|person|agent|manager|support|representative)|escalate|real\s*person|human\s*support|live\s*chat|speak\s*to|customer\s*(support|care|service)|speak\s*with|connect\s*me|i\s*need\s*help|complain|complaint)/i.test(resolvedText);
-            if (isHumanRequest) {
+            
+            if (awaitingContact) {
+                // Validate if user provided contact info (Name + Email OR Phone)
+                const hasEmail = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(resolvedText);
+                const hasPhone = /[\d\s\-\+]{10,}/.test(resolvedText);
+                // Basic check for name: letters followed by space and letters, or just any text besides email/phone pattern if it's long enough
+                const hasInfo = (hasEmail || hasPhone) && resolvedText.length > 8;
+
+                if (hasInfo) {
+                    setAwaitingContact(false);
+                    sessionStorage.setItem('ziva_guest_contact', resolvedText);
+                    // Continue to escalation
+                    const simulateResolvedText = "talk to a human " + resolvedText;
+                    DataSyncService.sendChatMessage(
+                        "admin_inbox",
+                        "guest_session",
+                        "Guest Customer",
+                        `[ZIVA ESCALATION: Contact Info Provided]\n\nContact Details: "${resolvedText}"`
+                    );
+                    
+                    setTimeout(() => {
+                        setMessages(prev => [
+                            ...prev.filter(m => m.id !== typingId),
+                            {
+                                id: `escalate_success_${Date.now()}`,
+                                role: "assistant",
+                                content: `✅ **Thank you.** Your details have been recorded.\n\n🛡️ **Connecting you to a human agent...**\n\nAn agent will join this chat shortly.`,
+                                quickActions: []
+                            }
+                        ]);
+                        setIsProcessing(false);
+                    }, 1000);
+
+                    setTimeout(() => {
+                        setAdminActive(true);
+                        setMessages(prev => [...prev, {
+                            id: `admin_join_${Date.now()}`,
+                            role: "admin" as const,
+                            senderName: "System",
+                            content: "⚡ **Sarah (Support Team) has joined the chat.**"
+                        }]);
+                    }, 3500);
+                    return;
+                } else {
+                    setTimeout(() => {
+                        setMessages(prev => [
+                            ...prev.filter(m => m.id !== typingId),
+                            {
+                                id: `escalate_fail_${Date.now()}`,
+                                role: "assistant",
+                                content: `⚠️ I still need a bit more info to connect you. Please provide your **Name** and either an **Email Address** or **Phone Number** so our agent can reach you if we get disconnected.`                            }
+                        ]);
+                        setIsProcessing(false);
+                    }, 800);
+                    return;
+                }
+            }
+            
+            if (isHumanRequest && !awaitingContact) {
+                const hasStoredContact = sessionStorage.getItem('ziva_guest_contact');
+                if (!user && !hasStoredContact) {
+                    setAwaitingContact(true);
+                    setTimeout(() => {
+                        setMessages(prev => [
+                            ...prev.filter(m => m.id !== typingId),
+                            {
+                                id: `escalate_guard_${Date.now()}`,
+                                role: "assistant",
+                                content: `🛡️ **Before I connect you to an agent:**\n\nPlease reply with your **Name** and either your **Email Address** or **Phone Number** so they can reach you in case we get disconnected.`                            }
+                        ]);
+                        setIsProcessing(false);
+                    }, 800);
+                    return;
+                }
+
+                // If user is logged in or already provided contact, proceed directly
                 // Save escalation to admin inbox
                 const userIdLog = user?.id || user?.email || "guest@globalstores.shop";
                 const conv = DataSyncService.getOrCreateConversation(
@@ -607,7 +683,7 @@ export function ZivaChat() {
                     conv.id,
                     userIdLog,
                     user?.name || "Guest",
-                    `[ZIVA ESCALATION: Customer Requested Human Support]\n\nCustomer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`
+                    `[ZIVA ESCALATION: Customer Requested Human Support]\n\nCustomer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}\n\nGuest Contact Context: ${hasStoredContact || 'None'}`
                 );
 
                 // Add notification for admin
