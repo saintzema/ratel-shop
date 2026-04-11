@@ -27,7 +27,7 @@ async function main() {
     console.log("👤 Reseeding Users from local DB...");
     for (const u of users) {
         try {
-            await prisma.user.upsert({
+            const user = await prisma.user.upsert({
                 where: { id: u.id },
                 update: {
                     email: u.email,
@@ -46,6 +46,28 @@ async function main() {
                     createdAt: new Date(u.createdAt)
                 }
             });
+
+            // If it's the global_partner, ensure the Seller record exists
+            if (u.id === "global_partner") {
+                await prisma.seller.upsert({
+                    where: { id: "global-partners" },
+                    update: { ownerEmail: u.email, businessName: u.name, userId: u.id },
+                    create: {
+                        id: "global-partners",
+                        userId: u.id,
+                        businessName: u.name,
+                        ownerName: u.name,
+                        ownerEmail: u.email,
+                        description: "Official Global Stores Marketplace Account",
+                        category: "electronics",
+                        status: "active",
+                        verified: true,
+                        trustScore: 70
+                    }
+                });
+                console.log(`📡 Seller Record Created for: ${u.name}`);
+            }
+
             console.log(`✅ Synced: ${u.email} (${u.role})`);
         } catch (e) {
             console.error(`❌ Error syncing ${u.email}:`, e);

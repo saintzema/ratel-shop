@@ -187,7 +187,6 @@ export default function UnifiedAuthPage() {
                     }
 
                     setStep(fetched.password ? "password_existing" : "password_new");
-                    setIsLoading(false);
                     return;
                 }
             }
@@ -202,6 +201,13 @@ export default function UnifiedAuthPage() {
             clearTimeout(timeoutId);
             dbError = true;
             console.warn("DB lookup failed or timed out. Falling back to local cache.", err.name === 'AbortError' ? 'Timeout' : err);
+        } finally {
+            // Check if we already transitioned or if we need the fallback delay
+            if (!isExistingUser && step === "identifier") {
+                // Handled in the fallback timeout below
+            } else {
+                setIsLoading(false);
+            }
         }
 
         // --- FALLBACK LOGIC ---
@@ -283,7 +289,6 @@ export default function UnifiedAuthPage() {
             if (data.error && !data.offline) {
                 // DB responded but password wrong or user not found
                 setError(data.error === "Incorrect password" ? "Incorrect password." : data.error);
-                setIsLoading(false);
                 return;
             }
 
@@ -307,20 +312,17 @@ export default function UnifiedAuthPage() {
             // They cannot bypass just because `localUser.password` is undefined.
             if (determinedRole === "admin" && password !== "admin123" && (!localUser?.password || localUser.password !== password)) {
                  setError("Incorrect password.");
-                 setIsLoading(false);
                  return;
             }
 
             if (determinedRole === "seller" && password !== "seller123" && (!localUser?.password || localUser.password !== password)) {
                  setError("Incorrect password.");
-                 setIsLoading(false);
                  return;
             }
 
             // For regular customers, if they have a local password, it must match.
             if (localUser && localUser.password && localUser.password !== password) {
                 setError("Incorrect password.");
-                setIsLoading(false);
                 return;
             }
 
@@ -331,7 +333,6 @@ export default function UnifiedAuthPage() {
             // If so, and we don't have a stable ID for them, we MUST block.
             if (!existingUser?.id && (determinedRole === "admin" || determinedRole === "seller")) {
                 setError("Critical: Database connection required for seller access. Please try again.");
-                setIsLoading(false);
                 return;
             }
 
@@ -361,6 +362,7 @@ export default function UnifiedAuthPage() {
         } catch (err) {
             console.error("Login error:", err);
             setError("Login failed. Please try again.");
+        } finally {
             setIsLoading(false);
         }
     };
@@ -544,44 +546,49 @@ export default function UnifiedAuthPage() {
     };
 
     const handleSocialLogin = async (provider: "google" | "apple" | "x") => {
-        setIsLoading(true);
-        // Request the OAuth URL instead of redirecting the whole PWA/App
-        const res = await signIn(provider, { redirect: false, callbackUrl: redirectPath });
-        
-        if (res?.url) {
-            if (Capacitor.isNativePlatform()) {
-                // Using Capacitor Browser (Safari View Controller / Chrome Custom Tabs) keeps users "in-app" natively
-                await Browser.open({ url: res.url, presentationStyle: 'popover' });
-                
-                // Add a listener to detect when they return to the app to fetch the updated session
-                const listener = await Browser.addListener('browserFinished', async () => {
-                    await listener.remove();
-                    window.location.href = redirectPath;
-                });
-            } else {
-                // Web fallback: Open the OAuth provider in a popup window
-                const width = 500;
-                const height = 600;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
-                
-                const popup = window.open(
-                    res.url,
-                    "OAuthLogin",
-                    `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
-                );
-
-                // Poll the popup to see when it closes (user finished login)
-                const popupTimer = setInterval(() => {
-                    if (popup?.closed) {
-                        clearInterval(popupTimer);
+        try {
+            // Request the OAuth URL instead of redirecting the whole PWA/App
+            const res = await signIn(provider, { redirect: false, callbackUrl: redirectPath });
+            
+            if (res?.url) {
+                if (Capacitor.isNativePlatform()) {
+                    // Using Capacitor Browser (Safari View Controller / Chrome Custom Tabs) keeps users "in-app" natively
+                    await Browser.open({ url: res.url, presentationStyle: 'popover' });
+                    
+                    // Add a listener to detect when they return to the app to fetch the updated session
+                    const listener = await Browser.addListener('browserFinished', async () => {
+                        await listener.remove();
                         window.location.href = redirectPath;
-                    }
-                }, 1000);
+                    });
+                } else {
+                    // Web fallback: Open the OAuth provider in a popup window
+                    const width = 500;
+                    const height = 600;
+                    const left = window.screen.width / 2 - width / 2;
+                    const top = window.screen.height / 2 - height / 2;
+                    
+                    const popup = window.open(
+                        res.url,
+                        "OAuthLogin",
+                        `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
+                    );
+
+                    // Poll the popup to see when it closes (user finished login)
+                    const popupTimer = setInterval(() => {
+                        if (popup?.closed) {
+                            clearInterval(popupTimer);
+                            window.location.href = redirectPath;
+                        }
+                    }, 1000);
+                }
+            } else {
+                setError("Could not initiate social login.");
             }
-        } else {
+        } catch (err) {
+            console.error("Social login error:", err);
+            setError("Authentication failed.");
+        } finally {
             setIsLoading(false);
-            setError("Could not initiate social login.");
         }
     };
 
