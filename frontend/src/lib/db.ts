@@ -39,10 +39,10 @@ function createPrismaClient(): PrismaClient {
     const adapter = new PrismaNeon(pool as any);
     
     // Standard Prisma Client initialization for stable v6.x
-    // WE EXPLICITLY PASS datasourceUrl TO BREAK THE LOOP
+    // WE REMOVE datasourceUrl because it is incompatible with adapters in v6.x
+    // The 'Silence Shield' at the top of the file handles the engine validation.
     return new PrismaClient({ 
         adapter,
-        datasourceUrl: dbUrl,
         log: ["error", "warn"] 
     });
 }
