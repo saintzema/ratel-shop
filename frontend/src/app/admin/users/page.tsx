@@ -188,9 +188,9 @@ export default function UserDirectory() {
 
     const handleDeleteUser = async () => {
         if (!deletingUser) return;
-        const targetEmail = deletingUser.owner_email || deletingUser.email || "";
-        if (deleteConfirmEmail.trim().toLowerCase() !== targetEmail.trim().toLowerCase()) {
-            alert("Email does not match. Deletion cancelled.");
+        const target = (deletingUser.owner_email || deletingUser.email || deletingUser.id || "").trim().toLowerCase();
+        if (deleteConfirmEmail.trim().toLowerCase() !== target) {
+            alert("Confirmation text does not match. Deletion cancelled.");
             return;
         }
         setDeleteLoading(true);
@@ -483,19 +483,26 @@ export default function UserDirectory() {
                         </div>
                         <div className="space-y-2">
                             <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                                Type the user's email to confirm:
+                                Type the following to confirm:
                             </Label>
-                            <p className="text-sm font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
-                                {deletingUser?.owner_email || deletingUser?.email || deletingUser?.id}
-                            </p>
-                            <Input
-                                type="email"
-                                placeholder="Type email here to confirm..."
-                                value={deleteConfirmEmail}
-                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                                className="h-12 border-gray-200 rounded-xl font-medium"
-                                autoFocus
-                            />
+                            {(() => {
+                                const target = (deletingUser?.owner_email || deletingUser?.email || deletingUser?.id || "").trim();
+                                return (
+                                    <>
+                                        <p className="text-sm font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
+                                            {target}
+                                        </p>
+                                        <Input
+                                            type="text"
+                                            placeholder={`Type "${target}" here...`}
+                                            value={deleteConfirmEmail}
+                                            onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                            className="h-12 border-gray-200 rounded-xl font-medium"
+                                            autoFocus
+                                        />
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                     <div className="flex justify-end gap-3 mt-2">
@@ -503,7 +510,7 @@ export default function UserDirectory() {
                         <Button
                             className="h-12 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
                             onClick={handleDeleteUser}
-                            disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== (deletingUser?.owner_email || deletingUser?.email || "").trim().toLowerCase()}
+                            disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== (deletingUser?.owner_email || deletingUser?.email || deletingUser?.id || "").trim().toLowerCase()}
                         >
                             {deleteLoading ? "Deleting..." : "Permanently Delete"}
                         </Button>
