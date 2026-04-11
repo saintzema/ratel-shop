@@ -197,19 +197,21 @@ export default function UserDirectory() {
         try {
             // Try API cascade delete first
             const res = await fetch(`/api/users/${deletingUser.id}`, { method: "DELETE" });
+            const data = await res.json();
+
             if (!res.ok) {
-                // Fallback: remove from DataSyncService
-                if (deletingUser.role === "seller") {
-                    DataSyncService.updateSeller(deletingUser.id, { status: "banned" as any });
-                }
+                alert(`Delete failed: ${data.error || "Server error"}`);
+                setDeleteLoading(false);
+                return;
             }
+
             // Remove from local UI
             setParticipants(prev => prev.filter(p => p.id !== deletingUser.id));
             window.dispatchEvent(new Event("sync-store-update"));
-            alert(`User ${deletingUser.display_name} has been removed.`);
-        } catch (e) {
+            alert(`SUCCESS: ${deletingUser.display_name} and all linked data have been permanently removed.`);
+        } catch (e: any) {
             console.error("Delete failed:", e);
-            alert("Failed to delete user. They may have linked orders — try suspending instead.");
+            alert(`Failed to delete user: ${e.message}`);
         } finally {
             setDeleteLoading(false);
             setDeletingUser(null);
