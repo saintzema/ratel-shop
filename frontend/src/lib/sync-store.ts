@@ -230,7 +230,8 @@ class DataSyncServiceService {
         // to force re-seeding localStorage with the latest data
         // v17: Reset all stats, purge orphaned products/sellers/orders
         // v18: EXTREMELY IMPORTANT - Marketplace consolidation. Reassigned all products to Global Stores and purged demo stores/users.
-        const DATA_VERSION = "18";
+        // v19: Clean Sweep Synchronization. Forced cache flush after database reset and cascading rules update.
+        const DATA_VERSION = "19";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
