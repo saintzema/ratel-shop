@@ -1,36 +1,106 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  url       = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+  directUrl = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp.eu-west-2.aws.neon.tech/neondb?sslmode=require"
 }
 
 model User {
-  id              String               @id @default(cuid())
-  email           String               @unique
-  name            String
-  password        String?
-  role            UserRole             @default(customer)
-  avatarUrl       String?
-  location        String?
-  birthday        String?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-  accounts        Account[]
-  addresses       Address[]
-  complaints      Complaint[]          @relation("UserComplaints")
-  disputes        Dispute[]            @relation("BuyerDisputes")
-  negotiations    NegotiationRequest[]
-  notifications   Notification[]
-  orders          Order[]
-  reviews         Review[]
-  seller          Seller?
-  sessions        Session[]
-  supportMessages SupportMessage[]
-  discountUsages  UserDiscountUsage[]
+  id               String    @id @default(cuid())
+  name             String?
+  email            String?   @unique
+  emailVerified    DateTime?
+  password         String?
+  image            String?
+  role             String    @default("user")
+  newsletter       Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  accounts         Account[]
+  sessions         Session[]
+  seller           Seller?
+  reviews          Review[]
+  orders           Order[]
+  negotiations     Negotiation[]
+  favorites        Favorite[]
+  complaints       Complaint[]
+  browsingHistory  BrowsingHistory[]
+  guestSessionId   String?
+  isGuest          Boolean   @default(false)
+  notifications    Notification[]
+  wallet           Wallet?
+}
+
+model Seller {
+  id               String    @id
+  userId           String    @unique
+  businessName     String
+  ownerName        String?   @default("Global Stores")
+  ownerEmail       String?   @default("techzema@gmail.com")
+  description      String?
+  logoUrl          String?
+  coverImageUrl    String?
+  category         String?
+  verified         Boolean   @default(false)
+  rating           Float     @default(0)
+  reviewCount      Int       @default(0)
+  soldCount        Int       @default(0)
+  trustScore       Int       @default(70)
+  status           String    @default("pending") // pending, active, suspended
+  kycStatus        String    @default("not_submitted") // not_submitted, pending, verified, rejected
+  bankName         String?
+  accountNumber    String?
+  accountName      String?
+  storeUrl         String?   @default("")
+  location         String?   @default("Lagos, Nigeria")
+  weeklyOrders     String?   @default("11-50")
+  currencies       String[]  @default([])
+  staffCount       String?   @default("6-10")
+  physicalStores   String?   @default("4+")
+  joinedAt         DateTime  @default(now())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products         Product[]
+  orders           Order[]
+  negotiations     Negotiation[]
+  analytics        SellerAnalytics?
+  wallet           Wallet?
+}
+
+model Product {
+  id               String    @id
+  sellerId         String
+  sellerName       String
+  name             String
+  description      String?
+  price            Float
+  originalPrice    Float?
+  recommendedPrice Float?
+  category         String
+  imageUrl         String
+  images           String[]
+  stock            Int       @default(0)
+  priceFlag        String    @default("none") // low, medium, high
+  isSponsored      Boolean   @default(false)
+  isActive         Boolean   @default(true)
+  avgRating        Float     @default(0)
+  reviewCount      Int       @default(0)
+  soldCount        Int       @default(0)
+  highlights       String[]
+  specs            Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  seller           Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  reviews          Review[]
+  negotiations     Negotiation[]
+  favorites        Favorite[]
+  orderItems       OrderItem[]
+  tags             String[]  @default([])
 }
 
 model Account {
@@ -39,15 +109,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([provider, providerAccountId])
 }
 
@@ -59,487 +128,133 @@ model Session {
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-model Address {
-  id        String  @id @default(cuid())
+model Review {
+  id        String   @id @default(cuid())
   userId    String
-  label     String  @default("Home")
-  street    String
-  city      String
-  state     String
-  country   String  @default("Nigeria")
-  isDefault Boolean @default(false)
-  phone     String?
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Seller {
-  id             String               @id @default(cuid())
-  userId         String               @unique
-  businessName   String
-  ownerName      String?
-  ownerEmail     String?
-  description    String
-  logoUrl        String?
-  coverImageUrl  String?
-  category       String
-  verified       Boolean              @default(false)
-  rating         Float                @default(0.0)
-  trustScore     Float                @default(50.0)
-  status         SellerStatus         @default(pending)
-  kycStatus      KYCStatus            @default(not_submitted)
-  bankName       String?
-  accountNumber  String?
-  accountName    String?
-  storeUrl       String?              @unique
-  location       String?
-  weeklyOrders   String?
-  currencies     String[]
-  staffCount     String?
-  physicalStores String?
-  joinedAt       DateTime             @default(now())
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-  complaints     Complaint[]          @relation("SellerComplaints")
-  discounts      Discount[]
-  disputes       Dispute[]            @relation("SellerDisputes")
-  kycSubmissions KYCSubmission[]
-  negotiations   NegotiationRequest[] @relation("SellerNegotiations")
-  orders         Order[]              @relation("SellerOrders")
-  payouts        Payout[]
-  priceAlerts    PriceAlert[]
-  products       Product[]
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Product {
-  id               String               @id @default(cuid())
-  sellerId         String
-  sellerName       String
-  name             String
-  description      String
-  price            Float
-  originalPrice    Float?
-  recommendedPrice Float?
-  category         String
-  imageUrl         String
-  images           String[]
-  stock            Int                  @default(1)
-  priceFlag        PriceFlag            @default(none)
-  isSponsored      Boolean              @default(false)
-  isActive         Boolean              @default(true)
-  avgRating        Float                @default(0.0)
-  reviewCount      Int                  @default(0)
-  soldCount        Int                  @default(0)
-  condition        ProductCondition     @default(brand_new)
-  externalUrl      String?
-  highlights       String[]
-  specs            Json?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  isTrending       Boolean              @default(false)
-  deals            Deal[]
-  negotiations     NegotiationRequest[]
-  orders           Order[]
-  priceAlerts      PriceAlert[]
-  seller           Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  reviews          Review[]
+  productId String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model Order {
-  id                String         @id @default(cuid())
-  customerId        String
-  productId         String
-  sellerId          String
-  amount            Float
-  quantity          Int            @default(1)
-  status            OrderStatus    @default(pending)
-  escrowStatus      EscrowStatus   @default(held)
-  shippingAddress   String
-  paymentMethod     String         @default("paystack")
-  trackingStatus    TrackingStatus @default(pending)
-  trackingId        String?        @unique
-  carrier           String?
-  trackingSteps     Json?
-  sellerConfirmedAt DateTime?
-  buyerConfirmedAt  DateTime?
-  escrowReleasedAt  DateTime?
-  customerName      String?
-  sellerName        String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  chatMessages      Json?
-  payoutStatus      String?        @default("none")
-  unreadAdmin       Boolean?       @default(false)
-  zivaActive        Boolean?       @default(false)
-  financing         Json?
-  disputes          Dispute[]
-  customer          User           @relation(fields: [customerId], references: [id])
-  product           Product        @relation(fields: [productId], references: [id])
-  seller            Seller         @relation("SellerOrders", fields: [sellerId], references: [id])
+  id              String      @id @default(cuid())
+  userId          String
+  sellerId        String
+  totalAmount     Float
+  status          String      @default("pending") // pending, paid, processing, shipped, delivered, cancelled
+  shippingAddress Json
+  paymentMethod   String?
+  paymentStatus   String      @default("pending") // pending, paid, failed, refunded
+  escrowStatus    String      @default("held") // held, released, disputed, refunded
+  trackingId      String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seller          Seller      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  items           OrderItem[]
+  complaints      Complaint[]
 }
 
-model Payout {
-  id            String   @id @default(cuid())
-  sellerId      String
-  amount        Float
-  status        String   @default("pending")
-  bankName      String
-  accountNumber String
-  accountName   String
-  orderIds      String[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  seller        Seller   @relation(fields: [sellerId], references: [id])
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+  name      String
+  price     Float
+  quantity  Int
+  imageUrl  String?
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
-model NegotiationRequest {
-  id             String             @id @default(cuid())
-  productId      String
-  customerId     String
-  customerName   String
+model Negotiation {
+  id             String   @id @default(cuid())
+  userId         String
   sellerId       String
-  proposedPrice  Float
-  message        String?
-  status         NegotiationStatus  @default(pending)
-  counterPrice   Float?
-  counterMessage String?
-  counterStatus  NegotiationStatus?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-  chatMessages   Json?
-  customer       User               @relation(fields: [customerId], references: [id])
-  product        Product            @relation(fields: [productId], references: [id])
-  seller         Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id])
+  productId      String
+  initialPrice   Float
+  offeredPrice   Float
+  currentPrice   Float
+  status         String   @default("pending") // pending, accepted, rejected, counter-offered, expired
+  conversations  Json?    // Array of message objects
+  expiryDate     DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seller         Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
-model Review {
-  id               String   @id @default(cuid())
-  userId           String
-  userName         String
-  productId        String
-  rating           Int
-  title            String
-  body             String
-  verifiedPurchase Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  product          Product  @relation(fields: [productId], references: [id])
-  user             User     @relation(fields: [userId], references: [id])
-}
-
-model Deal {
-  id          String   @id @default(cuid())
-  productId   String
-  discountPct Float
-  startAt     DateTime
-  endAt       DateTime
-  isActive    Boolean  @default(true)
-  product     Product  @relation(fields: [productId], references: [id])
-}
-
-model KYCSubmission {
-  id          String    @id @default(cuid())
-  sellerId    String
-  sellerName  String
-  idType      IDType
-  idNumber    String
-  documentUrl String
-  status      KYCStatus @default(pending)
-  reviewedBy  String?
-  reviewNotes String?
-  createdAt   DateTime  @default(now())
-  reviewedAt  DateTime?
-  seller      Seller    @relation(fields: [sellerId], references: [id])
-}
-
-model PriceAlert {
-  id          String         @id @default(cuid())
-  productId   String
-  productName String
-  sellerId    String
-  sellerName  String
-  alertType   PriceAlertType
-  marketAvg   Float
-  sellerPrice Float
-  createdAt   DateTime       @default(now())
-  product     Product        @relation(fields: [productId], references: [id])
-  seller      Seller         @relation(fields: [sellerId], references: [id])
+model Favorite {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  @@unique([userId, productId])
 }
 
 model Complaint {
-  id          String          @id @default(cuid())
+  id          String   @id @default(cuid())
   userId      String
-  userName    String
-  sellerId    String
-  sellerName  String
-  orderId     String?
-  type        ComplaintType
+  orderId     String
+  type        String   // delivery, quality, price, other
+  subject     String
   description String
-  status      ComplaintStatus @default(complaint_open)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  seller      Seller          @relation("SellerComplaints", fields: [sellerId], references: [id])
-  user        User            @relation("UserComplaints", fields: [userId], references: [id])
+  status      String   @default("pending") // pending, investigating, resolved, closed
+  resolution  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
-model Dispute {
-  id          String        @id @default(cuid())
-  orderId     String
-  buyerId     String
-  buyerName   String
-  buyerEmail  String
-  sellerId    String
-  sellerName  String
-  productName String
-  amount      Float
-  reason      DisputeReason
-  description String
-  status      DisputeStatus @default(open)
-  adminNotes  String?
-  createdAt   DateTime      @default(now())
-  resolvedAt  DateTime?
-  buyer       User          @relation("BuyerDisputes", fields: [buyerId], references: [id])
-  order       Order         @relation(fields: [orderId], references: [id])
-  seller      Seller        @relation("SellerDisputes", fields: [sellerId], references: [id])
+model BrowsingHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([userId, productId])
 }
 
 model Notification {
-  id        String           @id @default(cuid())
-  userId    String?
-  type      NotificationType
-  message   String
-  read      Boolean          @default(false)
-  link      String?
-  createdAt DateTime         @default(now())
-  user      User?            @relation(fields: [userId], references: [id])
-}
-
-model SupportMessage {
-  id              String        @id @default(cuid())
-  userName        String
-  userEmail       String
-  userId          String?
-  subject         String
-  message         String
-  source          SupportSource @default(contact_form)
-  status          SupportStatus @default(new_msg)
-  transcript      String?
-  orderId         String?
-  targetUserId    String?
-  targetUserEmail String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  user            User?         @relation(fields: [userId], references: [id])
-}
-
-model SystemSetting {
-  id                          String   @id @default("global")
-  platformMargin              Float    @default(15.0)
-  vehicleMarkup               Float    @default(12.0)
-  vehicleDepositPct           Float    @default(15.0)
-  serviceCharge               Float    @default(25.0)
-  standardCommission          Float    @default(2.5)
-  escrowFee                   Float    @default(1000)
-  escrowFeePayNow             Float    @default(1950)
-  doorstepFee                 Float    @default(4000)
-  pickupFee                   Float    @default(2500)
-  maxNegotiationDiscount      Float    @default(10.0)
-  lowCostThreshold            Float    @default(5000.0)
-  lowCostFlatFee              Float    @default(250.0)
-  highCostThreshold           Float    @default(500000.0)
-  highCostCap                 Float    @default(15000.0)
-  aiMonitoring                Boolean  @default(true)
-  kycVerification             Boolean  @default(false)
-  escrowRelease               Boolean  @default(true)
-  strictSeller                Boolean  @default(true)
-  categoryMargins             Json?
-  updatedAt                   DateTime @updatedAt
-  codAllowExpensiveCategories Boolean  @default(true)
-  codEnabled                  Boolean  @default(true)
-  codGlobalEnabled            Boolean  @default(false)
-  codGlobalThreshold          Float    @default(15000)
-  codThreshold                Float    @default(20000)
-  stateShipping               Json?
-  globalSearchCaching         Boolean  @default(true)
-  supportConfig               Json?
-}
-
-model Discount {
-  id         String    @id @default(cuid())
-  sellerId   String
-  code       String    @unique
-  type       String
-  value      Float
-  usageLimit Int?
-  usageCount Int       @default(0)
-  expiry     DateTime?
-  status     String    @default("active")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  seller     Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  usages     UserDiscountUsage[]
-}
-
-model UserDiscountUsage {
-  id         String   @id @default(cuid())
-  userId     String
-  discountId String
-  createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  discount   Discount @relation(fields: [discountId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, discountId])
-}
-
-model SearchCache {
   id        String   @id @default(cuid())
-  query     String   @unique
-  products  Json
+  userId    String
+  title     String
+  message   String
+  type      String   // order, negotiation, system, promo
+  read      Boolean  @default(false)
+  link      String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-model Waitlist {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("waitlist")
+model Wallet {
+  id            String   @id @default(cuid())
+  userId        String?  @unique
+  sellerId      String?  @unique
+  balance       Float    @default(0)
+  escrowBalance Float    @default(0)
+  withdrawnTotal Float    @default(0)
+  currency      String   @default("NGN")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seller        Seller?  @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
-enum UserRole {
-  customer
-  seller
-  admin
-}
-
-enum SellerStatus {
-  pending
-  active
-  frozen
-  banned
-}
-
-enum KYCStatus {
-  not_submitted
-  pending
-  approved
-  rejected
-}
-
-enum OrderStatus {
-  pending
-  processing
-  shipped
-  delivered
-  cancelled
-}
-
-enum EscrowStatus {
-  held
-  seller_confirmed
-  buyer_confirmed
-  auto_release_eligible
-  released
-  disputed
-  refunded
-}
-
-enum TrackingStatus {
-  pending
-  processing
-  shipped
-  out_for_delivery
-  delivered
-}
-
-enum PriceFlag {
-  fair
-  overpriced
-  too_low
-  none
-  great_deal
-}
-
-enum ProductCondition {
-  brand_new
-  used
-  refurbished
-}
-
-enum DisputeReason {
-  wrong_item
-  damaged
-  not_received
-  not_as_described
-  other
-}
-
-enum DisputeStatus {
-  open
-  investigating
-  resolved_refund
-  resolved_release
-}
-
-enum NegotiationStatus {
-  pending
-  accepted
-  rejected
-  countered
-}
-
-enum SupportSource {
-  ziva_escalation
-  contact_form
-  order_issue
-  dispute_admin
-}
-
-enum SupportStatus {
-  new_msg
-  read
-  replied
-  resolved
-}
-
-enum NotificationType {
-  system
-  order
-  negotiation
-  promo
-}
-
-enum ComplaintType {
-  price
-  quality
-  delivery
-  scam
-  complaint_other
-}
-
-enum ComplaintStatus {
-  complaint_open
-  investigating
-  resolved
-  dismissed
-}
-
-enum PriceAlertType {
-  overpriced
-  great_deal
-}
-
-enum IDType {
-  nin
-  drivers_license
-  voters_card
-  passport
+model SellerAnalytics {
+  id               String   @id @default(cuid())
+  sellerId         String   @unique
+  totalViews       Int      @default(0)
+  totalSales       Int      @default(0)
+  conversionRate   Float    @default(0)
+  activePromotions Int      @default(0)
+  updatedAt        DateTime @updatedAt
+  seller           Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
