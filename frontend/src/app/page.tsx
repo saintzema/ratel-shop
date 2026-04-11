@@ -795,7 +795,9 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
 
   if (products.length === 0 && !isLoading) return null;
 
-  const displayProducts = isLoading ? Array(6).fill(null) : (autoScroll ? [...products, ...products, ...products] : products);
+  // Unique Identity Guard: Ensure no duplicate IDs enter the slider before expansion
+  const uniqueProducts = Array.from(new Map(products.filter(Boolean).map(p => [p.id, p])).values());
+  const displayProducts = isLoading ? Array(6).fill(null) : (autoScroll ? [...uniqueProducts, ...uniqueProducts, ...uniqueProducts] : uniqueProducts);
 
   return (
     <div
