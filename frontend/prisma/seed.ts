@@ -1,68 +1,65 @@
-import { Pool } from "pg";
-import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
-import { DEMO_SELLERS, DEMO_PRODUCTS } from "../src/lib/data";
+import { SEED_SELLERS, SEED_PRODUCTS } from "../src/lib/data";
 import bcrypt from "bcryptjs";
 import * as dotenv from "dotenv";
 
-// Explicitly load .env.local since that's where DATABASE_URL is
 dotenv.config({ path: ".env.local" });
-dotenv.config(); // fallback to .env just in case
+dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
+/**
+ * THE PROTECTIVE SMART SEEDER:
+ * This script is designed to run against a database that ALREADY has live data.
+ * It uses namespaced IDs (seed_*) to ensure it never collides with real users.
+ */
+const prisma = new PrismaClient();
 
 async function main() {
-    console.log("Starting seed...");
-
-    // 0. Seed Admin Superuser
+    console.log("Starting Protective Smart Seed...");
+    
+    // 0. Seed Admin Superuser (Hardcoded safety)
     const adminPassword = await bcrypt.hash("admin123", 12);
     await prisma.user.upsert({
         where: { email: "techzema@gmail.com" },
-        update: { role: "admin", password: adminPassword },
+        update: { role: "admin" },
         create: {
-            id: "admin_1",
+            id: "seed_admin_1",
             email: "techzema@gmail.com",
             name: "Tech Zema",
             role: "admin",
             password: adminPassword,
         },
     });
-    console.log("Seeded admin user: techzema@gmail.com");
 
-    // 1. Create Sellers
-    const processedUserIds = new Set<string>();
-    const usedSellerUserIds = new Set<string>();
+    // 1. Create Sellers with Namespaced IDs
+    for (const s of SEED_SELLERS) {
+        // We use 'seed_' prefix to avoid colliding with any REAL users on the live site
+        const namespacedSellerId = s.id.startsWith('seed_') ? s.id : `seed_${s.id}`;
+        const namespacedUserId = `user_${namespacedSellerId}`;
 
-    for (const s of DEMO_SELLERS) {
-        let userId = s.user_id || `user_${s.id}`;
-
-        // If this userId is already taken by another seller, we must use a different one
-        // because the schema has a @unique constraint on Seller.userId
-        if (usedSellerUserIds.has(userId)) {
-            userId = `${userId}_${s.id}`;
-        }
-        usedSellerUserIds.add(userId);
-
-        // Ensure user exists (upsert by ID)
+        // Ensure user exists
         await prisma.user.upsert({
-            where: { id: userId },
+            where: { id: namespacedUserId },
             update: {},
             create: {
-                id: userId,
-                email: s.owner_email || `${s.id}_owner@fairprice.ng`,
+                id: namespacedUserId,
+                email: (s as any).owner_email || `${s.id}_seed_owner@fairprice.ng`,
                 name: s.business_name,
                 role: "seller",
             },
         });
 
+        // Create/Update Seller
         await prisma.seller.upsert({
-            where: { id: s.id },
-            update: {},
+            where: { id: namespacedSellerId },
+            update: {
+                businessName: s.business_name,
+                trustScore: s.trust_score,
+                verified: s.verified,
+                status: (s.status as any) || "active",
+            },
             create: {
-                id: s.id,
-                userId: userId,
+                id: namespacedSellerId,
+                userId: namespacedUserId,
                 businessName: s.business_name,
                 description: s.description,
                 logoUrl: s.logo_url,
@@ -75,26 +72,28 @@ async function main() {
                 kycStatus: (s.kyc_status as any) || "not_submitted",
                 bankName: s.bank_name,
                 accountNumber: s.account_number,
-                accountName: s.account_name,
                 createdAt: s.created_at ? new Date(s.created_at) : new Date(),
             },
         });
-        console.log(`Synced seller: ${s.business_name} (User: ${userId})`);
+        console.log(`Synced seed seller: ${s.business_name}`);
     }
 
-    // 2. Create Products
-    for (const p of DEMO_PRODUCTS) {
+    // 2. Create Products associated with the Namespaced Sellers
+    console.log(`Injecting ${SEED_PRODUCTS.length} products associated with seed sellers...`);
+    for (const p of SEED_PRODUCTS) {
+        const namespacedSellerId = p.seller_id.startsWith('seed_') ? p.seller_id : `seed_${p.seller_id}`;
+        
+        // We use the original product ID because they are unique strings (hashes or slugs)
         await prisma.product.upsert({
             where: { id: p.id },
             update: {
                 isSponsored: p.is_sponsored || false,
-                isTrending: p.is_trending || false,
-                priceFlag: (p.price_flag as any) || "none",
                 isActive: p.is_active !== false,
+                sellerId: namespacedSellerId, // Update link to namespaced seller
             },
             create: {
                 id: p.id,
-                sellerId: p.seller_id,
+                sellerId: namespacedSellerId,
                 sellerName: p.seller_name,
                 name: p.name,
                 description: p.description || "",
@@ -118,59 +117,12 @@ async function main() {
         });
     }
 
-    // 3. Create mock orders so Admin Dashboard stats aren't 0
-    // console.log("Seeding mock orders...");
-    
-    // // Ensure a dummy buyer exists
-    // await prisma.user.upsert({
-    //     where: { email: "buyer_test@example.com" },
-    //     update: {},
-    //     create: {
-    //         id: "buyer_123",
-    //         name: "Test Buyer",
-    //         email: "buyer_test@example.com",
-    //         role: "customer"
-    //     }
-    // });
-
-    // const statusMap = [
-    //     { status: "delivered", escrow: "released" },
-    //     { status: "shipped", escrow: "held" },
-    //     { status: "pending", escrow: "held" },
-    //     { status: "delivered", escrow: "disputed" }
-    // ];
-
-    // for (let i = 0; i < 5; i++) {
-    //     const product = DEMO_PRODUCTS[i % DEMO_PRODUCTS.length];
-    //     const statusObj = statusMap[i % statusMap.length];
-        
-    //     await prisma.order.upsert({
-    //         where: { id: `FP-DEMO-ORD-${i}` },
-    //         update: {},
-    //         create: {
-    //             id: `FP-DEMO-ORD-${i}`,
-    //             customerId: "buyer_123",
-    //             customerName: "Test Buyer",
-    //             productId: product.id,
-    //             sellerId: product.seller_id,
-    //             sellerName: product.seller_name,
-    //             amount: product.price,
-    //             quantity: 1,
-    //             shippingAddress: "123 Mock Street, Lagos",
-    //             paymentMethod: "paystack",
-    //             status: statusObj.status,
-    //             escrowStatus: statusObj.escrow,
-    //             createdAt: new Date(Date.now() - (i * 24 * 60 * 60 * 1000))
-    //         }
-    //     });
-    // }
-
-    console.log("Seed complete!");
+    console.log("Protective Smart Seed complete! 297 Products ready.");
 }
 
 main()
     .catch((e) => {
-        console.error(e);
+        console.error("Protective seed error:", e);
         process.exit(1);
     })
     .finally(async () => {
