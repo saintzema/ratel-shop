@@ -12,11 +12,12 @@ import { CheckCircle, AlertCircle, Trash2, ShoppingBag, Plus, Heart, ChevronDown
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
-import { DEMO_PRODUCTS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { ConfirmationModal } from "@/components/modals/ConfirmationModal";
 import { ProductCard } from "@/components/product/ProductCard";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
+import { ExitIntentModal } from "@/components/modals/ExitIntentModal";
 
 export default function CartPage() {
     const { location, deliveryDate } = useLocation();
@@ -32,6 +33,7 @@ export default function CartPage() {
 
     return (
         <div className="min-h-screen bg-white flex flex-col">
+            <ExitIntentModal />
             <Navbar />
 
             <main className="flex-1 container mx-auto px-4 py-8 pb-28 lg:pb-8 flex flex-col lg:flex-row gap-6 relative">
@@ -75,7 +77,21 @@ export default function CartPage() {
                                             <Link href={`/product/${product.id}`} className="font-medium text-lg hover:text-brand-orange hover:underline line-clamp-2">
                                                 {product.name}
                                             </Link>
-                                            <div className="font-bold text-lg">{formatPrice(product.price)}</div>
+                                            <div className="flex flex-col items-end">
+                                                <div className="font-bold text-lg text-emerald-600">{formatPrice(product.price)}</div>
+                                                {/* Show original price if this is a negotiated deal */}
+                                                {(() => {
+                                                    const masterProduct = DataSyncService.getProducts({ includeInactiveSellers: true }).find(p => p.id === product.id);
+                                                    if (masterProduct && masterProduct.price > product.price) {
+                                                        return (
+                                                            <div className="text-sm text-gray-400 line-through font-medium">
+                                                                {formatPrice(masterProduct.price)}
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                            </div>
                                         </div>
 
                                         <div className="text-sm text-emerald-600 font-bold mb-1">In Stock</div>
@@ -141,11 +157,17 @@ export default function CartPage() {
 
                 {/* Right Sidebar: Checkout (Desktop Only) */}
                 <div className="hidden lg:block w-80 h-fit bg-white p-6 rounded shadow-sm border space-y-4">
-                    <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold mb-2">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>Your order qualifies for FREE Shipping</span>
-                    </div>
-
+                    {cartTotal >= 50000 ? (
+                        <div className="flex items-center gap-2 text-emerald-600 text-sm font-bold mb-2">
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Your order qualifies for FREE Shipping!</span>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-2 text-brand-orange text-sm font-bold mb-2">
+                            <Plus className="h-4 w-4" />
+                            <span>Add {formatPrice(50000 - cartTotal)} more to get FREE Shipping</span>
+                        </div>
+                    )}
                     <div className="text-sm text-gray-500 pb-2 border-b">
                         Delivery to <span className="font-bold text-black">{location}</span> by <span className="font-bold text-black">{deliveryDate}</span>
                     </div>
@@ -170,7 +192,7 @@ export default function CartPage() {
                     <div className="mt-8 pt-4 border-t">
                         <h3 className="font-bold text-sm mb-3">Recommended for you</h3>
                         <div className="space-y-3">
-                            {DEMO_PRODUCTS.slice(3, 5).map(p => (
+                            {SEED_PRODUCTS.slice(3, 5).map(p => (
                                 <div key={p.id} className="flex gap-2 group items-center">
                                     <Link href={`/product/${p.id}`} className="flex gap-2 flex-1 min-w-0">
                                         <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden shrink-0">

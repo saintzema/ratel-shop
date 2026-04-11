@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Star, ChevronDown } from "lucide-react";
 import { useCart } from "@/context/CartContext";
-import { DEMO_PRODUCTS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_PRODUCTS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
+import { isVehicle, calculateMonthlyPayment } from "@/lib/financing-utils";
 
 interface YouMayAlsoLikeProps {
     cartCategories?: string[];
@@ -20,12 +21,12 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
     const { addToCart } = useCart();
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
 
-    // Combine DEMO_PRODUCTS + DemoStore approved products for wider pool
-    const storeProducts = DemoStore.getApprovedProducts();
-    const allPool = [...DEMO_PRODUCTS, ...storeProducts.filter(sp => !DEMO_PRODUCTS.some(dp => dp.id === sp.id))];
+    // Combine SEED_PRODUCTS + DataSyncService approved products for wider pool
+    const storeProducts = DataSyncService.getApprovedProducts();
+    const allPool = [...SEED_PRODUCTS, ...storeProducts.filter(sp => !SEED_PRODUCTS.some(dp => dp.id === sp.id))];
 
-    // Category-matched products (not already in cart)
-    let allSimilar = allPool.filter(p => cartCategories.includes(p.category) && !cartIds.has(p.id));
+    // Category-matched products (not already in cart/current)
+    let allSimilar = allPool.filter(p => (cartCategories.includes(p.category) || p.is_sponsored) && !cartIds.has(p.id));
 
     // Fallback & Padding: if we have fewer than 12 category matches, pad with popular products
     if (allSimilar.length < 12) {
@@ -36,12 +37,11 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
         allSimilar = [...allSimilar, ...popular];
     }
 
-    const hasCategoryMatches = allPool.some(p => cartCategories.includes(p.category) && !cartIds.has(p.id));
     const similarProducts = allSimilar.slice(0, visibleProductsCount);
 
     if (similarProducts.length === 0) return null;
 
-    const displayTitle = cartCategories.length > 0 && hasCategoryMatches ? "Similar Items in Category" : title;
+    const displayTitle = title;
 
     return (
         <div className="container mx-auto px-4 mb-8 lg:mb-12 pb-0">
@@ -54,7 +54,7 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
                             : 0;
                         return (
                             <div key={product.id} className="group relative bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all overflow-hidden">
-                                <Link href={`/product/${product.id}`} className="block">
+                                <Link href={getProductUrl(product.id, product.name)} className="block">
                                     <div className="bg-gray-50 rounded-t-xl aspect-square p-3 flex items-center justify-center relative">
                                         <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                         {discount > 0 && (
@@ -85,6 +85,16 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
                                                 <span className="text-[10px] text-gray-400 line-through">{formatPrice(product.original_price)}</span>
                                             )}
                                         </div>
+
+                                        {/* Monthly Payment for Vehicles */}
+                                        {isVehicle(product) && (
+                                            <div className="mt-1 flex items-center gap-1.5 translate-y-[-2px]">
+                                                <span className="text-[11px] font-black text-brand-orange">
+                                                    {formatPrice(calculateMonthlyPayment(product.price).monthlyPayment)}
+                                                </span>
+                                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">/ month</span>
+                                            </div>
+                                        )}
                                         {/* Fair Price Badge */}
                                         {product.price_flag === "fair" && (
                                             <div className="mt-1.5 flex items-center gap-1 px-1.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full w-fit">

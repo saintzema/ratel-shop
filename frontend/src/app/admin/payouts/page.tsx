@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Search, Filter, MoreVertical, CheckCircle2, XCircle, Clock, Wallet, ArrowUpRight } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ export default function PayoutRequestsDirectory() {
 
     useEffect(() => {
         const load = () => {
-            setPayouts(DemoStore.getPayouts().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+            setPayouts(DataSyncService.getPayouts().sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
         };
         load();
         window.addEventListener("storage", load);
@@ -133,7 +133,7 @@ export default function PayoutRequestsDirectory() {
                                                 size="sm"
                                                 className="h-8 rounded-xl bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-600 font-bold text-[10px] uppercase tracking-wider transition-all"
                                                 onClick={() => {
-                                                    DemoStore.updatePayoutStatus(p.id, "completed");
+                                                    DataSyncService.updatePayoutStatus(p.id, "completed");
                                                     window.dispatchEvent(new Event("storage"));
                                                 }}
                                             >

@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
-import { DEMO_PRODUCTS } from "@/lib/data";
+import { SEED_PRODUCTS } from "@/lib/data";
 import { CATEGORIES } from "@/lib/types";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export default function CategoryPage() {
     const [priceMax, setPriceMax] = useState(MAX_PRICE);
 
     // Filter & Sort logic
-    const products = DEMO_PRODUCTS.filter(p => {
+    const products = SEED_PRODUCTS.filter(p => {
         const categoryMatch = slug === "all" || p.category === slug || (slug === "verified" && p.seller_name.includes("TechHub"));
         const priceMatch = p.price >= priceMin && p.price <= priceMax;
         return categoryMatch && priceMatch;

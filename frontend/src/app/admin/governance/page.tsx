@@ -20,7 +20,7 @@ import {
     ShoppingBag,
     Plus
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -32,8 +32,26 @@ export default function GovernanceCenter() {
 
     useEffect(() => {
         const load = () => {
-            setKycs(DemoStore.getKYCSubmissions());
-            setComplaints(DemoStore.getComplaints());
+            setKycs(DataSyncService.getKYCSubmissions());
+            
+            // Mirror logic from Admin Dashboard: merge complaints + disputed/cancelled orders
+            const rawComplaints = DataSyncService.getComplaints();
+            const allOrders = DataSyncService.getOrders();
+            const disputedOrders = allOrders
+                .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
+                .map(o => ({
+                    id: `dispute_${o.id}`,
+                    user_name: o.customer_name || o.customer_id,
+                    seller_name: o.product?.seller_name || "Unknown Seller",
+                    description: o.escrow_status === "disputed" ? `Dispute on order #${o.id.substring(0, 8)} — ${o.product?.name}` : `Cancelled order #${o.id.substring(0, 8)} — ${o.product?.name}`,
+                    status: "open",
+                    created_at: o.updated_at || o.created_at,
+                    order_id: o.id,
+                    type: "order_dispute"
+                }));
+                
+            const mergedComplaints = [...rawComplaints, ...disputedOrders.filter((d: any) => !rawComplaints.some(c => c.id === d.id))];
+            setComplaints(mergedComplaints);
         };
         load();
         window.addEventListener("storage", load);
@@ -48,7 +66,7 @@ export default function GovernanceCenter() {
 
     const handleSendMessage = () => {
         if (!composeText.trim()) return;
-        DemoStore.addSupportMessage({
+        DataSyncService.addSupportMessage({
             user_name: "Admin",
             user_email: "admin@globalstores.shop",
             subject: `Re: Case #${msgModal.caseId} — Message to ${msgModal.userName}`,
@@ -172,14 +190,14 @@ export default function GovernanceCenter() {
                                                     {kyc.status === "pending" && (
                                                         <>
                                                             <Button
-                                                                onClick={() => { DemoStore.updateKYCStatus(kyc.id, "approved"); setKycs(DemoStore.getKYCSubmissions()); }}
+                                                                onClick={() => { DataSyncService.updateKYCStatus(kyc.id, "approved"); setKycs(DataSyncService.getKYCSubmissions()); }}
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] uppercase tracking-widest"
                                                             >
                                                                 Approve
                                                             </Button>
                                                             <Button
-                                                                onClick={() => { DemoStore.updateKYCStatus(kyc.id, "rejected"); setKycs(DemoStore.getKYCSubmissions()); }}
+                                                                onClick={() => { DataSyncService.updateKYCStatus(kyc.id, "rejected"); setKycs(DataSyncService.getKYCSubmissions()); }}
                                                                 variant="ghost"
                                                                 size="sm"
                                                                 className="h-8 px-3 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-[10px] uppercase tracking-widest"
@@ -234,7 +252,7 @@ export default function GovernanceCenter() {
                                                                 </span>
                                                             </div>
                                                             <p className="text-sm font-bold text-gray-900 line-clamp-2">{c.description}</p>
-                                                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Order Ref: #{c.order_id.toUpperCase()}</p>
+                                                            <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">Order Ref: #{c.order_id?.toUpperCase() || c.id}</p>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-5 align-middle">
@@ -243,41 +261,41 @@ export default function GovernanceCenter() {
                                                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1">
                                                                     <MessageSquare className="h-3 w-3" /> Reporter
                                                                 </p>
-                                                                <Link href={`/admin/users/${c.user_id || c.user_name}`} className="text-xs font-bold text-gray-900 mt-0.5 hover:text-indigo-600 hover:underline block">{c.user_name}</Link>
+                                                                <Link href={`/admin/users/${c.user_id || c.user_name || c.buyer_id}`} className="text-xs font-bold text-gray-900 mt-0.5 hover:text-indigo-600 hover:underline block">{c.user_name || c.buyer_name || 'Buyer'}</Link>
                                                             </div>
                                                             <div>
                                                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest flex items-center gap-1">
-                                                                    <User className="h-3 w-3" /> Seller Target
+                                                                    <User className="h-3 w-3" /> Target
                                                                 </p>
-                                                                <Link href={`/admin/users/${c.seller_id || c.seller_name}`} className="text-xs font-bold text-gray-900 mt-0.5 hover:text-indigo-600 hover:underline block">{c.seller_name}</Link>
+                                                                <Link href={`/admin/users/${c.seller_id || c.seller_name}`} className="text-xs font-bold text-gray-900 mt-0.5 hover:text-indigo-600 hover:underline block">{c.seller_name || 'Seller'}</Link>
                                                             </div>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-5 align-top">
                                                         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-50 text-gray-700 rounded-lg text-[10px] font-black uppercase tracking-widest border border-gray-200 mt-1">
-                                                            <ShieldAlert className="h-3 w-3" /> {c.type.replace('_', ' ')}
+                                                            <ShieldAlert className="h-3 w-3 text-rose-500" /> {c.reason ? c.reason.replace(/_/g, ' ') : c.type || 'Platform Dispute'}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-5 align-middle text-right">
                                                         <div className="flex flex-col items-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <div className="flex gap-1.5">
-                                                                <button onClick={() => setLogsModal({ open: true, complaint: c })} className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors" title="View Case Logs">
-                                                                    <FileText className="h-3.5 w-3.5 text-gray-500" />
-                                                                </button>
+                                                                <Link href="/admin/escrow?filter=disputed" className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors" title="View Escrow">
+                                                                    <ExternalLink className="h-3.5 w-3.5 text-gray-500" />
+                                                                </Link>
                                                                 <button onClick={() => setMsgModal({ open: true, caseId: c.id, userName: c.user_name })} className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors" title="Message Buyer">
                                                                     <MessageSquare className="h-3.5 w-3.5 text-blue-500" />
                                                                 </button>
                                                                 {c.status !== "resolved" && (
                                                                     <>
                                                                         <button
-                                                                            onClick={() => { DemoStore.updateComplaintStatus(c.id, "investigating"); setComplaints(DemoStore.getComplaints()); }}
+                                                                            onClick={() => { DataSyncService.updateComplaintStatus(c.id, "investigating"); setComplaints(DataSyncService.getComplaints()); }}
                                                                             className="h-8 w-8 flex items-center justify-center rounded-lg bg-indigo-600 hover:bg-indigo-700 transition-colors"
                                                                             title="Investigate"
                                                                         >
                                                                             <Search className="h-3.5 w-3.5 text-white" />
                                                                         </button>
                                                                         <button
-                                                                            onClick={() => { DemoStore.updateComplaintStatus(c.id, "resolved"); setComplaints(DemoStore.getComplaints()); }}
+                                                                            onClick={() => { DataSyncService.updateComplaintStatus(c.id, "resolved"); setComplaints(DataSyncService.getComplaints()); }}
                                                                             className="h-8 w-8 flex items-center justify-center rounded-lg bg-emerald-600 hover:bg-emerald-700 transition-colors"
                                                                             title="Resolve"
                                                                         >

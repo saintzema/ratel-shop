@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, DisputeReason, Dispute, SupportMessage } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
-import { formatPrice, formatDateExact } from "@/lib/utils";
+import { DataSyncService } from "@/lib/sync-store";
+import { formatPrice, formatDateExact, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Package, Truck, CheckCircle, Clock, MapPin, Phone, ChevronLeft, ShieldCheck, AlertTriangle, MessageSquare, Mail, Star, Download, ThumbsUp } from "lucide-react";
@@ -14,6 +14,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { TrackingTimeline } from "@/components/order/TrackingTimeline";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+
+const CARRIER_LOGOS: Record<string, string> = {
+    "GIG Logistics": "/images/logistics/gig.png",
+    "Speedaf": "/images/logistics/speedaf.png",
+    "FairPrice Logistics": "/images/logistics/fairprice.png"
+};
 
 const DISPUTE_REASONS: { value: DisputeReason; label: string; desc: string }[] = [
     { value: "wrong_item", label: "Wrong Item", desc: "I received a different product" },
@@ -41,12 +47,12 @@ export default function OrderDetailsPage() {
     useEffect(() => {
         const id = params.id as string;
         if (id) {
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             const foundOrder = allOrders.find(o => o.id === id);
             setOrder(foundOrder || null);
             if (foundOrder) {
-                setExistingDispute(DemoStore.getDisputeByOrderId(foundOrder.id));
-                setAdminMessages(DemoStore.getAdminMessagesForOrder(foundOrder.id));
+                setExistingDispute(DataSyncService.getDisputeByOrderId(foundOrder.id));
+                setAdminMessages(DataSyncService.getAdminMessagesForOrder(foundOrder.id));
             }
         }
     }, [params.id]);
@@ -56,20 +62,20 @@ export default function OrderDetailsPage() {
         const handleSync = () => {
             const id = params.id as string;
             if (id) {
-                const allOrders = DemoStore.getOrders();
+                const allOrders = DataSyncService.getOrders();
                 const foundOrder = allOrders.find(o => o.id === id);
                 setOrder(foundOrder || null);
                 if (foundOrder) {
-                    setExistingDispute(DemoStore.getDisputeByOrderId(foundOrder.id));
-                    setAdminMessages(DemoStore.getAdminMessagesForOrder(foundOrder.id));
+                    setExistingDispute(DataSyncService.getDisputeByOrderId(foundOrder.id));
+                    setAdminMessages(DataSyncService.getAdminMessagesForOrder(foundOrder.id));
                 }
             }
         };
         window.addEventListener("storage", handleSync);
-        window.addEventListener("demo-store-update", handleSync);
+        window.addEventListener("sync-store-update", handleSync);
         return () => {
             window.removeEventListener("storage", handleSync);
-            window.removeEventListener("demo-store-update", handleSync);
+            window.removeEventListener("sync-store-update", handleSync);
         };
     }, [params.id]);
 
@@ -89,9 +95,9 @@ export default function OrderDetailsPage() {
     }
 
     const handleReleaseEscrow = () => {
-        DemoStore.updateOrderEscrow(order.id, "released");
+        DataSyncService.updateOrderEscrow(order.id, "released");
         // Re-read order from store to get updated status and tracking steps
-        const updatedOrders = DemoStore.getOrders();
+        const updatedOrders = DataSyncService.getOrders();
         const updatedOrder = updatedOrders.find(o => o.id === order.id);
         if (updatedOrder) {
             setOrder(updatedOrder);
@@ -166,7 +172,7 @@ export default function OrderDetailsPage() {
 
     const handleBuyerResolve = () => {
         if (!existingDispute) return;
-        DemoStore.buyerResolveDispute(existingDispute.id);
+        DataSyncService.buyerResolveDispute(existingDispute.id);
         setOrder({ ...order, escrow_status: "released" });
         setExistingDispute({ ...existingDispute, status: "resolved_release", resolved_at: new Date().toISOString() });
         setStatusMsg("Dispute resolved! Payment has been released to the seller.");
@@ -182,7 +188,7 @@ export default function OrderDetailsPage() {
 
     const handleSubmitDispute = () => {
         if (!user || !disputeDesc.trim()) return;
-        DemoStore.raiseDispute(
+        DataSyncService.raiseDispute(
             order.id,
             user.email || user.id,
             user.name || "Customer",
@@ -191,7 +197,7 @@ export default function OrderDetailsPage() {
             disputeDesc
         );
         setOrder({ ...order, escrow_status: "disputed" });
-        setExistingDispute(DemoStore.getDisputeByOrderId(order.id));
+        setExistingDispute(DataSyncService.getDisputeByOrderId(order.id));
         setShowDisputeModal(false);
         setDisputeDesc("");
         setStatusMsg("Dispute filed. Our team will review your case within 24-48 hours.");
@@ -255,12 +261,29 @@ export default function OrderDetailsPage() {
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="font-bold text-lg text-gray-900">Tracking Status</h2>
-                                {order.tracking_id && (
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tracking ID</p>
-                                        <p className="text-sm font-black text-blue-600">{order.tracking_id}</p>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right flex flex-col items-end">
+                                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Carrier</p>
+                                        <div className="flex items-center gap-2 bg-white border border-gray-100 px-3 py-1.5 rounded-full shadow-sm">
+                                            {CARRIER_LOGOS[order.carrier || ""] ? (
+                                                <img 
+                                                    src={CARRIER_LOGOS[order.carrier || ""]} 
+                                                    alt={order.carrier} 
+                                                    className="h-4 w-auto object-contain" 
+                                                />
+                                            ) : (
+                                                <Truck className="h-4 w-4 text-gray-400" />
+                                            )}
+                                            <span className="text-xs font-black text-gray-900">{order.carrier || "FairPrice Logistics"}</span>
+                                        </div>
                                     </div>
-                                )}
+                                    {order.tracking_id && (
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Tracking ID</p>
+                                            <p className="text-sm font-black text-blue-600">{order.tracking_id}</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                             <TrackingTimeline steps={order.tracking_steps || []} />
                         </div>
@@ -269,11 +292,11 @@ export default function OrderDetailsPage() {
                         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
                             <h2 className="font-bold text-lg mb-4 text-gray-900">Items in this order</h2>
                             <div className="flex gap-4">
-                                <Link href={`/product/${order.product_id}`} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-20 w-20 bg-gray-50 rounded-xl border border-gray-100 p-2 shrink-0 block hover:border-brand-green-400 transition-colors">
                                     <img src={order.product?.image_url || "/assets/images/placeholder.png"} alt={order.product?.name} className="h-full w-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                 </Link>
                                 <div>
-                                    <Link href={`/product/${order.product_id}`} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
+                                    <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="font-bold text-gray-900 hover:text-brand-green-600 line-clamp-2">
                                         {order.product?.name || "Product"}
                                     </Link>
                                     <p className="text-sm text-gray-500 mt-1">Quantity: {(order as any).quantity || 1}</p>
@@ -420,6 +443,19 @@ export default function OrderDetailsPage() {
                                         <p className="text-gray-500">{order.shipping_address || "Lagos, Nigeria"}</p>
                                     </div>
                                 </div>
+                                {(order.customer_phone || order.customer_whatsapp) && (
+                                    <div className="flex items-start gap-3 pt-3 border-t border-gray-50">
+                                        <Phone className="h-4 w-4 text-gray-400 mt-0.5" />
+                                        <div className="space-y-1">
+                                            {order.customer_phone && (
+                                                <p className="text-gray-900 font-medium">{order.customer_phone}</p>
+                                            )}
+                                            {order.customer_whatsapp && (
+                                                <p className="text-emerald-600 font-medium text-xs mt-1">WhatsApp: {order.customer_whatsapp}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -480,8 +516,8 @@ export default function OrderDetailsPage() {
 
             {/* Dispute Modal */}
             <Dialog open={showDisputeModal} onOpenChange={setShowDisputeModal}>
-                <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-gray-100">
-                    <div className="p-6">
+                <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-gray-100 max-h-[90dvh]">
+                    <div className="p-6 overflow-y-auto max-h-[85dvh] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
                         <DialogHeader className="mb-4">
                             <DialogTitle className="text-lg font-black text-gray-900 flex items-center gap-2">
                                 <AlertTriangle className="h-5 w-5 text-rose-600" /> Report a Problem
@@ -522,6 +558,7 @@ export default function OrderDetailsPage() {
                                 <textarea
                                     value={disputeDesc}
                                     onChange={(e) => setDisputeDesc(e.target.value)}
+                                    onFocus={(e) => { setTimeout(() => e.target.scrollIntoView({ behavior: "smooth", block: "center" }), 300); }}
                                     className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[100px] focus:outline-none focus:ring-2 focus:ring-rose-500 resize-none"
                                     placeholder="Provide details about what happened..."
                                 />

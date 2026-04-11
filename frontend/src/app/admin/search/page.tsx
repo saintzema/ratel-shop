@@ -11,7 +11,7 @@ import {
     Package,
     ArrowRight
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product, Seller, Order } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 
@@ -30,21 +30,21 @@ function AdminSearchContent() {
         setMounted(true);
         if (query) {
             // Search Products
-            const allProducts = DemoStore.getApprovedProducts();
+            const allProducts = DataSyncService.getApprovedProducts();
             setProducts(allProducts.filter(p =>
                 p.name.toLowerCase().includes(query) ||
                 p.category.toLowerCase().includes(query)
             ));
 
             // Search Sellers
-            const allSellers = DemoStore.getSellers();
+            const allSellers = DataSyncService.getSellers();
             setSellers(allSellers.filter(s =>
-                s.business_name.toLowerCase().includes(query) ||
+                (s.business_name || "").toLowerCase().includes(query) ||
                 (s.cac_rc_number && s.cac_rc_number.toLowerCase().includes(query))
             ));
 
             // Search Orders
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             setOrders(allOrders.filter(o =>
                 o.id.toLowerCase().includes(query) ||
                 (o.customer_name && o.customer_name.toLowerCase().includes(query)) ||

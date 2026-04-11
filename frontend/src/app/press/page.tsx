@@ -32,7 +32,7 @@ export default function PressPage() {
                     <div className="mt-8 bg-gray-50 rounded-2xl p-6 border border-gray-200 text-center">
                         <Mail className="h-8 w-8 text-gray-400 mx-auto mb-2" />
                         <p className="font-bold text-gray-900 mb-1">Media Inquiries</p>
-                        <p className="text-sm text-gray-600">Contact us at <a href="mailto:press@fairprice.ng" className="text-emerald-600 font-bold hover:underline">press@fairprice.ng</a></p>
+                        <p className="text-sm text-gray-600">Contact us at <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-bold hover:underline">hello@fairprice.ng</a></p>
                     </div>
                 </div>
             </main>

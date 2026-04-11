@@ -202,7 +202,7 @@
     animation: shimmer 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
 
-  /* Apple Liquid Glass — exactly matches Calculate Fair Price button */
+  /* Apple Liquid Glass — exactly matches AI Price Checker button */
   .liquid-glass {
     background: rgba(255, 255, 255, 0.15);
     backdrop-filter: blur(16px) saturate(180%);
@@ -251,6 +251,20 @@
       transform: scale(1);
       opacity: 0;
     }
+  }
+
+  /* Pulse Grow animation for primary CTA buttons */
+  @keyframes pulse-grow {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-pulse-grow {
+    animation: pulse-grow 2s ease-in-out infinite;
   }
 
   .animate-heart-burst {
@@ -337,6 +351,11 @@
     animation: bell-swing 2s ease-in-out infinite;
     transform-origin: top center;
   }
+
+  /* Keyboard Awareness Utility */
+  .kb-inset-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-height, 0px));
+  }
 }
 
 html,
@@ -353,15 +372,37 @@ body {
   transition: background 0.5s cubic-bezier(0.4, 0, 0.2, 1), color 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   overscroll-behavior-y: none;
   /* Prevents iOS rubber-banding so Navbar stays perfectly fixed at top */
+  
+  /* Capacitor Native App Padding for Notches */
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 /* Remove default focus rings from inputs that appear on mobile taps */
-input:focus,
 textarea:focus,
 select:focus {
   outline: none !important;
   box-shadow: none !important;
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Default input focus — subtle */
+input:focus {
+  outline: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Green glow for email and password inputs */
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[name="email"]:focus,
+input[name="password"]:focus {
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 0 16px 4px rgba(16, 185, 129, 0.1) !important;
+  border-color: #10b981 !important;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 /* Custom Scrollbar */

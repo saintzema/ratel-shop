@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 const API_PREFIX = "/api/v1/notifications";
@@ -14,36 +15,86 @@ async function safeFetch(url: string, options?: RequestInit): Promise<any> {
             return { data: null, status: res.status };
         }
     } catch (error) {
-        console.error("Backend unreachable:", (error as Error).message);
+        if (!url.includes("localhost")) {
+            console.error("Backend unreachable:", (error as Error).message);
+        }
         return { data: null, status: 503 };
     }
 }
 
 export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
-    const user_email = searchParams.get("user_email");
+    const user_email = searchParams.get("user_email") || searchParams.get("userId");
     const unread_only = searchParams.get("unread_only") || "false";
+    const user_id = searchParams.get("userId"); // Extra capture for logging/alias
 
-    if (!user_email) {
-        return NextResponse.json({ error: "user_email is required" }, { status: 400 });
+    if (!user_email && !user_id) {
+        return NextResponse.json({ error: "user_email or userId is required" }, { status: 400 });
     }
+    
+    // Resolve email if userId was provided but email is needed for DB lookups
+    const effective_email = user_email; 
 
     const count_only = searchParams.get("count_only") === "true";
     const endpoint = count_only ? `${API_PREFIX}/unread-count` : API_PREFIX;
 
     const url = new URL(endpoint, BACKEND_URL);
-    url.searchParams.set("user_email", user_email);
+    if (user_email) {
+        url.searchParams.set("user_email", user_email);
+    }
     if (!count_only) {
         url.searchParams.set("unread_only", unread_only);
     }
 
-    const { data, status } = await safeFetch(url.toString());
-
-    if (data === null) {
-        // Backend down — return safe fallback
-        return NextResponse.json(count_only ? { unread_count: 0 } : [], { status: 200 });
+    // 1. Fetch from Django Backend
+    const backendResult = await safeFetch(url.toString());
+    
+    // 2. Fetch from Prisma (Next.js local DB)
+    let prismaNotifications: any[] = [];
+    if (user_email) {
+        try {
+            const prismaNotifs = await db.notification.findMany({
+                where: {
+                    user: { email: user_email },
+                    ...(unread_only === "true" ? { read: false } : {})
+                },
+                orderBy: { createdAt: 'desc' },
+                take: 50
+            });
+            prismaNotifications = prismaNotifs.map(n => ({
+                id: n.id,
+                user_id: user_email,
+                type: n.type.toLowerCase(),
+                message: n.message,
+                link: n.link,
+                read: n.read,
+                created_at: n.createdAt.toISOString()
+            }));
+        } catch (e) {
+            console.error("Prisma notification fetch failed:", e);
+        }
     }
-    return NextResponse.json(data, { status });
+
+    if (count_only) {
+        const backendCount = backendResult.data?.unread_count || 0;
+        const prismaCount = prismaNotifications.length; // Prisma query already filtered by unread_only above if unread_only was true
+        // But wait, if unread_only was false but count_only was true, we need to be careful.
+        // Actually count_only should probably just return the unread count.
+        return NextResponse.json({ unread_count: backendCount + prismaCount });
+    }
+
+    // 3. Merge and De-duplicate
+    const backendNotifs = Array.isArray(backendResult.data) ? backendResult.data : [];
+    const combined = [...prismaNotifications, ...backendNotifs];
+    
+    // Sort by timestamp descending
+    combined.sort((a, b) => {
+        const dateA = new Date(a.created_at || a.timestamp).getTime();
+        const dateB = new Date(b.created_at || b.timestamp).getTime();
+        return dateB - dateA;
+    });
+
+    return NextResponse.json(combined.slice(0, 50), { status: 200 });
 }
 
 export async function POST(req: NextRequest) {

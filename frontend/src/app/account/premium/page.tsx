@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { AnimatePresence } from "framer-motion";
 export default function PremiumPage() {
     const { user, login } = useAuth();
@@ -16,9 +16,9 @@ export default function PremiumPage() {
 
     const handleSuccess = (reference: string) => {
         if (user) {
-            DemoStore.addPremiumSubscription(user.id);
+            DataSyncService.addPremiumSubscription(user.id);
             // Refresh auth state to get new premium flag
-            const updatedUser = DemoStore.getUser(user.email);
+            const updatedUser = DataSyncService.getUser(user.email);
             if (updatedUser) login(updatedUser);
             window.dispatchEvent(new Event("storage"));
             setShowPaystack(false);
@@ -26,7 +26,7 @@ export default function PremiumPage() {
     };
     const benefits = [
         { icon: Truck, title: "Free Same-Day Delivery", desc: "On all orders above ₦5,000 within Lagos, Abuja, and Port Harcourt" },
-        { icon: Shield, title: "Extended Return Window", desc: "30-day returns instead of 7 days for all products" },
+        { icon: Shield, title: "Extended Return Window", desc: "30-day returns instead of 14 days for all products" },
         { icon: Zap, title: "Priority AI Price Checks", desc: "Faster and more detailed price analysis from Ziva AI" },
         { icon: Clock, title: "Early Access to Deals", desc: "Get 6-hour early access to flash sales and exclusive deals" },
         { icon: Star, title: "Premium Customer Support", desc: "Dedicated support line with under 2-minute wait times" },

@@ -13,6 +13,8 @@ export interface User {
     referralCode?: string;
     referredBy?: string;
     emailVerified?: boolean;
+    phone?: string;
+    phone_numbers?: string[];
     created_at: string;
 }
 
@@ -40,11 +42,14 @@ export interface Seller {
     logo_url?: string;
     category: string;
     verified: boolean;
+    phone_number?: string;
+    phone_numbers?: string[];
     subscription_plan?: "Starter" | "Pro" | "Growth" | "Scale";
     plan_expiry_date?: string;
     rating?: number;
     trust_score: number;
     commission_rate?: number;
+    tier?: "Gold" | "Silver" | "Bronze" | "Standard";
     status?: "pending" | "active" | "frozen" | "banned";
     kyc_status: "not_submitted" | "pending" | "approved" | "rejected";
     cover_image_url?: string;
@@ -53,6 +58,7 @@ export interface Seller {
     account_number?: string;
     account_name?: string;
     store_url?: string;
+    slug?: string;
     location?: string;
     street_address?: string;
     city?: string;
@@ -83,6 +89,7 @@ export interface Product {
     stock: number;
     price_flag: "fair" | "overpriced" | "too_low" | "none" | "great_deal";
     is_sponsored?: boolean;
+    is_trending?: boolean;
     is_active: boolean;
     avg_rating: number;
     review_count: number;
@@ -94,6 +101,10 @@ export interface Product {
     condition?: "brand_new" | "used" | "refurbished";
     colors?: string[];
     subcategory?: string;
+    financing_available?: boolean;
+    seller_trust_score?: number;
+    negotiation_rate?: number;
+    _source?: string;
 }
 
 export interface Order {
@@ -102,12 +113,15 @@ export interface Order {
     product_id: string;
     seller_id: string;
     amount: number;
+    quantity?: number;
+    payment_method?: string;
     status: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "return_requested" | "return_approved" | "return_rejected" | "returned";
     escrow_status: "held" | "seller_confirmed" | "buyer_confirmed" | "auto_release_eligible" | "released" | "disputed" | "refunded";
     shipping_address: string;
+    delivery_method?: string;
     tracking_status?: "pending" | "processing" | "shipped" | "out_for_delivery" | "delivered";
     tracking_id?: string;
-    payout_status?: "pending_payout" | "cashed_out";
+    payout_status?: "pending_payout" | "cashed_out" | "paid" | "none";
     carrier?: string;
     tracking_steps?: {
         status: string;
@@ -121,6 +135,8 @@ export interface Order {
         text: string;
         timestamp: string;
         imageUrl?: string;
+        imageUrls?: string[];
+        replyTo?: { sender: string; text: string };
     }[];
     zivaActive?: boolean;
     unread_admin?: boolean;
@@ -132,7 +148,24 @@ export interface Order {
     product?: Product;
     customer_name?: string;
     customer_email?: string;
+    customer_phone?: string;
+    customer_whatsapp?: string;
+    source?: string;
     seller_name?: string;
+    discount_id?: string;
+    // Vehicle Loan Financing details (set when isVehicle is true)
+    financing?: {
+        is_vehicle_loan: boolean;
+        vehicle_price: number;       // Full listing price of the vehicle
+        deposit_paid: number;        // 15% deposit amount paid upfront
+        loan_balance: number;        // Remaining balance after deposit
+        monthly_payment: number;     // Estimated monthly repayment
+        tenor_months: number;        // Repayment period in months
+        interest_rate: number;       // Annual markup rate (e.g. 0.34 = 34%)
+        total_repayment: number;     // Total amount over the loan term
+        condition?: string;          // new | foreign_used | nigerian_used
+        loan_type?: string;          // bnpl | lease
+    };
 }
 
 export interface ReturnRequest {
@@ -155,14 +188,27 @@ export interface NegotiationRequest {
     product_id: string;
     customer_id: string;
     customer_name: string;
+    seller_id?: string;
     proposed_price: number;
     message?: string;
-    status: "pending" | "accepted" | "rejected";
+    status: "pending" | "accepted" | "rejected" | "countered" | "purchased";
     counter_price?: number;
     counter_message?: string;
-    counter_status?: "pending" | "accepted" | "rejected";
-    chat_messages?: { sender: "seller" | "buyer"; text: string; timestamp: string }[];
+    counter_status?: "pending" | "accepted" | "rejected" | "purchased";
+    chat_messages?: {
+        id?: string;
+        sender: "seller" | "buyer" | "system";
+        text: string;
+        timestamp: string;
+        imageUrl?: string;
+        imageUrls?: string[];
+        replyTo?: { sender: string; text: string };
+        readByRecipient?: boolean;
+        negotiation?: any;
+    }[];
+    purchased?: boolean;
     created_at: string;
+    updated_at?: string;
 }
 
 export interface Promotion {
@@ -201,6 +247,7 @@ export interface Deal {
     start_at: string;
     end_at: string;
     is_active: boolean;
+    deal_priority?: number;
 }
 
 export interface KYCSubmission {
@@ -255,6 +302,7 @@ export interface PriceComparison {
 export interface CartItem {
     product: Product;
     quantity: number;
+    negotiatedPrice?: number;
 }
 
 export interface Notification {
@@ -270,7 +318,7 @@ export interface Notification {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
+export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports";
 
 export const CATEGORIES: { value: ProductCategory; label: string }[] = [
     { value: "phones", label: "Phones" },
@@ -286,6 +334,8 @@ export const CATEGORIES: { value: ProductCategory; label: string }[] = [
     { value: "baby", label: "Baby" },
     { value: "sports", label: "Sports" },
     { value: "cars", label: "Cars" },
+    { value: "vehicles", label: "Vehicles" },
+    { value: "automotive", label: "Automotive" },
     { value: "energy", label: "Energy" },
     { value: "gaming", label: "Gaming" },
 ];
@@ -352,6 +402,8 @@ export interface ChatMessage {
     sender_name: string;
     text: string;
     timestamp: string;
+    imageUrl?: string;
+    imageUrls?: string[];
     read_by: string[];
 }
 

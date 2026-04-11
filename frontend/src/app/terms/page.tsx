@@ -72,8 +72,8 @@ export default function TermsOfServicePage() {
                             </div>
                         </section>
 
-                         {/* Section 4 */}
-                         <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
+                        {/* Section 4 */}
+                        <section className="bg-gray-50 p-6 md:p-8 rounded-3xl border border-gray-100">
                             <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-3">
                                 <div className="p-2 bg-purple-50 rounded-xl">
                                     <CreditCard className="h-5 w-5 text-purple-600" />
@@ -104,7 +104,7 @@ export default function TermsOfServicePage() {
 
                     <div className="text-center pt-8 border-t border-gray-200">
                         <p className="text-sm text-gray-500">
-                            Questions about the Terms of Service? Contact us at <a href="mailto:support@fairprice.ng" className="text-brand-green-600 font-medium hover:underline">support@fairprice.ng</a>
+                            Questions about the Terms of Service? Contact us at <a href="mailto:hello@fairprice.ng" className="text-brand-green-600 font-medium hover:underline">hello@fairprice.ng</a>
                         </p>
                     </div>
                 </div>

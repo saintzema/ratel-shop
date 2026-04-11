@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -9,6 +11,7 @@ import {
     User,
     MapPin,
     ChevronDown,
+    ChevronRight,
     X,
     Heart,
     Handshake,
@@ -45,9 +48,9 @@ import { NotificationBell } from "@/components/ui/NotificationBell";
 import { LocationModal } from "@/components/modals/LocationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
-import { DEMO_PRODUCTS } from "@/lib/data"; // Import products for search
-import { DemoStore } from "@/lib/demo-store";
-import { cn } from "@/lib/utils";
+import { SEED_PRODUCTS } from "@/lib/data"; // Import products for search
+import { DataSyncService } from "@/lib/sync-store";
+import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -69,20 +72,41 @@ const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
     grocery: <ShoppingBag className="h-6 w-6" />
 };
 
+const RECENT_SEARCHES_KEY = 'fp_recent_searches';
+const MAX_RECENT_SEARCHES = 4;
+
+function getRecentSearches(): string[] {
+    try {
+        const stored = localStorage.getItem(RECENT_SEARCHES_KEY);
+        return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+}
+
+function saveRecentSearch(term: string) {
+    try {
+        const current = getRecentSearches();
+        // Remove duplicate if exists, then prepend
+        const filtered = current.filter(t => t.toLowerCase() !== term.toLowerCase());
+        const updated = [term, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+        localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    } catch { /* quota */ }
+}
+
 export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
-    const [suggestions, setSuggestions] = useState<typeof DEMO_PRODUCTS>([]); // State for suggestions
+    const [suggestions, setSuggestions] = useState<typeof SEED_PRODUCTS>([]); // State for suggestions
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [isPriceIntelOpen, setIsPriceIntelOpen] = useState(false);
     const [priceIntelQuery, setPriceIntelQuery] = useState("");
-    const [globalResults, setGlobalResults] = useState<{ name: string; category: string; approxPrice: number; sourceUrl?: string }[]>([]);
+    const [globalResults, setGlobalResults] = useState<{ name: string; category: string; approxPrice: number; sourceUrl?: string; id?: string; image_url?: string }[]>([]);
     const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
     const [cachedResults, setCachedResults] = useState<any[]>([]);
+    const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
     const { location, setLocation } = useLocation();
     const { cartCount } = useCart();
     const { totalUnread, openMessageBox } = useMessages();
@@ -92,26 +116,92 @@ export function Navbar() {
     const [unreadNotifs, setUnreadNotifs] = useState(0);
     const { user, logout } = useAuth();
     const [mounted, setMounted] = useState(false);
+    const [isSeller, setIsSeller] = useState(false);
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
     useEffect(() => {
+        if (user) {
+            if (user.role === 'seller' || user.role === 'admin') {
+                setIsSeller(true);
+                return;
+            }
+            const sellers = DataSyncService.getSellers();
+            const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
+            if (localMatch) {
+                setIsSeller(true);
+            } else {
+                fetch('/api/sellers?all=true')
+                    .then(res => res.json())
+                    .then(data => {
+                        const sers = Array.isArray(data) ? data : [];
+                        const match = sers.some((s: any) =>
+                            s.owner_email === user.email ||
+                            s.user_id === user.id ||
+                            s.id === user.id
+                        );
+                        setIsSeller(match);
+                    })
+                    .catch(() => setIsSeller(false));
+            }
+        } else {
+            setIsSeller(false);
+        }
+    }, [user]);
+
+    // Load global settings
+    useEffect(() => {
+        fetch('/api/admin/settings')
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.globalSearchCaching !== undefined) {
+                    setGlobalSearchCaching(data.globalSearchCaching);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
         const loadNotifs = async () => {
-            if (!user?.email) { setUnreadNotifs(0); return; }
+            if (!user?.email && !user?.id) { setUnreadNotifs(0); return; }
+
+            // Always include local DataSyncService notification unread count
+            const localNotifs = DataSyncService.getNotifications(user.id || user.email);
+            let localUnread = localNotifs.filter(n => !n.read).length;
+
+            // If user is a seller, also fetch notifications addressed to their seller store ID
+            if (isSeller) {
+                const sellerId = DataSyncService.getCurrentSellerId();
+                if (sellerId && sellerId !== user.id && sellerId !== user.email) {
+                    const sellerNotifs = DataSyncService.getNotifications(sellerId);
+                    localUnread += sellerNotifs.filter(n => !n.read).length;
+                }
+            }
+
             try {
                 const res = await fetch(`/api/notifications?user_email=${encodeURIComponent(user.email)}&count_only=true`);
                 if (res.ok) {
                     const data = await res.json();
-                    setUnreadNotifs(data.unread_count ?? 0);
+                    setUnreadNotifs(Math.max(data.unread_count ?? 0, localUnread));
+                } else {
+                    // API failed — use local count
+                    setUnreadNotifs(localUnread);
                 }
-            } catch { /* silently fail */ }
+            } catch {
+                // Offline — use local count
+                setUnreadNotifs(localUnread);
+            }
         };
         loadNotifs();
         const poll = setInterval(loadNotifs, 30000);
-        return () => clearInterval(poll);
-    }, [user]);
+        // Also listen for DataSyncService changes
+        const onStorageChange = () => loadNotifs();
+        window.addEventListener("sync-store-update", onStorageChange);
+        window.addEventListener("storage", onStorageChange);
+        return () => { clearInterval(poll); window.removeEventListener("sync-store-update", onStorageChange); window.removeEventListener("storage", onStorageChange); };
+    }, [user, isSeller]);
 
     // Trigger bounce when cart count increases
     useEffect(() => {
@@ -128,7 +218,7 @@ export function Navbar() {
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
     // Search scoring algorithm
-    const scoreProduct = (product: typeof DEMO_PRODUCTS[0], query: string): number => {
+    const scoreProduct = (product: typeof SEED_PRODUCTS[0], query: string): number => {
         const q = query.toLowerCase();
         const name = product.name.toLowerCase();
         const cat = product.category.toLowerCase();
@@ -141,9 +231,10 @@ export function Navbar() {
         // Name starts with query
         else if (name.startsWith(q)) score += 80;
         // Every query word found in name
-        else if (words.every(w => name.includes(w))) score += 60;
-        // Some words match
-        else {
+        if (words.every(w => name.includes(w))) {
+            score += 60;
+        } else {
+            // Some words match
             const matchCount = words.filter(w => name.includes(w) || cat.includes(w) || seller.includes(w)).length;
             score += (matchCount / words.length) * 40;
         }
@@ -163,15 +254,15 @@ export function Navbar() {
 
     // Predictive Search Logic — ranked
     const [activeIndex, setActiveIndex] = useState(-1);
-    const [categorySuggestions, setCategorySuggestions] = useState<string[]>([]);
+    const [textSuggestions, setTextSuggestions] = useState<string[]>([]);
 
     // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
         if (searchQuery.trim().length > 0) {
             const q = searchQuery.toLowerCase();
             // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
-            const storeProducts = DemoStore.getApprovedProducts();
-            const allSearchProducts = [...storeProducts, ...DEMO_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
+            const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
+            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
@@ -183,70 +274,85 @@ export function Navbar() {
                 })
                 .filter(s => s.score > 40) // slightly lowered threshold to capture more inventory overlaps
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 3); // increased max slice from 2 to 3 to show more matches
+                .slice(0, 2); // Show only top 2 closely related local results
             setSuggestions(scored.map(s => s.product));
 
-            // Category suggestions
-            const matchedCats = CATEGORIES.filter(c =>
-                c.label.toLowerCase().includes(q) || c.value.includes(q)
-            ).slice(0, 3).map(c => c.label);
-            setCategorySuggestions(matchedCats);
-
             // Generate smart, context-aware autocomplete suggestions (no API)
-            const autoSuggs: string[] = [];
+            const pool = new Set<string>();
+            allSearchProducts.forEach(p => {
+                if (p.name.toLowerCase().includes(q)) pool.add(p.name);
+                // Smart combination (First two words)
+                const words = p.name.split(' ');
+                if (words.length > 1 && words[0].toLowerCase().includes(q)) {
+                    pool.add(`${words[0]} ${words[1] || ''}`.trim());
+                }
+            });
+
+            const sortedSuggestions = Array.from(pool)
+                .sort((a, b) => {
+                    const aStartsWith = a.toLowerCase().startsWith(q) ? -1 : 1;
+                    const bStartsWith = b.toLowerCase().startsWith(q) ? -1 : 1;
+                    if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
+                    return a.length - b.length;
+                })
+                .slice(0, 5); // Increased from 3 to 5 for better autocomplete coverage
+            
+            // Add smart semantic permutations for the query
+            const semanticSuggs: string[] = [];
             const trimQ = searchQuery.trim();
             if (trimQ.length >= 2) {
-                // Detect product type for smart suggestions
                 const qLower = trimQ.toLowerCase();
                 const isCarQuery = /\b(car|suv|sedan|truck|van|toyota|lexus|benz|bmw|honda|hyundai|kia|jetour|avatr|tesla|range rover|land cruiser|camry|corolla|rav4|highlander|prado|gwm|changan|geely|byd)\b/i.test(qLower);
                 const isPhoneQuery = /\b(phone|iphone|samsung|galaxy|pixel|xiaomi|redmi|tecno|infinix|oppo|vivo|realme|oneplus|huawei)\b/i.test(qLower);
-                const isElectronicsQuery = /\b(laptop|macbook|ps5|playstation|xbox|airpods|earbuds|headphone|speaker|tv|monitor|tablet|ipad)\b/i.test(qLower);
+                const isComputeQuery = /\b(macbook|laptop|hp|dell|lenovo|asus|acer|pc|computer|desktop)\b/i.test(qLower);
+
+                // Helper to add suggestions only if not already present
+                const addUniqueSuffix = (base: string, suffix: string) => {
+                    const cleanSuffix = suffix.trim();
+                    const bLower = base.toLowerCase();
+                    const sLower = cleanSuffix.toLowerCase();
+                    
+                    // Simple exclusion list for redundant terms in vehicle/electronic queries
+                    const redundantTerms = ['tokunbo', 'used', 'new', 'refurbished', 'foreign'];
+                    const hasRedundant = redundantTerms.some(term => bLower.includes(term) && sLower.includes(term));
+                    
+                    if (!bLower.includes(sLower) && !hasRedundant) {
+                        semanticSuggs.push(`${base} ${cleanSuffix}`);
+                    }
+                };
 
                 if (isCarQuery) {
-                    // Smart car suggestions with years and conditions
-                    const hasYear = /\b(20[1-2]\d)\b/.test(trimQ);
-                    if (!hasYear) {
-                        autoSuggs.push(`${trimQ} 2025 Brand New`);
-                        autoSuggs.push(`${trimQ} 2024 Foreign Used`);
-                    } else {
-                        autoSuggs.push(`${trimQ} Brand New`);
-                        autoSuggs.push(`${trimQ} Foreign Used (Tokunbo)`);
-                    }
-                    autoSuggs.push(`${trimQ} Nigerian Used`);
-                } else if (isPhoneQuery) {
-                    autoSuggs.push(`${trimQ} Brand New`);
-                    autoSuggs.push(`${trimQ} Refurbished`);
-                    autoSuggs.push(`${trimQ} best price Nigeria`);
-                } else if (isElectronicsQuery) {
-                    autoSuggs.push(`${trimQ} Brand New`);
-                    autoSuggs.push(`${trimQ} best deal`);
-                    autoSuggs.push(`Buy ${trimQ} online Nigeria`);
+                    addUniqueSuffix(trimQ, `2024 Model`);
+                    addUniqueSuffix(trimQ, `Tokunbo (Foreign Used)`);
+                    addUniqueSuffix(trimQ, `Nigerian Used`);
+                    semanticSuggs.push(`Cheap ${trimQ}`);
+                } else if (isPhoneQuery || isComputeQuery) {
+                    addUniqueSuffix(trimQ, `Brand New`);
+                    addUniqueSuffix(trimQ, `UK Used`);
+                    addUniqueSuffix(trimQ, `Refurbished`);
+                    semanticSuggs.push(`Cheap ${trimQ}`);
                 } else {
-                    // Generic product suggestions
-                    const nameSuggs = allSearchProducts
-                        .filter(p => p.name.toLowerCase().includes(qLower) && !p.name.toLowerCase().includes('duty') && !p.name.toLowerCase().includes('levy') && !p.name.toLowerCase().includes('cif'))
-                        .map(p => p.name)
-                        .slice(0, 2);
-                    autoSuggs.push(...nameSuggs);
-                    if (autoSuggs.length < 4) autoSuggs.push(`${trimQ} brand new`);
-                    if (autoSuggs.length < 4) autoSuggs.push(`Buy ${trimQ} used`);
+                    addUniqueSuffix(trimQ, `Brand New`);
+                    addUniqueSuffix(trimQ, `Used`);
+                    addUniqueSuffix(trimQ, `Refurbished`);
+                    semanticSuggs.push(`Best ${trimQ} Brands`);
                 }
             }
-            setAutocompleteSuggestions(autoSuggs.slice(0, 4));
 
+            setTextSuggestions([...sortedSuggestions, ...semanticSuggs].slice(0, 5));
             // Instantly show fuzzy-matched cached results from past searches
-            const cached = DemoStore.searchCacheFuzzyMatch(searchQuery);
-            setCachedResults(cached.filter(c => !suggestions.some(s => s.id === c.id)));
+            const scoredIds = new Set(scored.map(s => s.product.id));
+            const cached = DataSyncService.searchCacheFuzzyMatch(searchQuery);
+            setCachedResults(cached.filter(c => !scoredIds.has(c.id)));
 
             setShowSuggestions(true);
             setActiveIndex(-1);
         } else {
             setSuggestions([]);
-            setCategorySuggestions([]);
             setGlobalResults([]);
             setIsGlobalSearching(false);
-            setAutocompleteSuggestions([]);
             setCachedResults([]);
+            setTextSuggestions([]);
             setShowSuggestions(false);
         }
     }, [searchQuery]);
@@ -285,85 +391,137 @@ export function Navbar() {
 
     // Helper: Save results to search cache and navigate. Only promote the clicked product to catalog.
     const navigateWithResults = (clickedProductId: string) => {
-        // Build product objects from global results
-        const globalAsProducts = globalResults.map((r: any) => {
-            const slug = r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-            const productId = `global-${slug}`;
-
-            let imageUrl = r.image_url || '';
-            if (imageUrl.includes('vertexaisearch.cloud.google.com') || imageUrl.includes('grounding-api-redirect')) {
-                imageUrl = '/assets/images/placeholder.png';
-            }
-            if (!imageUrl || imageUrl.toLowerCase().includes('no photo') || imageUrl.toLowerCase().includes('n/a')) {
-                imageUrl = '/assets/images/placeholder.png';
-            }
-
-            return {
-                id: productId,
-                name: r.name,
-                price: r.approxPrice || 0,
-                original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
-                category: r.category || 'electronics',
-                description: r.description || `${r.name} — premium quality. Secure checkout with buyer escrow protection.`,
-                image_url: imageUrl,
-                images: [],
-                seller_id: 'global-partners',
-                seller_name: 'Global Stores',
-                price_flag: 'fair' as const,
-                sold_count: Math.floor(Math.random() * 20) + 10,
-                review_count: Math.floor(Math.random() * 5) + 5,
-                avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
-                is_active: true,
-                created_at: new Date().toISOString(),
-                recommended_price: r.approxPrice,
-                specs: r.specs || {},
-                condition: r.condition || 'good',
-                source_url: r.sourceUrl || '',
-            };
-        });
-
-        // Save ALL results to search cache (for fast future retrieval)
-        if (globalAsProducts.length > 0) {
-            DemoStore.addToSearchCache(searchQuery, globalAsProducts);
-        }
-
-        // Resolve __global_ prefix to actual product ID
-        let resolvedClickedId = clickedProductId;
-        if (clickedProductId.startsWith('__global_')) {
-            const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
-            if (globalAsProducts[idx]) {
-                resolvedClickedId = globalAsProducts[idx].id;
-                // ONLY promote the clicked product from cache to catalog
-                DemoStore.promoteFromCache(resolvedClickedId) ||
-                    DemoStore.addRawProduct(globalAsProducts[idx] as any);
-            }
-        } else if (clickedProductId.startsWith('__cached_')) {
-            const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
-            if (cachedResults[idx]) {
-                resolvedClickedId = cachedResults[idx].id;
-                // Promote the cached result to catalog
-                DemoStore.promoteFromCache(resolvedClickedId);
-            }
-        }
-
-        // Build combined results for session cache
-        const combinedResults = [
-            ...suggestions.map(p => ({ ...p, _source: 'local' })),
-            ...cachedResults.map(p => ({ ...p, _source: 'cached' })),
-            ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
-        ];
-
-        try {
-            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
-            sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
-            sessionStorage.setItem('fp_nav_search_query', searchQuery);
-        } catch (e) { /* quota exceeded */ }
-
+        // 1. Navigate-First: Close UI and route immediately for zero-latency feel
         setShowSuggestions(false);
         router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+
+        // 2. Offload heavy mapping and hydration to background
+        setTimeout(() => {
+            // Build product objects from global results with intelligent verification
+            const globalAsProducts = globalResults.map((r: any) => {
+                const productId = generateCompliantId(r.name);
+
+                // ─── Real Gemini Description & Specs ───
+                const catKey = (r.category || "").toLowerCase();
+                const fallbackDescriptions: Record<string, string> = {
+                    electronics: "Experience next-generation technology with this premium device. Features include advanced processing and industry-leading reliability. Sourced via verified global distributors with FairPrice Escrow protection.",
+                    phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display and professional-grade camera system. Secured via our global sourcing network with full Escrow protection.",
+                    computing: "Boost your productivity with this high-performance machine. Powerful components to handle your most demanding tasks. Imported through our trusted global supply chain.",
+                    cars: "This vehicle represents exceptional engineering and value. Sourced through our verified global network with full import documentation and FairPrice Escrow protection.",
+                    default: "Discover exceptional quality and value with this premium product. Carefully selected from top-tier global suppliers. Fully secured by FairPrice Escrow."
+                };
+                
+                let descFallback = fallbackDescriptions.default;
+                if (catKey.includes("phone")) descFallback = fallbackDescriptions.phones;
+                else if (catKey.includes("laptop") || catKey.includes("comput")) descFallback = fallbackDescriptions.computing;
+                else if (catKey.includes("car") || catKey.includes("vehicle")) descFallback = fallbackDescriptions.cars;
+                
+                const description = (r.description && r.description.length > 30) ? r.description : descFallback;
+                const realSpecs = (r.specs && typeof r.specs === 'object' && Object.keys(r.specs).length > 0) 
+                    ? { ...r.specs, "Condition": r.condition || "Brand New" }
+                    : { "Sourcing": "Global Network", "Warranty": "1 Year International", "Condition": r.condition || "Brand New" };
+
+                let imageUrl = getProxiedImageUrl(r.image_url);
+
+                return {
+                    id: productId,
+                    name: r.name,
+                    price: r.approxPrice || 0,
+                    original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+                    category: (catKey.includes('car') || catKey.includes('vehicle') || catKey.includes('auto')) ? 'cars' : (r.category || 'electronics'),
+                    description,
+                    image_url: imageUrl,
+                    images: [imageUrl],
+                    seller_id: 'global-partners',
+                    seller_name: 'Global Stores',
+                    price_flag: 'fair' as const,
+                    sold_count: Math.floor(Math.random() * 20) + 10,
+                    review_count: Math.floor(Math.random() * 5) + 5,
+                    avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
+                    is_active: true,
+                    created_at: new Date().toISOString(),
+                    recommended_price: r.approxPrice,
+                    specs: realSpecs,
+                    condition: r.condition || 'good',
+                    source_url: r.sourceUrl || '',
+                };
+            })
+            // ─── Vehicle Price Floor Logic (Zero Latency Sanity Check) ───
+            .filter((p: any) => {
+                const VEHICLE_FLOOR = 5_000_000;
+                if (p.price >= VEHICLE_FLOOR) return true;
+                
+                const name = p.name.toLowerCase();
+                const cat = (p.category || "").toLowerCase();
+                
+                // Allow parts/accessories/phones explicitly even if low priced
+                const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+                const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+                
+                if (PART_KW.test(name)) return true;
+                
+                const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
+                const isWholeVeh = WHOLE_VEH.test(name);
+                
+                // Block if looks like a whole vehicle but price is suspiciously low
+                if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false;
+                return true;
+            });
+
+            // Save ALL results to search cache (for fast future retrieval)
+            if (globalAsProducts.length > 0) {
+                DataSyncService.addToSearchCache(searchQuery, globalAsProducts);
+            }
+
+            // Resolve __global_ prefix to actual product ID
+            let resolvedClickedId = clickedProductId;
+            if (clickedProductId.startsWith('__global_')) {
+                const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
+                if (globalAsProducts[idx]) {
+                    resolvedClickedId = globalAsProducts[idx].id;
+                    // ONLY promote the clicked product from cache to catalog (respecting admin toggle)
+                    DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching) ||
+                        DataSyncService.addRawProduct(globalAsProducts[idx] as any, globalSearchCaching);
+                }
+            } else if (clickedProductId.startsWith('__cached_')) {
+                const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
+                if (cachedResults[idx]) {
+                    resolvedClickedId = cachedResults[idx].id;
+                    // Promote the cached result to catalog (respecting admin toggle)
+                    DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching);
+                }
+            }
+
+            // Build combined results for session cache — global results FIRST so they appear
+            // at the top of the SRP, then local/cached below them
+            const combinedResults = [
+                ...globalAsProducts.map(p => ({ ...p, _source: 'global' })),
+                ...suggestions.map(p => ({ ...p, _source: 'local' })),
+                ...cachedResults.map(p => ({ ...p, _source: 'cached' }))
+            ];
+
+            try {
+                sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
+                sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
+                sessionStorage.setItem('fp_nav_search_query', searchQuery);
+            } catch (e) { /* quota exceeded */ }
+
+            // Persist to recent searches
+            saveRecentSearch(searchQuery);
+
+            // ─── ELITE REVIEW GENERATION ───
+            // Trigger review generation in background for the promoted global product
+            if (resolvedClickedId.startsWith('global-')) {
+                fetch('/api/gemini-reviews', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ productId: resolvedClickedId })
+                }).catch(() => {}); // Fire and forget
+            }
+        }, 50); // Small 50ms delay gives the browser time to paint the new URL and skeletons first
     };
 
-    // Close suggestions when clicking outside
+    // Close suggestions when clicking outside (Apple-level smoothness)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -372,13 +530,54 @@ export function Navbar() {
             if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
                 setIsCategoryOpen(false);
             }
+            // Explicitly close account menu on click-outside
+            if (!containerRef.current?.contains(event.target as Node)) {
+               setIsAccountMenuOpen(false);
+            }
         };
+        const containerRef = { current: document.querySelector('.account-menu-trigger') }; // We'll add this class below
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    // Background Image Hydration for Global Results
+    useEffect(() => {
+        if (globalResults.length > 0) {
+            const isValidImg = (url: string | undefined | null) =>
+                url && url.trim().length > 4 &&
+                !url.toLowerCase().includes('no photo') &&
+                !url.toLowerCase().includes('no image') &&
+                !url.toLowerCase().includes('not found') &&
+                !url.toLowerCase().includes('sample') &&
+                !url.toLowerCase().includes('logo') &&
+                !url.toLowerCase().includes('avatar') &&
+                !url.toLowerCase().includes('n/a') &&
+                !url.toLowerCase().includes('undefined') &&
+                !url.includes('vertexaisearch.cloud.google.com') &&
+                !url.includes('grounding-api-redirect');
+
+            globalResults.forEach((product: any, index: number) => {
+                const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
+                if (hasNoRealImage && !product._imageHydrated) {
+                    fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
+                        .then(res => res.json())
+                        .then(data => {
+                            if (data.imageUrl) {
+                                setGlobalResults(prev => prev.map((p, i) => i === index ? { ...p, image_url: data.imageUrl, _imageHydrated: true } : p));
+                            } else {
+                                setGlobalResults(prev => prev.map((p, i) => i === index ? { ...p, _imageHydrated: true } : p));
+                            }
+                        })
+                        .catch(() => {});
+                }
+            });
+        }
+    }, [globalResults]);
+
     const handleSearch = () => {
         if (searchQuery.trim()) {
+            // Persist to recent searches on every search
+            saveRecentSearch(searchQuery.trim());
             // Cache current results before navigating
             if (suggestions.length > 0 || globalResults.length > 0) {
                 navigateWithResults('');
@@ -391,21 +590,22 @@ export function Navbar() {
         }
     };
 
-    const totalSuggestionItems = categorySuggestions.length + suggestions.length;
+    const totalSuggestionItems = textSuggestions.length + suggestions.length;
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === "Enter") {
-            if (activeIndex >= 0 && activeIndex < categorySuggestions.length) {
-                // Navigate to category
+            if (activeIndex >= 0 && activeIndex < textSuggestions.length) {
+                // Perform search for text suggestion
                 setShowSuggestions(false);
-                const catMatch = CATEGORIES.find(c => c.label === categorySuggestions[activeIndex]);
+                setSearchQuery(textSuggestions[activeIndex]);
+                const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
                 const catValue = catMatch ? catMatch.value : "All";
-                router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
-            } else if (activeIndex >= categorySuggestions.length && activeIndex < totalSuggestionItems) {
+                router.push(`/search?q=${encodeURIComponent(textSuggestions[activeIndex])}&category=${catValue}`);
+            } else if (activeIndex >= textSuggestions.length && activeIndex < totalSuggestionItems) {
                 // Navigate to product
-                const product = suggestions[activeIndex - categorySuggestions.length];
+                const product = suggestions[activeIndex - textSuggestions.length];
                 setShowSuggestions(false);
-                router.push(`/product/${product.id}`);
+                router.push(getProductUrl(product.id, product.name));
             } else {
                 handleSearch();
             }
@@ -424,15 +624,15 @@ export function Navbar() {
         <>
             <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 9999, transform: 'translateZ(0)' }}>
                 {/* Top Bar — Liquid Glass */}
-                <div className="flex w-full items-center justify-between gap-1 md:gap-4 liquid-glass px-1 md:px-4 py-2.5 md:py-3 text-white relative z-10">
-                    <div className="flex items-center gap-1 md:gap-4 shrink-0">
+                <div className="flex w-full items-center justify-between gap-1 md:gap-3 lg:gap-4 liquid-glass px-1 md:px-2 lg:px-4 py-2.5 md:py-3 text-white relative z-10">
+                    <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0">
                         {/* Logo */}
                         <Logo variant="light" hideTextMobile />
 
                         {/* Deliver To - Now Clickable */}
                         <button
                             onClick={() => setIsLocationModalOpen(true)}
-                            className="hidden md:flex flex-col text-left text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all"
+                            className="hidden lg:flex flex-col text-left text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all"
                         >
                             <span className="text-white ml-3">Deliver to</span>
                             <div className="flex items-center font-bold text-white">
@@ -443,7 +643,7 @@ export function Navbar() {
                     </div>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center w-full md:max-w-2xl mx-0.5 md:mx-4 relative" ref={searchRef}>
+                    <div className="flex flex-1 items-center w-full md:max-w-4xl lg:max-w-[72%] xl:max-w-6xl mx-1 md:mx-2 lg:mx-4 relative" ref={searchRef}>
                         <div className="flex h-[44px] md:h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>
@@ -559,21 +759,41 @@ export function Navbar() {
                                     {/* Empty State: Recent & Trending (Temu-style) */}
                                     {searchQuery.trim().length === 0 && (
                                         <div className="p-5">
-                                            <div className="mb-5">
-                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><Search className="h-3.5 w-3.5" /> Recent Searches</h3>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['iPhone 15 Pro Max', 'Solar Panels 500W', 'Samsung S24 Ultra', 'PS5 Console'].map(term => (
-                                                        <button key={term} onClick={() => { setSearchQuery(term); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
-                                                            {term}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
+                                            {(() => {
+                                                const recentSearches = getRecentSearches();
+                                                return recentSearches.length > 0 ? (
+                                                    <div className="mb-5">
+                                                        <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> Recent Searches</h3>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {recentSearches.map(term => (
+                                                                <button key={term} onMouseDown={(e) => { 
+                                                                    e.preventDefault(); 
+                                                                    setSearchQuery(term); 
+                                                                    setShowSuggestions(false); 
+                                                                    const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                                                                    const catValue = catMatch ? catMatch.value : "All";
+                                                                    router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
+                                                                }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                                    <History className="h-3 w-3 text-gray-400" />
+                                                                    {term}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ) : null;
+                                            })()}
                                             <div>
                                                 <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Right Now</h3>
                                                 <div className="flex flex-wrap gap-2">
                                                     {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
-                                                        <button key={term} onClick={() => { setSearchQuery(term); document.querySelector('input')?.focus(); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
+                                                        <button key={term} onMouseDown={(e) => { 
+                                                            e.preventDefault(); 
+                                                            setSearchQuery(term); 
+                                                            setShowSuggestions(false);
+                                                            const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                                                            const catValue = catMatch ? catMatch.value : "All";
+                                                            router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
+                                                        }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
                                                             <Zap className="h-3 w-3" />
                                                             {term}
                                                         </button>
@@ -598,68 +818,40 @@ export function Navbar() {
                                         </div>
                                     )}
 
-                                    {/* Category Suggestions */}
-                                    {searchQuery.trim().length > 0 && categorySuggestions.length > 0 && (
-                                        <div className="border-b border-gray-100/50">
-                                            {categorySuggestions.map((catLabel, i) => {
-                                                const catValue = CATEGORIES.find(c => c.label === catLabel)?.value || "All";
-                                                return (
-                                                    <Link
-                                                        href={`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`}
-                                                        key={catLabel}
-                                                        onClick={() => setShowSuggestions(false)}
-                                                        className={cn(
-                                                            "flex items-center gap-3 px-4 py-3 transition-colors text-sm",
-                                                            activeIndex === i ? "bg-blue-50/50" : "hover:bg-gray-50/50"
-                                                        )}
-                                                    >
-                                                        <Search className="h-4 w-4 text-gray-400 shrink-0" />
-                                                        <span className="text-gray-900">{searchQuery}</span>
-                                                        <span className="text-xs text-gray-400">in</span>
-                                                        <span className="text-xs font-bold text-blue-600">{catLabel}</span>
-                                                    </Link>
-                                                );
-                                            })}
+                                    {/* Text Suggestions (Autocomplete) */}
+                                    {searchQuery.trim().length >= 2 && textSuggestions.length > 0 && (
+                                        <div className="border-b border-gray-100/50 py-2">
+                                            {textSuggestions.map((suggestion, idx) => (
+                                                <button
+                                                    key={`sug-${idx}`}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setSearchQuery(suggestion);
+                                                        document.querySelector('input')?.focus();
+                                                    }}
+                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] md:text-sm text-gray-700 transition-all flex items-center justify-between group"
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                                        <span dangerouslySetInnerHTML={{
+                                                            __html: suggestion.replace(new RegExp(searchQuery.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
+                                                        }} />
+                                                    </div>
+                                                    <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </button>
+                                            ))}
                                         </div>
                                     )}
 
-                                    {/* Text Autocomplete Suggestions (instant, no API) */}
-                                    {searchQuery.trim().length > 0 && autocompleteSuggestions.length > 0 && suggestions.length === 0 && (
-                                        <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full pt-2">
-                                            {CATEGORIES.slice(0, 10).map((cat) => {
-                                                const popularCategories = ["Phones", "Computers", "Electronics", "Fashion", "Beauty", "Home", "Gym", "Office", "Furniture", "Grocery"];
-                                                const isPopular = popularCategories.includes(cat.label) || popularCategories.includes(cat.value.charAt(0).toUpperCase() + cat.value.slice(1));
-
-                                                return (
-                                                    <Link
-                                                        href={`/search?category=${cat.value}`}
-                                                        key={cat.label}
-                                                        className="group flex flex-col items-center gap-2 cursor-pointer transition-transform hover:-translate-y-1"
-                                                        onClick={() => setIsCategoryOpen(false)}
-                                                    >
-                                                        <div className={cn(
-                                                            "w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm transition-all relative",
-                                                            isPopular ? "bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_0_15px_rgba(16,185,129,0.5)] group-hover:shadow-[0_0_20px_rgba(16,185,129,0.7)]" : "bg-white/10 group-hover:bg-white/20 border border-white/5"
-                                                        )}>
-                                                            {CATEGORY_ICON_MAP[cat.label.toLowerCase()] || CATEGORY_ICON_MAP[cat.value.toLowerCase()] || <Package className="h-6 w-6" />}
-                                                        </div>
-                                                        <span className="text-[10px] sm:text-xs font-medium text-black text-center leading-tight">
-                                                            {cat.label}
-                                                        </span>
-                                                    </Link>
-                                                );
-                                            })}
-                                        </div>)}
-
                                     {/* Product Suggestions */}
                                     {suggestions.map((product, i) => {
-                                        const idx = categorySuggestions.length + i;
+                                        const idx = textSuggestions.length + i;
                                         return (
                                             <button
                                                 key={product.id}
-                                                onClick={() => navigateWithResults(product.id)}
+                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id); }}
                                                 className={cn(
-                                                    "w-full flex items-center gap-4 p-3 transition-colors border-b border-gray-50 last:border-0 text-left",
+                                                    "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
                                                 )}
                                             >
@@ -691,36 +883,42 @@ export function Navbar() {
                                     })}
 
                                     {/* Cached Results from Past Searches (instant) */}
-                                    {cachedResults.length > 0 && !isGlobalSearching && (
+                                    {cachedResults.length > 0 && (
                                         <div className="border-t border-gray-100">
                                             <div className="px-4 py-2 flex items-center gap-2 text-xs font-black text-blue-700 uppercase tracking-wider">
                                                 <History className="h-3.5 w-3.5 text-blue-500" />
                                                 PREVIOUSLY FOUND
                                             </div>
-                                            {cachedResults.slice(0, 4).map((result: any, i: number) => (
-                                                <button
-                                                    key={result.id || i}
-                                                    onClick={() => navigateWithResults(`__cached_${i}`)}
-                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-blue-50/30 text-left"
-                                                >
-                                                    <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                        <img
-                                                            src={result.image_url || '/assets/images/placeholder.png'}
-                                                            alt={result.name}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-col flex-1 min-w-0">
-                                                        <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-xs font-bold text-blue-600">₦{result.price?.toLocaleString()}</span>
-                                                            <span className="text-[11px] text-blue-500/80">More Results</span>
+                                            {cachedResults.slice(0, 4).map((result: any, i: number) => {
+                                                const cachedIdx = textSuggestions.length + suggestions.length + i;
+                                                return (
+                                                    <button
+                                                        key={`cached-${result.id || i}`}
+                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`); }}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
+                                                            activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-50/50"
+                                                        )}
+                                                    >
+                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
+                                                            <img
+                                                                src={result.image_url || result.images?.[0] || '/assets/images/placeholder.png'}
+                                                                alt={result.name}
+                                                                className="w-full h-full object-contain"
+                                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                            />
                                                         </div>
-                                                    </div>
-                                                    <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded uppercase shrink-0 border border-blue-100">FAIR</span>
-                                                </button>
-                                            ))}
+                                                        <div className="flex flex-col flex-1 min-w-0">
+                                                            <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-xs font-bold text-blue-600">₦{result.price?.toLocaleString()}</span>
+                                                                <span className="text-[11px] text-blue-500/80">More Results</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-blue-700 bg-blue-50 px-2 py-1 rounded uppercase shrink-0 border border-blue-100">FAIR</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}                                    {/* Global Search Results (from Gemini API) */}
                                     {isGlobalSearching && (
@@ -748,37 +946,44 @@ export function Navbar() {
                                                 <Sparkles className="h-3.5 w-3.5 text-emerald-600" />
                                                 MORE FAIRPRICE RESULTS
                                             </div>
-                                            {globalResults.slice(0, 4).map((result, i) => (
-                                                <button
-                                                    key={i}
-                                                    onClick={() => {
-                                                        // The navigateWithResults will create the global product and cache it
-                                                        navigateWithResults(`__global_${i}`);
-                                                    }}
-                                                    className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors border-b border-gray-50 last:border-0 hover:bg-gray-50 text-left"
-                                                >
-                                                    <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
-                                                        <img
-                                                            src={'/assets/images/placeholder.png'}
-                                                            alt={result.name}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-col flex-1 min-w-0">
-                                                        <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-xs font-bold text-emerald-600">₦{result.approxPrice?.toLocaleString()}</span>
-                                                            <span className="text-[11px] text-emerald-600/80">Global Partner Store</span>
+                                            {globalResults.slice(0, 4).map((result, i) => {
+                                                const globalIdx = textSuggestions.length + suggestions.length + i;
+                                                return (
+                                                    <button
+                                                        key={`global-${result.id || i}`}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            // The navigateWithResults will create the global product and cache it
+                                                            navigateWithResults(`__global_${i}`);
+                                                        }}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-gray-100",
+                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-gray-50"
+                                                        )}
+                                                    >
+                                                        <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
+                                                            <img
+                                                                src={(!result.image_url || result.image_url.toLowerCase().includes('no photo') || result.image_url.toLowerCase().includes('n/a')) ? '/assets/images/placeholder.png' : result.image_url}
+                                                                alt={result.name}
+                                                                className="w-full h-full object-contain"
+                                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                                            />
                                                         </div>
-                                                    </div>
-                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded uppercase shrink-0 border border-emerald-100">FAIR</span>
-                                                </button>
-                                            ))}
+                                                        <div className="flex flex-col flex-1 min-w-0">
+                                                            <span className="text-sm font-medium text-gray-900 line-clamp-1">{result.name}</span>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-xs font-bold text-emerald-600">₦{result.approxPrice?.toLocaleString()}</span>
+                                                                <span className="text-[11px] text-emerald-600/80">Global Partner Store</span>
+                                                            </div>
+                                                        </div>
+                                                        <span className="text-[9px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded uppercase shrink-0 border border-emerald-100">FAIR</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
 
-                                    {/* Calculate Fair Price CTA */}
+                                    {/* AI Price Checker CTA */}
                                     {searchQuery.trim().length > 1 && (
                                         <button
                                             onClick={() => {
@@ -786,15 +991,14 @@ export function Navbar() {
                                                 setIsPriceIntelOpen(true);
                                                 setShowSuggestions(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100"
+                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100 animate-pulse-grow"
                                         >
                                             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                                                 <Globe className="h-5 w-5" />
                                             </div>
                                             <div className="flex flex-col flex-1 min-w-0 text-left">
                                                 <span className="text-sm font-bold text-emerald-800 flex items-center gap-1.5">
-                                                    <Sparkles className="h-3.5 w-3.5" />
-                                                    Calculate Fair Price
+                                                    AI Price Checker
                                                 </span>
                                                 <span className="text-[11px] text-emerald-600/80 line-clamp-1">
                                                     Deep Search for "{searchQuery}" and get the best deals
@@ -808,11 +1012,6 @@ export function Navbar() {
                         </AnimatePresence>
                     </div>
 
-                    {/* Wishlist Mobile */}
-                    <Link href="/account/favorites" className="md:hidden flex flex-col text-xs leading-tight hover:bg-white/10 p-1 md:p-2 rounded cursor-pointer justify-center items-center relative shrink-0">
-                        <Heart className="h-5 w-5 md:h-6 md:w-6 text-white" />
-                        <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
-                    </Link>
 
                     {/* Account & Lists Dropdown */}
                     <div
@@ -827,9 +1026,12 @@ export function Navbar() {
                         onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
                     >
                         {/* Desktop View */}
-                        <div className="flex flex-col">
-                            <span className="text-white">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
-                            <span className="font-bold text-white flex items-center">Account & Lists <ChevronDown className="ml-1 h-3 w-3" /></span>
+                        <div 
+                            className="flex flex-col relative py-2"
+                            onMouseEnter={() => setIsAccountMenuOpen(true)}
+                        >
+                            <span className="text-white text-[11px] opacity-80 leading-none">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
+                            <span className="font-bold text-white flex items-center gap-1">My Account & Lists <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", isAccountMenuOpen && "rotate-180")} /></span>
                         </div>
 
                         {/* Dropdown Menu */}
@@ -839,8 +1041,12 @@ export function Navbar() {
                                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
                                     animate={{ opacity: 1, y: 0, scale: 1 }}
                                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="absolute top-full right-0 w-64 bg-white border border-gray-200 shadow-xl rounded-lg overflow-hidden z-[100] origin-top-right text-sm"
+                                    transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
+                                    className="absolute top-full right-0 w-64 bg-white/95 backdrop-blur-xl border border-gray-200 shadow-2xl rounded-2xl overflow-hidden z-[100] origin-top-right text-sm"
+                                    onMouseLeave={() => {
+                                        // Wait a bit before closing to avoid accidental closes
+                                        // But per user request, we primarily rely on click-outside
+                                    }}
                                 >
                                     {!user ? (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 text-center">
@@ -891,9 +1097,9 @@ export function Navbar() {
 
                                     {/* Favorites & Negotiations — promoted */}
                                     <div className="py-1">
-                                        <Link href="/account/favorites" className="flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-gray-700 font-medium transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
+                                        <Link href="/account/favorites" className="flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
                                             <Heart className="h-4 w-4 text-red-500 fill-red-500" />
-                                            <span>Favorites</span>
+                                            <span>My Favorites</span>
                                         </Link>
                                         <Link href="/account/negotiations" className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
                                             <Handshake className="h-4 w-4 text-emerald-600" />
@@ -906,9 +1112,19 @@ export function Navbar() {
 
                                     <div className="py-1">
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
-                                        <Link href="/account" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Account</Link>
-                                        <Link href="/account/orders" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Orders</Link>
-                                        {mounted && (user?.role === 'seller' ? (
+                                        <Link href="/account" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Account</Link>
+                                        <Link href="/account/payments" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium flex items-center justify-between" onClick={() => setIsAccountMenuOpen(false)}>
+                                            My Wallet
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
+                                        </Link>
+                                        <Link href="/account/addresses" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Delivery Address</Link>
+                                        <Link href="/account/orders" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Orders</Link>
+                                        {mounted && (user?.role === 'admin' ? (
+                                            <>
+                                                <Link href="/admin/dashboard" className="block px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Admin Dashboard</Link>
+                                                <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
+                                            </>
+                                        ) : isSeller ? (
                                             <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
                                         ) : (
                                             <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
@@ -922,24 +1138,35 @@ export function Navbar() {
                     </div>
 
                     {/* Returns & Orders */}
-                    <Link href="/account/orders" className="hidden md:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">
-                        <span className="font-bold text-white">Orders</span>
-                        <span className="font-bold text-white">& Returns</span>
+                    <Link href="/account/orders" className="hidden lg:flex flex-col text-xs leading-tight hover:bg-white/10 p-2 rounded cursor-pointer transition-all">
+                        <span className="font-medium text-white/80">Returns</span>
+                        <span className="font-bold text-white">& My Orders</span>
                     </Link>
 
                     {/* Messages */}
-                    <button onClick={() => openMessageBox()} className="hidden md:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
+                    <button onClick={() => user ? openMessageBox() : router.push("/login?from=/account")} className="hidden lg:flex flex-col items-center justify-center hover:bg-white/10 p-2 rounded relative transition-all cursor-pointer">
                         <div className="relative">
                             <MessageCircle className="h-6 w-6 text-white" />
-                            {mounted && (totalUnread > 0 || unreadNotifs > 0) && (
-                                <span className="absolute top-0 right-0 h-2.5 w-2.5 bg-red-500 rounded-full border border-brand-green-600 animate-pulse"></span>
+                            {mounted && totalUnread > 0 && (
+                                <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] flex items-center justify-center bg-red-500 rounded-full border-2 border-brand-green-600 text-[10px] font-black text-white px-1 leading-none">
+                                    {totalUnread > 99 ? '99+' : totalUnread}
+                                </span>
                             )}
                         </div>
                     </button>
 
-                    {/* Notifications - Visible only on Desktop as requested */}
-                    <div className="hidden md:block">
-                        <NotificationBell />
+                    {/* Icon Group: Wishlist & Notifications */}
+                    <div className="flex items-center gap-1 md:gap-2">
+                        {/* Wishlist */}
+                        <Link href="/account/favorites" className="flex flex-col text-xs leading-tight hover:bg-white/10 p-1 md:p-2 rounded cursor-pointer justify-center items-center relative shrink-0">
+                            <Heart className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                            <span className="absolute top-1 md:top-2 right-1.5 md:right-2 h-2 w-2 rounded-full bg-red-500 border border-white shadow-[0_0_6px_2px_rgba(239,68,68,0.5)] animate-pulse" />
+                        </Link>
+
+                        {/* Notifications Bell — Visible on all screen sizes */}
+                        <div>
+                            <NotificationBell />
+                        </div>
                     </div>
 
                     {/* Cart */}
@@ -955,14 +1182,14 @@ export function Navbar() {
                                 </Badge>
                             )}
                         </div>
-                        <span className="text-sm font-bold text-white hidden sm:inline mb-1">Cart</span>
+                        <span className="text-sm font-bold text-white hidden lg:inline mb-1">Cart</span>
                     </Link>
-                </div>
+                </div >
 
                 {/* Bottom Bar - SubNavbar */}
-                <div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10">
+                < div className="flex w-full items-center justify-between bg-white/15 backdrop-blur-md px-2 md:px-4 py-1 md:py-1.5 text-xs md:text-sm text-white overflow-hidden border-t border-white/10" >
                     {/* Left: Navigation Links */}
-                    <div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]">
+                    < div className="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar max-w-[100%] sm:max-w-[100%]" >
                         <Link href="/search?sort=newest" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <Sparkles className="w-3 h-3 md:w-3.5 md:h-3.5" /> Best-Selling
                         </Link>
@@ -975,109 +1202,112 @@ export function Navbar() {
                         <span className="whitespace-nowrap text-[11px] md:text-[13px]">
                             ₦1,000 refund on late delivery
                         </span>
-                    </div>
+                    </div >
                     {/* Right: Trust Badges */}
-                    <div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end">
+                    < div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end" >
                         <span className="flex items-center gap-1 shrink-0"><Lock className="w-3 h-3" /> Secure privacy</span>
                         <span className="flex items-center gap-1 shrink-0"><Shield className="w-3 h-3" /> Purchase protection</span>
                         <Link href="#" className="flex items-center gap-1 font-bold text-white hover:text-brand-orange transition-colors shrink-0">
                             FairPrice keeps you safe <ArrowRight className="w-3 h-3" />
                         </Link>
-                    </div>
-                </div>
-            </header>
+                    </div >
+                </div >
+            </header >
 
             {/* Location Filter Modal */}
-            <LocationModal
+            < LocationModal
                 isOpen={isLocationModalOpen}
-                onClose={() => setIsLocationModalOpen(false)}
+                onClose={() => setIsLocationModalOpen(false)
+                }
                 currentLocation={location}
                 onSelectLocation={setLocation}
             />
 
             {/* Sidebar Overlay */}
             <AnimatePresence>
-                {isSidebarOpen && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.5 }}
-                            exit={{ opacity: 0 }}
-                            onClick={toggleSidebar}
-                            className="fixed inset-0 z-40 bg-black"
-                        />
-                        <motion.div
-                            initial={{ x: "-100%" }}
-                            animate={{ x: 0 }}
-                            exit={{ x: "-100%" }}
-                            transition={{ type: "tween", duration: 0.3 }}
-                            className="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-xl overflow-y-auto"
-                        >
-                            <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
-                                {mounted && user ? (
-                                    <div className="flex items-center gap-2">
-                                        <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
-                                    </div>
-                                ) : (
-                                    <Link href="/login" className="flex items-center gap-2 hover:underline">
-                                        <User className="h-6 w-6" /> Hello, Sign in
-                                    </Link>
-                                )}
-                                <button onClick={toggleSidebar} className="text-white/80 hover:text-white">
-                                    <X className="h-6 w-6" />
-                                </button>
-                            </div>
+                {
+                    isSidebarOpen && (
+                        <>
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.5 }}
+                                exit={{ opacity: 0 }}
+                                onClick={toggleSidebar}
+                                className="fixed inset-0 z-40 bg-black"
+                            />
+                            <motion.div
+                                initial={{ x: "-100%" }}
+                                animate={{ x: 0 }}
+                                exit={{ x: "-100%" }}
+                                transition={{ type: "tween", duration: 0.3 }}
+                                className="fixed inset-y-0 left-0 z-50 w-80 bg-white shadow-xl overflow-y-auto"
+                            >
+                                <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
+                                    {mounted && user ? (
+                                        <div className="flex items-center gap-2">
+                                            <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
+                                        </div>
+                                    ) : (
+                                        <Link href="/login" className="flex items-center gap-2 hover:underline">
+                                            <User className="h-6 w-6" /> Hello, Sign in
+                                        </Link>
+                                    )}
+                                    <button onClick={toggleSidebar} className="text-white/80 hover:text-white">
+                                        <X className="h-6 w-6" />
+                                    </button>
+                                </div>
 
-                            <div className="py-2">
-                                <div className="px-6 py-3 font-bold text-lg text-gray-800">Shop By Category</div>
-                                <ul className="space-y-1">
-                                    {/* Mock Categories for Sidebar */}
-                                    {["Electronics", "Computers", "Smart Home", "Arts & Crafts", "Automotive", "Baby", "Beauty and Personal Care", "Women's Fashion", "Men's Fashion", "Girls' Fashion", "Boys' Fashion", "Health and Household", "Home and Kitchen", "Industrial and Scientific", "Luggage", "Movies & Television", "Pet Supplies", "Software", "Sports and Outdoors", "Tools & Home Improvement", "Toys and Games", "Video Games"].map((cat) => (
-                                        <li key={cat}>
-                                            <Link
-                                                href={`/category/${cat.toLowerCase().replace(/ /g, "-").replace(/&/g, "and")}`}
-                                                className="flex items-center justify-between px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                                onClick={() => setIsSidebarOpen(false)}
-                                            >
-                                                <span>{cat}</span>
-                                                <ChevronDown className="h-4 w-4 -rotate-90 text-gray-400" />
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
+                                <div className="py-2">
+                                    <div className="px-6 py-3 font-bold text-lg text-gray-800">Shop By Category</div>
+                                    <ul className="space-y-1">
+                                        {/* Mock Categories for Sidebar */}
+                                        {["Electronics", "Computers", "Smart Home", "Arts & Crafts", "Automotive", "Baby", "Beauty and Personal Care", "Women's Fashion", "Men's Fashion", "Girls' Fashion", "Boys' Fashion", "Health and Household", "Home and Kitchen", "Industrial and Scientific", "Luggage", "Movies & Television", "Pet Supplies", "Software", "Sports and Outdoors", "Tools & Home Improvement", "Toys and Games", "Video Games"].map((cat) => (
+                                            <li key={cat}>
+                                                <Link
+                                                    href={`/category/${cat.toLowerCase().replace(/ /g, "-").replace(/&/g, "and")}`}
+                                                    className="flex items-center justify-between px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                                    onClick={() => setIsSidebarOpen(false)}
+                                                >
+                                                    <span>{cat}</span>
+                                                    <ChevronDown className="h-4 w-4 -rotate-90 text-gray-400" />
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
 
-                                <hr className="my-2 border-gray-200" />
+                                    <hr className="my-2 border-gray-200" />
 
-                                <div className="px-6 py-3 font-bold text-lg text-gray-800">Help & Settings</div>
-                                <ul>
-                                    {["Your Account", "Customer Service", user ? "Sign Out" : "Sign In"].map((item) => (
-                                        <li key={item}>
-                                            <button
-                                                onClick={() => {
-                                                    if (item === "Sign Out") {
-                                                        logout();
-                                                    } else if (item === "Sign In") {
-                                                        router.push("/login");
-                                                    } else {
-                                                        router.push(`/${item.toLowerCase().replace(" ", "-")}`);
-                                                    }
-                                                    setIsSidebarOpen(false);
-                                                }}
-                                                className="w-full text-left px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                                            >
-                                                {item}
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+                                    <div className="px-6 py-3 font-bold text-lg text-gray-800">Help & Settings</div>
+                                    <ul>
+                                        {["Your Account", "Customer Service", user ? "Sign Out" : "Sign In"].map((item) => (
+                                            <li key={item}>
+                                                <button
+                                                    onClick={() => {
+                                                        if (item === "Sign Out") {
+                                                            logout();
+                                                        } else if (item === "Sign In") {
+                                                            router.push("/login");
+                                                        } else {
+                                                            router.push(`/${item.toLowerCase().replace(" ", "-")}`);
+                                                        }
+                                                        setIsSidebarOpen(false);
+                                                    }}
+                                                    className="w-full text-left px-6 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                                >
+                                                    {item}
+                                                </button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </motion.div>
+                        </>
+                    )
+                }
+            </AnimatePresence >
 
             {/* PriceIntel Modal — triggered from search */}
-            <PriceIntelModal
+            < PriceIntelModal
                 isOpen={isPriceIntelOpen}
                 onClose={() => setIsPriceIntelOpen(false)}
                 initialQuery={priceIntelQuery}

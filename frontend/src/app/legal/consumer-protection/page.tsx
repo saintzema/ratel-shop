@@ -63,16 +63,16 @@ export default function ConsumerProtectionPage() {
                     <section>
                         <h2 className="text-xl font-bold text-gray-900 mb-3">4. Return & Refund Rights</h2>
                         <p>
-                            You have the right to return purchased items within <strong>7 days</strong> of delivery if:
+                            You have the right to return purchased items within <strong>14 days</strong> of delivery (extended to 16 days during the Dec 22 – Jan 3 holiday window) if:
                         </p>
                         <ul className="list-disc pl-6 space-y-2 mt-3">
-                            <li>The item is defective or damaged upon arrival</li>
+                            <li>The item is defective or damaged upon arrival (Full refund/exchange at no cost)</li>
+                            <li><strong>Change of Mind:</strong> The item no longer meets your needs, provided it is in <strong>New Only</strong> condition (Unopened, tags attached, no wear).</li>
                             <li>The item is significantly different from the product listing description</li>
                             <li>The wrong item was delivered</li>
-                            <li>The item is counterfeit</li>
                         </ul>
                         <p className="mt-3">
-                            Refunds are processed within 5–10 business days and returned to your original payment method.
+                            Refunds are processed within <strong>7 business days</strong> and returned to your original payment method. Restocking fee is $0.
                         </p>
                     </section>
 
@@ -118,7 +118,7 @@ export default function ConsumerProtectionPage() {
                     <section>
                         <h2 className="text-xl font-bold text-gray-900 mb-3">8. Report an Issue</h2>
                         <p>
-                            To report a consumer protection issue, contact us at <a href="mailto:protection@fairprice.ng" className="text-emerald-600 font-medium hover:underline">protection@fairprice.ng</a> or use the complaint form in your account settings. You may also contact the Federal Competition and Consumer Protection Commission (FCCPC) directly.
+                            To report a consumer protection issue, contact us at <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-medium hover:underline">hello@fairprice.ng</a> or use the complaint form in your account settings. You may also contact the Federal Competition and Consumer Protection Commission (FCCPC) directly.
                         </p>
                     </section>
                 </div>

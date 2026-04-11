@@ -6,10 +6,10 @@ export async function GET(req: Request) {
     try {
         const caches = await db.searchCache.findMany({
             orderBy: { updatedAt: "desc" },
-            take: 50 // Limit to last 50 queries to prevent payload bloat
+            take: 500 // Limit to last 500 queries as requested
         });
 
-        // Format as Record<string, Product[]> so DemoStore can ingest it directly
+        // Format as Record<string, Product[]> so DataSyncService can ingest it directly
         const formattedCache: Record<string, any[]> = {};
         caches.forEach(cache => {
             formattedCache[cache.query] = cache.products as any[];
@@ -18,7 +18,10 @@ export async function GET(req: Request) {
         return NextResponse.json(formattedCache);
     } catch (error) {
         console.error("Database fetch error for Search Cache:", error);
-        return NextResponse.json({ error: "Failed to fetch search cache" }, { status: 500 });
+        return NextResponse.json({}, {
+            status: 200,
+            headers: { "X-DB-Status": "offline" }
+        });
     }
 }
 
@@ -32,6 +35,14 @@ export async function POST(req: Request) {
         }
 
         const normalizedQuery = body.query.toLowerCase().trim();
+
+        // Check global system setting. Fallback to true if missing.
+        let settings = await db.systemSetting.findUnique({ where: { id: "global" } });
+        const cacheEnabled = settings ? settings.globalSearchCaching : true;
+
+        if (!cacheEnabled && !body.isAdmin) {
+            return NextResponse.json({ message: "Search caching is currently disabled globally" }, { status: 200 });
+        }
 
         const searchCache = await db.searchCache.upsert({
             where: { query: normalizedQuery },

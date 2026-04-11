@@ -6,14 +6,23 @@ import { X, Send, Image as ImageIcon, Box, HelpCircle, Truck, PackageCheck, Aler
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Product, Order } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
+import { Keyboard } from "@capacitor/keyboard";
+import { Capacitor } from "@capacitor/core";
+import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/navigation";
+import { ShoppingCart } from "lucide-react";
+import { playDingSound } from "@/lib/audio";
+import { getProductUrl } from "@/lib/utils";
+import { isVehicle } from "@/lib/financing-utils";
 
 interface Message {
     id: string;
-    sender: "user" | "ziva" | "admin";
+    sender: "user" | "ziva" | "admin" | "seller";
     text: string;
     timestamp: Date;
     imageUrl?: string;
+    replyTo?: { sender: string; text: string };
 }
 
 interface PostOrderChatProps {
@@ -26,24 +35,24 @@ interface PostOrderChatProps {
 }
 
 const POST_ORDER_ACTIONS = [
-    { id: "images", label: "Request Product Images", icon: <ImageIcon className="h-3.5 w-3.5" /> },
-    { id: "shipping", label: "Shipping Timeline", icon: <Truck className="h-3.5 w-3.5" /> },
-    { id: "warranty", label: "Warranty Info", icon: <HelpCircle className="h-3.5 w-3.5" /> },
-    { id: "condition", label: "Confirm Condition", icon: <Box className="h-3.5 w-3.5" /> },
+    { id: "images", label: "Request Images", message: "Hi, could you send some real-time photos of the actual product before it ships?", icon: <ImageIcon className="h-3.5 w-3.5" /> },
+    { id: "shipping", label: "Shipping ETA", message: "Could you provide an update on the shipping timeline? When is the estimated delivery?", icon: <Truck className="h-3.5 w-3.5" /> },
+    { id: "warranty", label: "Warranty Details", message: "Can you confirm the warranty details and terms for this item?", icon: <HelpCircle className="h-3.5 w-3.5" /> },
+    { id: "condition", label: "Confirm Condition", message: "I'd like to confirm the condition of the item. Is everything as described in the listing?", icon: <Box className="h-3.5 w-3.5" /> },
 ];
 
 const RETURN_ACTIONS = [
-    { id: "wrong_item", label: "Wrong Item Received", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "damaged", label: "Item Damaged", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "not_as_described", label: "Not as Described", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "upload_photo", label: "Upload Photo Evidence", icon: <Camera className="h-3.5 w-3.5" /> },
+    { id: "wrong_item", label: "Wrong Item", message: "I received the wrong item. How can we resolve this?", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "damaged", label: "Item Damaged", message: "The item arrived damaged. What are the next steps for a return or replacement?", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "not_as_described", label: "Not as Described", message: "The item I received is not as described in the listing. I'd like to discuss a return.", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "upload_photo", label: "Upload Photos", message: "I have photos of the issue. I'll upload them now.", icon: <Camera className="h-3.5 w-3.5" /> },
 ];
 
 const CANCEL_ACTIONS = [
-    { id: "changed_mind", label: "Changed my mind", icon: <RotateCcw className="h-3.5 w-3.5" /> },
-    { id: "found_better", label: "Found a better price", icon: <Search className="h-3.5 w-3.5" /> },
-    { id: "mistake", label: "Ordered by mistake", icon: <AlertCircle className="h-3.5 w-3.5" /> },
-    { id: "too_long", label: "Shipping takes too long", icon: <Clock className="h-3.5 w-3.5" /> },
+    { id: "mistake", label: "Ordered by Mistake", message: "I'd like to cancel this order as it was made by mistake.", icon: <AlertCircle className="h-3.5 w-3.5" /> },
+    { id: "changed_mind", label: "Changed My Mind", message: "I've changed my mind about this purchase and would like to cancel the order.", icon: <RotateCcw className="h-3.5 w-3.5" /> },
+    { id: "found_better", label: "Found Better Price", message: "I found a better price elsewhere and would like to cancel this order.", icon: <Search className="h-3.5 w-3.5" /> },
+    { id: "too_long", label: "Taking Too Long", message: "Shipping is taking longer than expected. Can I still cancel this order?", icon: <Clock className="h-3.5 w-3.5" /> },
 ];
 
 export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, order, mode = "post_order" }: PostOrderChatProps) {
@@ -52,95 +61,117 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const [isTyping, setIsTyping] = useState(false);
     const [reviewRating, setReviewRating] = useState<number>(0);
     const [hoverRating, setHoverRating] = useState<number>(0);
+    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { addToCart } = useCart();
+    const router = useRouter();
 
     const trackingId = order?.tracking_id || orderId || "PENDING";
     const orderStatus = order?.status || "processing";
     const carrier = order?.carrier || "FairPrice Logistics";
 
+    // ─── Hybrid Keyboard Handling ──────────────────────────────
+    // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
+    // to keep the --kb-height CSS variable updated on <html>.
+    // ────────────────────────────────────────────────────────────
+
     // Initialize chat when opened
     useEffect(() => {
         if (!isOpen || !product || !orderId) return;
 
-        const orderMsgs = DemoStore.getOrderMessages(orderId);
+        const orderMsgs = DataSyncService.getOrderMessages(orderId);
+        
+        // Track whether we need to inject the context prompt
+        let initialMessages: Message[] = [];
+        
         if (orderMsgs && orderMsgs.length > 0) {
-            if (messages.length === 0) {
-                setMessages(orderMsgs.map(m => ({
-                    id: m.id,
-                    sender: m.sender as any,
-                    text: m.text,
-                    timestamp: new Date(), // using current date for UI compatibility
-                    imageUrl: m.imageUrl
-                })));
-            }
-        } else {
-            // Initialize if empty
-            if (messages.length === 0) {
-                if (mode === "cancel") {
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `I noticed you want to cancel the **${product.name}** (Order **${trackingId}**). Could you tell me why you're cancelling? This helps us improve our service.\n\nPlease select a reason below or type a message.`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                } else if (mode === "review") {
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `Your delivery for **${product.name}** has been confirmed! 🎉\n\nPlease select a star rating below to leave a quick review. This really helps other shoppers!`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                } else if (mode === "return") {
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `I understand you'd like to initiate a return for the **${product.name}** (Order **${trackingId}**). I'm sorry for the inconvenience.\n\nTo process your return quickly, please:\n1. **Tell me the reason** for this return\n2. **Upload photos** of the item showing the issue\n\nThis helps our team resolve your case within 24 hours.`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                } else {
-                    const statusText = orderStatus === "shipped" || orderStatus === "delivered"
-                        ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
-                        : `Your order is currently being **processed**.`;
-                    setMessages([
-                        {
-                            id: Date.now().toString(),
-                            sender: "ziva",
-                            text: `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`,
-                            timestamp: new Date(),
-                        }
-                    ]);
-                }
-            }
+             initialMessages = orderMsgs.map(m => ({
+                id: m.id,
+                sender: m.sender as any,
+                text: m.text,
+                timestamp: new Date(), 
+                imageUrl: m.imageUrl,
+                replyTo: m.replyTo
+            }));
         }
+
+        if (mode === "cancel" && !initialMessages.some(m => m.text.includes("I noticed you want to cancel the"))) {
+            const zivaMsg: Message = {
+                id: Date.now().toString(),
+                sender: "ziva",
+                text: `I noticed you want to cancel the **${product.name}** (Order **${trackingId}**). Could you tell me why you're cancelling? This helps us improve our service.\n\nPlease select a reason below or type a message.`,
+                timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        } else if (mode === "review" && !initialMessages.some(m => m.text.includes("Your delivery for"))) {
+            const zivaMsg: Message = {
+                 id: Date.now().toString(),
+                 sender: "ziva",
+                 text: `Your delivery for **${product.name}** has been confirmed! 🎉\n\nPlease select a star rating below to leave a quick review. This really helps other shoppers!`,
+                 timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        } else if (mode === "return" && !initialMessages.some(m => m.text.includes("I understand you'd like to initiate a return"))) {
+            const zivaMsg: Message = {
+                 id: Date.now().toString(),
+                 sender: "ziva",
+                 text: `I understand you'd like to initiate a return for the **${product.name}** (Order **${trackingId}**). I'm sorry for the inconvenience.\n\nTo process your return quickly, please:\n1. **Tell me the reason** for this return\n2. **Upload photos** of the item showing the issue\n\nThis helps our team resolve your case within 24 hours.`,
+                 timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        } else if (initialMessages.length === 0) {
+            const statusText = orderStatus === "shipped" || orderStatus === "delivered"
+                ? `Your order is currently **${orderStatus}**${order?.tracking_id ? ` with tracking ID **${order.tracking_id}**` : ""}.`
+                : `Your order is currently being **processed**.`;
+            
+            let zivaText = `Order received! I'm Ziva, your dedicated FairPrice Concierge for the **${product.name}**.\n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n🚚 Carrier: **${carrier}**\n\nHow can I assist you with this order?`;
+
+            // Specialized Welcome for Vehicles
+            if (isVehicle(product)) {
+                zivaText = `Congratulations on your new vehicle! 🚗\n\nI'm Ziva, your Dedicated Vehicle Concierge. I've confirmed your **15% down payment** for the **${product.name}**. \n\n🛡️ **Escrow Protection Active**: Your funds are secured and will only be released to the seller after you perform a physical inspection and confirm the vehicle meets all specifications upon delivery. \n\n📦 Order ID: **${trackingId}**\n📍 Status: ${statusText}\n\nWould you like me to request real-time inspection photos or verify the shipping timeline for you?`;
+            }
+
+            const zivaMsg: Message = {
+                id: Date.now().toString(),
+                sender: "ziva",
+                text: zivaText,
+                timestamp: new Date(),
+            };
+            initialMessages.push(zivaMsg);
+            DataSyncService.addOrderMessage(orderId, "ziva", zivaMsg.text);
+        }
+
+        setMessages(initialMessages);
     }, [isOpen, product, orderId, messages.length, mode]);
 
-    // Listen for DemoStore updates (e.g. admin replies)
+    // Listen for DataSyncService updates (e.g. admin replies)
     useEffect(() => {
         if (!isOpen || !orderId) return;
         const handleUpdate = () => {
-            const orderMsgs = DemoStore.getOrderMessages(orderId);
+            const orderMsgs = DataSyncService.getOrderMessages(orderId);
             if (orderMsgs && orderMsgs.length > 0) {
                 setMessages(orderMsgs.map(m => ({
                     id: m.id,
                     sender: m.sender as any,
                     text: m.text,
                     timestamp: new Date(),
-                    imageUrl: m.imageUrl
+                    imageUrl: m.imageUrl,
+                    replyTo: m.replyTo
                 })));
             }
         };
         window.addEventListener("storage", handleUpdate);
-        window.addEventListener("demo-store-update", handleUpdate);
+        window.addEventListener("sync-store-update", handleUpdate);
+        // Polling for cross-browser/device realtime sync
+        const pollInterval = setInterval(handleUpdate, 3000);
         return () => {
             window.removeEventListener("storage", handleUpdate);
-            window.removeEventListener("demo-store-update", handleUpdate);
+            window.removeEventListener("sync-store-update", handleUpdate);
+            clearInterval(pollInterval);
         };
     }, [isOpen, orderId]);
 
@@ -149,7 +180,13 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-    }, [messages]);
+        
+        // Play chime for INCOMING messages (not from user)
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg && lastMsg.sender !== "user" && isOpen) {
+            playDingSound();
+        }
+    }, [messages, isOpen]);
 
     if (!isOpen) return null;
 
@@ -165,14 +202,34 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             text: `📷 ${file.name}`,
             timestamp: new Date(),
             imageUrl,
+            replyTo: replyingTo || undefined
         };
 
-        DemoStore.addOrderMessage(orderId!, "user", userMsg.text, imageUrl);
+        DataSyncService.addOrderMessage(orderId!, "user", userMsg.text, imageUrl, undefined, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
+        setReplyingTo(null);
+
+        // Notify seller about image upload
+        if (product && product.seller_id) {
+            DataSyncService.addNotification({
+                userId: product.seller_id,
+                type: "order",
+                message: `📷 Buyer uploaded a product image for Order ${trackingId}. Please review in the Concierge Inbox.`,
+                link: `/seller/dashboard/messages?order=${orderId}`
+            });
+        }
 
         // Ziva acknowledges the image
         setTimeout(() => {
+            if (order?.zivaActive === false) {
+                const lastHumanMsg = messages.slice().reverse().find(m => m.sender === "admin" || m.sender === "seller");
+                // Wait 60 seconds before Ziva automatically jumps back in
+                if (!lastHumanMsg || (Date.now() - new Date(lastHumanMsg.timestamp).getTime()) < 60000) return;
+                DataSyncService.updateOrder(orderId!, { zivaActive: true });
+                DataSyncService.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
+            }
+
             const zivaText = mode === "return"
                 ? "Thank you for uploading the photo evidence. I've attached it to your return case. Our dispute resolution team will review this along with the merchant. Is there anything else you'd like to add about the issue?"
                 : "I've received the image. I'll pass this along to the merchant and our support team for review.";
@@ -183,7 +240,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 text: zivaText,
                 timestamp: new Date()
             };
-            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            DataSyncService.addOrderMessage(orderId!, "ziva", zivaText);
             setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1500);
@@ -196,7 +253,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         if (!text.trim()) return;
 
         // If quick action triggers file upload
-        if (text === "Upload Photo Evidence") {
+        if (text === "Upload Photos" || text === "I have photos of the issue. I'll upload them now.") {
             fileInputRef.current?.click();
             return;
         }
@@ -205,31 +262,88 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             id: Date.now().toString(),
             sender: "user",
             text,
-            timestamp: new Date()
+            timestamp: new Date(),
+            replyTo: replyingTo || undefined
         };
 
-        DemoStore.addOrderMessage(orderId!, "user", text);
+        DataSyncService.addOrderMessage(orderId!, "user", text, undefined, undefined, replyingTo || undefined);
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsTyping(true);
+        setReplyingTo(null);
+        playDingSound(); // Quick feedback chime for sending
 
         // Smart Ziva Response
         setTimeout(() => {
+            if (order?.zivaActive === false) {
+                const lastHumanMsg = messages.slice().reverse().find(m => m.sender === "admin" || m.sender === "seller");
+                // Wait 60 seconds before Ziva automatically jumps back in
+                if (!lastHumanMsg || (Date.now() - new Date(lastHumanMsg.timestamp).getTime()) < 60000) return;
+                DataSyncService.updateOrder(orderId!, { zivaActive: true });
+                DataSyncService.addOrderMessage(orderId!, "system", "Ziva AI has resumed the chat due to human inactivity.");
+            }
+
             let zivaText = "I've noted your concern and notified the merchant. Our support team is also monitoring this request and will step in shortly if needed.";
 
             const lowerText = text.toLowerCase();
 
-            if (mode === "cancel") {
-                DemoStore.updateOrderStatus(orderId!, "cancelled");
-                DemoStore.addNotification({
-                    userId: DemoStore.getCurrentUserId() || "guest",
-                    type: "order",
-                    message: `Order Cancelled — Your order #${trackingId.substring(0, 8)} has been cancelled. Reason: ${text}`,
-                    link: "/account/orders"
+            const isCancelIntent = mode === "cancel" || lowerText.includes("cancel order") || lowerText === "cancel" || lowerText === "cancel it" || lowerText.includes("yes cancel");
+
+            const isHumanRequest = /\b(human|person|agent|support|manager|escalate|real|live)\b/i.test(lowerText);
+
+            if (isHumanRequest) {
+                // Save escalation to admin inbox
+                const currentUser = DataSyncService.getCurrentUser();
+                const userIdLog = currentUser?.id || "guest_session";
+                const conv = DataSyncService.getOrCreateConversation(
+                    "admin", userIdLog,
+                    { admin: "FairPrice Admin", [userIdLog]: currentUser?.name || "Customer" },
+                    { type: "ziva_escalation", order_id: trackingId }
+                );
+                DataSyncService.sendChatMessage(
+                    conv.id,
+                    userIdLog,
+                    currentUser?.name || "Customer",
+                    `[ORDER ESCALATION: Customer Requested Human Support for Order ${trackingId}]\n\nCustomer said: "${text}"`
+                );
+
+                // Add notification for admin
+                DataSyncService.addNotification({
+                    userId: "admin",
+                    type: "system",
+                    message: `Order Escalation: Customer requested human support for ${trackingId}`,
+                    link: `/admin/inbox/orders?order=${trackingId}`
                 });
-                zivaText = `I have successfully cancelled your order **${trackingId}**. The reason recorded is: "${text}". Your full payment will be refunded immediately. If there's anything else, feel free to ask.`;
-                // Fire demo store update to refresh UI
-                window.dispatchEvent(new Event("demo-store-update"));
+
+                // Add notification for seller
+                if (product && product.seller_id) {
+                    DataSyncService.addNotification({
+                        userId: product.seller_id,
+                        type: "order",
+                        message: `🚨 Buyer requested human support for Order ${trackingId}. Please take over from Ziva.`,
+                        link: `/seller/dashboard/messages?order=${orderId}`
+                    });
+                }
+
+                zivaText = `🛡️ **Connecting you to a human agent...**\n\nI understand you'd like to speak with our support team regarding order **${trackingId}**. I've escalated your request. A human agent will review your case and respond to this chat shortly.`;
+            } else if (isCancelIntent) {
+                if (orderStatus === "pending" || orderStatus === "processing") {
+                    if (orderId) {
+                        try {
+                            DataSyncService.updateOrderStatus(orderId, "cancelled");
+                            DataSyncService.addNotification({
+                                userId: DataSyncService.getCurrentUserId() || "guest",
+                                type: "order",
+                                message: `Order Cancelled — Your order #${trackingId.substring(0, 8)} has been cancelled. Reason: ${text}`,
+                                link: "/account/orders"
+                            });
+                        } catch(e) { console.error("Cancel failed:", e); }
+                    }
+                    zivaText = `I have successfully cancelled your order **${trackingId}**. Your full payment will be refunded immediately. If there's anything else, feel free to ask.`;
+                    window.dispatchEvent(new Event("sync-store-update"));
+                } else {
+                    zivaText = `Your order **${trackingId}** has already been **${orderStatus}** and can no longer be cancelled. However, you can initiate a return if needed.`;
+                }
             } else if (mode === "return") {
                 // Return mode responses
                 if (lowerText.includes("wrong item")) {
@@ -253,12 +367,12 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                     // --- Send bell notification + email to seller ---
                     if (product) {
                         const sellerId = product.seller_id;
-                        const seller = DemoStore.getSellers().find(s => s.id === sellerId);
-                        const currentUser = DemoStore.getCurrentUser();
+                        const seller = DataSyncService.getSellers().find(s => s.id === sellerId);
+                        const currentUser = DataSyncService.getCurrentUser();
                         const buyerName = currentUser?.name || "A Buyer";
 
                         // In-app bell notification for seller
-                        DemoStore.addNotification({
+                        DataSyncService.addNotification({
                             userId: sellerId,
                             type: "order",
                             message: `📸 ${buyerName} has requested product images for "${product.name}" (Order #${trackingId.substring(0, 8)}). Please upload photos from your dashboard.`,
@@ -267,14 +381,14 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
 
                         // Initiate or continue DM conversation with seller
                         const sellerDisplayName = seller?.business_name || product.seller_name || "Seller";
-                        const conv = DemoStore.getOrCreateConversation(
-                            currentUser?.id || "guest",
+                        const conv = DataSyncService.getOrCreateConversation(
+                            currentUser?.id || "guest_session",
                             sellerId,
                             { [currentUser?.id || "guest"]: buyerName, [sellerId]: sellerDisplayName },
                             { type: "buyer_seller", product_id: product.id }
                         );
                         if (conv) {
-                            DemoStore.sendChatMessage(
+                            DataSyncService.sendChatMessage(
                                 conv.id,
                                 currentUser?.id || "guest",
                                 buyerName,
@@ -310,13 +424,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         zivaText = `Your order **${trackingId}** is currently being **prepared** by the merchant. Once shipped, you'll receive tracking details. Estimated delivery: **3–7 business days**.`;
                     }
                 } else if (lowerText.includes("warranty") || lowerText.includes("guarantee")) {
-                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 7-day return window after delivery.";
-                } else if (lowerText.includes("cancel")) {
-                    if (orderStatus === "pending" || orderStatus === "processing") {
-                        zivaText = `Your order **${trackingId}** can still be cancelled since it hasn't shipped yet. Would you like me to proceed with the cancellation? Your full payment will be refunded immediately.`;
-                    } else {
-                        zivaText = `Your order **${trackingId}** has already been **${orderStatus}** and can no longer be cancelled. However, you can initiate a return if needed.`;
-                    }
+                    zivaText = "This product is covered by FairPrice's strict **Escrow Protection**. Your funds will not be released to the seller until you confirm the item matches the description. You also have a 14-day return window after delivery.";
                 } else if (lowerText.includes("condition") || lowerText.includes("confirm")) {
                     zivaText = "I can request a condition check from the merchant. They'll be asked to verify the item's quality and packaging before shipping. This is part of our FairPrice Quality Assurance process.";
                 }
@@ -328,7 +436,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 text: zivaText,
                 timestamp: new Date()
             };
-            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            DataSyncService.addOrderMessage(orderId!, "ziva", zivaText);
             setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1500);
@@ -337,15 +445,20 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const handleRate = (stars: number) => {
         if (reviewRating > 0 || !product) return;
         setReviewRating(stars);
+        playDingSound(); // Play chime for rating submission
 
         // Save the review instantly
-        const currentUser = DemoStore.getCurrentUser();
-        DemoStore.addReview({
+        const currentUser = DataSyncService.getCurrentUser();
+        DataSyncService.addReview({
             product_id: product.id,
             user_id: currentUser?.id || "guest",
             user_name: currentUser?.name || "Guest User",
             rating: stars,
-            comment: ""
+            title: `${stars}-Star Rating`,
+            body: "",
+            verified_purchase: true,
+            helpful_count: 0,
+            images: []
         });
 
         const userMsg: Message = {
@@ -354,7 +467,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
             text: `⭐ Rating: ${stars} Stars`,
             timestamp: new Date()
         };
-        DemoStore.addOrderMessage(orderId!, "user", userMsg.text);
+        DataSyncService.addOrderMessage(orderId!, "user", userMsg.text);
         setMessages(prev => [...prev, userMsg]);
         setIsTyping(true);
 
@@ -366,18 +479,23 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                 text: zivaText,
                 timestamp: new Date()
             };
-            DemoStore.addOrderMessage(orderId!, "ziva", zivaText);
+            DataSyncService.addOrderMessage(orderId!, "ziva", zivaText);
             setMessages(prev => [...prev, zivaMsg]);
             setIsTyping(false);
         }, 1000);
     };
 
     const quickActions = mode === "cancel" ? CANCEL_ACTIONS : (mode === "return" ? RETURN_ACTIONS : (mode === "review" ? [] : POST_ORDER_ACTIONS));
-
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 sm:p-6 pb-20 sm:pb-6">
+                <div 
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-0 sm:px-4 transition-[bottom] duration-200 cubic-bezier(0.1, 0.7, 0.1, 1)"
+                    style={{ 
+                        bottom: 'var(--kb-height, 0px)',
+                        willChange: 'bottom'
+                    }}
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -391,7 +509,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[75vh] sm:h-[600px] font-sans"
+                        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[80%] max-h-full sm:h-[600px] font-sans"
+                        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                     >
                         {/* Header */}
                         <div className={`px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0 relative z-20 ${mode === "return" ? "bg-rose-50/80 backdrop-blur-xl" : "bg-white/80 backdrop-blur-xl"}`}>
@@ -443,14 +562,16 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Today, {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                             </div>
 
-                            {messages.map((msg) => (
+                            {messages.map((msg, idx) => {
+                                const isUser = msg.sender === "user";
+                                return (
                                 <motion.div
-                                    key={msg.id}
+                                    key={`${msg.id}-${idx}`}
                                     initial={{ opacity: 0, y: 10 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
+                                    className={`flex ${isUser ? "justify-end" : "justify-start"}`}
                                 >
-                                    <div className={`flex gap-2 max-w-[85%] ${msg.sender === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                                    <div className={`flex gap-2 max-w-[85%] ${isUser ? "flex-row-reverse" : "flex-row"} group/msg items-end`}>
 
                                         {/* Avatar */}
                                         <div className="shrink-0 mt-auto">
@@ -459,20 +580,40 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                     <img src="/assets/images/image_v2.png" alt="Ziva AI" className="w-full h-full object-cover" />
                                                 </div>
                                             ) : msg.sender === "admin" ? (
-                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200">
+                                                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center border border-blue-200" title="Admin">
                                                     <span className="text-[10px] font-bold text-blue-700">A</span>
+                                                </div>
+                                            ) : msg.sender === "seller" ? (
+                                                <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center border border-amber-200" title="Seller">
+                                                    <span className="text-[10px] font-bold text-amber-700">S</span>
                                                 </div>
                                             ) : null}
                                         </div>
 
+                                        {!isUser && (
+                                            <button 
+                                                onClick={() => setReplyingTo({ sender: msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}
+                                                className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden sm:block mb-4"
+                                                title="Reply"
+                                            >
+                                                <RotateCcw className="h-3 w-3 -rotate-90" />
+                                            </button>
+                                        )}
+
                                         {/* Message Bubble */}
-                                        <div className="flex flex-col gap-1">
+                                        <div className="flex flex-col gap-1 relative cursor-pointer sm:cursor-auto" onDoubleClick={() => setReplyingTo({ sender: isUser ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : 'Admin', text: msg.text })}>
                                             <div
-                                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative whitespace-pre-line ${msg.sender === "user"
+                                                className={`px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed relative whitespace-pre-line ${isUser
                                                     ? "bg-black text-white rounded-br-sm"
                                                     : "bg-white text-gray-800 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] rounded-bl-sm"
                                                     }`}
                                             >
+                                                {msg.replyTo && (
+                                                    <div className={`mb-2 p-2 rounded-lg text-[10px] border-l-2 opacity-80 ${isUser ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
+                                                        <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                                                        <p className="truncate block max-w-[200px] sm:max-w-xs">{msg.replyTo.text}</p>
+                                                    </div>
+                                                )}
                                                 {msg.text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
                                                     if (part.startsWith("**") && part.endsWith("**")) {
                                                         return <strong key={i}>{part.slice(2, -2)}</strong>;
@@ -481,13 +622,31 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 })}
                                                 {msg.sender === "ziva" && msg.text.includes("Thanks for the") && msg.text.includes("star rating!") && (
                                                     <div className="mt-3">
-                                                        <a href={`/product/${product?.id}#reviews-section`} onClick={onClose} className="block w-full">
+                                                        <a href={`${getProductUrl(product?.id || "", product?.name || "")}#reviews-section`} onClick={onClose} className="block w-full">
                                                             <Button className="w-full h-8 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
                                                                 Write a Detailed Review
                                                                 <RotateCcw className="w-3 h-3 rotate-180" />
                                                             </Button>
                                                         </a>
                                                     </div>
+                                                )}
+
+                                                {msg.text.includes("ACCEPTED") && msg.text.includes("offer") && product && (
+                                                    <Button 
+                                                        onClick={() => {
+                                                            // Calculate negotiated price from text if possible, or use a heuristic
+                                                            // The text: "Your offer for ... has been ACCEPTED at ₦..."
+                                                            const priceMatch = msg.text.match(/₦([\d,]+)/);
+                                                            const finalPrice = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : product.price;
+                                                            
+                                                            addToCart({ ...product, price: finalPrice });
+                                                            onClose();
+                                                            router.push('/checkout');
+                                                        }}
+                                                        className="mt-3 w-full bg-brand-green-600 hover:bg-brand-green-700 text-white font-black py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm border border-brand-green-700 transition-all active:scale-[0.98]"
+                                                    >
+                                                        <ShoppingCart className="w-4 h-4" /> Buy Now at Negotiated Price
+                                                    </Button>
                                                 )}
                                             </div>
 
@@ -497,14 +656,24 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 </div>
                                             )}
                                             {/* Timestamp */}
-                                            <span className={`text-[9px] font-medium mt-0.5 px-1 ${msg.sender === "user" ? "text-gray-400 text-right" : "text-gray-400"}`}>
+                                            <span className={`text-[9px] font-medium mt-0.5 px-1 ${isUser ? "text-gray-400 text-right" : "text-gray-400"}`}>
                                                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                             </span>
                                         </div>
+                                        
+                                        {isUser && (
+                                            <button 
+                                                onClick={() => setReplyingTo({ sender: 'You', text: msg.text })}
+                                                className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden sm:block mb-4"
+                                                title="Reply"
+                                            >
+                                                <RotateCcw className="h-3 w-3 -rotate-90" />
+                                            </button>
+                                        )}
 
                                     </div>
                                 </motion.div>
-                            ))}
+                            )})}
 
                             {isTyping && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
@@ -530,7 +699,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 {quickActions.map(action => (
                                     <button
                                         key={action.id}
-                                        onClick={() => handleSend(action.label)}
+                                        onClick={() => handleSend(action.message || action.label)}
                                         className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-colors ${mode === "return"
                                             ? "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200"
                                             : "bg-gray-50 hover:bg-gray-100 text-gray-700 border-gray-200"
@@ -578,7 +747,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 <Star key={star} className={`w-8 h-8 ${star <= reviewRating ? "text-amber-400 fill-amber-400" : "text-gray-200"}`} />
                                             ))}
                                         </div>
-                                        <a href={`/product/${product?.id}#reviews-section`} onClick={onClose} className="w-full">
+                                        <a href={`${getProductUrl(product?.id || "", product?.name || "")}#reviews-section`} onClick={onClose} className="w-full">
                                             <Button className="w-full h-12 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                                 Write a Detailed Review
                                                 <RotateCcw className="w-4 h-4 rotate-180" />
@@ -588,7 +757,20 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                 )}
                             </div>
                         ) : (
-                            <div className="p-4 bg-white border-t border-gray-100 shrink-0">
+                            <div className="p-4 bg-white border-t border-gray-100 shrink-0 flex flex-col">
+                                {replyingTo && (
+                                    <div className="mb-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+                                        <div className="flex flex-col min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 font-bold text-[10px] text-gray-600 uppercase tracking-wider mb-0.5">
+                                                <RotateCcw className="h-3 w-3 -rotate-90" /> Replying to {replyingTo.sender}
+                                            </div>
+                                            <p className="text-xs text-gray-500 truncate pr-4">{replyingTo.text}</p>
+                                        </div>
+                                        <button onClick={() => setReplyingTo(null)} className="h-6 w-6 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors">
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="relative flex items-center gap-2">
                                     <button
                                         onClick={() => fileInputRef.current?.click()}

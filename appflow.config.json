@@ -1,0 +1,10 @@
+{
+    "apps": [
+        {
+            "appId": "2a5eb021",
+            "root": "frontend",
+            "iosPath": "ios/App",
+            "dependencyInstallCommand": "rm -rf ~/Library/Caches/org.swift.swiftpm && npm install && npm run build && npx cap sync ios"
+        }
+    ]
+}

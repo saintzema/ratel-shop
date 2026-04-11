@@ -1,7 +1,39 @@
 import { NextResponse } from "next/server";
 import { db as prisma } from "@/lib/db";
 
+export const dynamic = 'force-dynamic';
 export const runtime = "nodejs";
+
+const DEFAULT_SETTINGS = {
+    id: "global",
+    platformMargin: 2.5,
+    serviceCharge: 1.5,
+    standardCommission: 5.0,
+    escrowFee: 1.0,
+    escrowFeePayNow: 1950,
+    doorstepFee: 4000,
+    pickupFee: 2500,
+    aiMonitoring: true,
+    kycVerification: true,
+    escrowRelease: 7,
+    strictSeller: true,
+    categoryMargins: {},
+    stateShipping: {},
+    codEnabled: true,
+    codThreshold: 50000,
+    codAllowExpensiveCategories: true,
+    codGlobalEnabled: false,
+    codGlobalThreshold: 15000,
+    globalSearchCaching: true,
+    supportConfig: {
+        email: "hello@fairprice.ng",
+        whatsapp: "2348162816305",
+        office: "Victoria Island, Lagos, Nigeria",
+        hours: "Mon - Sat: 8am - 10pm WAT",
+        serviceCenters: []
+    },
+    updatedAt: new Date()
+};
 
 export async function GET() {
     try {
@@ -17,8 +49,8 @@ export async function GET() {
 
         return NextResponse.json(settings);
     } catch (error) {
-        console.error("Failed to fetch settings:", error);
-        return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 });
+        console.error("Failed to fetch DB settings, falling back to defaults:", error);
+        return NextResponse.json({ ...DEFAULT_SETTINGS, _offlineMode: true });
     }
 }
 

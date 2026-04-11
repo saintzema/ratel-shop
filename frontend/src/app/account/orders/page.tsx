@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { Order, NegotiationRequest, Product } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
-import { formatPrice, formatDateExact } from "@/lib/utils";
+import { DataSyncService } from "@/lib/sync-store";
+import { formatPrice, formatDateExact, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
@@ -28,6 +28,7 @@ import {
     MessageCircle,
     TrendingUp,
     ChevronLeft,
+    ShoppingBag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -66,9 +67,11 @@ function OrdersContent() {
     const searchParams = useSearchParams();
     const { user } = useAuth();
 
+    const successHandledRef = useRef(false);
+
     const loadData = () => {
         if (!user) return;
-        const allOrders = DemoStore.getOrders();
+        const allOrders = DataSyncService.getOrders();
         const userOrders = allOrders.filter(o =>
             o.customer_id === user.email ||
             o.customer_id === user.id
@@ -76,47 +79,56 @@ function OrdersContent() {
         const sortedOrders = userOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         setOrders(sortedOrders);
 
-        const allNegs = DemoStore.getNegotiations();
+        const allNegs = DataSyncService.getNegotiations();
         setNegotiations(allNegs.filter(n =>
             n.customer_id === user.email ||
             n.customer_id === user.id ||
             n.customer_name === user.name
         ));
 
-        setProducts(DemoStore.getProducts());
-
-        // Auto-show concierge chat for the most recent order if coming from checkout success
-        if (searchParams.get("success") === "true" && sortedOrders.length > 0) {
-            setConciergeOrder(sortedOrders[0]);
-            setConciergeMode("post_order");
-            setShowConcierge(true);
-            // Optional: clean up the URL to prevent re-triggering on refresh
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
+        setProducts(DataSyncService.getProducts());
     };
 
-    useEffect(() => { loadData(); }, [user, searchParams]);
+    useEffect(() => { loadData(); }, [user]);
+
+    // Handle checkout success redirect — runs ONCE only
+    useEffect(() => {
+        if (successHandledRef.current) return;
+        if (searchParams.get("success") === "true" && user) {
+            successHandledRef.current = true;
+            const allOrders = DataSyncService.getOrders();
+            const userOrders = allOrders
+                .filter(o => o.customer_id === user.email || o.customer_id === user.id)
+                .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            if (userOrders.length > 0) {
+                setConciergeOrder(userOrders[0]);
+                setConciergeMode("post_order");
+                setShowConcierge(true);
+            }
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [searchParams, user]);
 
     useEffect(() => {
         loadData();
         const handleStorageChange = () => loadData();
         window.addEventListener("storage", handleStorageChange);
-        window.addEventListener("demo-store-update", handleStorageChange);
+        window.addEventListener("sync-store-update", handleStorageChange);
         return () => {
             window.removeEventListener("storage", handleStorageChange);
-            window.removeEventListener("demo-store-update", handleStorageChange);
+            window.removeEventListener("sync-store-update", handleStorageChange);
         };
     }, []);
 
     const handleConfirmDelivery = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
-        DemoStore.updateOrderStatus(orderId, "delivered");
-        DemoStore.releaseEscrow(orderId);
-        DemoStore.addNotification({
+        DataSyncService.updateOrderStatus(orderId, "delivered");
+        DataSyncService.releaseEscrow(orderId);
+        DataSyncService.addNotification({
             userId: user?.email || "guest",
             type: "order",
             message: `Delivery Confirmed! 🎉 Your order has been delivered. Leave a review to help other shoppers!`,
-            link: `/product/${order?.product_id}?review=true`
+            link: `${getProductUrl(order?.product_id || "", order?.product?.name || "")}?review=true`
         });
         loadData();
 
@@ -127,6 +139,17 @@ function OrdersContent() {
         }
     };
 
+    // Auto-open tracking/details modal from notifications
+    useEffect(() => {
+        const idToOpen = searchParams?.get("id");
+        if (idToOpen && orders.length > 0 && !selectedOrderForTracking) {
+            const order = orders.find(o => o.id === idToOpen);
+            if (order) {
+                setSelectedOrderForTracking(order);
+            }
+        }
+    }, [searchParams, orders, selectedOrderForTracking]);
+
     const handleCancelOrder = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
@@ -136,13 +159,55 @@ function OrdersContent() {
     };
 
     const handleReturnOrder = (order: Order) => {
-        DemoStore.updateOrderStatus(order.id, "return_requested");
-        DemoStore.addNotification({
+        DataSyncService.updateOrderStatus(order.id, "return_requested");
+        DataSyncService.updateOrder(order.id, { escrow_status: "disputed" });
+        
+        // Notify customer
+        DataSyncService.addNotification({
             userId: user?.email || "guest",
             type: "order",
             message: `Return requested for ${order.product?.name || 'your order'}. The seller will review your request.`,
             link: "/account/orders"
         });
+        
+        // Notify admin
+        DataSyncService.addNotification({
+            userId: "admin",
+            type: "order",
+            message: `⚠️ Return requested on order #${order.id.substring(0, 8)} — ${order.product?.name || 'Product'} by ${order.customer_name || 'Customer'}`,
+            link: `/admin/inbox/orders?order=${order.id}`
+        });
+        
+        // Notify seller
+        if (order.seller_id) {
+            DataSyncService.addNotification({
+                userId: order.seller_id,
+                type: "order",
+                message: `⚠️ Return requested on order #${order.id.substring(0, 8)} — ${order.product?.name || 'Product'}`,
+                link: `/seller/dashboard/messages?order=${order.id}`
+            });
+            
+            // Email seller
+            const seller = DataSyncService.getSellers().find(s => s.id === order.seller_id);
+            if (seller?.owner_email) {
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: seller.owner_email,
+                        type: 'SELLER_RETURN_REQUEST',
+                        payload: {
+                            name: seller.business_name || "Seller",
+                            productName: order.product?.name || "Product",
+                            orderId: order.id,
+                            customerName: order.customer_name || "Customer",
+                            dashboardUrl: `${window.location.origin}/seller/dashboard/messages?order=${order.id}`,
+                        }
+                    })
+                }).catch(() => { /* best-effort */ });
+            }
+        }
+        
         loadData();
         setConciergeOrder({ ...order, status: "return_requested" });
         setConciergeMode("return");
@@ -189,6 +254,13 @@ function OrdersContent() {
                         <h1 className="text-2xl font-bold text-gray-900">Your Orders</h1>
                         <p className="text-sm text-gray-500 mt-0.5">Track, return, or buy items again.</p>
                     </div>
+                    <button
+                        onClick={() => router.push('/')}
+                        className="ml-auto px-4 py-2 bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold rounded-full shadow-md transition-all flex items-center gap-1.5"
+                    >
+                        <ShoppingBag className="h-3.5 w-3.5" />
+                        Continue Shopping
+                    </button>
                 </div>
 
                 {/* Two Column Layout */}
@@ -270,7 +342,7 @@ function OrdersContent() {
                                                 {/* Desktop Row */}
                                                 <div className="hidden md:grid grid-cols-[44px_minmax(0,1fr)_110px_110px_100px_120px] gap-3 px-4 py-3 items-center hover:bg-white transition-colors">
                                                     {/* Thumbnail */}
-                                                    <Link href={`/product/${order.product_id}`} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                    <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-10 w-10 bg-white rounded-lg border border-gray-200 p-1 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                         <img
                                                             src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                             alt={order.product?.name || "Product"}
@@ -281,11 +353,11 @@ function OrdersContent() {
 
                                                     {/* Product Info */}
                                                     <div className="min-w-0">
-                                                        <Link href={`/product/${order.product_id}`} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
+                                                        <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="text-sm font-medium text-gray-900 hover:text-brand-green-400 transition-colors line-clamp-1 block">
                                                             {order.product?.name || "Product"}
                                                         </Link>
                                                         <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-[10px] text-gray-400 font-mono">#{order.id.split('_')[1]?.substring(0, 8) || order.id.substring(0, 8)}</span>
+                                                            <span className="text-[10px] text-gray-400 font-mono">#{order.id.substring(0, 14)}</span>
                                                             {order.tracking_id && (
                                                                 <span className="text-[10px] text-gray-400">• {order.carrier || "Track"}: {order.tracking_id}</span>
                                                             )}
@@ -350,7 +422,7 @@ function OrdersContent() {
                                                 {/* Mobile Card */}
                                                 <div className="md:hidden p-4 space-y-3">
                                                     <div className="flex items-center gap-3">
-                                                        <Link href={`/product/${order.product_id}`} className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
+                                                        <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="h-12 w-12 bg-white rounded-xl border border-gray-200 p-1.5 shrink-0 block hover:border-brand-green-400 transition-colors">
                                                             <img
                                                                 src={order.product?.image_url || "/assets/images/placeholder.png"}
                                                                 alt={order.product?.name || "Product"}
@@ -359,7 +431,7 @@ function OrdersContent() {
                                                             />
                                                         </Link>
                                                         <div className="flex-1 min-w-0">
-                                                            <Link href={`/product/${order.product_id}`} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-400 transition-colors">
+                                                            <Link href={getProductUrl(order.product_id, order.product?.name || "")} className="text-sm font-semibold text-gray-900 line-clamp-1 hover:text-brand-green-400 transition-colors">
                                                                 {order.product?.name || "Product"}
                                                             </Link>
                                                             <div className="flex items-center gap-2 mt-0.5">
@@ -484,14 +556,14 @@ function OrdersContent() {
                         </div>
 
                         {/* Escrow Summary */}
-                        {orders.some(o => o.escrow_status === "held") && (
+                        {orders.some(o => o.escrow_status === "held" && o.status !== "cancelled" && o.status !== "return_requested") && (
                             <div className="bg-white backdrop-blur-[12px] border border-gray-200 shadow-lg rounded-xl overflow-hidden">
                                 <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
                                     <ShieldCheck className="h-4 w-4 text-amber-500" />
                                     <h3 className="text-sm font-bold text-gray-900">Escrow Pending</h3>
                                 </div>
                                 <div className="divide-y divide-gray-100">
-                                    {orders.filter(o => o.escrow_status === "held").map(order => (
+                                    {orders.filter(o => o.escrow_status === "held" && o.status !== "cancelled" && o.status !== "return_requested").map(order => (
                                         <div key={order.id} className="px-4 py-3">
                                             <p className="text-xs font-medium text-gray-700 line-clamp-1">{order.product?.name}</p>
                                             <div className="flex items-center justify-between mt-1.5">
@@ -558,7 +630,7 @@ function OrdersContent() {
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         {(() => {
-                            const allProds = DemoStore.getProducts();
+                            const allProds = DataSyncService.getProducts();
                             // Fair visibility: shuffle with time-based seed so every product gets equal exposure
                             const seed = Math.floor(Date.now() / (1000 * 60 * 5)); // changes every 5 min
                             const shuffled = [...allProds].sort((a, b) => {
@@ -595,7 +667,7 @@ function OrdersContent() {
                             <div className="p-5 pb-3 flex items-center justify-between border-b border-gray-200">
                                 <div>
                                     <h2 className="text-lg font-bold text-gray-900">Order Details</h2>
-                                    <p className="text-xs text-gray-500 font-mono mt-0.5">#{selectedOrderForTracking.id.substring(0, 12)}</p>
+                                    <p className="text-xs text-gray-500 font-mono mt-0.5">#{selectedOrderForTracking.id.substring(0, 14)}</p>
                                 </div>
                                 <button
                                     onClick={() => setSelectedOrderForTracking(null)}
@@ -643,7 +715,7 @@ function OrdersContent() {
                                                     selectedOrderForTracking.escrow_status === "refunded" ? "Refund issued" : "Escrow"}
                                     </span>
                                 </div>
-                                {selectedOrderForTracking.escrow_status === "held" && (
+                                {selectedOrderForTracking.escrow_status === "held" && selectedOrderForTracking.status !== "cancelled" && selectedOrderForTracking.status !== "return_requested" && (
                                     <Button
                                         size="sm"
                                         onClick={() => {
@@ -728,7 +800,7 @@ function OrdersContent() {
                         isOpen={showConcierge}
                         onClose={() => setShowConcierge(false)}
                         product={conciergeOrder.product || null}
-                        orderId={conciergeOrder.id?.split('_')[1]?.substring(0, 8) || conciergeOrder.id?.substring(0, 8) || "NEW"}
+                        orderId={conciergeOrder.id || "NEW"}
                         order={conciergeOrder}
                         mode={conciergeMode}
                     />

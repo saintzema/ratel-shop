@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
     TrendingUp,
     Users,
@@ -20,13 +21,16 @@ import {
     Star,
     Trash2
 } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn, formatDateExact } from "@/lib/utils";
 
 export default function AdminDashboard() {
+    const router = useRouter();
     const [stats, setStats] = useState<any>(null);
+    const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+    const [broadcastMessage, setBroadcastMessage] = useState("");
     const [complaints, setComplaints] = useState<any[]>([]);
     const [kycs, setKycs] = useState<any[]>([]);
     const [openDisputeCount, setOpenDisputeCount] = useState(0);
@@ -37,21 +41,71 @@ export default function AdminDashboard() {
         const dSort = (arr: any[], dateField = "created_at") =>
             arr.sort((a, b) => new Date(b[dateField] || 0).getTime() - new Date(a[dateField] || 0).getTime());
 
-        setStats(DemoStore.getAdminStats());
-        setComplaints(dSort(DemoStore.getComplaints()).slice(0, 3));
-        setKycs(dSort(DemoStore.getKYCSubmissions().filter((k: any) => k.status === "pending"), "submitted_at").slice(0, 3));
-        setOpenDisputeCount(DemoStore.getDisputes().filter(d => !d.status.startsWith("resolved")).length);
-        setRecentReviews(dSort(DemoStore.getReviews()).slice(0, 5));
-        setRecentOrders(dSort(DemoStore.getOrders()).slice(0, 5));
+        setStats(DataSyncService.getAdminStats());
+
+        // Governance: merge complaints + disputed/cancelled orders
+        const rawComplaints = DataSyncService.getComplaints().filter((c: any) => !String(c.id).includes("FP-DEMO-ORD"));
+        const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
+        const disputedOrders = allOrders
+            .filter(o => o.escrow_status === "disputed" || (o.status as string) === "cancelled" || (o.status as string) === "disputed")
+            .map(o => ({
+                id: `dispute_${o.id}`,
+                user_name: o.customer_name || o.customer_id,
+                seller_name: o.product?.seller_name || "Unknown Seller",
+                description: o.escrow_status === "disputed" ? `Dispute on order #${o.id.substring(0, 8)} — ${o.product?.name}` : `Cancelled order #${o.id.substring(0, 8)} — ${o.product?.name}`,
+                status: "open",
+                created_at: o.updated_at || o.created_at
+            }));
+        const mergedComplaints = [...rawComplaints, ...disputedOrders.filter(d => !rawComplaints.some(c => c.id === d.id))];
+        setComplaints(dSort(mergedComplaints).slice(0, 5));
+
+        // Trust & Verify: merge explicit KYC submissions + sellers with pending/unverified kyc_status
+        const kycSubmissions = DataSyncService.getKYCSubmissions().filter((k: any) => k.status === "pending");
+        const allSellers = DataSyncService.getSellers();
+        const pendingSellers = allSellers
+            .filter(s => (!s.kyc_status || (s.kyc_status as string) === "pending" || (s.kyc_status as string) === "submitted") && !kycSubmissions.some((k: any) => k.seller_id === s.id))
+            .map(s => ({
+                id: `kyc_auto_${s.id}`,
+                seller_id: s.id,
+                seller_name: s.business_name || s.owner_name || s.id,
+                id_type: "Auto-detected",
+                status: "pending" as const,
+                submitted_at: s.created_at || new Date().toISOString(),
+                created_at: s.created_at || new Date().toISOString()
+            }));
+        setKycs(dSort([...kycSubmissions, ...pendingSellers], "submitted_at").slice(0, 5));
+
+        const actualDisputes = DataSyncService.getDisputes().filter((d: any) => !String(d.order_id).includes("FP-DEMO"));
+        setOpenDisputeCount(actualDisputes.filter(d => !d.status.startsWith("resolved")).length);
+        setRecentReviews(dSort(DataSyncService.getReviews().filter((r: any) => !String(r.id).includes("FP-DEMO"))).slice(0, 5));
+        setRecentOrders(dSort(allOrders).slice(0, 5));
+    };
+
+    const handleKycAction = (kycId: string, sellerId: string, status: "approved" | "rejected") => {
+        // 1. If it's a real KYC submission (starts with kyc_), update it
+        if (!kycId.startsWith("kyc_auto_")) {
+            DataSyncService.updateKYCStatus(kycId, status);
+        }
+        
+        // 2. Always update the underlying seller
+        // SellerStatus enum: pending | active | frozen | banned
+        const realStatus = status === "approved" ? "active" : "frozen";
+        DataSyncService.updateSeller(sellerId, {
+            kyc_status: status,
+            verified: status === "approved",
+            status: realStatus as any
+        });
+        
+        loadData(); // refresh UI
     };
 
     useEffect(() => {
         loadData();
         window.addEventListener("storage", loadData);
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
         return () => {
             window.removeEventListener("storage", loadData);
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
         };
     }, []);
 
@@ -118,9 +172,11 @@ export default function AdminDashboard() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {cards.map((card) => (
-                    <Link href={card.href} key={card.label} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group block">
+                    <Link href={card.href} key={card.label} className="bg-white/40 backdrop-blur-xl p-6 rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 hover:shadow-2xl hover:shadow-green-900/20 hover:-translate-y-1 transition-all group block relative overflow-hidden">
+                        <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent pointer-events-none" />
+                        <div className="relative z-10">
                         <div className="flex items-start justify-between mb-4">
                             <div className={cn(
                                 "p-3 rounded-xl",
@@ -143,9 +199,10 @@ export default function AdminDashboard() {
                         <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest">{card.label}</h3>
                         <div className="flex items-end justify-between mt-1">
                             <p className="text-2xl font-black text-gray-900">{card.value}</p>
-                            <span className="text-[10px] font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                            <span className="text-[10px] font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
                                 View Details <ChevronRight className="h-3 w-3 ml-0.5" />
                             </span>
+                        </div>
                         </div>
                     </Link>
                 ))}
@@ -154,8 +211,9 @@ export default function AdminDashboard() {
             {/* Governance & Operations Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Pending KYC Reviews */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                    <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                         <div>
                             <h3 className="text-lg font-black text-gray-900 tracking-tight">Trust &amp; Verify</h3>
                             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Pending Seller Onboarding</p>
@@ -190,7 +248,7 @@ export default function AdminDashboard() {
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => DemoStore.updateKYCStatus(kyc.id, "approved")}
+                                                    onClick={() => handleKycAction(kyc.id, kyc.seller_id, "approved")}
                                                     className="h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold text-[10px] uppercase"
                                                 >
                                                     Approve
@@ -198,7 +256,7 @@ export default function AdminDashboard() {
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    onClick={() => DemoStore.updateKYCStatus(kyc.id, "rejected")}
+                                                    onClick={() => handleKycAction(kyc.id, kyc.seller_id, "rejected")}
                                                     className="h-8 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 font-bold text-[10px] uppercase"
                                                 >
                                                     Reject
@@ -213,8 +271,9 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Dispute Resolution Center */}
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                    <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                    <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                         <div>
                             <h3 className="text-lg font-black text-gray-900 tracking-tight">Governance</h3>
                             <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Active Marketplace Disputes</p>
@@ -255,7 +314,14 @@ export default function AdminDashboard() {
                                                     variant="ghost"
                                                     onClick={(e) => {
                                                         e.preventDefault();
-                                                        DemoStore.updateComplaintStatus(c.id, "investigating");
+                                                        DataSyncService.updateComplaintStatus(c.id, "investigating");
+                                                        // Navigate to the appropriate page
+                                                        if (c.id.startsWith('dispute_')) {
+                                                            const orderId = c.id.replace('dispute_', '');
+                                                            router.push(`/admin/escrow?filter=disputed&order=${orderId}`);
+                                                        } else {
+                                                            router.push('/admin/governance');
+                                                        }
                                                     }}
                                                     className="h-8 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold text-[10px] uppercase"
                                                 >
@@ -266,7 +332,7 @@ export default function AdminDashboard() {
                                                     variant="ghost"
                                                     onClick={(e) => {
                                                         e.preventDefault();
-                                                        DemoStore.updateComplaintStatus(c.id, "resolved");
+                                                        DataSyncService.updateComplaintStatus(c.id, "resolved");
                                                     }}
                                                     className="h-8 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 font-bold text-[10px] uppercase"
                                                 >
@@ -283,8 +349,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Reviews Management */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                     <div>
                         <h3 className="text-lg font-black text-gray-900 tracking-tight">Recent Product Reviews</h3>
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Monitor & Moderate</p>
@@ -307,13 +374,13 @@ export default function AdminDashboard() {
                                                     <Star key={s} className={`h-3 w-3 ${s <= review.rating ? "text-amber-400 fill-current" : "text-gray-200"}`} />
                                                 ))}
                                             </div>
-                                            <span className="font-bold text-gray-900 text-sm">{review.title}</span>
+                                            <span className="font-bold text-gray-900 text-sm">{review.title || `${review.rating}-Star Review`}</span>
                                         </div>
-                                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{review.body}</p>
+                                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{review.body || review.comment || "No written review"}</p>
                                         <div className="flex items-center gap-2 mt-2 text-[10px] font-bold text-gray-400 uppercase">
                                             <span>By {review.user_name}</span>
                                             <span>•</span>
-                                            <span>Product ID: {review.product_id}</span>
+                                            <span>{(() => { const p = DataSyncService.getProducts().find(p => p.id === review.product_id); return p?.name || review.product_id; })()}</span>
                                             <span>•</span>
                                             <span>{new Date(review.created_at).toLocaleDateString()}</span>
                                         </div>
@@ -325,7 +392,7 @@ export default function AdminDashboard() {
                                             onClick={(e) => {
                                                 e.preventDefault();
                                                 if (confirm('Are you sure you want to delete this review?')) {
-                                                    DemoStore.deleteReview(review.id);
+                                                    DataSyncService.deleteReview(review.id);
                                                 }
                                             }}
                                             className="h-8 w-8 p-0 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 font-bold"
@@ -341,8 +408,9 @@ export default function AdminDashboard() {
             </div>
 
             {/* Recent Platform Orders */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
-                <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+            <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                     <div>
                         <h3 className="text-lg font-black text-gray-900 tracking-tight">Recent Platform Orders</h3>
                         <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Global Trading Activity</p>
@@ -374,8 +442,8 @@ export default function AdminDashboard() {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {recentOrders.map((order) => {
-                                    const buyer = DemoStore.getUser(order.customer_id);
-                                    const buyerName = buyer?.name || buyer?.email?.split('@')[0] || order.customer_name || order.customer_id.split('@')[0];
+                                    const buyer = DataSyncService.getUser(order.customer_id);
+                                    const buyerName = buyer?.name || buyer?.email?.split('@')[0] || order.customer_name || order.customer_id?.split('@')[0] || "Customer";
 
                                     return (
                                         <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
@@ -429,20 +497,77 @@ export default function AdminDashboard() {
             </div>
 
             {/* Quick Actions Footer */}
-            <div className="bg-indigo-600 rounded-2xl p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="text-center md:text-left">
+            <div className="bg-emerald-600 rounded-3xl p-10 text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-tr from-emerald-800/40 via-transparent to-white/20 pointer-events-none" />
+                <div className="relative z-10 text-center md:text-left">
                     <h3 className="text-2xl font-black tracking-tight">Platform Safety Mode</h3>
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">Configure system-wide trust protocols and fee structures.</p>
                 </div>
                 <div className="flex flex-wrap justify-center gap-3">
-                    <Button className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6">
-                        System Configuration
+                    <Button 
+                        onClick={() => {
+                            const sent = DataSyncService.simulateWhatsAppFollowups();
+                            alert(`Simulated WhatsApp follow-up SMS triggered for ${sent} abandoned negotiations.`);
+                        }}
+                        className="bg-white text-indigo-600 hover:bg-indigo-50 font-black rounded-2xl h-12 px-6"
+                    >
+                        Trigger WhatsApp Hook
                     </Button>
-                    <Button variant="outline" className="bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 hover:text-white font-black rounded-2xl h-12 px-6 transition-all">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => setShowBroadcastModal(true)}
+                        className="bg-white/20 backdrop-blur-md border border-white/30 text-white hover:bg-white/30 hover:text-white font-black rounded-2xl h-12 px-6 transition-all"
+                    >
                         Broadcast Update
                     </Button>
                 </div>
             </div>
+
+            {/* Broadcast Modal */}
+            {showBroadcastModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                            <h3 className="text-lg font-black text-gray-900">System Broadcast</h3>
+                            <button onClick={() => setShowBroadcastModal(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                                <XCircle className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <div>
+                                <label className="text-xs font-bold uppercase text-gray-400">Message</label>
+                                <textarea
+                                    className="w-full mt-1.5 p-3 rounded-xl border border-gray-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium resize-none min-h-[100px]"
+                                    placeholder="Enter update message to broadcast to all sellers..."
+                                    value={broadcastMessage}
+                                    onChange={e => setBroadcastMessage(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <Button
+                                onClick={() => {
+                                    if (!broadcastMessage.trim()) return;
+                                    const sellers = DataSyncService.getSellers();
+                                    sellers.forEach(s => {
+                                        DataSyncService.addNotification({
+                                            userId: s.user_id || s.id,
+                                            type: "system",
+                                            message: `📢 System Update: ${broadcastMessage}`,
+                                            link: "/seller/dashboard"
+                                        });
+                                    });
+                                    alert(`Broadcast sent to ${sellers.length} sellers successfully.`);
+                                    setShowBroadcastModal(false);
+                                    setBroadcastMessage("");
+                                }}
+                                className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm"
+                            >
+                                Send Broadcast 🚀
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

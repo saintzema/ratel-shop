@@ -15,14 +15,11 @@ const config: CapacitorConfig = {
   appName: "FairPrice",
   webDir: "out", // Static fallback — used for offline/initial load
 
-  // ─── Server: Live URL Mode ──────────────────────────────
-  // In production, the app loads from Vercel deployment
-  // In development, it loads from localhost for hot reloading
   server: {
-    url: IS_DEV ? "http://172.20.10.3:3000" : undefined,
-    cleartext: IS_DEV, // Allow HTTP in dev (required for localhost)
-    // Production loads from webDir static export OR you can set:
-    // url: "https://fairprice-ten.vercel.app" for always-online mode
+    // Development: point to your local machine (e.g., http://192.168.1.100:3000)
+    // Simulator: use http://localhost:3000
+    // Production: https://fairprice-ten.vercel.app
+    url: "http://localhost:3000",
     allowNavigation: [
       "fairprice-ten.vercel.app",
       "*.vercel.app",
@@ -38,14 +35,14 @@ const config: CapacitorConfig = {
     scheme: "FairPrice",
     contentInset: "automatic",
     preferredContentMode: "mobile",
-    backgroundColor: "#059669", // FairPrice emerald — matches splash
+    backgroundColor: "#FFFFFF", // White — prevents green flash while WebView loads
     allowsLinkPreview: true,
-    scrollEnabled: true,
+    scrollEnabled: false, // Prevents iOS webview overscroll rubber-banding
   },
 
   // ─── Android Configuration ──────────────────────────────
   android: {
-    backgroundColor: "#059669",
+    backgroundColor: "#FFFFFF",
     allowMixedContent: true, // Allow HTTP resources in WebView
     captureInput: true,      // Prevents keyboard issues
     webContentsDebuggingEnabled: IS_DEV, // WebView debug in dev only
@@ -59,20 +56,20 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchAutoHide: true,
-      launchShowDuration: 2000,
-      backgroundColor: "#059669",       // FairPrice emerald
+      launchShowDuration: 3000,
+      backgroundColor: "#FFFFFF",       // White background to match app
       showSpinner: true,
-      spinnerColor: "#FFFFFF",
+      spinnerColor: "#059669",          // Green spinner
       androidScaleType: "CENTER_CROP",
       splashFullScreen: true,
       splashImmersive: true,
     },
     StatusBar: {
-      style: "LIGHT",                   // White text on dark bar
-      backgroundColor: "#059669",       // Android status bar color
+      style: "DARK",                    // Dark text on white bar
+      backgroundColor: "#FFFFFF",       // White status bar
     },
     Keyboard: {
-      resize: KeyboardResize.Body,      // Resize WebView when keyboard opens
+      resize: KeyboardResize.None,     // Use manual resizing (bottom: var(--kb-height)) for 100% control
       resizeOnFullScreen: true,
     },
     PushNotifications: {

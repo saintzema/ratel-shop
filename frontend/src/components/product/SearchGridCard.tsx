@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
-import { ShieldCheck, Heart, Star, Check, ShoppingCart } from "lucide-react";
+import { useFavorites } from "@/context/FavoritesContext";
+import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
 import NextLink from "next/link";
-import { cn } from "@/lib/utils";
+import { nativeBridge } from "@/lib/native-bridge";
+import { cn, getProductUrl } from "@/lib/utils";
+import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 export const SearchGridCard = ({
   product,
@@ -15,8 +18,62 @@ export const SearchGridCard = ({
   showGlobalPartner?: boolean;
 }) => {
   const [added, setAdded] = useState(false);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
   const router = useRouter();
   const { addToCart } = useCart();
+  const { toggleFavorite, isFavorite } = useFavorites();
+  const favorited = isFavorite(product.id);
+  const [hydratedImage, setHydratedImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check if the current product lacks a valid image
+    const isValidImg = (url: string | undefined | null) =>
+      url && url.trim().length > 4 &&
+      !url.toLowerCase().includes('no photo') &&
+      !url.toLowerCase().includes('no image') &&
+      !url.toLowerCase().includes('n/a') &&
+      !url.toLowerCase().includes('undefined') &&
+      !url.includes('vertexaisearch.cloud.google.com') &&
+      !url.includes('grounding-api-redirect');
+
+    const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
+
+    if (product._source === "global" && hasNoRealImage && !hydratedImage) {
+      // Async fetch real image in the background
+      fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.imageUrl) {
+                setHydratedImage(data.imageUrl);
+                // Attempt to cache it to session storage so we don't refetch on back/forward navigation
+                try {
+                    const cached = sessionStorage.getItem('fp_nav_search_results');
+                    if (cached) {
+                        const parsed = JSON.parse(cached);
+                        const updated = parsed.map((p: any) => p.id === product.id ? { ...p, image_url: data.imageUrl } : p);
+                        sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
+                    }
+                } catch(e) {}
+            }
+        })
+        .catch(() => {});
+    }
+  }, [product.id, product._source, product.image_url, product.name, hydratedImage, product.images]);
+
+  const lastTapRef = useRef<number>(0);
+  const handleDoubleTap = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const now = Date.now();
+    if (now - lastTapRef.current < 400) {
+      if (!favorited) toggleFavorite(product.id);
+      nativeBridge.hapticFeedback("heavy");
+      setShowHeartBurst(true);
+      setTimeout(() => setShowHeartBurst(false), 1000);
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+    }
+  };
 
   const discount =
     product.original_price &&
@@ -48,9 +105,13 @@ export const SearchGridCard = ({
     }
   };
 
+  const productPrice = product.price || product.approxPrice || 0;
+  const showFinancing = isVehicle(product) && (product._source === "global" || product.financing_available || product.seller_id === 'global-partners');
+  const financingResult = showFinancing ? calculateMonthlyPayment(productPrice) : null;
+
   return (
     <NextLink
-      href={`/product/${product.id || "global_" + product.name.replace(/\s+/g, "_").toLowerCase()}`}
+      href={getProductUrl(product.id, product.name)}
       className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
@@ -75,58 +136,67 @@ export const SearchGridCard = ({
           </div>
         )}
         <button
-          className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/80 backdrop-blur-sm shadow-sm border border-gray-100 hover:bg-white hover:scale-110 transition-all text-gray-400 hover:text-red-500"
-          onClick={(e) => e.preventDefault()}
+          className="absolute top-3 right-3 z-20 p-1.5 rounded-full bg-white/80 backdrop-blur-sm shadow-sm border border-gray-100 hover:bg-white hover:scale-110 transition-all cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleFavorite(product.id);
+            nativeBridge.hapticFeedback("heavy");
+            if (!favorited) {
+              setShowHeartBurst(true);
+              setTimeout(() => setShowHeartBurst(false), 1000);
+            }
+          }}
         >
-          <Heart className="h-4 w-4 transition-colors" />
+          <Heart className={cn("h-4 w-4 transition-colors", favorited ? "fill-red-500 text-red-500" : "text-gray-400 hover:text-red-500")} />
         </button>
+        {showHeartBurst && (
+          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+            <Heart className="h-20 w-20 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
+          </div>
+        )}
+        <div className="absolute inset-0 z-10" onClick={handleDoubleTap}></div>
         <img
-          src={
-            product.image_url && !product.image_url.toLowerCase().includes('no photo') && !product.image_url.toLowerCase().includes('no image') && !product.image_url.toLowerCase().includes('n/a')
-              ? product.image_url
-              : product.images?.[0] && !product.images[0].toLowerCase().includes('no photo') && !product.images[0].toLowerCase().includes('n/a')
-                ? product.images[0]
-                : "/assets/images/placeholder.png"
-          }
-          alt={product.name}
+          src={(() => {
+            if (hydratedImage) return hydratedImage;
+            const isValid = (url: string | undefined | null) =>
+              url && url.trim().length > 4 &&
+              !url.toLowerCase().includes('no photo') &&
+              !url.toLowerCase().includes('no image') &&
+              !url.toLowerCase().includes('n/a') &&
+              !url.toLowerCase().includes('undefined') &&
+              !url.includes('vertexaisearch.cloud.google.com') &&
+              !url.includes('grounding-api-redirect');
+            if (isValid(product.image_url)) return product.image_url;
+            if (isValid(product.images?.[0])) return product.images[0];
+            return "/assets/images/placeholder.png";
+          })()}
+          alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          loading="lazy"
           onError={(e) => {
             e.currentTarget.src = "/assets/images/placeholder.png";
           }}
         />
       </div>
-      <div className="p-4 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
-        <h4 className="font-bold text-base text-gray-900 line-clamp-2 group-hover:text-emerald-700 transition-colors mb-2 min-h-[48px] leading-snug">
+      <div className="p-3 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
+        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-brand-green-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
           {product.name}
         </h4>
 
-        <div className="flex items-center gap-1.5 mb-2.5">
-          {showGlobalPartner ||
-            product.seller_id === "global-partners" ||
-            product._source === "global" ? (
-            <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100/50 text-emerald-800 px-2 py-0.5 rounded-full shadow-sm">
-              Global Partner
-            </span>
-          ) : (
-            <span className="text-[10px] font-bold bg-gray-100 text-gray-700 px-2.5 py-0.5 rounded-full truncate max-w-full">
-              {product.seller_name || "Marketplace Seller"}
-            </span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-1 mb-3">
-          <span className="text-sm font-bold text-amber-500">
+        <div className="flex items-center gap-1 mb-1.5">
+          <span className="text-[11px] font-bold text-amber-500">
             {(product.avg_rating || 4.5).toFixed(1)}
           </span>
           <div className="flex items-center">
             {[1, 2, 3, 4, 5].map((s: number) => (
               <Star
                 key={s}
-                className={`w-3.5 h-3.5 flex-shrink-0 ${s <= Math.round(product.avg_rating || 4.5) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
+                className={`w-2.5 h-2.5 flex-shrink-0 ${s <= Math.round(product.avg_rating || 4.5) ? "text-amber-400 fill-amber-400" : "text-gray-200"}`}
               />
             ))}
           </div>
-          <span className="text-xs text-blue-600 hover:underline">
+          <span className="text-[9px] text-blue-600 font-medium hover:underline">
             (
             {(
               product.review_count || Math.floor(Math.random() * 500) + 50
@@ -135,18 +205,38 @@ export const SearchGridCard = ({
           </span>
         </div>
 
-        <div className="flex items-baseline gap-2 mb-4 flex-wrap">
-          <p className="text-2xl font-black tracking-tight text-gray-900">
+        {/* Phase 5: Compact Trust & Negotiation Indicators OR Financing */}
+        <div className="flex items-center gap-1.5 mb-2.5">
+            {financingResult ? (
+                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
+                    <Coins className="h-2 w-2 text-emerald-600" />
+                    <span className="text-[10px] sm:text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)} MONTHLY</span>
+                </div>
+            ) : (
+                <>
+                    <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded-md" title={`Trust Score: ${product.seller_trust_score || 85}%`}>
+                        <ShieldCheck className="h-2 w-2 text-emerald-600" />
+                        <span className="text-[8px] font-bold text-emerald-700">{product.seller_trust_score || 85}%</span>
+                    </div>
+                    <div className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1 py-0.5 rounded-md">
+                        {product.negotiation_rate || 80}% Accept
+                    </div>
+                </>
+            )}
+        </div>
+
+        <div className="flex items-baseline gap-1.5 mb-3 flex-wrap">
+          <p className="text-xl font-black tracking-tight text-gray-900 leading-none">
             ₦{(product.price || product.approxPrice || 0).toLocaleString()}
           </p>
           {product.original_price &&
             product.original_price > (product.price || product.approxPrice) && (
-              <p className="text-sm text-gray-400 line-through font-medium">
+              <p className="text-[11px] text-gray-400 line-through font-medium leading-none">
                 ₦{product.original_price.toLocaleString()}
               </p>
             )}
           {discount > 0 && (
-            <span className="text-xs text-red-500 font-bold ml-auto bg-red-50 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] text-red-500 font-black ml-auto bg-red-50 px-1.5 py-0.5 rounded-md">
               -{discount}%
             </span>
           )}
@@ -154,7 +244,7 @@ export const SearchGridCard = ({
 
         <button
           className={cn(
-            "w-full mt-auto flex items-center justify-center gap-2 text-sm font-black py-3 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
+            "w-full mt-auto flex items-center justify-center gap-1.5 text-[12px] font-black py-2.5 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
             added
               ? "bg-black text-white hover:bg-gray-800 border-black"
               : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
@@ -163,11 +253,11 @@ export const SearchGridCard = ({
         >
           {added ? (
             <>
-              <Check className="h-4 w-4" /> View Cart
+              <Check className="h-3.5 w-3.5" /> Carted
             </>
           ) : (
             <>
-              <ShoppingCart className="h-4 w-4" /> Add to cart
+              <ShoppingCart className="h-3.5 w-3.5" /> Buy Now
             </>
           )}
         </button>

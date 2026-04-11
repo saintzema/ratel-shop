@@ -18,8 +18,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { CATEGORIES } from "@/lib/types";
 import { formatPrice, cn } from "@/lib/utils";
 import {
@@ -42,6 +44,7 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  PlusCircle,
   Phone,
   Car,
   Shirt,
@@ -205,8 +208,10 @@ function getProductIcon(name: string, category?: string) {
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useInView } from "react-intersection-observer";
+import { useAuth } from "@/context/AuthContext";
 
 function SearchContent() {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -217,9 +222,10 @@ function SearchContent() {
   const sortParam = searchParams.get("sort") || "relevance";
   const minPriceParam = searchParams.get("minPrice");
   const maxPriceParam = searchParams.get("maxPrice");
+  const pageParam = searchParams.get("page");
 
   // Local State
-  const [priceRange, setPriceRange] = useState([0, 5000000]);
+  const [priceRange, setPriceRange] = useState([0, 500000000]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     categoryParam,
   );
@@ -239,6 +245,7 @@ function SearchContent() {
       condition?: string;
       sourceUrl?: string;
       image_url?: string;
+      description?: string;
       specs?: Record<string, string>;
     }[]
   >([]);
@@ -277,7 +284,20 @@ function SearchContent() {
         }
 
         if (cachedResults) {
-          const parsed = JSON.parse(cachedResults);
+          let parsed = JSON.parse(cachedResults);
+          
+          // ─── HYDRATION SYNC ───
+          // If any cached result is actually a local product, hydrate it with latest store data
+          // This ensures updated images from sellers appear correctly in SRP.
+          const approved = DataSyncService.getApprovedProducts();
+          parsed = parsed.map((p: any) => {
+            const live = approved.find(lp => lp.id === p.id || lp.name.toLowerCase() === p.name.toLowerCase());
+            if (live) {
+              return { ...p, ...live }; // Prefer live local data for imaging/pricing
+            }
+            return p;
+          });
+
           // Sort with clicked product first
           if (cachedClicked) {
             setNavClickedId(cachedClicked);
@@ -301,7 +321,7 @@ function SearchContent() {
 
   useEffect(() => {
     if (minPriceParam)
-      setPriceRange([Number(minPriceParam), Number(maxPriceParam) || 5000000]);
+      setPriceRange([Number(minPriceParam), Number(maxPriceParam) || 500000000]);
     setSelectedCategory(categoryParam);
     setIsVerified(verifiedParam);
     setSortBy(sortParam);
@@ -372,57 +392,135 @@ function SearchContent() {
     return detectCategoryFromQuery(query);
   }, [query, selectedCategory]);
 
+  // Generate dynamic price brackets depending on detectedCategory
+  const priceBrackets = useMemo(() => {
+    switch(detectedCategory) {
+      case 'phones':
+      case 'computers':
+      case 'electronics':
+         return [
+           { label: 'Under ₦100k', min: 0, max: 100000 },
+           { label: '₦100k to ₦250k', min: 100000, max: 250000 },
+           { label: '₦250k to ₦500k', min: 250000, max: 500000 },
+           { label: '₦500k to ₦1M', min: 500000, max: 1000000 },
+           { label: 'Over ₦1M', min: 1000000, max: 50000000 }
+         ];
+      case 'cars':
+         return [
+           { label: 'Under ₦5M', min: 0, max: 5000000 },
+           { label: '₦5M to ₦15M', min: 5000000, max: 15000000 },
+           { label: '₦15M to ₦30M', min: 15000000, max: 30000000 },
+           { label: 'Over ₦30M', min: 30000000, max: 500000000 }
+         ];
+      case 'energy':
+         return [
+           { label: 'Under ₦250k', min: 0, max: 250000 },
+           { label: '₦250k to ₦1M', min: 250000, max: 1000000 },
+           { label: '₦1M to ₦5M', min: 1000000, max: 5000000 },
+           { label: 'Over ₦5M', min: 5000000, max: 500000000 }
+         ];
+      case 'fashion':
+      case 'beauty':
+      case 'grocery':
+         return [
+           { label: 'Under ₦5k', min: 0, max: 5000 },
+           { label: '₦5k to ₦15k', min: 5000, max: 15000 },
+           { label: '₦15k to ₦50k', min: 15000, max: 50000 },
+           { label: 'Over ₦50k', min: 50000, max: 5000000 }
+         ];
+      default:
+         return [
+           { label: 'Under ₦50k', min: 0, max: 50000 },
+           { label: '₦50k to ₦200k', min: 50000, max: 200000 },
+           { label: '₦200k to ₦500k', min: 200000, max: 500000 },
+           { label: 'Over ₦500k', min: 500000, max: 50000000 }
+         ];
+    }
+  }, [detectedCategory]);
+
   // Get dynamic filters for current category
   const categoryFilterGroups = useMemo(() => {
     return getFiltersForCategory(detectedCategory);
   }, [detectedCategory]);
 
-  // Live products from DemoStore
+  // Live products from DataSyncService
   const [allProducts, setAllProducts] = useState<
     import("@/lib/types").Product[]
   >([]);
 
   // Pagination State
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(pageParam ? parseInt(pageParam, 10) : 1);
   const ITEMS_PER_PAGE = 12;
   const { ref: observerRef, inView } = useInView({ threshold: 0.1 });
 
   useEffect(() => {
     const refresh = () =>
       setAllProducts(
-        DemoStore.getApprovedProducts().filter((p) => p.is_active),
+        DataSyncService.getApprovedProducts().filter((p) => p.is_active),
       );
     refresh();
-    window.addEventListener("demo-store-update", refresh);
-    return () => window.removeEventListener("demo-store-update", refresh);
+    window.addEventListener("sync-store-update", refresh);
+    return () => window.removeEventListener("sync-store-update", refresh);
   }, []);
 
   // Debounced global search for the search page
   useEffect(() => {
-    if (!query || query.trim().length <= 2) {
+    const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
+    if (!effectiveQuery || effectiveQuery.length <= 2) {
       setGlobalResults([]);
       setIsGlobalSearching(false);
       return;
     }
+    // Check cache first
+    const cachedItems = DataSyncService.getAllSearchCache()[effectiveQuery];
+    if (cachedItems && cachedItems.length > 0) {
+        setGlobalResults(cachedItems.map((c: any) => ({
+            name: c.name,
+            category: c.category,
+            approxPrice: c.price,
+            image_url: c.image_url,
+            description: c.description,
+            specs: c.specs
+        })));
+        setShowGlobalResults(true);
+        setIsGlobalSearching(false);
+        return;
+    }
+
     setIsGlobalSearching(true);
     setGlobalResults([]);
     const timer = setTimeout(() => {
       fetch("/api/gemini-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: query, mode: "search" }),
+        body: JSON.stringify({ productName: effectiveQuery, mode: "search", category: detectedCategory }),
       })
         .then((res) => res.json())
         .then((data) => {
           if (data.suggestions && Array.isArray(data.suggestions)) {
             setGlobalResults(data.suggestions);
+            if (data.suggestions.length > 0) {
+              setShowGlobalResults(true); // Auto-show the global results seamlessly
+              // Formatting for auto-cache seeding
+              const mapped = data.suggestions.map((r: any) => ({
+                id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                name: r.name,
+                price: r.approxPrice || 0,
+                category: r.category || effectiveQuery || "general",
+                image_url: r.image_url || '/assets/images/placeholder.png',
+                description: r.description || '',
+                specs: r.specs || {},
+                _source: "global"
+              }));
+              DataSyncService.addToSearchCache(effectiveQuery, mapped);
+            }
           }
         })
         .catch(() => { })
         .finally(() => setIsGlobalSearching(false));
     }, 500);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, selectedCategory]);
 
   const [globalSearchCount, setGlobalSearchCount] = useState(0);
 
@@ -430,12 +528,13 @@ function SearchContent() {
     setShowGlobalResults(true);
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
-    if (query && query.trim().length > 2) {
+    const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
+    if (effectiveQuery && effectiveQuery.length > 2) {
       setIsGlobalSearching(true);
       fetch("/api/gemini-price", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productName: query, mode: "search", offset: globalSearchCount + 1 }),
+        body: JSON.stringify({ productName: effectiveQuery, mode: "search", offset: globalSearchCount + 1, category: detectedCategory }),
       })
         .then((res) => res.json())
         .then((data) => {
@@ -444,6 +543,20 @@ function SearchContent() {
               const newItems = data.suggestions.filter(
                 (s: any) => !prev.some(p => p.name.toLowerCase() === s.name.toLowerCase())
               );
+              // Formatting for auto-cache seeding
+              if (newItems.length > 0) {
+                  const mapped = newItems.map((r: any) => ({
+                    id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                    name: r.name,
+                    price: r.approxPrice || 0,
+                    category: r.category || effectiveQuery || "general",
+                    image_url: r.image_url || '/assets/images/placeholder.png',
+                    description: r.description || '',
+                    specs: r.specs || {},
+                    _source: "global"
+                  }));
+                  DataSyncService.addToSearchCache(effectiveQuery, mapped);
+              }
               return [...prev, ...newItems];
             });
           }
@@ -453,28 +566,149 @@ function SearchContent() {
     }
   };
 
+  const searchableProducts = useMemo(() => {
+    let locals = allProducts;
+    if (showGlobalResults && globalResults.length > 0) {
+      const mappedGlobal = globalResults.map((r, i) => {
+        // Create a stable, URL-safe ID from the product name, matching Navbar logic
+        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+        
+        // ─── Use REAL Gemini description, fallback to category templates only if empty ───
+        const fallbackDescriptions: Record<string, string> = {
+          electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
+          phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
+          computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
+          cars: "This vehicle represents exceptional engineering and value. Sourced through our verified global network with full import documentation. Includes FairPrice Escrow protection for secure, worry-free transactions.",
+          default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
+        };
+        const catKey = (r.category || "").toLowerCase();
+        let descFallback = fallbackDescriptions.default;
+        if (catKey.includes("phone")) descFallback = fallbackDescriptions.phones;
+        else if (catKey.includes("laptop") || catKey.includes("comput")) descFallback = fallbackDescriptions.computing;
+        else if (catKey.includes("car") || catKey.includes("vehicle")) descFallback = fallbackDescriptions.cars;
+        else if (catKey.includes("electronic") || catKey.includes("audio")) descFallback = fallbackDescriptions.electronics;
+
+        // Use Gemini's real description if available; only fallback if empty/generic
+        const description = (r.description && r.description.length > 30) ? r.description : descFallback;
+
+        const rawImg = r.image_url || "";
+        const fallback = "/assets/images/placeholder.png";
+        const hasValidPhoto = rawImg && 
+                              !rawImg.toLowerCase().includes('no photo') && 
+                              !rawImg.toLowerCase().includes('no image') && 
+                              !rawImg.toLowerCase().includes('n/a') &&
+                              !rawImg.toLowerCase().includes('missing') &&
+                              !rawImg.toLowerCase().includes('placeholder');
+
+        // ─── Use REAL Gemini specs, only add shipping/warranty if Gemini returned nothing ───
+        const realSpecs = (r.specs && typeof r.specs === 'object' && Object.keys(r.specs).length > 0) 
+          ? { ...r.specs, "Condition": r.condition || "Brand New" }
+          : {
+              "Sourcing": "Global Network",
+              "Shipping": "Air Freight (Tracked)",
+              "Warranty": "1 Year International",
+              "Condition": r.condition || "Brand New"
+            };
+
+        const product = {
+          id: stableId,
+          name: r.name,
+          price: r.approxPrice || 0,
+          original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+          category: r.category || "electronics",
+          description,
+          image_url: hasValidPhoto ? rawImg : fallback,
+          images: [hasValidPhoto ? rawImg : fallback],
+          stock: 100,
+          seller_id: "global-partners",
+          seller_name: "Global Stores",
+          price_flag: "fair" as const,
+          sold_count: Math.floor(Math.random() * 200) + 10,
+          review_count: Math.floor(Math.random() * 50) + 5,
+          avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          _source: "global",
+          specs: realSpecs,
+        };
+        return product as import("@/lib/types").Product;
+      })
+
+      // ─── FRONTEND VEHICLE PRICE FLOOR (mirrors backend defense — zero latency) ───
+      .filter((p) => {
+        const VEHICLE_FLOOR = 5_000_000;
+        if (p.price >= VEHICLE_FLOOR) return true;
+        const name = p.name.toLowerCase();
+        const cat = (p.category || "").toLowerCase();
+        const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+        const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+        if (PART_KW.test(name)) return true; // Parts/phones always pass
+        const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
+        const isWholeVeh = WHOLE_VEH.test(name);
+        if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false; // Block hallucinated vehicle
+        return true;
+      });
+
+      // Deduplicate globals
+      const uniqueGlobal: import("@/lib/types").Product[] = [];
+      const seenNames = new Set(locals.map(l => l.name.toLowerCase()));
+      for(const g of mappedGlobal) {
+         if (!seenNames.has(g.name.toLowerCase())) {
+             seenNames.add(g.name.toLowerCase());
+             uniqueGlobal.push(g);
+         }
+      }
+      return [...locals, ...uniqueGlobal];
+    }
+    return locals;
+  }, [allProducts, showGlobalResults, globalResults]);
+
   const filteredProducts = useMemo(() => {
-    return allProducts
+    return searchableProducts
       .filter((product) => {
-        if (
-          query &&
-          !product.name.toLowerCase().includes(query.toLowerCase()) &&
-          !(
-            product.description &&
-            product.description.toLowerCase().includes(query.toLowerCase())
-          )
-        )
-          return false;
+        // ALWAYS keep global products, as they are already semantically matched by the backend AI
+        if ((product as any)._source === "global") return true;
+
+        if (query) {
+          const q = query.toLowerCase();
+          const pName = (product.name || "").toLowerCase();
+          const pDesc = (product.description || "").toLowerCase();
+
+          // First: check if the entire query matches (exact substring)
+          let exactMatch = pName.includes(q) || pDesc.includes(q);
+
+          // Custom logical mappings for categories like EVs yielding 0 direct name matches
+          if (q === "evs" || q === "ev") {
+            if (pName.includes("tesla") || pName.includes("electric") || pName.includes("hybrid") || pName.includes("ev ")) {
+              exactMatch = true;
+            }
+          }
+
+          if (!exactMatch) {
+            // Tokenize query into significant words (3+ chars, not just numbers/years)
+            const queryWords = q.split(/\s+/).filter(w => w.length >= 3 && !/^\d{2,4}$/.test(w));
+
+            if (queryWords.length === 0) return false; // only short/numeric words, can't meaningfully match
+
+            // Require at least one significant query word to appear in the product name
+            const nameHasMatch = queryWords.some(w => pName.includes(w));
+            if (!nameHasMatch) return false;
+          }
+        }
         if (
           selectedCategory &&
-          selectedCategory !== "All" &&
-          product.category?.toLowerCase() !== selectedCategory.toLowerCase()
-        )
-          return false;
+          selectedCategory !== "All"
+        ) {
+          const selCat = selectedCategory.toLowerCase();
+          const prodCat = (product.category || "").toLowerCase();
+          const prodName = (product.name || "").toLowerCase();
+          // Match if either the product category or name includes the selected category term
+          if (!prodCat.includes(selCat) && !selCat.includes(prodCat) && !prodName.includes(selCat))
+            return false;
+        }
         if (
           isVerified &&
-          !product.seller_name.includes("TechHub") &&
-          !product.seller_name.includes("FairPrice")
+          (!product.seller_name || (!product.seller_name.includes("TechHub") && !product.seller_name.includes("FairPrice")))
         )
           return false;
         if (product.price < priceRange[0] || product.price > priceRange[1])
@@ -515,9 +749,16 @@ function SearchContent() {
     isVerified,
     priceRange,
     sortBy,
-    allProducts,
+    searchableProducts,
     attributeFilters,
   ]);
+
+  // Auto-show global results when local catalog is empty but global search found products
+  useEffect(() => {
+    if (!isGlobalSearching && globalResults.length > 0 && filteredProducts.length === 0 && !showGlobalResults) {
+      setShowGlobalResults(true);
+    }
+  }, [isGlobalSearching, globalResults.length, filteredProducts.length, showGlobalResults]);
 
   useEffect(() => {
     setPage(1);
@@ -568,63 +809,11 @@ function SearchContent() {
       }
     }
 
-    if (showGlobalResults) {
-      const mappedGlobal = globalResults.map((r, i) => {
-        // Create a stable, URL-safe ID from the product name, matching Navbar logic
-        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
-        const descCategories = {
-          electronics: "Experience next-generation technology with this premium device. Features include advanced processing, sleek design, and industry-leading reliability. Sourced directly from verified global distributors to guarantee authenticity and the best possible price. Includes our comprehensive FairPrice Escrow protection.",
-          phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display, all-day battery life, and a professional-grade camera system. Secured via our global sourcing network to bring you unbeatable value with full Escrow protection.",
-          computing: "Boost your productivity with this high-performance machine. Built with premium materials and powerful components to handle your most demanding tasks. Imported through our trusted global supply chain with guaranteed quality and fair pricing.",
-          default: "Discover exceptional quality and value with this premium product. Carefully selected by our AI sourcing engine from top-tier global suppliers to ensure you get the best deal without compromising on quality. Every purchase is fully secured by FairPrice Escrow."
-        };
-        const catList = r.category ? r.category.toLowerCase() : "default";
-        let descBase = descCategories.default;
-        if (catList.includes("phone")) descBase = descCategories.phones;
-        else if (catList.includes("laptop") || catList.includes("comput")) descBase = descCategories.computing;
-        else if (catList.includes("electronic") || catList.includes("audio")) descBase = descCategories.electronics;
+    // Filter by price range at the very end
+    return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+  }, [navResults, paginatedProducts, navClickedId, priceRange]);
 
-        const product = {
-          id: stableId,
-          name: r.name,
-          price: r.approxPrice || 0,
-          original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
-          category: r.category || "electronics",
-          description: descBase,
-          image_url: r.image_url && !r.image_url.toLowerCase().includes('no photo') && !r.image_url.toLowerCase().includes('no image') && !r.image_url.toLowerCase().includes('n/a') ? r.image_url : "/assets/images/placeholder.png",
-          seller_id: "global-partners",
-          seller_name: "Global Stores",
-          price_flag: "fair" as const,
-          sold_count: Math.floor(Math.random() * 200) + 10,
-          review_count: Math.floor(Math.random() * 50) + 5,
-          avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
-          is_active: true,
-          created_at: new Date().toISOString(),
-          _source: "global",
-          specs: r.specs || {
-            "Sourcing": "Global Network",
-            "Shipping": "Air Freight (Tracked)",
-            "Warranty": "1 Year International",
-            "Condition": r.condition || "Brand New"
-          },
-        };
-
-        return product;
-      });
-      // Deduplicate by both ID and name internally as well as externally
-      const uniqueGlobal: any[] = [];
-      for (const g of mappedGlobal) {
-        if (!seenIds.has(g.id) && !combined.some((c) => c.name.toLowerCase() === g.name.toLowerCase())) {
-          seenIds.add(g.id);
-          uniqueGlobal.push(g);
-        }
-      }
-      combined.push(...uniqueGlobal);
-    }
-    return combined;
-  }, [navResults, paginatedProducts, showGlobalResults, globalResults, navClickedId]);
-
-  // Products are no longer auto-saved here. They get saved to DemoStore only when a user clicks
+  // Products are no longer auto-saved here. They get saved to DataSyncService only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
 
   // History tracking logic: Shift to "Customers Also Bought" when query changes
@@ -669,11 +858,38 @@ function SearchContent() {
     <div className="min-h-screen bg-white font-sans selection:bg-brand-green-200">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8 pt-24 min-h-[80vh]">
+      <main className="container mx-auto px-4 py-6 pt-20 min-h-[80vh]">
+        {/* Sell Banner at the very top */}
+        <motion.div 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          onClick={() => {
+              if (user && user.role === 'seller') {
+                  router.push('/seller/dashboard');
+              } else {
+                  router.push('/seller/onboarding');
+              }
+          }}
+          className="w-full bg-gradient-to-r from-brand-orange via-amber-500 to-brand-green-600 rounded-2xl p-4 md:p-6 mb-4 cursor-pointer relative overflow-hidden group shadow-md hover:shadow-xl transition-all active:scale-[0.99] flex flex-col md:flex-row items-center justify-between gap-4 border border-white/10"
+        >
+          <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/60 to-transparent animate-[shimmer_2s_infinite] opacity-100" />
+          <div className="relative z-10 flex flex-col pt-1 text-center md:text-left w-full md:w-auto">
+              <h3 className="text-white font-black text-lg md:text-2xl leading-tight drop-shadow-md flex items-center justify-center md:justify-start gap-2">
+                  Have items like these to sell?
+              </h3>
+              <p className="text-white/95 text-[11px] md:text-sm font-bold drop-shadow-sm mt-1 max-w-lg mx-auto md:mx-0">
+                  Join 15,000+ sellers on FairPrice. Start your store today and reach millions of buyers who are looking for exactly what you have.
+              </p>
+          </div>
+          <div className="relative z-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 transition-all font-black text-sm whitespace-nowrap text-white group-hover:bg-white group-hover:text-emerald-700">
+              <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
+          </div>
+        </motion.div>
+
         {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
-        <div className="mb-6 w-full flex flex-col gap-3 bg-white/95 pt-3 pb-2 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-4 transition-all duration-300">
+        <div className="mb-4 w-full flex flex-col gap-2 bg-white/95 pt-8 pb-1 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
           {/* Top Row: Horizontal Scrollable Filters */}
-          <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar pb-1 pt-1 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
             {/* Clear All */}
             {(Object.keys(attributeFilters).length > 0 ||
               selectedCategory ||
@@ -683,7 +899,7 @@ function SearchContent() {
                 <button
                   onClick={() => {
                     setAttributeFilters({});
-                    setPriceRange([0, 5000000]);
+                    setPriceRange([0, 500000000]);
                     setSelectedCategory(null);
                     setIsVerified(false);
                     const params = new URLSearchParams();
@@ -692,9 +908,9 @@ function SearchContent() {
                       scroll: false,
                     });
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 active:scale-95 transition-all shrink-0 shadow-sm snap-start"
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 active:scale-95 transition-all shrink-0 shadow-sm snap-start"
                 >
-                  <Filter className="h-3.5 w-3.5" /> Clear All
+                  <Filter className="h-3 w-3" /> Clear All
                 </button>
               )}
 
@@ -711,6 +927,36 @@ function SearchContent() {
                 <option value="newest">Newest Arrivals</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            </div>
+
+            {/* Dynamic Price Pill */}
+            <div className="relative shrink-0 snap-start">
+              <select
+                value={(minPriceParam || maxPriceParam) ? `${minPriceParam || 0}-${maxPriceParam || 500000000}` : "all"}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "all") {
+                    updateFilters({ minPrice: null, maxPrice: null });
+                  } else {
+                    const [min, max] = val.split('-');
+                    updateFilters({ minPrice: min, maxPrice: max });
+                  }
+                }}
+                className={cn(
+                  "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
+                  (minPriceParam || maxPriceParam)
+                    ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
+                    : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                )}
+              >
+                <option value="all">Price: All</option>
+                {priceBrackets.map((bracket) => (
+                  <option key={bracket.label} value={`${bracket.min}-${bracket.max}`}>
+                    {bracket.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none mix-blend-difference opacity-50" />
             </div>
 
             {/* Category Dropdown as Pill (Native Select) */}
@@ -785,14 +1031,14 @@ function SearchContent() {
           </div>
 
           {/* Bottom Row: Results Count */}
-          <div className="flex items-center justify-between border-t border-gray-100/60 pt-2 px-1">
-            <p className="text-sm text-gray-600 font-medium tracking-tight">
-              {query ? (
-                <span>Showing 1-{paginatedProducts.length || 0} of over <span className="font-bold text-gray-900">{totalResultCount > 20 ? Math.max(totalResultCount, 166) : totalResultCount}</span> results for &quot;<span className="text-brand-orange font-bold italic">{query}</span>&quot;</span>
-              ) : (
-                <span>Showing 1-{paginatedProducts.length || 0} of over <span className="font-bold text-gray-900">{totalResultCount > 20 ? Math.max(totalResultCount, 166) : totalResultCount}</span> results</span>
-              )}
-            </p>
+          <div className="flex items-center border-t border-emerald-100/60 pt-2.5 px-2 bg-emerald-50/20 py-1.5 -mx-4 px-4 sm:mx-0 sm:px-4">
+              <p className="text-[12px] text-emerald-900 font-black tracking-tight">
+                {query ? (
+                  <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results for &quot;<span className="text-brand-orange italic underline decoration-2 underline-offset-4">{query}</span>&quot;</span>
+                ) : (
+                  <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results</span>
+                )}
+              </p>
           </div>
         </div>
 
@@ -803,25 +1049,139 @@ function SearchContent() {
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
                 Popular:
               </span>
-              {CATEGORIES.slice(0, 10).map((cat) => (
+              {CATEGORIES.map((cat) => (
                 <button
                   key={cat.value}
-                  onClick={() => updateFilters({ category: cat.value })}
+                  onClick={() => setSelectedCategory(cat.value === selectedCategory ? null : cat.value)}
                   className={cn(
-                    "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap backdrop-blur-md shadow-sm border",
+                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
                     selectedCategory === cat.value
-                      ? "bg-emerald-600/90 text-white border-emerald-500 shadow-md scale-105"
-                      : "bg-white/80 text-gray-700 border-gray-200/50 hover:bg-white hover:border-emerald-200 hover:text-emerald-700 hover:shadow-md",
+                      ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
+                      : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
                   )}
                 >
-                  {getCategoryIcon(cat.value)} {cat.label}
+                  {getCategoryIcon(cat.value)}
+                  {cat.label}
                 </button>
               ))}
             </div>
 
             {/* UNIFIED SEARCH RESULTS GRID */}
-            {combinedCurrentResults.length > 0 && (
+
+            {/* ─── Brand Logo Rail (Category-Aware) ─── */}
+            {(() => {
+              const BRAND_MAP: Record<string, { name: string; logo: string; logoImage?: string }[]> = {
+                cars: [
+                  { name: "Toyota", logo: "🚗", logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
+                  { name: "Lexus", logo: "💎", logoImage: "/assets/images/Car-Logos/Lexus-logo.png" },
+                  { name: "Mercedes-Benz", logo: "⭐", logoImage: "/assets/images/Car-Logos/Benz-logo.png" },
+                  { name: "Honda", logo: "🏎️", logoImage: "/assets/images/Car-Logos/Honda-logo.png" },
+                  { name: "EVs", logo: "⚡" }, 
+                  { name: "Hyundai", logo: "🚙", logoImage: "/assets/images/Car-Logos/Hyundai-logo.png" },
+                  { name: "BYD", logo: "⚡", logoImage: "/assets/images/Car-Logos/BYD-Logo.png" },
+                  { name: "Tesla", logo: "⚡", logoImage: "/assets/images/Car-Logos/Tesla-Logo.png" },
+                  { name: "Xpeng", logo: "⚡", logoImage: "/assets/images/Car-Logos/Xpeng-Logo.png" },
+                  { name: "Xiaomi", logo: "📱", logoImage: "/assets/images/Car-Logos/Xiaomi-Logo.png" },
+                  { name: "Changan", logo: "🚗", logoImage: "/assets/images/Car-Logos/Changan-Logo.png" },
+                  { name: "GAC", logo: "🚗", logoImage: "/assets/images/Car-Logos/GAC-Logo.png" },
+                  { name: "Chevrolet", logo: "🚗", logoImage: "/assets/images/Car-Logos/Chevrolet-Logo.png" },
+                  { name: "BMW", logo: "🔵", logoImage: "/assets/images/Car-Logos/BMW-logo.png" },
+                  { name: "Kia", logo: "🔷", logoImage: "/assets/images/Car-Logos/Kia-logo.png" },
+                  { name: "Ford", logo: "🔘", logoImage: "/assets/images/Car-Logos/Ford-logo.png" },
+                  { name: "Range Rover", logo: "🏔️", logoImage: "/assets/images/Car-Logos/LandRover-logo.png" },
+                  { name: "Audi", logo: "⚪", logoImage: "/assets/images/Car-Logos/Audi-logo.png" },
+                  { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
+                ],
+                phones: [
+                  { name: "Apple", logo: "🍎" }, { name: "Samsung", logo: "📱" },
+                  { name: "Tecno", logo: "📲" }, { name: "Infinix", logo: "♾️" },
+                  { name: "Xiaomi", logo: "🔶" }, { name: "Oppo", logo: "🟢" },
+                  { name: "Vivo", logo: "🟣" }, { name: "Nokia", logo: "📞" },
+                  { name: "Google Pixel", logo: "🔷" }, { name: "Huawei", logo: "🔴" },
+                  { name: "OnePlus", logo: "➕" }, { name: "Itel", logo: "📳" },
+                ],
+                electronics: [
+                  { name: "Samsung", logo: "📺" }, { name: "LG", logo: "🖥️" },
+                  { name: "Hisense", logo: "📡" }, { name: "Sony", logo: "🎧" },
+                  { name: "HP", logo: "💻" }, { name: "Dell", logo: "🖲️" },
+                  { name: "Apple", logo: "🍏" }, { name: "Lenovo", logo: "⌨️" },
+                  { name: "Panasonic", logo: "🔌" }, { name: "Haier Thermocool", logo: "❄️" },
+                  { name: "Scanfrost", logo: "🧊" }, { name: "Binatone", logo: "🔋" },
+                ],
+                computers: [
+                  { name: "Apple MacBook", logo: "🍏" }, { name: "HP", logo: "💻" },
+                  { name: "Dell", logo: "🖲️" }, { name: "Lenovo", logo: "⌨️" },
+                  { name: "Asus", logo: "🎮" }, { name: "Acer", logo: "🟩" },
+                  { name: "Microsoft Surface", logo: "🪟" }, { name: "Samsung", logo: "📱" },
+                ],
+                fashion: [
+                  { name: "Nike", logo: "✔️" }, { name: "Adidas", logo: "🏃" },
+                  { name: "Zara", logo: "👗" }, { name: "H&M", logo: "🛍️" },
+                  { name: "Gucci", logo: "👜" }, { name: "Louis Vuitton", logo: "💼" },
+                  { name: "Balenciaga", logo: "🧥" }, { name: "Prada", logo: "👠" },
+                ],
+              };
+              const cat = (detectedCategory || "").toLowerCase();
+              const brands = BRAND_MAP[cat];
+              if (!brands || brands.length === 0) return null;
+              return (
+                <div className="mb-6">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
+                    Popular {cat === "cars" ? "Car" : cat === "phones" ? "Phone" : cat === "computers" ? "Computer" : cat === "fashion" ? "Fashion" : "Electronics"} Brands in Nigeria
+                  </p>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+                    {brands.map((brand) => {
+                      const isActive = (query || "").toLowerCase().includes(brand.name.toLowerCase());
+                      return (
+                        <button
+                          key={brand.name}
+                          onClick={() => {
+                            const params = new URLSearchParams();
+                            params.set("q", brand.name);
+                            params.set("category", cat);
+                            router.push(`/search?${params.toString()}`, { scroll: false });
+                          }}
+                          className={cn(
+                            "flex items-center justify-center px-3 py-1.5 rounded-full whitespace-nowrap transition-all shadow-sm border snap-start active:scale-95 shrink-0 cursor-pointer",
+                            isActive
+                              ? "bg-emerald-50 text-emerald-900 border-emerald-600 border-2 shadow-emerald-100"
+                              : "bg-white text-gray-700 border-gray-100 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md"
+                          )}
+                          title={brand.name}
+                        >
+                          {brand.logoImage ? (
+                            <img src={brand.logoImage} alt={brand.name} className="h-8 w-auto max-w-[56px] object-contain" />
+                          ) : (
+                            <span className="text-base px-1">{brand.logo} <span className="text-[11px] font-bold">{brand.name}</span></span>
+                          )}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => {
+                        const brandQuery = `${cat === "cars" ? "cars" : cat === "phones" ? "phones" : cat === "computers" ? "laptops" : cat === "fashion" ? "fashion" : "electronics"} Nigeria`;
+                        const params = new URLSearchParams();
+                        params.set("q", brandQuery);
+                        params.set("category", cat);
+                        router.push(`/search?${params.toString()}`, { scroll: false });
+                      }}
+                      className="flex items-center gap-1 px-3.5 py-2 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 active:scale-95 shrink-0"
+                    >
+                      View More →
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {(combinedCurrentResults.length > 0 || isGlobalSearching) && (
               <div className="mb-10">
+                {combinedCurrentResults.length === 0 && isGlobalSearching && (
+                   <div className="flex items-center gap-3 mb-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                     <div className="h-6 w-6 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin shrink-0" />
+                     <p className="text-sm font-bold text-emerald-800">Searching global suppliers for &quot;{query}&quot;...</p>
+                   </div>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {combinedCurrentResults.map((product: any) => (
                     <SearchGridCard key={product.id} product={product} />
@@ -829,8 +1189,7 @@ function SearchContent() {
 
                   {/* Inline Loading skeletons for global search when active */}
                   {isGlobalSearching &&
-                    showGlobalResults &&
-                    [1, 2, 3, 4].map((i) => (
+                    [1, 2, 3, 4, 5, 6, 7, 8].slice(0, combinedCurrentResults.length > 0 ? 4 : 8).map((i) => (
                       <div
                         key={`skeleton-${i}`}
                         className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm h-[320px]"
@@ -845,18 +1204,25 @@ function SearchContent() {
                 {paginatedProducts.length < filteredProducts.length &&
                   !showGlobalResults && (
                     <div className="flex justify-center mt-8 mb-4">
-                      <button
-                        onClick={() => setPage(p => p + 1)}
+                      <NextLink
+                        href={{
+                          pathname: '/search',
+                          query: { ...Object.fromEntries(searchParams.entries()), page: page + 1 }
+                        }}
+                        scroll={false}
+                        onClick={(e) => {
+                          setPage((p) => p + 1);
+                        }}
                         className="px-8 py-3 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm flex items-center gap-2"
                       >
                         <ChevronDown className="h-4 w-4" /> View More Results
-                      </button>
+                      </NextLink>
                     </div>
                   )}
               </div>
             )}
 
-            {combinedCurrentResults.length === 0 && (
+            {combinedCurrentResults.length === 0 && !isGlobalSearching && (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                 <SearchIcon className="h-10 w-10 text-gray-300 mb-4" />
                 <h2 className="text-xl font-bold mb-2 text-black">
@@ -907,13 +1273,22 @@ function SearchContent() {
 
             {/* CUSTOMERS ALSO BOUGHT */}
             {customersAlsoBought.length > 0 && (
-              <div className="mt-16 pt-10 border-t border-gray-200">
-                <h3 className="text-2xl font-black text-gray-900 tracking-tight mb-6">
+              <div className="mt-8 pt-8 border-t border-gray-200">
+                <h3 className="text-xl font-black text-gray-900 tracking-tight mb-4">
                   Customers Also Bought
                 </h3>
 
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+                  {customersAlsoBought.slice(0, 8).map((product: any) => (
+                    <SearchGridCard
+                      key={`cab-${product.id}`}
+                      product={product}
+                    />
+                  ))}
+                </div>
+
                 {historyGroups.map((group, gIdx) => (
-                  <div key={`history-group-${gIdx}`} className="mb-8">
+                  <div key={`history-group-${gIdx}`} className="mb-6">
                     <h4 className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wide">Based on your earlier search for "{group.query}"</h4>
                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {group.products
@@ -928,26 +1303,14 @@ function SearchContent() {
                   </div>
                 ))}
 
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {customersAlsoBought
-                    .slice(0, customersAlsoBoughtCount)
-                    .map((product: any) => (
-                      <SearchGridCard
-                        key={`recommended-${product.id}`}
-                        product={product}
-                      />
-                    ))}
+                {/* Phase 5: High-Fidelity Discovery & Personalization */}
+                <div className="mt-6 space-y-6">
+                   <StoreDiscoveryRail />
+                   <RecommendedProducts 
+                      title="Recommended For You" 
+                      products={allProducts}
+                   />
                 </div>
-                {customersAlsoBoughtCount < customersAlsoBought.length && (
-                  <div className="flex justify-center mt-8 mb-8">
-                    <button
-                      onClick={() => setCustomersAlsoBoughtCount(c => c + 12)}
-                      className="px-8 py-3 rounded-full border border-gray-300 text-sm font-bold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors bg-white shadow-sm flex items-center gap-2"
-                    >
-                      <ChevronDown className="h-4 w-4" /> View More
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
@@ -1007,7 +1370,7 @@ export default function SearchPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-green-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
         </div>
       }
     >

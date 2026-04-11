@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, Suspense } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { DEMO_DEALS } from "@/lib/data";
-import { DemoStore } from "@/lib/demo-store";
+import { SEED_DEALS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
@@ -12,9 +12,12 @@ import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldChec
 import { motion } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
+import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
+import { useRouter } from "next/navigation";
+import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 
@@ -26,14 +29,14 @@ interface SubCategory {
   href: string;
 }
 
-interface CategoryCard {
+export interface CategoryCard {
   title: string;
   link: string;
   linkText: string;
   subs: SubCategory[];
 }
 
-const CATEGORY_CARDS_ROW_1: CategoryCard[] = [
+export const CATEGORY_CARDS_ROW_1: CategoryCard[] = [
   {
     title: "Top in Phones",
     link: "/search?category=phones",
@@ -180,10 +183,13 @@ function HomeContent() {
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
   const productSectionRef = useRef<HTMLDivElement>(null);
 
-  // Live products from DemoStore — load only on client to avoid SSR hydration mismatch
+  // Live products from DataSyncService — load only on client to avoid SSR hydration mismatch
   const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
+  const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   // ─── Referral Tracking System ───
   useEffect(() => {
@@ -194,90 +200,149 @@ function HomeContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    const refresh = () => setAllProducts(DemoStore.getApprovedProducts().filter(p => p.is_active));
+    const refresh = () => {
+      setAllProducts(DataSyncService.getApprovedProducts().filter(p => p.is_active));
+      
+      let hasSellerRole = false;
+      try {
+        const userStr = localStorage.getItem("fp_user");
+        if (userStr) {
+          const userObj = JSON.parse(userStr);
+          hasSellerRole = userObj?.role === "seller";
+        }
+      } catch (e) {}
+
+      setIsSeller(!!DataSyncService.getCurrentSellerId() || hasSellerRole);
+    };
+    const loadGrids = () => {
+      try {
+        const saved = localStorage.getItem("ratel_homepage_grids");
+        if (saved) setCategoryGrids(JSON.parse(saved));
+      } catch (e) { }
+    };
     refresh(); // Initial load on client
+    loadGrids();
     setMounted(true);
     window.addEventListener("storage", refresh);
-    window.addEventListener("demo-store-update", refresh);
+    window.addEventListener("sync-store-update", refresh);
+    window.addEventListener("storage", loadGrids);
     return () => {
       window.removeEventListener("storage", refresh);
-      window.removeEventListener("demo-store-update", refresh);
+      window.removeEventListener("sync-store-update", refresh);
+      window.removeEventListener("storage", loadGrids);
     };
   }, []);
 
-  // ─── Product De-Duplication System ───
-  // Each product appears in at most ONE section (except sponsored products which can appear in their section + one category section).
-  // This maximizes catalog visibility across the homepage.
-  const usedIds = new Set<string>();
-  const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
+  // ─── Unified Product Memoization Engine ───
+  // Consolidating all filtering logic into ONE memoized block to solve the 'Lag' issue.
+  // This prevents recalculating thousands of filters on every scroll/state update.
+  const sections = useMemo(() => {
+    if (!mounted || allProducts.length === 0) return null;
 
-  // Helper: take from pool, skip already-used IDs (sponsored bypass)
-  const takeUnique = (pool: Product[], count: number): Product[] => {
-    const result: Product[] = [];
-    for (const p of pool) {
-      if (result.length >= count) break;
-      if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
-      result.push(p);
-      usedIds.add(p.id);
+    const usedIds = new Set<string>();
+    const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
+
+    const takeUnique = (pool: Product[], count: number): Product[] => {
+      const result: Product[] = [];
+      for (const p of pool) {
+        if (result.length >= count) break;
+        if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
+        result.push(p);
+        usedIds.add(p.id);
+      }
+      return result;
+    };
+
+    // 1. Trending
+    const trendingPool = [...allProducts].sort((a, b) => {
+      const aTrending = !!a.is_trending;
+      const bTrending = !!b.is_trending;
+      if (aTrending && !bTrending) return -1;
+      if (!aTrending && bTrending) return 1;
+      return (b.sold_count || 0) - (a.sold_count || 0);
+    });
+    const topPicks = takeUnique(trendingPool, 20);
+
+    // 2. Sponsored
+    const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
+
+    // 3. Deals
+    const now = new Date();
+    const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
+    const activeDeals = allDeals
+      .filter(d => d.is_active && new Date(d.end_at) > now)
+      .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
+      .map(deal => {
+        const product = allProducts.find(p => p.id === deal.product_id);
+        if (!product) return null;
+        const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
+        return {
+          ...product,
+          price: discountedPrice,
+          original_price: product.price,
+          dealEndTime: deal.end_at,
+          dealDiscountText: `${deal.discount_pct}% OFF`
+        };
+      })
+      .filter(Boolean) as Product[];
+
+    const dealProductIds = new Set(activeDeals.map(a => a.id));
+    const priceDrop = allProducts
+        .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
+        .map(p => ({
+            ...p,
+            dealDiscountText: `Save ${formatPrice(p.original_price! - p.price)}`
+        }))
+        .sort((a,b) => ((b.original_price! - b.price) / b.original_price!) - ((a.original_price! - a.price) / a.original_price!));
+
+    const dealProducts = [...activeDeals, ...priceDrop].slice(0, 30);
+
+    // 4. Category sections
+    const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
+    const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
+    const computerProducts = takeUnique(allProducts.filter(p => ["computers", "office"].includes(p.category || "")), 12);
+    const carProducts = takeUnique(allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")), 12);
+    const fashionProducts = takeUnique(allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")), 12);
+    const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
+    const homeProducts = takeUnique(allProducts.filter(p => ["home", "furniture"].includes(p.category || "")), 12);
+    const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
+    const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
+    const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
+
+    // 5. Verified Fair Prices
+    const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30);
+
+    // 6. From Stores You Follow
+    let followedStoreProducts: Product[] = [];
+    const favoriteStoresStr = typeof window !== "undefined" ? localStorage.getItem("fp_favorites_stores") : null;
+    const favoriteStores = favoriteStoresStr ? JSON.parse(favoriteStoresStr) : [];
+    
+    if (favoriteStores.length > 0) {
+      const followedSellerIds = new Set(favoriteStores);
+      followedStoreProducts = allProducts.filter(p => followedSellerIds.has(p.seller_id)).slice(0, 12);
     }
-    return result;
-  };
 
-  // 1. Trending — First show Admin Curated Trending, then fallback to popularity (sold_count)
-  const trendingIdsStr = typeof window !== "undefined" ? localStorage.getItem("fp_trending_ids") : "[]";
-  const trendingIds = new Set(JSON.parse(trendingIdsStr || "[]"));
-
-  const trendingPool = [...allProducts].sort((a, b) => {
-    // Curated items float to very top
-    const aTrending = trendingIds.has(a.id);
-    const bTrending = trendingIds.has(b.id);
-    if (aTrending && !bTrending) return -1;
-    if (!aTrending && bTrending) return 1;
-    // Otherwise sort by sold count
-    return (b.sold_count || 0) - (a.sold_count || 0);
-  });
-  const topPicks = takeUnique(trendingPool, 20);
-
-  // 2. Sponsored — always shown regardless of duplication
-  const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
-  // Don't add sponsored to usedIds — they're allowed to also appear in category sections
-
-  // 3. Deals
-  const dealProducts = DEMO_DEALS.map(d => d.product).slice(0, 30);
-
-  // 4. Category sections — each draws from its own filtered pool, de-duplicated
-  const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
-  const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
-  const computerProducts = takeUnique(allProducts.filter(p => ["computers", "office"].includes(p.category || "")), 12);
-  const carProducts = takeUnique(allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")), 12);
-  const fashionProducts = takeUnique(allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")), 12);
-  const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
-  const homeProducts = takeUnique(allProducts.filter(p => ["home", "furniture"].includes(p.category || "")), 12);
-  const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
-  const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
-  const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
-
-  // 5. Verified Fair Prices — from remaining fair-priced products
-  const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30);
-
-  // ─── From Stores You Follow ──────────────
-  const { favoriteStores } = useFavorites();
-  const followedStoreProducts = mounted ? (() => {
-    if (favoriteStores.length === 0) return [];
-    const sellers = DemoStore.getSellers();
-    const followedSellerIds = new Set(favoriteStores);
-    return allProducts.filter(p => {
-      const seller = sellers.find(s => s.id === p.seller_id);
-      return seller && followedSellerIds.has(seller.id);
-    }).slice(0, 12);
-  })() : [];
-
-  const scrollToProducts = () => {
-    productSectionRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+    return {
+      topPicks,
+      sponsoredProducts,
+      dealProducts,
+      phonesProducts,
+      gamingProducts,
+      computerProducts,
+      carProducts,
+      fashionProducts,
+      beautyProducts,
+      homeProducts,
+      electronicsProducts,
+      fitnessProducts,
+      groceryProducts,
+      fairPriceProducts,
+      followedStoreProducts
+    };
+  }, [allProducts]);
 
   return (
-    <div className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
+    <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
       <Navbar />
 
       <div className="flex-1 flex flex-col relative">
@@ -285,10 +350,9 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section ─── */}
-          <section className="relative w-full overflow-hidden bg-black pt-[102px] pb-1.5">
+          <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5">
             <div className="absolute inset-0">
               <img
-
                 src="/assets/images/image_v1.png"
                 onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
                 className="w-full h-full object-cover opacity-65"
@@ -302,21 +366,30 @@ function HomeContent() {
               />
             </div>
 
-            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 text-center text-white z-10">
-              {/* Title Hidden Per Request */}
+            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 py-4 text-center text-white z-10">
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
-                className="flex justify-center"
+                className="flex flex-col sm:flex-row justify-center items-center gap-4"
               >
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 group"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 animate-pulse-grow group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  <span className="font-extrabold tracking-wide">Calculate Fair Price</span> <span className="ml-2 animate-bounce">✨</span>
+                  <span className="font-extrabold tracking-wide cursor:pointer">AI Price Checker</span>
+                </Button>
+
+                <Button
+                  size="lg"
+                  variant="apple-glass"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-emerald-400 bg-white/10 text-white hover:bg-emerald-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 group ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent"
+                  onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
+                >
+                  <span className="font-extrabold tracking-wide">{isSeller ? "View Store" : "Start Selling"}</span>
+                  <StoreIcon className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
                 </Button>
               </motion.div>
             </div>
@@ -325,62 +398,161 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20">
 
-            {/* ═══ Best Sellers Horizontal Scroller: Top Picks ═══ */}
-            {mounted && (
-              <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
-                <ProductSlider title="Trending in Nigeria" link="/search" products={topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-              </section>
+            {/* ═══ Initial Hydration Skeletons (show while DB is preparing) ═══ */}
+            {(!mounted || !sections) && (
+              <div className="container mx-auto px-1 md:px-2 space-y-4 pt-4 mb-10">
+                <ProductSlider title="Trending in Nigeria" link="#" products={[]} isLoading={true} icon={<TrendingUp className="h-5 w-5 text-gray-300" />} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                  {Array(4).fill(0).map((_, i) => <div key={i} className="h-80 bg-white rounded-lg shadow-sm animate-pulse" />)}
+                </div>
+              </div>
             )}
 
-            {/* ═══ Sponsored Products Scroller ═══ */}
-            {mounted && sponsoredProducts.length > 0 && (
-              <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
-                <ProductSlider title="Sponsored" link="/search" products={sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="right" />
-              </section>
-            )}
+            {/* ═══ Optimized Homepage Sections ═══ */}
+            {mounted && sections && (
+              <>
+                <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
+                  <ProductSlider title="Trending in Nigeria" link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                </section>
 
-            {/* ═══ Horizontal Sliding Products in Categories ═══ */}
-            {/* ═══ Best Sellers Horizontal Scroller: Today's Deals ═══ */}
-            <section className="container mx-auto px-1 md:px-2 mb-1">
-              <ProductSlider title="Hottest Deals" link="/deals" products={dealProducts} icon={<Flame className="h-5 w-5 text-orange-500" />} autoScroll direction="left" />
-            </section>
+                <section className="container mx-auto px-1 md:px-2 mb-1">
+                  <ProductSlider
+                    title={<>Hottest Deals <span className="text-green-500">GenZ Favorites</span></>}
+                    link="/deals"
+                    products={sections.dealProducts}
+                    icon={<Flame className="h-5 w-5 text-orange-500" />}
+                    autoScroll
+                    direction="right"
+                  />
+                </section>
 
-            {/* ═══ From Stores You Follow ═══ */}
-            {mounted && followedStoreProducts.length > 0 && (
-              <section className="container mx-auto px-1 md:px-2 mb-1">
-                <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
-              </section>
-            )}
+                <section className="container mx-auto px-1 md:px-2 mb-1 relative z-30">
+                  <ProductSlider title="Sponsored" link="/search" products={sections.sponsoredProducts} icon={<Sparkles className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                </section>
 
-            {/* ═══ Product Slider Sections ═══ */}
-            {mounted && (
-              <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
-                <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-                <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
-                <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-                <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
-                <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
-                <ProductSlider title="Verified Cars" link="/search?category=cars" products={carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
-                <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
-                <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
-                <ProductSlider title="Home & Living" link="/search?category=home" products={homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
-                <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
-                <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
-              </section>
-            )}
+                {sections.followedStoreProducts.length > 0 && (
+                  <section className="container mx-auto px-1 md:px-2 mb-1">
+                    <BestSellersScroller title="From Stores You Follow" link="/account/lists" products={sections.followedStoreProducts} icon={<StoreIcon className="h-5 w-5 text-brand-green-600" />} autoScroll direction="right" />
+                  </section>
+                )}
 
-            {/* ═══ Global Recommended Products ═══ */}
-            {mounted && (
-              <section className="w-full px-1 md:px-2 mb-20">
-                <RecommendedProducts products={allProducts.filter(p => !usedIds.has(p.id))} title="Recommended For You" />
-              </section>
+                {/* ══ Lazy Hydrated Category Sections ══ */}
+                <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
+                  <LazySection height={340} skeletonTitle="Verified Fair Prices">
+                    <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Phones & Tablets">
+                    <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Best in Gaming">
+                    <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="PCs & Laptops">
+                    <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Electronics & Audio">
+                    <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Verified Cars">
+                    <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Fashion & Style">
+                    <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Beauty & Skincare">
+                    <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Home & Living">
+                    <ProductSlider title="Home & Living" link="/search?category=home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Gym & Fitness">
+                    <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Groceries & Baby Essentials">
+                    <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
+                  </LazySection>
+                </section>
+
+                <LazySection height={400} skeletonTitle="Explore Categories">
+                  <section className="container mx-auto px-1 md:px-2 my-12 pt-4 border-t border-gray-100">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      {categoryGrids.map((card, i) => (
+                        <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
+                      ))}
+                    </div>
+                  </section>
+                </LazySection>
+
+                <LazySection height={200}>
+                  <StoreDiscoveryRail />
+                </LazySection>
+
+                <LazySection height={800} skeletonTitle="Recommended For You">
+                  <section className="w-full px-1 md:px-2 mb-20">
+                    <RecommendedProducts products={allProducts} title="Recommended For You" />
+                  </section>
+                </LazySection>
+              </>
             )}
           </div>
         </main>
       </div>
 
       <Footer />
-    </div >
+    </div>
+  );
+}
+
+// ─── Lazy Hydration Wrapper ───
+// Prevents the browser from rendering off-screen sections until needed.
+// This resolves the scrolling lag and white-space issues.
+function LazySection({ children, height = 340, skeletonTitle }: { children: React.ReactNode; height?: number; skeletonTitle?: string }) {
+  const [ref, setRef] = useState<HTMLElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!ref) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "1000px" } // Load 1000px before it enters the viewport for seamless rendering
+    );
+    observer.observe(ref);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return (
+    <div ref={setRef} style={{ minHeight: isVisible ? "auto" : `${height}px` }} className="transition-all duration-500">
+      {isVisible ? (
+        children
+      ) : (
+        <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-50 flex flex-col justify-center gap-4 group">
+          <div className="flex items-center justify-between opacity-50">
+            <div className="h-6 w-48 bg-gray-100 animate-pulse rounded" />
+            <div className="h-4 w-24 bg-gray-50 animate-pulse rounded" />
+          </div>
+          <div className="flex gap-4 overflow-hidden">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="min-w-[200px] h-[300px] bg-gray-50/50 rounded-xl animate-pulse" />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -417,19 +589,19 @@ function CategoryGridCard({ card, delay = 0 }: { card: CategoryCard; delay?: num
                 loading="lazy"
               />
             </div>
-            <span className="text-xs font-medium text-gray-600 group-hover/tile:text-brand-green-600 transition-colors text-center leading-tight">
+            <span className="text-xs font-bold text-gray-900 group-hover/tile:text-indigo-600 transition-colors text-center leading-tight tracking-tight">
               {sub.label}
             </span>
           </Link>
         ))}
       </div>
 
-      {/* Bottom Link */}
       <Link
         href={card.link}
-        className="text-sm font-semibold text-blue-600 hover:text-brand-orange hover:underline mt-4 inline-block transition-colors"
+        className="group/link text-sm font-black text-indigo-600 tracking-tight hover:text-indigo-800 mt-5 flex items-center transition-colors"
       >
         {card.linkText}
+        <ChevronRight className="h-4 w-4 ml-0.5 group-hover/link:translate-x-1 transition-transform" />
       </Link>
     </motion.div>
   );
@@ -470,20 +642,17 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        if (direction === "left") {
-          if (el.scrollLeft >= el.scrollWidth / 3) {
-            el.scrollLeft = 0;
-          } else {
-            el.scrollLeft += 1;
-          }
+        const scrollAmount = direction === "left" ? 240 : -240;
+        
+        // Handle loop wrap around natively
+        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+          el.scrollLeft = 0;
+        } else if (direction === "right" && el.scrollLeft <= 0) {
+          el.scrollLeft = el.scrollWidth / 3;
         } else {
-          if (el.scrollLeft <= 0) {
-            el.scrollLeft = el.scrollWidth / 3;
-          } else {
-            el.scrollLeft -= 1;
-          }
+          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
         }
-      }, 30);
+      }, 3500);
     };
 
     if (!isHovered) {
@@ -517,25 +686,27 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       </div>
 
       <div className="relative">
-        {/* Scroll Arrows */}
+        {/* Apple Liquid Glass Scroll Arrows */}
         <button
           onClick={() => scroll("left")}
-          className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 w-10 h-20 bg-white/90 border border-gray-200 rounded-md shadow-lg flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-opacity hover:bg-gray-100"
+          className="absolute -left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 group-hover/scroller:-translate-x-2"
           aria-label="Scroll left"
         >
-          <ChevronLeft className="h-5 w-5 text-gray-700" />
+          <ChevronLeft className="h-6 w-6 text-gray-800 drop-shadow-sm" />
         </button>
         <button
           onClick={() => scroll("right")}
-          className="absolute -right-2 top-1/2 -translate-y-1/2 z-10 w-10 h-20 bg-white/90 border border-gray-200 rounded-md shadow-lg flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-opacity hover:bg-gray-100"
+          className="absolute -right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-0 group-hover/scroller:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 group-hover/scroller:translate-x-2"
           aria-label="Scroll right"
         >
-          <ChevronRight className="h-5 w-5 text-gray-700" />
+          <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
         </button>
 
-        <div ref={scrollRef} className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-2" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
+        <div ref={scrollRef} className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-8 px-1" style={{ scrollBehavior: isHovered ? "smooth" : "auto" }}>
           {[...products, ...products, ...products].map((product, idx) => (
-            <ScrollerProductCard key={`${product.id}-${idx}`} product={product} />
+            <div key={`${product.id}-${idx}`} className="min-w-[190px] md:min-w-[220px] flex flex-col">
+              <ProductCard product={product} />
+            </div>
           ))}
         </div>
       </div>
@@ -544,132 +715,9 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 }
 
 
-// ─── ScrollerProductCard (Product Tile with Heart for BestSellers) ───
 
-function ScrollerProductCard({ product }: { product: any }) {
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const { addToCart } = useCart();
-  const [showHeartBurst, setShowHeartBurst] = useState(false);
-  const [addedToCart, setAddedToCart] = useState(false);
-  const lastTapRef = useRef(0);
-  const liked = isFavorite(product.id);
 
-  const handleDoubleTap = useCallback(() => {
-    const now = Date.now();
-    if (now - lastTapRef.current < 350) {
-      if (!liked) toggleFavorite(product.id);
-      setShowHeartBurst(true);
-      setTimeout(() => setShowHeartBurst(false), 800);
-    }
-    lastTapRef.current = now;
-  }, [liked, product.id, toggleFavorite]);
-
-  const handleHeartClick = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    toggleFavorite(product.id);
-    if (!liked) {
-      setShowHeartBurst(true);
-      setTimeout(() => setShowHeartBurst(false), 800);
-    }
-  }, [liked, product.id, toggleFavorite]);
-
-  const handleAddToCart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    addToCart(product);
-    setAddedToCart(true);
-    setTimeout(() => setAddedToCart(false), 1200);
-  }, [addToCart, product]);
-
-  return (
-    <div className="min-w-[200px] max-w-[200px] md:min-w-[220px] md:max-w-[220px] h-[340px] shrink-0 group/item relative flex flex-col justify-between bg-white rounded-xl shadow-none hover:shadow-lg transition-shadow duration-300 border border-transparent hover:border-brand-green-200 p-2 pb-3">
-      <Link href={`/product/${product.id}`} className="flex flex-col flex-1 h-full relative">
-        <div
-          className="w-full aspect-square bg-gray-50 rounded-lg overflow-hidden mb-3 relative shrink-0"
-          onClick={handleDoubleTap}
-        >
-          {/* Sponsored Ad Tag */}
-          {product.is_sponsored && (
-            <div className="absolute top-0 left-0 z-40 bg-black/85 backdrop-blur-md text-white px-2.5 py-1 text-[8px] font-black uppercase tracking-widest rounded-tl-lg rounded-br-lg shadow-md border-b border-r border-white/10 flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Ad
-            </div>
-          )}
-          <img
-            src={product.image_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23e5e7eb' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%239ca3af' font-size='14'%3ENo Image%3C/text%3E%3C/svg%3E"}
-            alt={product.name}
-            className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110"
-            loading="lazy"
-          />
-          {/* Heart burst animation */}
-          {showHeartBurst && (
-            <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-              <Heart className="h-14 w-14 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col flex-1 pb-1 pt-1.5">
-          <p className="text-sm text-gray-800 line-clamp-2 font-medium leading-snug group-hover/item:text-brand-green-600 transition-colors pr-6 mb-1 min-h-[40px]">
-            {product.name}
-          </p>
-
-          {/* Rating & Discount */}
-          <div className="flex items-center justify-between gap-1 mb-1 mt-auto">
-            <div className="flex text-amber-400">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className={`h-3 w-3 ${i < Math.round(product.avg_rating || 5) ? "fill-current" : "text-gray-300"}`}
-                />
-              ))}
-            </div>
-
-            {/* Inline Discount Badge */}
-            {product.original_price && product.original_price > product.price && (
-              <div className="font-black px-1.5 py-0.5 rounded bg-red-100 text-[10px] text-red-600 flex items-center justify-center leading-none">
-                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
-              </div>
-            )}
-          </div>
-        </div>
-      </Link>
-      {/* Price + Add to Cart row */}
-      <div className="flex flex-col mt-auto gap-0.5 shrink-0 px-0.5">
-        <span className="text-base font-black text-gray-900">{formatPrice(product.price)}</span>
-        <Button
-          size="sm"
-          onClick={handleAddToCart}
-          className={`w-full text-xs font-bold h-9 rounded-lg shadow-sm transition-all duration-300 flex items-center justify-center gap-1 cursor-pointer active:scale-95 ${addedToCart
-            ? "bg-emerald-600 text-white"
-            : "bg-brand-green-600 hover:bg-brand-green-700 text-white hover:shadow-md"
-            }`}
-        >
-          {addedToCart ? (
-            <>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
-              Added
-            </>
-          ) : (
-            <>
-              <ShoppingCart className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-              Add to Cart
-            </>
-          )}
-        </Button>
-      </div>
-      {/* Persistent heart button */}
-      <button
-        onClick={handleHeartClick}
-        className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-        aria-label={liked ? "Remove from favorites" : "Add to favorites"}
-      >
-        <Heart className={`h-4 w-4 transition-colors ${liked ? "fill-red-500 text-red-500" : "text-gray-400 hover:text-red-400"}`} />
-      </button>
-    </div>
-  );
-}
-
-function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left" }: { title: string; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right" }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -710,20 +758,17 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       if (intervalRef.current) clearInterval(intervalRef.current);
       intervalRef.current = setInterval(() => {
         if (!el) return;
-        if (direction === "left") {
-          if (el.scrollLeft >= el.scrollWidth / 3) {
-            el.scrollLeft = 0;
-          } else {
-            el.scrollLeft += 1;
-          }
+        const scrollAmount = direction === "left" ? 220 : -220; // Approximately one card width
+        
+        // Handle native wrap around
+        if (direction === "left" && el.scrollLeft >= el.scrollWidth / 3) {
+          el.scrollLeft = 0;
+        } else if (direction === "right" && el.scrollLeft <= 0) {
+          el.scrollLeft = el.scrollWidth / 3;
         } else {
-          if (el.scrollLeft <= 0) {
-            el.scrollLeft = el.scrollWidth / 3;
-          } else {
-            el.scrollLeft -= 1;
-          }
+          el.scrollBy({ left: scrollAmount, behavior: "smooth" });
         }
-      }, 30);
+      }, 3500);
     };
 
     if (!isPaused) {
@@ -748,9 +793,9 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
     }
   };
 
-  if (products.length === 0) return null;
+  if (products.length === 0 && !isLoading) return null;
 
-  const displayProducts = autoScroll ? [...products, ...products, ...products] : products;
+  const displayProducts = isLoading ? Array(6).fill(null) : (autoScroll ? [...products, ...products, ...products] : products);
 
   return (
     <div
@@ -771,14 +816,14 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       </div>
 
       <div className="relative">
-        {/* Left Arrow */}
+        {/* Apple Liquid Glass Scroll Arrows */}
         {canScrollLeft && !autoScroll && (
           <button
             onClick={() => scroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 -ml-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute -left-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:-translate-x-2"
             aria-label="Scroll left"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-6 w-6 text-gray-800 drop-shadow-sm" />
           </button>
         )}
 
@@ -786,22 +831,30 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         {canScrollRight && !autoScroll && (
           <button
             onClick={() => scroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 -mr-2 z-10 bg-white/90 backdrop-blur-sm border border-gray-100 shadow-lg rounded-full p-2 text-gray-800 hover:text-brand-orange transition-all opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transform scale-90 hover:scale-100"
+            className="absolute -right-4 top-1/2 -translate-y-1/2 z-40 w-12 h-12 bg-white/20 backdrop-blur-[20px] border border-white/40 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.1)] flex items-center justify-center opacity-70 md:opacity-0 md:group-hover/slider:opacity-100 transition-all duration-500 hover:scale-110 active:scale-95 md:group-hover/slider:translate-x-2"
             aria-label="Scroll right"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-6 w-6 text-gray-800 drop-shadow-sm" />
           </button>
         )}
 
         <div
           ref={scrollRef}
           onScroll={!autoScroll ? checkScroll : undefined}
-          className="flex gap-2 md:gap-2 overflow-x-auto pb-2 scrollbar-hide snap-none items-stretch"
-          style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1rem' }}
+          className="flex gap-2 md:gap-2 overflow-x-auto pb-8 scrollbar-hide snap-none items-stretch"
+          style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
         >
           {displayProducts.map((product, idx) => (
-            <div key={`${product.id}-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
-              <ProductCard product={product} className="h-full w-full" />
+            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
+              {isLoading ? (
+                <ProductCardSkeleton />
+              ) : (
+                <ProductCard 
+                  product={product} 
+                  dealEndTime={product.dealEndTime} 
+                  dealDiscountText={product.dealDiscountText} 
+                />
+              )}
             </div>
           ))}
         </div>

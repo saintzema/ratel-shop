@@ -1,9 +1,10 @@
 {
-    "name": "FairPrice.ng",
-    "short_name": "FairPrice AI",
-    "description": "AI-Regulated Marketplace with Escrow Protection",
+    "name": "FairPrice Shop",
+    "short_name": "FairPrice",
+    "description": "Negotiate Best Deals with Escrow Protection",
     "start_url": "/",
     "display": "standalone",
+    "orientation": "portrait",
     "background_color": "#ffffff",
     "theme_color": "#052e16",
     "icons": [

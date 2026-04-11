@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Share2, Copy, Users, CheckCircle2, Trophy, Coins, ChevronRight, Clock } from "lucide-react";
@@ -24,9 +24,9 @@ export default function ReferralsPage() {
             const code = user.referralCode || user.id.slice(0, 8);
             setReferralLink(`${window.location.origin}/?ref=${code}`);
 
-            // Fetch stats from DemoStore
-            // Fetch stats from DemoStore
-            const referrals = DemoStore.getReferrals(user.id) || [];
+            // Fetch stats from DataSyncService
+            // Fetch stats from DataSyncService
+            const referrals = DataSyncService.getReferrals(user.id) || [];
             const completed = referrals.filter((r: any) => r.status === "completed");
             setStats({
                 total_referred: referrals.length,

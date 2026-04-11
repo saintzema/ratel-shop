@@ -9,7 +9,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 export function MobileBottomNav() {
     const pathname = usePathname();
@@ -28,7 +28,7 @@ export function MobileBottomNav() {
     useEffect(() => {
         const loadCounts = () => {
             const userId = user?.email;
-            const notifs = DemoStore.getNotifications(userId);
+            const notifs = DataSyncService.getNotifications(userId);
             setUnreadNotifs(notifs.filter(n => !n.read).length);
         };
         loadCounts();
@@ -41,16 +41,18 @@ export function MobileBottomNav() {
 
     const profileName = user ? user.name.split(" ")[0] : "Profile";
 
+    const combinedUnread = totalUnread + unreadNotifs;
+
     const navItems = [
         { name: "Home", href: "/", icon: Home },
         { name: "Categories", href: "/categories", icon: Search },
-        { name: "Messages", href: "#messages", icon: MessageCircle, count: totalUnread, isMessages: true },
+        { name: "Messages", href: "#messages", icon: MessageCircle, count: combinedUnread, isMessages: true },
         { name: "Cart", href: "/cart", icon: ShoppingCart, count: cartCount },
         { name: profileName, href: "/account", icon: User, isProfile: true },
     ];
 
     return (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-xl border-t border-gray-200 pb-safe">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
             <div className="flex items-center justify-around h-16 px-2">
                 {navItems.map((item) => {
                     const isActive = item.isMessages
@@ -90,7 +92,7 @@ export function MobileBottomNav() {
                         return (
                             <button
                                 key={item.name}
-                                onClick={() => openMessageBox()}
+                                onClick={() => user ? openMessageBox() : window.location.href = "/login?from=/account"}
                                 className={cn(
                                     "flex flex-col items-center justify-center w-full h-full space-y-1 relative transition-colors",
                                     "text-gray-500 hover:text-gray-900"

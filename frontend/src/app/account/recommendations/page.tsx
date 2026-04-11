@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { Sparkles, ChevronLeft, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,8 @@ export default function RecommendationsPage() {
     useEffect(() => {
         setMounted(true);
         // Get popular approved products excluding history
-        const allProducts = DemoStore.getApprovedProducts();
-        const history = DemoStore.getSearchHistoryProducts();
+        const allProducts = DataSyncService.getApprovedProducts();
+        const history = DataSyncService.getSearchHistoryProducts();
 
         // Strategy: 
         // 1. Get user's favorite categories from history

@@ -20,7 +20,17 @@ interface Address {
     type: "home" | "work" | "other";
 }
 
-const STORAGE_KEY = "fp_saved_addresses";
+function getAddressKey(): string {
+    if (typeof window === "undefined") return "fp_saved_addresses";
+    try {
+        const raw = localStorage.getItem("fp_user");
+        if (raw) {
+            const user = JSON.parse(raw);
+            if (user?.id) return `fp_saved_addresses_${user.id}`;
+        }
+    } catch { }
+    return "fp_saved_addresses";
+}
 
 export default function AddressesPage() {
     const [addresses, setAddresses] = useState<Address[]>([]);
@@ -29,30 +39,121 @@ export default function AddressesPage() {
     const [form, setForm] = useState({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" as "home" | "work" | "other" });
 
     useEffect(() => {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) setAddresses(JSON.parse(saved));
+        // Load from localStorage first (instant), then merge with DB
+        const saved = localStorage.getItem(getAddressKey());
+        const localAddrs: Address[] = saved ? JSON.parse(saved) : [];
+        setAddresses(localAddrs);
+
+        // Fetch from DB for cross-device sync
+        const userId = (() => {
+            try {
+                const raw = localStorage.getItem("fp_user");
+                if (raw) return JSON.parse(raw)?.id;
+            } catch { }
+            return null;
+        })();
+
+        if (userId) {
+            fetch(`/api/addresses?userId=${encodeURIComponent(userId)}`)
+                .then(r => r.json())
+                .then(data => {
+                    const dbAddrs: Address[] = (data.addresses || []).map((a: any) => ({
+                        id: a.id,
+                        label: a.label || "Home",
+                        firstName: a.firstName || a.street?.split(" ")[0] || "",
+                        lastName: a.lastName || "",
+                        phone: a.phone || "",
+                        street: a.street || "",
+                        city: a.city || "",
+                        state: a.state || "",
+                        isDefault: a.isDefault || false,
+                        type: (a.type || a.label?.toLowerCase() || "home") as "home" | "work" | "other",
+                    }));
+                    // Merge: DB addresses take priority by ID, local-only addresses are kept
+                    const dbMap = new Map(dbAddrs.map(a => [a.id, a]));
+                    const localMap = new Map(localAddrs.map(a => [a.id, a]));
+                    for (const [id, addr] of dbMap) localMap.set(id, addr);
+                    const merged = Array.from(localMap.values());
+                    setAddresses(merged);
+                    localStorage.setItem(getAddressKey(), JSON.stringify(merged));
+                })
+                .catch(() => { /* fallback to local only */ });
+        }
     }, []);
+
+    const getUserId = () => {
+        try {
+            const raw = localStorage.getItem("fp_user");
+            if (raw) return JSON.parse(raw)?.id;
+        } catch { }
+        return null;
+    };
 
     const save = (updated: Address[]) => {
         setAddresses(updated);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        localStorage.setItem(getAddressKey(), JSON.stringify(updated));
+    };
+
+    const persistToDB = (addr: Address) => {
+        const userId = getUserId();
+        if (!userId) return;
+        fetch("/api/addresses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                id: addr.id,
+                userId,
+                label: addr.label || addr.type,
+                street: `${addr.firstName} ${addr.lastName}`.trim() + (addr.street ? `, ${addr.street}` : ""),
+                city: addr.city,
+                state: addr.state,
+                phone: addr.phone,
+                isDefault: addr.isDefault,
+            }),
+        }).catch(console.error);
     };
 
     const handleAdd = () => {
         if (!form.firstName || !form.phone || !form.street || !form.state) return;
-        const newAddr: Address = {
-            ...form, id: `addr_${Date.now()}`, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other",
-            isDefault: addresses.length === 0
-        };
-        save([...addresses, newAddr]);
+
+        if (editingId) {
+            const updated = addresses.map(a => a.id === editingId ? { ...a, ...form, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other" } : a);
+            save(updated);
+            const editedAddr = updated.find(a => a.id === editingId);
+            if (editedAddr) persistToDB(editedAddr);
+        } else {
+            const newAddr: Address = {
+                ...form, id: `addr_${Date.now()}`, label: form.type === "home" ? "Home" : form.type === "work" ? "Work" : "Other",
+                isDefault: addresses.length === 0
+            };
+            save([...addresses, newAddr]);
+            persistToDB(newAddr);
+        }
         setForm({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" });
         setIsAdding(false);
+        setEditingId(null);
+    };
+
+    const editAddress = (addr: Address) => {
+        setForm({
+            firstName: addr.firstName,
+            lastName: addr.lastName,
+            phone: addr.phone,
+            street: addr.street,
+            city: addr.city,
+            state: addr.state,
+            type: addr.type
+        });
+        setEditingId(addr.id);
+        setIsAdding(true);
     };
 
     const handleDelete = (id: string) => {
         const updated = addresses.filter(a => a.id !== id);
         if (updated.length > 0 && !updated.some(a => a.isDefault)) updated[0].isDefault = true;
         save(updated);
+        // Delete from DB too
+        fetch(`/api/addresses?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(console.error);
     };
 
     const setDefault = (id: string) => save(addresses.map(a => ({ ...a, isDefault: a.id === id })));
@@ -75,7 +176,7 @@ export default function AddressesPage() {
 
                 {isAdding && (
                     <div className="mb-6 p-5 border-2 border-dashed border-emerald-300 rounded-2xl bg-emerald-50/50 space-y-3">
-                        <h3 className="font-bold text-gray-900">New Address</h3>
+                        <h3 className="font-bold text-gray-900">{editingId ? "Edit Address" : "New Address"}</h3>
                         <div className="grid grid-cols-2 gap-3">
                             <Input placeholder="First Name *" value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} />
                             <Input placeholder="Last Name" value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} />
@@ -97,8 +198,8 @@ export default function AddressesPage() {
                             ))}
                         </div>
                         <div className="flex gap-2 pt-2">
-                            <Button onClick={handleAdd} className="bg-emerald-600 text-white rounded-xl font-bold">Save Address</Button>
-                            <Button onClick={() => setIsAdding(false)} variant="outline" className="rounded-xl">Cancel</Button>
+                            <Button onClick={handleAdd} className="bg-emerald-600 text-white rounded-xl font-bold">{editingId ? "Update Address" : "Save Address"}</Button>
+                            <Button onClick={() => { setIsAdding(false); setEditingId(null); setForm({ firstName: "", lastName: "", phone: "", street: "", city: "", state: "", type: "home" }); }} variant="outline" className="rounded-xl">Cancel</Button>
                         </div>
                     </div>
                 )}
@@ -128,6 +229,9 @@ export default function AddressesPage() {
                                         {!addr.isDefault && (
                                             <button onClick={() => setDefault(addr.id)} className="text-xs text-emerald-600 hover:underline px-2 py-1">Set Default</button>
                                         )}
+                                        <button onClick={() => editAddress(addr)} className="p-1 text-gray-400 hover:text-emerald-500 transition-colors">
+                                            <Edit2 className="h-4 w-4" />
+                                        </button>
                                         <button onClick={() => handleDelete(addr.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
                                             <Trash2 className="h-4 w-4" />
                                         </button>

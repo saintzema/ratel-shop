@@ -46,6 +46,27 @@ export function getTrustColor(score: number): string {
     return "text-red-500";
 }
 
+export function getProductUrl(id: string | undefined | null, name: string | undefined | null): string {
+    if (!id || String(id) === 'undefined' || String(id) === 'null') return "/";
+    const safeName = (name && String(name) !== 'undefined' && String(name) !== 'null') ? String(name) : String(id);
+    const safeStr = String(safeName);
+    
+    // Strip global AI cache suffix or prefixes if they leak into the name
+    const cleanedName = safeStr.replace(/(-fhpdf3|__global_.*|__cached_.*)/i, "");
+
+    const slug = cleanedName.toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+    
+    // Strip __global_ or __cached_ from the actual ID if it accidentally routes with it
+    let finalId = String(id);
+    if (finalId.startsWith('__global_') || finalId.startsWith('__cached_')) {
+        // Fallback or leave as is if generated properly elsewhere. Just ensure it's robust.
+    }
+        
+    return `/product/${finalId}/${slug || 'product'}`;
+}
+
 export async function copyToClipboard(text: string): Promise<boolean> {
     try {
         if (navigator?.clipboard?.writeText) {
@@ -70,4 +91,45 @@ export async function copyToClipboard(text: string): Promise<boolean> {
         console.error("Copy failed", error);
         return false;
     }
+}
+export function getProxiedImageUrl(url: string | null | undefined): string {
+    if (!url) return "/assets/images/placeholder.png";
+    
+    // Internal assets or already proxied
+    if (url.startsWith('/') || url.includes('api/image-cdn')) {
+        return url;
+    }
+
+    const lower = url.toLowerCase();
+    const isBroken = lower.includes('no photo') || 
+                    lower.includes('no image') || 
+                    lower.includes('n/a') ||
+                    lower.includes('placeholder') ||
+                    lower.includes('vertexaisearch.cloud.google.com') || 
+                    lower.includes('grounding-api-redirect') ||
+                    lower.includes('googleusercontent.com/grounding') ||
+                    url.startsWith('data:image');
+
+    if (isBroken) {
+        return "/assets/images/placeholder.png";
+    }
+
+    // Only proxy external HTTP(S) links
+    if (url.startsWith('http')) {
+        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+    }
+
+    return url;
+}
+
+export function generateCompliantId(name: string, prefix = 'global'): string {
+    const slug = name.toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "");
+    
+    const id = `${prefix}-${slug}`;
+    if (id.length <= 50) return id;
+    
+    // If too long, trim to 50 and ensure it doesn't end with a hyphen
+    return id.substring(0, 50).replace(/-+$/, "");
 }

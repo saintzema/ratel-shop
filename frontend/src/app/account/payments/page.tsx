@@ -2,13 +2,18 @@
 
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { CreditCard, Trash2, Building, ShieldCheck, Eye, EyeOff, Receipt, X, Package, Clock, CheckCircle, XCircle } from "lucide-react";
+import { 
+    CreditCard, Trash2, Building, ShieldCheck, Eye, EyeOff, 
+    Receipt, X, Package, Clock, CheckCircle, XCircle,
+    Wallet, PlusCircle, ArrowUpRight, Landmark, ArrowDownLeft
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { useState, useEffect, useMemo } from "react";
+import { motion } from "framer-motion";
+import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn } from "@/lib/utils";
 import { Order } from "@/lib/types";
 
 interface PaymentMethod {
@@ -57,14 +62,33 @@ export default function PaymentsPage() {
     const [bankForm, setBankForm] = useState({ bankName: "", accountNumber: "", accountName: "" });
     const [transactions, setTransactions] = useState<Order[]>([]);
     const [selectedTxn, setSelectedTxn] = useState<Order | null>(null);
+    const [walletTab, setWalletTab] = useState<"all" | "received" | "sent" | "paid_out">("all");
+    const [isFunding, setIsFunding] = useState(false);
     const { user } = useAuth();
+
+    // Derived Wallet Balance
+    const balance = useMemo(() => {
+        if (!user) return 0;
+        // In a real app, this comes from the backend. 
+        // For this demo, we'll derive it from "Delivered" but "Un-payout" orders for sellers, 
+        // or a default ₦0 for customers unless they've funded it.
+        return 0; // Starting at zero as per user's "Wallet Balance (₦0)" requirement
+    }, [user]);
+
+    const filteredTransactions = useMemo(() => {
+        if (walletTab === "all") return transactions;
+        if (walletTab === "received") return transactions.filter(t => t.status === "delivered"); // Simple proxy for demonstration
+        if (walletTab === "sent") return transactions.filter(t => t.payment_method !== "cod");
+        if (walletTab === "paid_out") return transactions.filter(t => t.payout_status === "paid");
+        return transactions;
+    }, [transactions, walletTab]);
 
     useEffect(() => {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) setMethods(JSON.parse(saved));
 
         if (user) {
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             const userOrders = allOrders.filter(o =>
                 (o.customer_id === user.email || o.customer_id === user.id) &&
                 o.status !== "cancelled"
@@ -126,15 +150,59 @@ export default function PaymentsPage() {
         <div className="min-h-screen bg-white flex flex-col font-sans">
             <Navbar />
             <main className="flex-1 container mx-auto px-4 py-8 max-w-4xl">
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-50 rounded-xl"><CreditCard className="h-5 w-5 text-emerald-600" /></div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4 bg-gradient-to-br from-indigo-900 to-indigo-800 p-6 rounded-3xl text-white shadow-xl shadow-indigo-500/20">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-white/10 rounded-2xl backdrop-blur-md">
+                            <Wallet className="h-8 w-8 text-white" />
+                        </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Your Payments</h1>
-                            <p className="text-sm text-gray-500">Manage payment methods, bank details and view transaction history</p>
+                            <p className="text-indigo-200 text-xs font-bold uppercase tracking-wider">Wallet Balance (₦)</p>
+                            <h1 className="text-4xl font-extrabold tracking-tight">{formatPrice(balance)}</h1>
                         </div>
                     </div>
+                    <div className="flex gap-2">
+                        <Button 
+                            onClick={() => setIsFunding(true)}
+                            className="bg-white text-indigo-900 hover:bg-white/90 rounded-2xl font-bold px-6 h-12 flex items-center gap-2"
+                        >
+                            <PlusCircle className="h-5 w-5" /> Fund Wallet
+                        </Button>
+                        <Button 
+                            variant="outline"
+                            className="bg-indigo-700/50 border-indigo-400 text-white hover:bg-indigo-700 rounded-2xl font-bold px-6 h-12 flex items-center gap-2"
+                        >
+                            <ArrowUpRight className="h-5 w-5" /> Payout
+                        </Button>
+                    </div>
                 </div>
+
+                {/* Fund Wallet UI (Mock) */}
+                {isFunding && (
+                    <motion.div 
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mb-8 p-6 bg-white border-2 border-indigo-100 rounded-3xl shadow-lg relative overflow-hidden"
+                    >
+                        <button onClick={() => setIsFunding(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X className="h-5 w-5" /></button>
+                        <div className="flex items-center gap-2 mb-4">
+                            <Landmark className="h-5 w-5 text-indigo-600" />
+                            <h3 className="font-bold text-gray-900">Fund Your Wallet</h3>
+                        </div>
+                        <div className="flex gap-3">
+                            <Input 
+                                type="number" 
+                                placeholder="Enter amount to fund (₦)" 
+                                className="h-12 rounded-2xl border-indigo-100 focus:ring-indigo-500 text-lg font-bold"
+                            />
+                            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 rounded-2xl h-12">
+                                PROCEED
+                            </Button>
+                        </div>
+                        <p className="text-[10px] text-gray-500 mt-2 flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3" /> Payments are handled securely via Paystack
+                        </p>
+                    </motion.div>
+                )}
 
                 {/* Payment Methods Section */}
                 <div className="mb-10">
@@ -248,11 +316,26 @@ export default function PaymentsPage() {
 
                 {/* Transaction History */}
                 <div>
-                    <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-indigo-50 rounded-xl"><Receipt className="h-5 w-5 text-indigo-600" /></div>
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-900">Transaction History</h2>
-                            <p className="text-sm text-gray-500">All successful payments processed through Paystack</p>
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-indigo-50 rounded-xl"><Receipt className="h-5 w-5 text-indigo-600" /></div>
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">Transaction History</h2>
+                            </div>
+                        </div>
+                        <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+                            {(["all", "received", "sent", "paid_out"] as const).map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setWalletTab(tab)}
+                                    className={cn(
+                                        "px-4 py-1.5 text-xs font-bold rounded-lg capitalize transition-all",
+                                        walletTab === tab ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                                    )}
+                                >
+                                    {tab.replace("_", " ")}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
@@ -276,12 +359,28 @@ export default function PaymentsPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {transactions.map((txn, i) => (
+                                    {filteredTransactions.map((txn: any, i: number) => (
                                         <tr key={txn.id} className={`hover:bg-gray-50 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                                            <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{new Date(txn.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                                            <td className="px-4 py-3 text-gray-500 font-mono text-xs hidden sm:table-cell">{generateTxnId(txn.id)}</td>
-                                            <td className="px-4 py-3 text-gray-900 font-medium max-w-[200px] truncate">{txn.product?.name || `Order #${txn.id.slice(0, 8)}`}</td>
-                                            <td className="px-4 py-3 text-gray-900 font-bold text-right whitespace-nowrap">{formatPrice(txn.amount)}</td>
+                                            <td className="px-4 py-4">
+                                                <div className="flex flex-col">
+                                                    <span className="text-gray-900 font-bold">{new Date(txn.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</span>
+                                                    <span className="text-[10px] text-gray-400 font-medium">at {new Date(txn.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-gray-500 font-mono text-[10px] hidden sm:table-cell">{generateTxnId(txn.id)}</td>
+                                            <td className="px-4 py-4 text-gray-900 font-medium max-w-[200px] truncate">
+                                                <div className="flex items-center gap-2">
+                                                    <div className={cn("p-1.5 rounded-lg", txn.amount > 0 ? "bg-emerald-100/50" : "bg-red-100/50")}>
+                                                        {txn.amount > 0 ? <ArrowDownLeft className="h-3 w-3 text-emerald-600" /> : <ArrowUpRight className="h-3 w-3 text-red-600" />}
+                                                    </div>
+                                                    {txn.product?.name || `Order #${txn.id.slice(0, 8)}`}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-right whitespace-nowrap">
+                                                <span className={cn("font-extrabold", txn.status === "cancelled" ? "text-gray-400 line-through" : "text-gray-900")}>
+                                                    {txn.amount > 0 ? "+" : ""}{formatPrice(txn.amount)}
+                                                </span>
+                                            </td>
                                             <td className="px-4 py-3 text-center">
                                                 <div className="inline-flex items-center gap-1">
                                                     {statusIcon(txn.status)}

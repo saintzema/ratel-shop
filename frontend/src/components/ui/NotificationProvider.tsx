@@ -13,42 +13,123 @@ export interface Notification {
     message: string;
     duration?: number;
     onClick?: () => void;
+    timestamp: number;
+    read?: boolean;
 }
 
 interface NotificationContextType {
-    showNotification: (notification: Omit<Notification, "id">) => void;
+    showNotification: (notification: Omit<Notification, "id" | "timestamp">) => void;
+    clearAll: () => void;
+    notifications: Notification[];
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
+const STORAGE_KEY = "fp_notification_history";
+const MAX_HISTORY = 50;
+
 export function NotificationProvider({ children }: { children: ReactNode }) {
     const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [activeToasts, setActiveToasts] = useState<Notification[]>([]);
 
-    const showNotification = useCallback((notification: Omit<Notification, "id">) => {
+    // Initialize from storage & setup cross-tab sync
+    useEffect(() => {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                setNotifications(parsed);
+            } catch (e) {
+                console.error("Failed to load notifications", e);
+            }
+        }
+
+        // Setup BroadcastChannel for multi-tab sync (Feature-check for older iOS/Mobile)
+        const hasBroadcast = typeof BroadcastChannel !== "undefined";
+        let channel: any = null;
+
+        if (hasBroadcast) {
+            try {
+                channel = new BroadcastChannel("fp_notifications_sync");
+                channel.onmessage = (event: MessageEvent) => {
+                    if (event.data.type === "SYNC_NOTIFICATIONS") {
+                        setNotifications(event.data.notifications);
+                    } else if (event.data.type === "REMOVE_TOAST") {
+                        setActiveToasts(prev => prev.filter(n => n.id !== event.data.id));
+                    }
+                };
+            } catch (e) {
+                console.error("BroadcastChannel initialization failed", e);
+            }
+        }
+
+        return () => {
+            if (channel) channel.close();
+        };
+    }, []);
+
+    // Persist to storage and broadcast to other tabs
+    const persistAndBroadcast = useCallback((newNotifications: Notification[]) => {
+        setNotifications(newNotifications);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newNotifications.slice(0, MAX_HISTORY)));
+        
+        if (typeof BroadcastChannel !== "undefined") {
+            try {
+                const channel = new BroadcastChannel("fp_notifications_sync");
+                channel.postMessage({ type: "SYNC_NOTIFICATIONS", notifications: newNotifications });
+                // Note: We don't need to keep it open here as postMessage is immediate
+                setTimeout(() => channel.close(), 100); 
+            } catch (e) {}
+        }
+    }, []);
+
+    const showNotification = useCallback((notification: Omit<Notification, "id" | "timestamp">) => {
         const id = Date.now().toString();
-        setNotifications((prev) => [...prev, { ...notification, id }]);
+        const newNotif = { ...notification, id, timestamp: Date.now(), read: false };
+        
+        // Add to active toasts (ephemeral UI)
+        setActiveToasts((prev) => [...prev, newNotif]);
 
+        // Add to permanent history
+        setNotifications(prev => {
+            const updated = [newNotif, ...prev].slice(0, MAX_HISTORY);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            return updated;
+        });
+
+        // Auto-remove toast after duration
         if (notification.duration !== 0) {
             setTimeout(() => {
-                removeNotification(id);
+                removeToast(id);
             }, notification.duration || 5000);
         }
     }, []);
 
-    const removeNotification = useCallback((id: string) => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
+    const removeToast = useCallback((id: string) => {
+        setActiveToasts((prev) => prev.filter((n) => n.id !== id));
+        if (typeof BroadcastChannel !== "undefined") {
+            try {
+                const channel = new BroadcastChannel("fp_notifications_sync");
+                channel.postMessage({ type: "REMOVE_TOAST", id });
+                setTimeout(() => channel.close(), 100);
+            } catch (e) {}
+        }
     }, []);
 
+    const clearAll = useCallback(() => {
+        persistAndBroadcast([]);
+    }, [persistAndBroadcast]);
+
     return (
-        <NotificationContext.Provider value={{ showNotification }}>
+        <NotificationContext.Provider value={{ showNotification, clearAll, notifications }}>
             {children}
             <div className="fixed top-0 left-0 right-0 z-[9999] p-4 sm:p-6 pointer-events-none flex flex-col items-center gap-3">
                 <AnimatePresence mode="popLayout">
-                    {notifications.map((notif) => (
+                    {activeToasts.map((notif) => (
                         <NotificationToast
                             key={notif.id}
                             notification={notif}
-                            onClose={() => removeNotification(notif.id)}
+                            onClose={() => removeToast(notif.id)}
                         />
                     ))}
                 </AnimatePresence>

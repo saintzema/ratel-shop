@@ -3,13 +3,13 @@
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
-import { DEMO_PRODUCTS } from "@/lib/data";
+import { SEED_PRODUCTS } from "@/lib/data";
 import { ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default function VerifiedSellersPage() {
-    const verifiedProducts = DEMO_PRODUCTS.filter(p => p.price_flag === "fair");
+    const verifiedProducts = SEED_PRODUCTS.filter(p => p.price_flag === "fair");
 
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">

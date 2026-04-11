@@ -1,8 +1,10 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { useSession, signOut as nextAuthSignOut } from "next-auth/react";
 
 import { User } from "@/lib/types";
+import { DataSyncService } from "@/lib/sync-store";
 
 interface AuthContextType {
     user: User | null;
@@ -19,9 +21,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    const { data: session, status: sessionStatus } = useSession();
+    const isFirstMount = React.useRef(true);
+
+    useEffect(() => {
+        // Initial sync on mount
+        DataSyncService.syncWithDB();
+
+        // High frequency sync for specific collections on first load to get instant UX
+        if (isFirstMount.current) {
+            DataSyncService.syncWithDB("products");
+            DataSyncService.syncWithDB("sellers");
+            isFirstMount.current = false;
+        }
+
+        // Periodic sync every 5 minutes (300,000 ms) to balance freshness and Neon DB quotas
+        const syncInterval = setInterval(() => {
+            DataSyncService.syncWithDB();
+        }, 300000);
+
+        return () => clearInterval(syncInterval);
+    }, []);
+
+    useEffect(() => {
+        // --- NextAuth Sync ---
+        // If there's an active NextAuth session, and the current stored fp_user doesn't match, sync it
+        if (sessionStatus === "authenticated" && session?.user) {
+            let existingRole = "customer";
+            const storedUserStr = localStorage.getItem("fp_user");
+            let needsSync = true;
+            
+            if (storedUserStr) {
+                try {
+                    const parsed = JSON.parse(storedUserStr);
+                    if (parsed.role) existingRole = parsed.role; // Preserve existing role!
+                    if (parsed.email === session.user.email) needsSync = false;
+                } catch (e) { }
+            }
+
+            if (needsSync) {
+                const oauthUser: User = {
+                    id: (session.user as any)?.id || `user_${session.user.email}`,
+                    email: session.user.email!,
+                    name: session.user.name || "User",
+                    role: (session.user as any)?.role || existingRole,
+                    avatar_url: session.user.image || undefined,
+                    created_at: new Date().toISOString()
+                };
+                login(oauthUser);
+            }
+        }
+    }, [session, sessionStatus]);
+
     useEffect(() => {
         // Initialize from localStorage
         const storedUser = localStorage.getItem("fp_user");
+        
+        // --- Unique Guest Identity Fingerprinting ---
+        // If not logged in, ensure we have a stable guest ID for this browser
+        if (!storedUser) {
+            let guestId = localStorage.getItem("fp_guest_id");
+            if (!guestId) {
+                // Generate a robust unique ID: gst_ + timestamp + random chars
+                guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+                localStorage.setItem("fp_guest_id", guestId);
+                localStorage.setItem("fp_guest_name", "Guest Buyer");
+                console.log(`👤 Auth: Generated new unique guest identity: ${guestId}`);
+            }
+        }
+
         if (storedUser) {
             try {
                 const parsed = JSON.parse(storedUser);
@@ -42,11 +110,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const handleStorageChange = () => {
             const updatedUser = localStorage.getItem("fp_user");
             if (updatedUser) {
-                const parsed = JSON.parse(updatedUser);
-                if (!parsed.role) parsed.role = "customer";
-                setUser(parsed);
+                // To avoid redundant re-renders from frequent "storage" events (e.g. from DataSyncService sync),
+                // we only update if the string value has actually changed.
+                const currentUserStr = localStorage.getItem("fp_user_last_synced");
+                if (updatedUser !== currentUserStr) {
+                    try {
+                        const parsed = JSON.parse(updatedUser);
+                        if (!parsed.role) parsed.role = "customer";
+                        setUser(parsed);
+                        localStorage.setItem("fp_user_last_synced", updatedUser);
+                    } catch (e) {
+                        console.error("Auth sync error: invalid JSON in storage", e);
+                    }
+                }
             } else {
                 setUser(null);
+                localStorage.removeItem("fp_user_last_synced");
             }
             setIsLoading(false);
         };
@@ -60,26 +139,139 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
-    const login = (userData: User) => {
-        // Transfer any guest negotiations to the logged-in user
+    const migrateGuestData = async (userData: User) => {
         try {
-            const stored = localStorage.getItem("fairprice_demo_negotiations");
-            if (stored) {
-                const negs = JSON.parse(stored);
-                let changed = false;
-                negs.forEach((n: any) => {
-                    if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
-                        n.customer_id = userData.id || userData.email;
-                        n.customer_name = userData.name || userData.email;
-                        changed = true;
-                    }
-                });
-                if (changed) localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
-            }
-        } catch (e) { /* ignore */ }
+            const guestId = localStorage.getItem("fp_guest_id") || "guest";
+            const guestName = localStorage.getItem("fp_guest_name") || "Guest Buyer";
+            const targetId = userData.id || userData.email;
+            const targetName = userData.name || userData.email;
 
+            console.log(`🔑 Auth: Migrating guest data from ${guestId} to ${targetId}`);
+
+            const transferData = (key: string, mapper: (item: any) => any) => {
+                const stored = localStorage.getItem(key);
+                if (stored) {
+                    try {
+                        const data = JSON.parse(stored);
+                        const updated = data.map(mapper);
+                        if (JSON.stringify(data) !== JSON.stringify(updated)) {
+                            localStorage.setItem(key, JSON.stringify(updated));
+                        }
+                    } catch (e) { }
+                }
+            };
+
+            // 1. Negotiations
+            transferData("fairprice_demo_negotiations", (n: any) => {
+                if (n.customer_id === guestId || n.customer_id === "guest" || n.customer_name === guestName || n.customer_name === "Guest Buyer") {
+                    return { ...n, customer_id: targetId, customer_name: targetName };
+                }
+                return n;
+            });
+
+            // 2. Notifications
+            transferData("fairprice_demo_notifications", (n: any) => {
+                if (n.userId === guestId || n.userId === "guest" || n.userId === "Guest Buyer") {
+                    return { ...n, userId: targetId };
+                }
+                return n;
+            });
+
+            // 3. Conversations
+            transferData("fp_conversations", (c: any) => {
+                if (c.participants?.includes(guestId) || c.participants?.includes("guest")) {
+                    const newParts = c.participants.map((p: string) => (p === guestId || p === "guest") ? targetId : p);
+                    const newNames = { ...c.participant_names };
+                    if (newNames[guestId]) {
+                        newNames[targetId] = targetName;
+                        delete newNames[guestId];
+                    }
+                    if (newNames["guest"]) {
+                        newNames[targetId] = targetName;
+                        delete newNames["guest"];
+                    }
+                    const newUnread = { ...c.unread_count };
+                    if (newUnread[guestId] !== undefined) {
+                        newUnread[targetId] = newUnread[guestId];
+                        delete newUnread[guestId];
+                    }
+                    if (newUnread["guest"] !== undefined) {
+                        newUnread[targetId] = newUnread["guest"];
+                        delete newUnread["guest"];
+                    }
+                    return { ...c, participants: newParts, participant_names: newNames, unread_count: newUnread };
+                }
+                return c;
+            });
+
+            // 4. Chat Messages
+            transferData("fp_chat_messages", (m: any) => {
+                let updated = { ...m };
+                if (updated.sender === guestId || updated.sender === "guest") {
+                    updated.sender = targetId;
+                    updated.sender_name = targetName;
+                }
+                return updated;
+            });
+
+            // 5. Cart Migration (Critical for eCommerce)
+            const guestCart = localStorage.getItem("fp-cart-guest");
+            if (guestCart) {
+                const userCartKey = `fp-cart-${userData.email}`;
+                const userCart = localStorage.getItem(userCartKey);
+                
+                if (!userCart) {
+                    // Just move it
+                    localStorage.setItem(userCartKey, guestCart);
+                } else {
+                    // Merge logic
+                    try {
+                        const gItems = JSON.parse(guestCart);
+                        const uItems = JSON.parse(userCart);
+                        // Add guest items that aren't already in user cart (by product id)
+                        const merged = [...uItems];
+                        gItems.forEach((gi: any) => {
+                            if (!uItems.find((ui: any) => ui.id === gi.id)) {
+                                merged.push(gi);
+                            }
+                        });
+                        localStorage.setItem(userCartKey, JSON.stringify(merged));
+                    } catch (e) { }
+                }
+                localStorage.removeItem("fp-cart-guest");
+            }
+
+            // Cleanup ephemeral IDs
+            localStorage.removeItem("fp_guest_id");
+            localStorage.removeItem("fp_guest_name");
+
+            // Trigger re-sync across the application
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("sync-store-update"));
+            DataSyncService.syncWithDB();
+
+            // Migrate Postgres records
+            await fetch("/api/auth/migrate-guest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    oldId: guestId,
+                    newId: targetId,
+                    email: userData.email,
+                }),
+            }).catch(err => console.error("Guest migration failed:", err));
+
+        } catch (e) { console.error("Data transfer failed", e); }
+    };
+
+    const login = async (userData: User) => {
+        // Persist user FIRST so subsequent fetches in migrateGuestData have context
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
+        
+        // HOT migration: reconcile guest data with new identity immediately
+        await migrateGuestData(userData);
+        
         window.dispatchEvent(new Event("fp-auth-update"));
     };
 
@@ -91,34 +283,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem("fp-cart-guest");
         if (currentEmail) {
             localStorage.removeItem(`fp-cart-${currentEmail}`);
+            if (user?.id) {
+                localStorage.removeItem(`fp_saved_addresses_${user.id}`);
+            }
         }
+        localStorage.removeItem("fp_saved_addresses");
+
+        // Clear ALL negotiations and conversations to ensure no data leaks between accounts or to guest
+        try {
+            localStorage.removeItem("fairprice_demo_negotiations");
+            localStorage.removeItem("fp_conversations");
+            localStorage.removeItem("fp_chat_messages");
+            localStorage.removeItem("fairprice_demo_orders");
+            localStorage.removeItem("fairprice_demo_returns");
+            localStorage.removeItem("fairprice_demo_order_messages");
+            localStorage.removeItem("fairprice_demo_support_messages");
+            
+            // CRITICAL: Clear guest IDs on logout to prevent "inheritance" by the next user
+            localStorage.removeItem("fp_guest_id");
+            localStorage.removeItem("fp_guest_name");
+        } catch (e) { /* ignore */ }
+
         // Also clear seller session
         localStorage.removeItem("fairprice_demo_current_seller");
 
         setUser(null);
         window.dispatchEvent(new Event("fp-auth-update"));
+
+        // If logged in via NextAuth, also clear NextAuth session
+        if (sessionStatus === "authenticated") {
+            nextAuthSignOut({ redirect: false });
+        }
     };
 
-    const register = (userData: User) => {
-        // Transfer any guest negotiations to the newly registered user
-        try {
-            const stored = localStorage.getItem("fairprice_demo_negotiations");
-            if (stored) {
-                const negs = JSON.parse(stored);
-                let changed = false;
-                negs.forEach((n: any) => {
-                    if (n.customer_id === "guest" || n.customer_name === "Guest Buyer") {
-                        n.customer_id = userData.id || userData.email;
-                        n.customer_name = userData.name || userData.email;
-                        changed = true;
-                    }
-                });
-                if (changed) localStorage.setItem("fairprice_demo_negotiations", JSON.stringify(negs));
-            }
-        } catch (e) { /* ignore */ }
-
+    const register = async (userData: User) => {
+        // Persist user FIRST for context
         localStorage.setItem("fp_user", JSON.stringify(userData));
         setUser(userData);
+
+        // HOT migration for new account creation
+        await migrateGuestData(userData);
 
         // Persist to Postgres
         fetch("/api/users", {

@@ -10,15 +10,17 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product, PriceComparison } from "@/lib/types";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { getDemoPriceComparison } from "@/lib/data";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Keyboard } from "@capacitor/keyboard";
+import { Capacitor } from "@capacitor/core";
 
 // ─── Intent Detection ────────────────────────────────────
 type Intent =
@@ -171,12 +173,46 @@ export function ZivaChat() {
     // Detect current product page for context-aware suggestions
     const pathname = usePathname();
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+    // kb-height handled globally by KeyboardAware.tsx via CSS variable --kb-height
+    const [isWiggling, setIsWiggling] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setIsWiggling(true);
+            setTimeout(() => setIsWiggling(false), 2000);
+            try {
+                const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(600, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                // Increased volume from 0.05 to 0.15
+                gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch (e) { /* ignore autoplay block */ }
+        }, 10000); // Delay set to 10 seconds
+        return () => clearTimeout(timer);
+    }, []);
+
+    // ─── Hybrid Keyboard Handling ──────────────────────────────
+    // Global KeyboardAware.tsx tracks the visual viewport and Capacitor plugin
+    // to keep the --kb-height CSS variable updated on <html>.
+    // ────────────────────────────────────────────────────────────
+
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const match = pathname.match(/\/product\/(.+)/);
         if (match) {
             const productId = decodeURIComponent(match[1]);
-            const allProducts = DemoStore.getProducts();
+            const allProducts = DataSyncService.getProducts();
             const found = allProducts.find(p => p.id === productId);
             setCurrentProduct(found || null);
         } else {
@@ -241,7 +277,7 @@ export function ZivaChat() {
 
     const toggleChat = () => {
         setIsOpen(!isOpen);
-        if (!isOpen) setTimeout(() => inputRef.current?.focus(), 300);
+        // Intentionally NOT auto-focusing here to prevent iOS keyboard from opening on launch
     };
 
     // ─── AI Response Generator ────────────────────────
@@ -260,7 +296,7 @@ export function ZivaChat() {
                     message: userInput,
                     history: recentHistory,
                     userName: user?.name || "Guest",
-                    catalogue: DemoStore.getProducts().map(p => ({
+                    catalogue: DataSyncService.getProducts().map(p => ({
                         id: p.id,
                         name: p.name,
                         price: p.price,
@@ -273,14 +309,14 @@ export function ZivaChat() {
                         price_flag: p.price_flag,
                         specs: p.specs
                     })),
-                    searchCache: DemoStore.getAllCachedProducts().slice(0, 20).map(p => ({
+                    searchCache: DataSyncService.getAllCachedProducts().slice(0, 20).map(p => ({
                         id: p.id,
                         name: p.name,
                         price: p.price,
                         category: p.category,
                         specs: p.specs
                     })),
-                    browsingHistory: (DemoStore.getSearchHistoryProducts?.() || []).slice(0, 5).map((p: any) => ({
+                    browsingHistory: (DataSyncService.getSearchHistoryProducts?.() || []).slice(0, 5).map((p: any) => ({
                         name: p.name,
                         price: p.price,
                         category: p.category
@@ -364,19 +400,28 @@ export function ZivaChat() {
                     })
                 }).catch(console.error);
 
-                // Also persist to admin inbox (DemoStore)
-                const conv = DemoStore.getOrCreateConversation(
+                // Also persist to admin inbox (DataSyncService)
+                const currentUserId = user?.id || DataSyncService.getCurrentUserId() || "guest_session";
+                const conv = DataSyncService.getOrCreateConversation(
                     "admin",
-                    user?.id || user?.email || "guest",
-                    { admin: "FairPrice Admin", [user?.id || user?.email || "guest"]: user?.name || "Guest" },
+                    currentUserId,
+                    { admin: "FairPrice Admin", [currentUserId]: user?.name || "Guest" },
                     { type: "ziva_escalation" }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
-                    user?.id || user?.email || "guest",
+                    currentUserId,
                     user?.name || "Guest",
                     `[ZIVA ESCALATION: ${data.escalationReason || "Customer Requested Support"}]\n\nTranscript:\n${messages.map(m => `${m.role}: ${m.content}`).join("\n")}`
                 );
+
+                // Add notification for admin
+                DataSyncService.addNotification({
+                    userId: "admin",
+                    type: "system",
+                    message: `Ziva Escalation: ${user?.name || "Guest"} requested human support`,
+                    link: `/admin/inbox?user_id=${encodeURIComponent(currentUserId)}`
+                });
 
                 return {
                     content: data.message + "\n\n🛡️ **Your message has been forwarded to our support team.** A human agent will review your case and respond shortly.",
@@ -389,8 +434,8 @@ export function ZivaChat() {
             // Handle Product Suggestions (search catalog + cache)
             let suggestedProducts: any[] = [];
             if (data.intent === "product_search" || data.intent === "comparison" || data.intent === "price_check" || (data.suggestedProducts && data.suggestedProducts.length > 0)) {
-                const catalogProducts = DemoStore.getProducts();
-                const cacheProducts = DemoStore.getAllCachedProducts();
+                const catalogProducts = DataSyncService.getProducts();
+                const cacheProducts = DataSyncService.getAllCachedProducts();
                 const allProducts = [...catalogProducts, ...cacheProducts.filter((cp: any) => !catalogProducts.some(p => p.id === cp.id))];
 
                 if (data.suggestedProducts && data.suggestedProducts.length > 0) {
@@ -444,12 +489,12 @@ export function ZivaChat() {
                     const requestKey = `fp_img_req_${product.id}_${buyerEmail}`;
                     if (typeof window !== "undefined" && sessionStorage.getItem(requestKey)) return;
 
-                    const conv = DemoStore.getOrCreateConversation(
+                    const conv = DataSyncService.getOrCreateConversation(
                         buyerEmail, sellerId,
                         { [buyerEmail]: buyerName, [sellerId]: product.seller_name || "Seller" },
                         { type: "buyer_seller", product_id: product.id }
                     );
-                    DemoStore.sendChatMessage(
+                    DataSyncService.sendChatMessage(
                         conv.id,
                         buyerEmail,
                         buyerName,
@@ -553,17 +598,25 @@ export function ZivaChat() {
             if (isHumanRequest) {
                 // Save escalation to admin inbox
                 const userIdLog = user?.id || user?.email || "guest@globalstores.shop";
-                const conv = DemoStore.getOrCreateConversation(
+                const conv = DataSyncService.getOrCreateConversation(
                     "admin", userIdLog,
                     { admin: "FairPrice Admin", [userIdLog]: user?.name || "Guest" },
                     { type: "ziva_escalation" }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
                     userIdLog,
                     user?.name || "Guest",
                     `[ZIVA ESCALATION: Customer Requested Human Support]\n\nCustomer said: "${resolvedText}"\n\nRecent history:\n${messages.slice(-3).map(m => `${m.role}: ${m.content}`).join("\n")}`
                 );
+
+                // Add notification for admin
+                DataSyncService.addNotification({
+                    userId: "admin",
+                    type: "system",
+                    message: "Ziva Escalation: Customer requested human support",
+                    link: `/admin/inbox?user_id=${encodeURIComponent(userIdLog)}`
+                });
 
                 setTimeout(() => {
                     setMessages(prev => [
@@ -600,12 +653,12 @@ export function ZivaChat() {
                 // Send request to seller's DM inbox
                 const buyerEmailLocal = user?.id || user?.email || "customer@fairprice.ng";
                 const sellerIdLocal = currentProduct.seller_id || "admin";
-                const conv = DemoStore.getOrCreateConversation(
+                const conv = DataSyncService.getOrCreateConversation(
                     buyerEmailLocal, sellerIdLocal,
                     { [buyerEmailLocal]: user?.name || "Customer", [sellerIdLocal]: currentProduct.seller_name || "Seller" },
                     { type: "buyer_seller", product_id: currentProduct.id }
                 );
-                DemoStore.sendChatMessage(
+                DataSyncService.sendChatMessage(
                     conv.id,
                     buyerEmailLocal,
                     user?.name || "Customer",
@@ -614,7 +667,7 @@ export function ZivaChat() {
 
                 // Also notify the seller
                 if (currentProduct.seller_id) {
-                    DemoStore.addNotification({
+                    DataSyncService.addNotification({
                         userId: currentProduct.seller_id,
                         type: "system",
                         message: `📷 A customer requested real photos of "${currentProduct.name}". Check your messages to respond.`,
@@ -630,7 +683,7 @@ export function ZivaChat() {
                             role: "assistant",
                             content: `📷 **Image Request Sent!**\n\nI've forwarded your request for real product photos of **${currentProduct.name}** to the seller (**${currentProduct.seller_name || 'the merchant'}**).\n\nThey'll be notified to upload actual photos of the item. You'll receive a notification when the images are available.\n\nIn the meantime, you can view the existing listing photos on the product page.`,
                             quickActions: [
-                                { label: "📦 View Product", query: `__NAV__/product/${currentProduct.id}`, icon: "" },
+                                { label: "📦 View Product", query: `__NAV__${getProductUrl(currentProduct.id, currentProduct.name)}`, icon: "" },
                                 { label: "💬 Ask Something Else", query: "", icon: "" },
                             ]
                         }
@@ -644,7 +697,7 @@ export function ZivaChat() {
             const trackMatch = resolvedText.match(/\b(track|tracking|order\s*status|where.s?\s*my\s*order|order\s*#?)\s*:?\s*([A-Za-z0-9_-]{6,})?/i);
             const isTrackQuery = /\b(track|tracking|order status|where.s?\s*my\s*order|about my order|my order)\b/i.test(resolvedText);
             if (isTrackQuery || trackMatch) {
-                const allOrders = DemoStore.getOrders();
+                const allOrders = DataSyncService.getOrders();
                 // Filter by current user — never show other users' orders
                 const userOrders = user
                     ? allOrders.filter(o => o.customer_id === user.email || o.customer_id === user.id)
@@ -692,24 +745,32 @@ export function ZivaChat() {
                     );
                     if (lastNegotiateMsg && lastNegotiateMsg.products && lastNegotiateMsg.products.length > 0) {
                         const matchProduct = lastNegotiateMsg.products[0];
+                        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${amount.toLocaleString()}\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+
                         // Save as proper negotiation entry (shows on /account/negotiations)
-                        DemoStore.addNegotiation({
+                        DataSyncService.addNegotiation({
                             id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                             product_id: matchProduct.id,
-                            customer_id: user?.id || user?.email || "guest",
+                            customer_id: user?.id || user?.email || DataSyncService.getCurrentUserId() || "guest_session",
                             customer_name: user?.name || "Guest Customer",
                             proposed_price: amount,
                             message: `Offer submitted via Ziva AI`,
                             status: "pending",
                             created_at: new Date().toISOString(),
+                            chat_messages: [{
+                                sender: "buyer" as const,
+                                text: negMessageText,
+                                timestamp: new Date().toISOString()
+                            }]
                         });
+
                         // Also save to inbox conversation thread
-                        const negMessage = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${amount.toLocaleString()}\n\nDiscount: ${Math.round((1 - amount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
                         startConversation(
-                            `neg_${matchProduct.id}_${Date.now()}`,
+                            `neg_${matchProduct.id}`,
                             matchProduct.name,
                             matchProduct.image_url,
-                            negMessage
+                            negMessageText,
+                            matchProduct.seller_name || "Global Store"
                         );
 
                         setTimeout(() => {
@@ -720,8 +781,8 @@ export function ZivaChat() {
                                     role: "assistant",
                                     content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${amount.toLocaleString()}** (${Math.round((1 - amount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
                                     quickActions: [
-                                        { label: "📦 View Product", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
-                                        { label: "🛒 Buy at Listed Price", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
+                                        { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
+                                        { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
                                         { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
                                     ]
                                 }
@@ -738,7 +799,7 @@ export function ZivaChat() {
             const hasConcretePrice = /[₦#N]?\s*\d[\d,]+/.test(resolvedText) && /\b(offer|pay|give|bargain)\b/i.test(resolvedText);
             const isNegotiate = !hasConcretePrice && /\b(negotiate|make.*offer|bargain|lower.*price|offer.*price|can.*you.*reduce|price.*too.*high|counter.*offer)\b/i.test(resolvedText);
             if (isNegotiate) {
-                const allProducts = DemoStore.getProducts();
+                const allProducts = DataSyncService.getProducts();
                 // Try to extract product name from the message
                 const words = resolvedText.replace(/\b(negotiate|make|offer|bargain|lower|price|reduce|for|the|a|an|on|can|you|i|want|to|of|current|is|at)\b/gi, '').replace(/₦[\d,]+/g, '').trim();
                 const searchTerms = words.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
@@ -823,7 +884,7 @@ export function ZivaChat() {
                 // Remove trailing articles/determiners from product query
                 productQuery = productQuery.replace(/^the\s+/i, '').trim();
 
-                const allProducts = DemoStore.getProducts();
+                const allProducts = DataSyncService.getProducts();
 
                 // First try exact match
                 let matchProduct = allProducts.find(p => p.name.toLowerCase() === productQuery.toLowerCase());
@@ -863,24 +924,31 @@ export function ZivaChat() {
                         return;
                     }
 
+                    const negMessageText = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${offerAmount.toLocaleString()}\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+
                     // Save as proper negotiation entry (shows on /account/negotiations)
-                    DemoStore.addNegotiation({
+                    DataSyncService.addNegotiation({
                         id: `neg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
                         product_id: matchProduct.id,
-                        customer_id: user?.id || user?.email || "guest",
+                        customer_id: user?.id || user?.email || DataSyncService.getCurrentUserId() || "guest_session",
                         customer_name: user?.name || "Guest Customer",
                         proposed_price: offerAmount,
                         message: `Offer submitted via Ziva AI`,
                         status: "pending",
                         created_at: new Date().toISOString(),
+                        chat_messages: [{
+                            sender: "buyer" as const,
+                            text: negMessageText,
+                            timestamp: new Date().toISOString()
+                        }]
                     });
-                    // Also save to inbox conversation thread
-                    const negMessage = `🤝 Negotiation Request\n\nProduct: ${matchProduct.name}\nCurrent Price: ₦${matchProduct.price.toLocaleString()}\nMy Offer: ₦${offerAmount.toLocaleString()}\n\nDiscount: ${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off.\n\nWaiting for seller to respond...`;
+
+                    // Also save to generic inbox conversation thread for buyer
                     startConversation(
                         `neg_${matchProduct.id}_${Date.now()}`,
                         matchProduct.name,
                         matchProduct.image_url,
-                        negMessage
+                        negMessageText
                     );
 
                     setTimeout(() => {
@@ -891,8 +959,8 @@ export function ZivaChat() {
                                 role: "assistant",
                                 content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${offerAmount.toLocaleString()}** (${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
                                 quickActions: [
-                                    { label: "📦 View Product", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
-                                    { label: "🛒 Buy at Listed Price", query: `__NAV__/product/${matchProduct.id}`, icon: "" },
+                                    { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
+                                    { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
                                     { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
                                 ]
                             }
@@ -966,7 +1034,7 @@ export function ZivaChat() {
             setMessages(prev => [...prev, { id: typingId, role: adminActive ? "admin" : "assistant", content: "", isTyping: true, senderName: adminActive ? "Support Team" : undefined }]);
 
             // Send image to admin inbox so support can see it
-            DemoStore.addSupportMessage({
+            DataSyncService.addSupportMessage({
                 user_name: user?.name || "Guest",
                 user_email: user?.email || "guest@fairprice.ng",
                 subject: `📷 Image uploaded in Ziva Chat${currentProduct ? ` — Re: ${currentProduct.name}` : ''}`,
@@ -998,22 +1066,28 @@ export function ZivaChat() {
 
     // ─── 3D Mouse Tracking ──────────────────────────
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const mouseTickingRef = useRef(false);
+    
     useEffect(() => {
         if (!mounted) return;
-        let ticking = false;
+        
         const handleMouseMove = (e: MouseEvent) => {
-            if (!ticking) {
+            if (!mouseTickingRef.current) {
                 window.requestAnimationFrame(() => {
                     const x = (e.clientX / window.innerWidth) * 2 - 1;
                     const y = (e.clientY / window.innerHeight) * 2 - 1;
                     setMousePos({ x, y });
-                    ticking = false;
+                    mouseTickingRef.current = false;
                 });
-                ticking = true;
+                mouseTickingRef.current = true;
             }
         };
+        
         window.addEventListener("mousemove", handleMouseMove);
-        return () => window.removeEventListener("mousemove", handleMouseMove);
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            mouseTickingRef.current = false;
+        };
     }, [mounted]);
 
     // Unread pulse
@@ -1057,7 +1131,7 @@ export function ZivaChat() {
 
         return (
             <div className="overflow-x-auto my-2">
-                <table className="w-full text-[11px] border-collapse">
+                        <table className="w-full text-[11px] border-collapse">
                     <thead>
                         <tr>
                             {headers.map((h, i) => (
@@ -1084,11 +1158,22 @@ export function ZivaChat() {
         return lines.length >= 3;
     };
 
+    const isDesktop = typeof window !== 'undefined' ? window.innerWidth >= 1024 : false;
+    const desktopBottom = 48; // 3rem (bottom-12)
+    const mobileBottom = pathname === "/checkout" ? 280 : 120;
+
+    // When keyboard is open, place container exactly 8px above it
+    const containerBottom = `calc(var(--kb-height, 0px) + ${(isDesktop ? desktopBottom : mobileBottom)}px)`;
+
+    const availableHeightStr = `calc(100dvh - var(--kb-height, 0px) - ${(isDesktop ? desktopBottom + 100 : mobileBottom + 100)}px)`;
+
     return (
-        <div className={cn(
-            "fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300",
-            pathname === "/checkout" ? "bottom-[280px] lg:bottom-12" : "bottom-[18vh] lg:bottom-12"
-        )}>
+        <div
+            className="fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300 ease-out"
+            style={{
+                bottom: containerBottom
+            }}
+        >
             {/* Click-outside overlay to close chat */}
             {isOpen && (
                 <div
@@ -1104,16 +1189,24 @@ export function ZivaChat() {
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 20, scale: 0.95 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none h-[75vh] max-h-[600px] md:h-[70vh] md:max-h-[600px] flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-left"
-                        style={{ background: "rgba(15, 15, 20, 0.95)", backdropFilter: "blur(40px) saturate(180%)" }}
+                        className="absolute bottom-20 left-0 w-[calc(100vw-2rem)] max-w-[380px] md:w-[420px] md:max-w-none flex flex-col overflow-hidden shadow-2xl pointer-events-auto rounded-3xl border border-white/10 origin-bottom-left"
+                        style={{
+                            background: "rgba(15, 15, 20, 0.95)",
+                            backdropFilter: "blur(40px) saturate(180%)",
+                            height: availableHeightStr,
+                            maxHeight: '600px'
+                        }}
                     >
                         {/* Header */}
-                        <div className="relative h-28 bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0">
+                        <div className={cn(
+                            "relative bg-gradient-to-br from-emerald-900 via-emerald-800 to-black overflow-hidden flex items-center px-5 shrink-0 transition-all duration-300",
+                            "h-28"
+                        )}>
                             <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.2),transparent_70%)]" />
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10" />
+                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-25" />
 
                             <motion.div
-                                className="relative w-16 h-16 shrink-0"
+                                className={cn("relative shrink-0 transition-all duration-300", "w-16 h-16")}
                                 animate={{ y: [0, -2, 0] }}
                                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                             >
@@ -1125,16 +1218,20 @@ export function ZivaChat() {
                                 />
                             </motion.div>
 
-                            <div className="ml-4 flex-1 relative z-10">
-                                <h2 className="text-white font-black text-lg tracking-tight">Ziva AI</h2>
-                                <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
-                                <div className="flex items-center gap-1.5 mt-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                                    <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
-                                </div>
+                            <div className="ml-4 flex-1 relative z-10 overflow-hidden">
+                                <h2 className={cn("text-white font-black tracking-tight transition-all", "text-lg")}>Ziva AI</h2>
+                                {true && (
+                                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                        <p className="text-emerald-300/80 text-xs font-medium">Smart Shopping Assistant</p>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                                            <span className="text-[10px] text-green-400/80 font-bold uppercase tracking-widest">Online</span>
+                                        </div>
+                                    </motion.div>
+                                )}
                             </div>
 
-                            <button onClick={toggleChat} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
+                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
                                 <X className="h-4 w-4 drop-shadow-sm" strokeWidth={3} />
                             </button>
                         </div>
@@ -1190,78 +1287,139 @@ export function ZivaChat() {
                                                 {/* Inline Product Cards */}
                                                 {msg.products && msg.products.length > 0 && (
                                                     <div className="space-y-2 mt-2">
-                                                        {msg.products.map(product => (
-                                                            <Link
-                                                                key={product.id}
-                                                                href={`/product/${product.id}`}
-                                                                onClick={() => setIsOpen(false)}
-                                                            >
-                                                                <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
-                                                                    <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
-                                                                        {product.image_url && typeof product.image_url === 'string' && product.image_url.trim() ? (
-                                                                            <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
-                                                                        ) : (
-                                                                            <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
-                                                                                <span className="text-white font-black text-lg">{product.name.charAt(0)}</span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex-1 min-w-0 pr-8">
-                                                                        <p className="text-xs font-bold text-white line-clamp-1 group-hover:text-emerald-400 transition-colors">{product.name}</p>
-                                                                        <div className="flex items-center gap-1.5 mt-0.5">
-                                                                            <div className="flex text-amber-400">
-                                                                                {[...Array(5)].map((_, i) => (
-                                                                                    <Star key={i} className={`h-2.5 w-2.5 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-600"}`} />
-                                                                                ))}
-                                                                            </div>
-                                                                            <span className="text-[10px] text-gray-500">({product.review_count})</span>
+                                                        {msg.products.map(product => {
+                                                            // Check for active negotiations for this product
+                                                            const negotiations = DataSyncService.getNegotiations(undefined, user?.id || user?.email || DataSyncService.getCurrentUserId() || "guest_session");
+                                                            const activeNeg = negotiations.find(n => n.product_id === product.id && (n.status === "accepted" || n.counter_status === "accepted" || (n.status === "countered" && n.counter_status === "pending")));
+                                                            const isPurchased = negotiations.some(n => n.product_id === product.id && (n.status === "purchased" || n.purchased));
+                                                            
+                                                            const hasDeal = activeNeg && (activeNeg.status === "accepted" || activeNeg.counter_status === "accepted");
+                                                            const hasCounter = activeNeg && activeNeg.status === "countered" && activeNeg.counter_status === "pending";
+                                                            const dealPrice = hasDeal ? (activeNeg.counter_price || activeNeg.proposed_price) : (hasCounter ? activeNeg.counter_price : null);
+
+                                                            return (
+                                                                <Link
+                                                                    key={product.id}
+                                                                    href={getProductUrl(product.id, product.name)}
+                                                                    onClick={() => setIsOpen(false)}
+                                                                >
+                                                                    <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
+                                                                        <div className="w-14 h-14 bg-white/10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                                                                            {product.image_url && typeof product.image_url === 'string' && product.image_url.trim() ? (
+                                                                                <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                                            ) : (
+                                                                                <div className="w-full h-full bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                                                                                    <span className="text-white font-black text-lg">{product.name.charAt(0)}</span>
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                        <div className="flex items-center gap-2 mt-1">
-                                                                            <span className="text-sm font-black text-white">{formatPrice(product.price)}</span>
-                                                                            {product.original_price && (
-                                                                                <span className="text-[10px] text-gray-500 line-through">{formatPrice(product.original_price)}</span>
+                                                                        <div className="flex-1 min-w-0 pr-8">
+                                                                            <div className="flex items-center gap-2">
+                                                                                <p className="text-xs font-bold text-white line-clamp-1 group-hover:text-emerald-400 transition-colors">{product.name}</p>
+                                                                                {isPurchased && <CheckCircle className="h-3 w-3 text-emerald-500 shrink-0" />}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                                <div className="flex text-amber-400">
+                                                                                    {[...Array(5)].map((_, i) => (
+                                                                                        <Star key={i} className={`h-2.5 w-2.5 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-600"}`} />
+                                                                                    ))}
+                                                                                </div>
+                                                                                <span className="text-[10px] text-gray-500">({product.review_count})</span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2 mt-1">
+                                                                                <span className={cn("text-sm font-black text-white", (hasDeal || hasCounter) && "line-through text-gray-500 text-xs")}>{formatPrice(product.price)}</span>
+                                                                                {(hasDeal || hasCounter) && dealPrice && (
+                                                                                    <span className="text-sm font-black text-emerald-400">
+                                                                                        {formatPrice(dealPrice)}
+                                                                                    </span>
+                                                                                )}
+                                                                                {!hasDeal && !hasCounter && product.original_price && (
+                                                                                    <span className="text-[10px] text-gray-500 line-through">{formatPrice(product.original_price)}</span>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                                                            {(hasDeal || hasCounter) ? (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.preventDefault();
+                                                                                        e.stopPropagation();
+                                                                                        if (hasCounter && activeNeg) {
+                                                                                            // Accept counter offer first
+                                                                                            DataSyncService.updateNegotiationStatus(activeNeg.id, "accepted");
+                                                                                        }
+                                                                                        addToCart(product, 1, dealPrice || product.price);
+                                                                                        
+                                                                                        // Visual feedback
+                                                                                        const btn = e.currentTarget;
+                                                                                        btn.textContent = '✓ Added deal!';
+                                                                                        btn.classList.add('bg-green-500');
+                                                                                        btn.classList.remove('bg-brand-orange');
+                                                                                        setTimeout(() => {
+                                                                                            btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Accept & Buy';
+                                                                                            btn.classList.remove('bg-green-500');
+                                                                                            btn.classList.add('bg-brand-orange');
+                                                                                            window.location.href = '/checkout';
+                                                                                        }, 800);
+                                                                                    }}
+                                                                                    className="px-3 py-1.5 rounded-full bg-brand-orange hover:bg-amber-500 text-black text-[10px] font-black transition-all shadow-lg flex items-center gap-1 animate-pulse"
+                                                                                    title="Accept & Buy"
+                                                                                >
+                                                                                    <Zap className="h-3 w-3 fill-current" />
+                                                                                    {hasCounter ? 'Accept & Buy' : 'Buy Deal'}
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.preventDefault();
+                                                                                        e.stopPropagation();
+                                                                                        handleSend(`I want to negotiate the price of ${product.name}`);
+                                                                                    }}
+                                                                                    className="px-3 py-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1 hover:bg-amber-400"
+                                                                                    title="Negotiate Price"
+                                                                                >
+                                                                                    <Tag className="h-3 w-3" />
+                                                                                    Negotiate
+                                                                                </button>
+                                                                            )}
+                                                                            {!isPurchased && (
+                                                                                <button
+                                                                                    onClick={(e) => {
+                                                                                        e.preventDefault();
+                                                                                        e.stopPropagation();
+                                                                                        addToCart(product);
+                                                                                        // Visual feedback
+                                                                                        const btn = e.currentTarget;
+                                                                                        btn.textContent = '✓ Added!';
+                                                                                        btn.classList.add('bg-green-500');
+                                                                                        btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+                                                                                        setTimeout(() => {
+                                                                                            btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Add to Cart';
+                                                                                            btn.classList.remove('bg-green-500');
+                                                                                            btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
+                                                                                        }, 1500);
+                                                                                    }}
+                                                                                    className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1"
+                                                                                    title="Add to Cart"
+                                                                                >
+                                                                                    <ShoppingBag className="h-3 w-3" />
+                                                                                    {isPurchased ? 'Buy Again' : 'Add to Cart'}
+                                                                                </button>
+                                                                            )}
+                                                                            {isPurchased && (
+                                                                                <Link
+                                                                                    href="/account/orders"
+                                                                                    className="px-3 py-1.5 rounded-full bg-white/10 text-gray-300 text-[10px] font-bold transition-all flex items-center gap-1"
+                                                                                >
+                                                                                    <Package className="h-3 w-3" />
+                                                                                    View Order
+                                                                                </Link>
                                                                             )}
                                                                         </div>
                                                                     </div>
-                                                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                handleSend(`I want to negotiate the price of ${product.name}`);
-                                                                            }}
-                                                                            className="px-3 py-1.5 rounded-full bg-amber-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1 hover:bg-amber-400"
-                                                                            title="Negotiate Price"
-                                                                        >
-                                                                            <Tag className="h-3 w-3" />
-                                                                            Negotiate
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={(e) => {
-                                                                                e.preventDefault();
-                                                                                e.stopPropagation();
-                                                                                addToCart(product);
-                                                                                // Visual feedback
-                                                                                const btn = e.currentTarget;
-                                                                                btn.textContent = '✓ Added!';
-                                                                                btn.classList.add('bg-green-500');
-                                                                                btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
-                                                                                setTimeout(() => {
-                                                                                    btn.innerHTML = '<svg class="inline h-3 w-3 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>Add to Cart';
-                                                                                    btn.classList.remove('bg-green-500');
-                                                                                    btn.classList.add('bg-emerald-600', 'hover:bg-emerald-500');
-                                                                                }, 1500);
-                                                                            }}
-                                                                            className="px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold transition-all shadow-lg flex items-center gap-1"
-                                                                            title="Add to Cart"
-                                                                        >
-                                                                            <ShoppingBag className="h-3 w-3" />
-                                                                            Add to Cart
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </Link>
-                                                        ))}
+                                                                </Link>
+                                                            );
+                                                        })}
                                                     </div>
                                                 )}
 
@@ -1341,14 +1499,20 @@ export function ZivaChat() {
                 )}
             </AnimatePresence>
 
-            {/* FAB Button — always visible, acts as toggle */}
+            {/* FAB Button — acts as toggle */}
             <motion.div
                 initial={false}
                 whileHover={{ scale: 1.08 }}
-                className="pointer-events-auto"
+                drag="y"
+                dragConstraints={{ top: -300, bottom: 50, left: -50, right: 50 }}
+                dragElastic={0.1}
+                dragMomentum={false}
+                className="pointer-events-auto transition-opacity duration-200 opacity-100 touch-none"
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}
+                    animate={isWiggling ? { rotate: [0, -15, 15, -15, 15, 0], scale: [1, 1.1, 1.1, 1.1, 1.1, 1] } : {}}
+                    transition={{ duration: 0.6 }}
                     onClick={toggleChat}
                     className={cn(
                         "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all",
@@ -1362,7 +1526,12 @@ export function ZivaChat() {
                     {isOpen ? (
                         <X className="h-6 w-6 text-white z-10" strokeWidth={2.5} />
                     ) : (
-                        <img src="/assets/images/image_v2.png" className="w-full h-full object-cover z-10 scale-110 rounded-full" alt="Ziva AI" />
+                        <img 
+                            src="/assets/images/image_v2.png" 
+                            className="w-full h-full object-cover z-10 scale-110 rounded-full select-none" 
+                            alt="Ziva AI" 
+                            draggable={false} 
+                        />
                     )}
 
                     {/* Unread pulse - top right exterior */}

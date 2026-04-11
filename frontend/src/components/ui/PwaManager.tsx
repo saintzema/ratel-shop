@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 export function PwaManager() {
+    usePushNotifications(); // Initialize scheduled marketing & price drop alerts
+
     const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
     const [showInstallPrompt, setShowInstallPrompt] = useState(false);
 
@@ -31,7 +34,14 @@ export function PwaManager() {
 
         window.addEventListener('beforeinstallprompt', handler);
 
-        return () => window.removeEventListener('beforeinstallprompt', handler);
+        // Prevent pinch-to-zoom completely on mobile devices running as an app
+        const blockPinchZoom = (e: any) => e.preventDefault();
+        document.addEventListener('gesturestart', blockPinchZoom);
+
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handler);
+            document.removeEventListener('gesturestart', blockPinchZoom);
+        };
     }, []);
 
     const handleInstall = async () => {

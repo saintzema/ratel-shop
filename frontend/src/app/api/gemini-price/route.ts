@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { productName, region, mode = "analyze", anchorPrice } = await req.json();
+        const { productName, region, mode = "analyze", anchorPrice, category } = await req.json();
 
         if (!productName) {
             return NextResponse.json({ error: "Product name is required" }, { status: 400 });
@@ -22,8 +22,10 @@ export async function POST(req: Request) {
             prompt = `
             You are a shopping assistant for FairPrice Nigeria. Current year: 2026.
             User Query: "${productName}"
+            Category Context: "${category || 'General'}"
             
             Task: Find 8-10 distinct, real products that match this query.
+            CRITICAL CATEGORY RULE: You MUST strictly adhere to the Category Context. If Category Context is 'cars' or 'vehicles', you MUST ONLY return real cars/vehicles. Do NOT return blenders, massagers, or random electronics just because they are 'electric'.
             
             CRITICAL — QUERY INTERPRETATION:
             - ALWAYS treat the FULL query as a single concept/product. Do NOT split it into individual words.
@@ -68,14 +70,23 @@ export async function POST(req: Request) {
             
             - For local Nigerian products (food, drinks, herbal): Use local market prices only.
             - Do NOT quote artificially inflated prices. When in doubt, use the LOWER end of the price range.
+
+            *** CRITICAL: PRODUCT DESCRIPTION (MANDATORY) ***
+            - Each product MUST include a detailed "description" field (minimum 80 words, maximum 200 words).
+            - The description must read like a professional product listing written by a top e-commerce copywriter.
+            - Include: what the product IS, what it DOES, key features, what makes it special, who it's ideal for, and why a buyer should care.
+            - DO NOT use generic filler like "Discover exceptional quality". Be SPECIFIC to each product.
+            - Example for a massager: "This heated neck and shoulder massager delivers deep-tissue Shiatsu kneading with infrared heat therapy to relieve muscle tension, stiffness, and chronic pain. Features 8 rotating massage nodes with 3 adjustable speed levels and auto-shutoff timer. The ergonomic U-shaped design wraps comfortably around your neck, shoulders, and upper back. Made with premium PU leather exterior and breathable mesh lining. Ideal for office workers, athletes, and anyone dealing with daily muscle fatigue. Includes AC adapter and car charger for use at home or on the go."
             
-            CRITICAL SPECS:
-            - Include a "specs" object with 5-8 key specifications for each product.
+            CRITICAL SPECS (MANDATORY — MINIMUM 8 PER PRODUCT):
+            - Include a "specs" object with 8-15 key specifications for each product.
             - For vehicles: Engine, Horsepower, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating, Year.
-            - For phones: Screen Size, Processor, RAM, Storage, Battery, Camera.
-            - For hair/beauty: Length, Texture, Material, Origin, Weight, Color.
-            - For fashion: Size Range, Material, Color, Brand.
-            - For electronics: Key technical specs relevant to the product.
+            - For phones: Screen Size, Processor, RAM, Storage, Battery, Camera, OS, Connectivity.
+            - For hair/beauty: Length, Texture, Material, Origin, Weight, Color, Style, Grade.
+            - For fashion: Size Range, Material, Color, Brand, Gender, Season, Care Instructions.
+            - For electronics/appliances: Wattage, Dimensions, Weight, Material, Voltage, Features, Warranty.
+            - For health/wellness devices: Massage Type, Heat Settings, Speed Levels, Power Source, Material, Dimensions, Weight, Timer, Auto-Shutoff.
+            - NEVER return a specs object with fewer than 6 entries. Fill with relevant technical details.
             
             ANONYMIZATION & LINKS (CRITICAL): 
             - NEVER mention any real store name in the product *name*.
@@ -86,12 +97,14 @@ export async function POST(req: Request) {
             Return JSON:
             {
                 "suggestions": [
-                    { "name": "Full Descriptive Product Name (including year for vehicles)", "category": "Category", "approxPrice": number (Naira), "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished", "sourceUrl": "https://www.alibaba.com/product-detail/...", "image_url": "https://s.alicdn.com/.../image.jpg", "specs": { "Key": "Value" } }
+                    { "name": "Full Descriptive Product Name (including year for vehicles)", "category": "Category", "approxPrice": number (Naira), "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished", "sourceUrl": "https://www.alibaba.com/product-detail/...", "image_url": "https://s.alicdn.com/.../image.jpg", "description": "Detailed 80-200 word product description covering features, benefits, use cases, materials, and ideal buyer profile.", "specs": { "Key1": "Value1", "Key2": "Value2", "...": "Minimum 8 key-value pairs" } }
                 ]
             }
 
             CRITICAL RULES:
             - The 'approxPrice' MUST be a realistic market value in Naira. It CANNOT be 0.
+            - The 'description' MUST be specific and detailed, NOT generic filler text. MINIMUM 80 words.
+            - The 'specs' MUST have at least 8 key-value pairs with real technical data.
             - Output ONLY raw, valid JSON. NO markdown.
             `;
         } else {
@@ -149,41 +162,41 @@ export async function POST(req: Request) {
             Return JSON:
             {
                 "productName": "The actual full specific name with year for vehicles, without store prefixes.",
-                "description": "A very detailed, 4-6 sentence description of the product.",
-                "image_url": "A direct URL to a high-quality image of this exact product. MUST be a direct .jpg/.png retail link. MUST NOT be a vertexaisearch.cloud.google.com or grounding-api-redirect link.",
+                "shortDescription": "A concise, 1-2 sentence overview focusing on the product's primary value proposition.",
+                "highlights": [
+                    "A detailed bulleted list of 5-8 unique selling points.",
+                    "Focus on quality, reliability, and specific premium features.",
+                    "Each highlight should be informative and valuable to a buyer."
+                ],
+                "image_url": "A direct URL to a high-quality image of this exact product.",
                 "marketAverage": number,
                 "marketLow": number,
                 "marketHigh": number,
                 "recommendedPrice": number,
                 "currency": "₦",
                 "sources": [
-                    { "source": "Global Stores (Direct Source)", "price": number, "type": "global", "url": "https://..." },
-                    { "source": "Local Vendor (Verified Local Vendor)", "price": number, "type": "local", "url": "https://..." }
+                    { "source": "Global Stores (Direct Source)", "price": number, "type": "global", "url": "https://..." }
                 ],
                 "priceDirection": "rising" | "stable" | "falling",
-                "justification": "Be TRANSPARENT but NEVER mention store names or specific price numbers. State whether FairPrice is competitive and WHY using relative language only.",
-                "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished" | "used",
-                "confidence": "high" | "medium" | "low",
+                "justification": "Transparency on FairPrice pricing compared to market.",
+                "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished",
+                "confidence": "high",
                 "category": "phones" | "computers" | "fashion" | "cars" | "energy" | "other",
                 "specs": {
-                    "Key1": "Value1",
-                    "Key2": "Value2"
+                    "Key": "Value"
                 }
             }
             
             SPECS TABLE (CRITICAL):
-            - Return a "specs" object with 8-15 key-value pairs of the most important specifications.
-            - For vehicles: Year, Engine, Horsepower, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating Capacity, Top Speed, Dimensions and every other information a buyer would want to know and is available for that particular searched product.
-            - For phones: Screen Size, Processor, RAM, Storage, Battery, Main Camera, Selfie Camera, OS and every other information a buyer would want to know and is available for that particular searched product.
-            - For electronics: Relevant technical specs for the product type and every other information a buyer would want to know and is available for that particular searched product.
-            - For fashion/general: Material, Size Range, Color Options, Origin, etc and every other information a buyer would want to know and is available for that particular searched product.
+            - Return a "specs" object with 15-25 key-value pairs for Vehicles/Electronics, and 10-15 for other categories.
+            - Provide EVERY detail a buyer would want (Power, dimensions, materials, certifications, etc.).
+            - For vehicles: Year, Engine, Horsepower, Torque, Fuel Type, Transmission, Drive Type, Range/Mileage, Seating Capacity, Top Speed, Dimensions, Cargo Space, Safety Features, and any other unique technical details.
+            - For phones/laptops: Processor, Clock Speed, RAM Type, Storage Type, Display Resolution, Refresh Rate, Battery Wh/mAh, Charging Speed, Camera Sensors, OS Version, Build Materials, Ports, and any other technical value.
             
             CRITICAL:
-            - NEVER mention any store, vendor, website name, or vendor country in ANY field including justification, description, and sources.
-            - NEVER mention specific price numbers in the justification field.
-            - marketAverage MUST be a realistic non-zero number.
-            - Use "Global Stores" for international sources and "Verified Local Vendor" for local sources.
-            - Output ONLY raw, valid JSON. NO markdown. NO conversational text before or after the JSON. Start your response strictly with { and end with }. 
+            - NEVER mention store names or specific prices in justification.
+            - Ensure "shortDescription" is NOT just a repeat of the brand name or the "highlights".
+            - Output ONLY raw, valid JSON.
             `;
         }
 
@@ -221,6 +234,41 @@ export async function POST(req: Request) {
 
         try {
             const parsedData = JSON.parse(jsonString);
+
+            // ─── INTELLIGENT VEHICLE PRICE HALLUCINATION DEFENSE (zero-latency) ───
+            // This runs pure in-memory string checks — adds <1ms to response time.
+            if (mode === "search" && parsedData.suggestions && Array.isArray(parsedData.suggestions)) {
+                const VEHICLE_FLOOR = 5_000_000; // ₦5M — even cheapest Chinese EVs land above this in Nigeria
+
+                // Words that indicate this is a PART, ACCESSORY, or NON-VEHICLE product — NOT a whole car
+                const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+
+                // Words that indicate this IS a whole vehicle (model names, body types)
+                const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|x[1-7]|[1-8]\s*series|a[1-8]|q[2-8]|tt|r8|e-?tron|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[369]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+
+                parsedData.suggestions = parsedData.suggestions.filter((item: any) => {
+                    const name = (item.name || "").toLowerCase();
+                    const cat = (item.category || "").toLowerCase();
+                    const price = item.approxPrice || 0;
+
+                    // Skip check if price is already above the floor — fast path
+                    if (price >= VEHICLE_FLOOR) return true;
+
+                    // Skip check if this contains part/accessory/phone keywords — it's NOT a whole car
+                    if (PART_KEYWORDS.test(name)) return true;
+
+                    // Only apply floor if this looks like a WHOLE VEHICLE
+                    const isVehicleCategory = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
+                    const isWholeVehicle = WHOLE_VEHICLE.test(name);
+
+                    if ((isVehicleCategory || isWholeVehicle) && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
+                        console.warn(`🚫 PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${VEHICLE_FLOOR.toLocaleString()})`);
+                        return false; // Remove this hallucinated result
+                    }
+
+                    return true;
+                });
+            }
 
             // Post-processing: Clamp prices to anchor if provided (prevents hallucination)
             if (anchorPrice && mode === "analyze" && parsedData.recommendedPrice) {

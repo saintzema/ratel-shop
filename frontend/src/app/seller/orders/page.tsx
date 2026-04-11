@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Order, ReturnRequest } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, formatDateExact } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +23,13 @@ import {
     Lock,
     AlertTriangle,
     ArrowUpRight,
-    Wallet
+    Wallet,
+    MessageSquare,
+    ArrowUpDown,
+    XCircle,
+    Car,
+    Banknote,
+    CreditCard
 } from "lucide-react";
 
 export default function SellerOrders() {
@@ -30,42 +38,84 @@ export default function SellerOrders() {
     const [search, setSearch] = useState("");
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("all");
+    const [sortBy, setSortBy] = useState<string>("newest");
     const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
+    const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+    const [cancelReason, setCancelReason] = useState<string>("");
+    const searchParams = useSearchParams();
+
+    // Read ?filter= from URL (e.g. from dashboard Total Revenue card)
+    useEffect(() => {
+        const urlFilter = searchParams?.get("filter");
+        if (urlFilter && ["pending", "processing", "shipped", "delivered", "returns", "disputed"].includes(urlFilter)) {
+            setStatusFilter(urlFilter);
+        }
+    }, [searchParams]);
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         const loadOrders = () => {
-            const allOrders = DemoStore.getOrders();
+            const allOrders = DataSyncService.getOrders();
             setOrders(allOrders.filter(o => o.seller_id === sellerId));
-            setReturnRequests(DemoStore.getReturnRequests(sellerId));
+            setReturnRequests(DataSyncService.getReturnRequests(sellerId));
         };
 
         loadOrders();
         window.addEventListener("storage", loadOrders);
-        return () => window.removeEventListener("storage", loadOrders);
+        window.addEventListener("sync-store-update", loadOrders);
+        return () => {
+            window.removeEventListener("storage", loadOrders);
+            window.removeEventListener("sync-store-update", loadOrders);
+        };
     }, []);
 
-    const handleStatusUpdate = (orderId: string, newStatus: Order["status"]) => {
-        DemoStore.updateOrderStatus(orderId, newStatus);
-        // Reload
-        const sellerId = DemoStore.getCurrentSellerId();
-        if (sellerId) {
-            setOrders(DemoStore.getOrders().filter(o => o.seller_id === sellerId));
+    // Auto-expand order from notifications
+    useEffect(() => {
+        const urlId = searchParams?.get("id");
+        if (urlId && orders.length > 0 && !expandedOrder) {
+            setExpandedOrder(urlId);
         }
+    }, [searchParams, orders]);
+
+    const handleStatusUpdate = (orderId: string, newStatus: Order["status"]) => {
+        DataSyncService.updateOrderStatus(orderId, newStatus);
+        // Reload
+        const sellerId = DataSyncService.getCurrentSellerId();
+        if (sellerId) {
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+        }
+        // Hot update across the app
+        window.dispatchEvent(new Event("sync-store-update"));
+    };
+
+    const handleCancelOrder = (orderId: string) => {
+        if (!cancelReason) {
+            alert("Please select a reason for cancellation.");
+            return;
+        }
+        DataSyncService.cancelOrderBySeller(orderId, cancelReason);
+        setCancellingOrderId(null);
+        setCancelReason("");
+        // Reload
+        const sellerId = DataSyncService.getCurrentSellerId();
+        if (sellerId) {
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+        }
+        window.dispatchEvent(new Event("sync-store-update"));
     };
 
     const handleRequestPayout = (order: Order) => {
-        const seller = DemoStore.getCurrentSeller();
+        const seller = DataSyncService.getCurrentSeller();
         if (!seller || !seller.bank_name || !seller.account_number) {
             alert("Please set up your Bank details in the Payouts dashboard before requesting a cashout.");
             return;
         }
 
-        const payoutInfo = DemoStore.getSellerPayout(order.amount);
+        const payoutInfo = DataSyncService.getSellerPayout(order.amount);
 
-        DemoStore.requestPayout(
+        DataSyncService.requestPayout(
             seller.id,
             [order.id],
             payoutInfo.payout,
@@ -78,7 +128,7 @@ export default function SellerOrders() {
 
         // Reload to show pending layout
         if (seller.id) {
-            setOrders(DemoStore.getOrders().filter(o => o.seller_id === seller.id));
+            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === seller.id));
         }
     };
 
@@ -111,14 +161,28 @@ export default function SellerOrders() {
 
         let matchStatus = false;
         if (statusFilter === "all") matchStatus = true;
-        else if (statusFilter === "return_requested" || statusFilter === "returns") {
-            // "returns" filter groups all return states
+        else if (statusFilter === "disputed") {
+            matchStatus = o.escrow_status === "disputed";
+        } else if (statusFilter === "return_requested" || statusFilter === "returns") {
             matchStatus = ["return_requested", "return_approved", "returned"].includes(o.status);
         } else {
             matchStatus = o.status === statusFilter;
         }
 
         return matchSearch && matchStatus;
+    }).sort((a, b) => {
+        switch (sortBy) {
+            case "newest":
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            case "oldest":
+                return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+            case "amount_high":
+                return b.amount - a.amount;
+            case "amount_low":
+                return a.amount - b.amount;
+            default:
+                return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
     });
 
     return (
@@ -171,7 +235,7 @@ export default function SellerOrders() {
                     />
                 </div>
                 <div className="flex gap-2 flex-wrap">
-                    {["all", "pending", "processing", "shipped", "delivered", "returns"].map(s => {
+                    {["all", "pending", "processing", "shipped", "delivered", "disputed", "returns"].map(s => {
                         const isSelected = statusFilter === s || (s === "returns" && ["return_requested", "return_approved", "returned"].includes(statusFilter));
                         return (
                             <button
@@ -186,6 +250,20 @@ export default function SellerOrders() {
                             </button>
                         );
                     })}
+                </div>
+                <div className="relative shrink-0">
+                    <ArrowUpDown className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                    <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="appearance-none pl-9 pr-8 py-2 rounded-xl text-xs font-bold bg-gray-50 text-gray-600 border-none outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer"
+                    >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="amount_high">Amount: High → Low</option>
+                        <option value="amount_low">Amount: Low → High</option>
+                    </select>
+                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
                 </div>
             </div>
 
@@ -220,6 +298,11 @@ export default function SellerOrders() {
                                                     <Badge variant="outline" className={`text-[10px] font-bold py-0 px-2 border ${statusConfig.color}`}>
                                                         {statusConfig.icon} <span className="ml-1">{statusConfig.label}</span>
                                                     </Badge>
+                                                    {order.financing?.is_vehicle_loan && (
+                                                        <span className="inline-flex items-center gap-1 text-[9px] font-black bg-gradient-to-r from-emerald-500 to-indigo-500 text-white px-2 py-0.5 rounded-full shadow-sm">
+                                                            <Car className="h-2.5 w-2.5" /> FINANCED
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <h4 className="font-bold text-sm text-gray-900 mt-1 truncate">{order.product?.name}</h4>
                                                 <p className="text-[11px] text-gray-400">{formatDateExact(order.created_at)} · Qty: 1</p>
@@ -228,6 +311,11 @@ export default function SellerOrders() {
                                         <div className="flex items-center gap-4 shrink-0">
                                             <div className="text-right hidden sm:block">
                                                 <p className="font-black text-gray-900">{formatPrice(order.amount)}</p>
+                                                {order.financing?.is_vehicle_loan && (
+                                                    <p className="text-[10px] font-bold text-emerald-600 mt-0.5">
+                                                        15% Deposit · Full: {formatPrice(order.financing.vehicle_price)}
+                                                    </p>
+                                                )}
                                                 <div className="flex flex-col items-end gap-1">
                                                     <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${escrowConfig.color}`}>
                                                         {escrowConfig.icon} {escrowConfig.label}
@@ -268,6 +356,85 @@ export default function SellerOrders() {
                                                 </div>
                                             </div>
 
+                                            {/* Vehicle Loan Financing Details */}
+                                            {order.financing?.is_vehicle_loan && (
+                                                <div className="mb-4 rounded-xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-indigo-50 overflow-hidden">
+                                                    <div className="px-4 py-3 bg-gradient-to-r from-emerald-600 to-indigo-600 flex items-center gap-2">
+                                                        <Car className="h-4 w-4 text-white" />
+                                                        <h5 className="text-xs font-black text-white tracking-wide uppercase">Vehicle Loan Financing Details</h5>
+                                                        <span className="ml-auto text-[9px] font-black bg-white/20 text-white px-2 py-0.5 rounded-full backdrop-blur-sm">LOAN ACTIVE</span>
+                                                    </div>
+                                                    <div className="p-4">
+                                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                                                            <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Car className="h-3 w-3 text-gray-400" />
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Vehicle Price</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-gray-900">{formatPrice(order.financing.vehicle_price)}</span>
+                                                            </div>
+                                                            <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <ShieldCheck className="h-3 w-3 text-emerald-500" />
+                                                                    <span className="text-[9px] font-bold text-emerald-600 uppercase">Deposit Paid (15%)</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-emerald-700">{formatPrice(order.financing.deposit_paid)}</span>
+                                                                <span className="block text-[9px] text-emerald-500 font-medium mt-0.5">Held in Escrow</span>
+                                                            </div>
+                                                            <div className="bg-amber-50 rounded-lg p-3 border border-amber-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Banknote className="h-3 w-3 text-amber-500" />
+                                                                    <span className="text-[9px] font-bold text-amber-600 uppercase">Loan Balance</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-amber-700">{formatPrice(order.financing.loan_balance)}</span>
+                                                                <span className="block text-[9px] text-amber-500 font-medium mt-0.5">Outstanding</span>
+                                                            </div>
+                                                            <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <CreditCard className="h-3 w-3 text-indigo-500" />
+                                                                    <span className="text-[9px] font-bold text-indigo-600 uppercase">Monthly Payment</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-indigo-700">{formatPrice(order.financing.monthly_payment)}</span>
+                                                                <span className="block text-[9px] text-indigo-400 font-medium mt-0.5">Per Month</span>
+                                                            </div>
+                                                            <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Clock className="h-3 w-3 text-gray-400" />
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Loan Term</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-gray-900">{order.financing.tenor_months} Months</span>
+                                                                <span className="block text-[9px] text-gray-400 font-medium mt-0.5">{order.financing.tenor_months / 12} Years</span>
+                                                            </div>
+                                                            <div className="bg-white rounded-lg p-3 border border-gray-100 shadow-sm">
+                                                                <div className="flex items-center gap-1.5 mb-1">
+                                                                    <Wallet className="h-3 w-3 text-gray-400" />
+                                                                    <span className="text-[9px] font-bold text-gray-400 uppercase">Markup Rate</span>
+                                                                </div>
+                                                                <span className="font-black text-sm text-gray-900">{(order.financing.interest_rate * 100).toFixed(1)}% p.a.</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-gray-50 rounded-lg p-3 border border-gray-100 flex items-center justify-between">
+                                                            <div>
+                                                                <span className="text-[9px] font-bold text-gray-400 uppercase block">Total Repayment Over Loan Term</span>
+                                                                <span className="font-black text-lg text-gray-900">{formatPrice(order.financing.total_repayment)}</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                {order.financing.condition && (
+                                                                    <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                                                        {order.financing.condition.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                                                    </span>
+                                                                )}
+                                                                {order.financing.loan_type && (
+                                                                    <span className="text-[9px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+                                                                        {order.financing.loan_type === 'bnpl' ? 'BNPL Loan' : 'Lease-to-Own'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Status progression */}
                                             <div className="flex items-center gap-1 mb-4">
                                                 {["pending", "processing", "shipped", "delivered"].map((step, i) => {
@@ -288,7 +455,14 @@ export default function SellerOrders() {
                                                 {order.status === "processing" && (
                                                     <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                                                         <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-3">Shipping Details</h5>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                                                        {/* Show buyer destination */}
+                                                        {order.shipping_address && (
+                                                            <div className="mb-3 p-2 bg-blue-50 border border-blue-100 rounded-lg">
+                                                                <p className="text-[10px] font-bold text-blue-600 uppercase">Ship To</p>
+                                                                <p className="text-xs text-blue-800 font-medium">{order.shipping_address}</p>
+                                                            </div>
+                                                        )}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                                                             <Input
                                                                 placeholder="Carrier (RT Logistics, DHL...)"
                                                                 className="h-9 text-xs rounded-lg"
@@ -300,10 +474,27 @@ export default function SellerOrders() {
                                                                 id={`tracking-${order.id}`}
                                                             />
                                                             <Input
+                                                                placeholder="Driver Name *"
+                                                                className="h-9 text-xs rounded-lg"
+                                                                id={`driver-name-${order.id}`}
+                                                            />
+                                                            <Input
+                                                                placeholder="Driver Phone *"
+                                                                className="h-9 text-xs rounded-lg"
+                                                                id={`driver-phone-${order.id}`}
+                                                                inputMode="tel"
+                                                            />
+                                                            <Input
                                                                 placeholder="Current Location"
                                                                 className="h-9 text-xs rounded-lg"
                                                                 defaultValue="Lagos Warehouse"
                                                                 id={`location-${order.id}`}
+                                                            />
+                                                            <Input
+                                                                placeholder="Est. Delivery Date"
+                                                                type="date"
+                                                                className="h-9 text-xs rounded-lg"
+                                                                id={`est-delivery-${order.id}`}
                                                             />
                                                         </div>
                                                         <Button
@@ -312,9 +503,33 @@ export default function SellerOrders() {
                                                                 const carrier = (document.getElementById(`carrier-${order.id}`) as HTMLInputElement)?.value;
                                                                 const trackingId = (document.getElementById(`tracking-${order.id}`) as HTMLInputElement)?.value;
                                                                 const location = (document.getElementById(`location-${order.id}`) as HTMLInputElement)?.value || "In transit";
+                                                                const driverName = (document.getElementById(`driver-name-${order.id}`) as HTMLInputElement)?.value;
+                                                                const driverPhone = (document.getElementById(`driver-phone-${order.id}`) as HTMLInputElement)?.value;
 
-                                                                DemoStore.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
+                                                                // Enforce required fields
+                                                                if (!carrier || !driverName || !driverPhone) {
+                                                                    alert("Please fill in the Carrier, Driver Name, and Driver Phone before marking as shipped.");
+                                                                    return;
+                                                                }
+
+                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
                                                                 handleStatusUpdate(order.id, "shipped");
+
+                                                                // Send notification to admin with driver details
+                                                                DataSyncService.addNotification({
+                                                                    userId: "admin",
+                                                                    type: "order",
+                                                                    message: `📦 Order ${order.id} shipped by ${DataSyncService.getCurrentSeller()?.business_name}. Driver: ${driverName} (${driverPhone}). Carrier: ${carrier}. Tracking: ${trackingId || 'N/A'}`,
+                                                                    link: "/admin/orders"
+                                                                });
+
+                                                                // Notify buyer
+                                                                DataSyncService.addNotification({
+                                                                    userId: order.customer_id,
+                                                                    type: "order",
+                                                                    message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${driverName}. Tracking: ${trackingId || carrier}.`,
+                                                                    link: "/account/orders"
+                                                                });
                                                             }}
                                                             className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold h-9 w-full sm:w-auto"
                                                         >
@@ -325,15 +540,35 @@ export default function SellerOrders() {
 
                                                 <div className="flex gap-2">
                                                     {order.status === "pending" && (
+                                                        <>
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
-                                                                DemoStore.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
+                                                                DataSyncService.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
                                                                 handleStatusUpdate(order.id, "processing");
                                                             }}
                                                             className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold h-9"
                                                         >
                                                             <CheckCircle className="h-3 w-3 mr-1.5" /> Accept Order
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => setCancellingOrderId(order.id)}
+                                                            className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-bold h-9"
+                                                        >
+                                                            <XCircle className="h-3 w-3 mr-1.5" /> Cancel Order
+                                                        </Button>
+                                                        </>
+                                                    )}
+                                                    {order.status === "processing" && cancellingOrderId !== order.id && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() => setCancellingOrderId(order.id)}
+                                                            className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-xl text-xs font-bold h-9"
+                                                        >
+                                                            <XCircle className="h-3 w-3 mr-1.5" /> Cancel Order
                                                         </Button>
                                                     )}
 
@@ -341,13 +576,46 @@ export default function SellerOrders() {
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
-                                                                DemoStore.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
+                                                                const confirmed = window.confirm(
+                                                                    "Has the delivery company confirmed delivery to the customer's address?"
+                                                                );
+                                                                if (!confirmed) return;
+
+                                                                DataSyncService.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
                                                                 handleStatusUpdate(order.id, "delivered");
+
+                                                                // Notify buyer
+                                                                DataSyncService.addNotification({
+                                                                    userId: order.customer_id,
+                                                                    type: "order",
+                                                                    message: `✅ Your order "${order.product?.name}" has been delivered! Please confirm receipt in your orders page.`,
+                                                                    link: "/account/orders"
+                                                                });
+
+                                                                // Notify admin
+                                                                DataSyncService.addNotification({
+                                                                    userId: "admin",
+                                                                    type: "order",
+                                                                    message: `✅ Order ${order.id} marked as delivered by seller ${DataSyncService.getCurrentSeller()?.business_name}.`,
+                                                                    link: "/admin/orders"
+                                                                });
                                                             }}
                                                             className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold h-9"
                                                         >
                                                             <CheckCircle className="h-3 w-3 mr-1.5" /> Confirm Delivery
                                                         </Button>
+                                                    )}
+
+                                                    {order.status !== "delivered" && order.status !== "returned" && order.status !== "return_requested" && order.status !== "return_approved" && (
+                                                        <Link href={`/seller/dashboard/messages?order=${order.id}&customer=${order.customer_id}`}>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="text-brand-green-700 bg-brand-green-50/50 border-brand-green-200 hover:bg-brand-green-100 rounded-xl text-xs font-bold h-9"
+                                                            >
+                                                                <MessageSquare className="h-3 w-3 mr-1.5" /> View Buyer Chat (Ziva)
+                                                            </Button>
+                                                        </Link>
                                                     )}
 
                                                     {order.status === "delivered" && order.escrow_status !== "disputed" && (
@@ -397,9 +665,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "approved");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "approved");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold h-9 flex-1"
@@ -412,9 +680,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "rejected");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "rejected");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="text-gray-700 border-gray-200 hover:bg-gray-50 rounded-xl text-xs font-bold h-9 flex-1"
@@ -436,9 +704,9 @@ export default function SellerOrders() {
                                                                 onClick={() => {
                                                                     const req = returnRequests.find(r => r.order_id === order.id);
                                                                     if (req) {
-                                                                        DemoStore.updateReturnRequestStatus(req.id, "refunded");
-                                                                        setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                        setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        DataSyncService.updateReturnRequestStatus(req.id, "refunded");
+                                                                        setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                        setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                     }
                                                                 }}
                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold h-9"
@@ -465,7 +733,50 @@ export default function SellerOrders() {
                                                                 <AlertTriangle className="h-4 w-4 text-rose-600" />
                                                                 <span className="text-xs font-bold text-rose-700">Buyer Dispute Filed</span>
                                                             </div>
-                                                            <p className="text-[11px] text-rose-600">Payment has been frozen. The platform admin is reviewing this case.</p>
+                                                            <p className="text-[11px] text-rose-600 mb-2">Payment has been frozen. The platform admin is reviewing this case.</p>
+                                                            <Link href={`/seller/dashboard/messages?order=${order.id}&customer=${order.customer_id}`}>
+                                                                <Button size="sm" variant="outline" className="text-[10px] font-bold rounded-lg h-7 border-rose-200 text-rose-600 hover:bg-rose-100 bg-transparent">
+                                                                    <MessageSquare className="h-3 w-3 mr-1" /> View Chat
+                                                                </Button>
+                                                            </Link>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Cancel Order Modal */}
+                                                    {cancellingOrderId === order.id && (
+                                                        <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-4 mt-2">
+                                                            <h5 className="text-xs font-bold text-rose-800 mb-2 flex items-center gap-1.5">
+                                                                <XCircle className="h-3.5 w-3.5" /> Cancel Order #{order.id.substring(0, 8)}
+                                                            </h5>
+                                                            <select
+                                                                value={cancelReason}
+                                                                onChange={(e) => setCancelReason(e.target.value)}
+                                                                className="w-full h-9 text-xs rounded-lg border-rose-200 bg-white mb-2 px-3"
+                                                            >
+                                                                <option value="">Select a reason...</option>
+                                                                <option value="Stock unavailable">Stock unavailable</option>
+                                                                <option value="Pricing error">Pricing error</option>
+                                                                <option value="Cannot fulfill order">Cannot fulfill order</option>
+                                                                <option value="Product discontinued">Product discontinued</option>
+                                                                <option value="Other">Other</option>
+                                                            </select>
+                                                            <div className="flex gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    onClick={() => handleCancelOrder(order.id)}
+                                                                    className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold h-8 flex-1"
+                                                                >
+                                                                    Confirm Cancellation
+                                                                </Button>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => { setCancellingOrderId(null); setCancelReason(""); }}
+                                                                    className="text-gray-600 border-gray-200 hover:bg-gray-50 rounded-lg text-xs font-bold h-8"
+                                                                >
+                                                                    Keep Order
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -522,47 +833,124 @@ export default function SellerOrders() {
                                                         <div className="min-w-0">
                                                             <h4 className="font-bold text-sm text-gray-900 leading-tight line-clamp-2">{order.product?.name}</h4>
                                                             <p className="font-black text-xs text-gray-900 mt-1">{formatPrice(order.amount)}</p>
+                                                            {order.financing?.is_vehicle_loan && (
+                                                                <p className="text-[9px] font-bold text-emerald-600 mt-0.5">15% Deposit · Full: {formatPrice(order.financing.vehicle_price)}</p>
+                                                            )}
                                                         </div>
                                                     </div>
 
+                                                    {/* Financing quick summary for Kanban */}
+                                                    {order.financing?.is_vehicle_loan && (
+                                                        <div className="mb-3 px-3 py-2 rounded-lg bg-gradient-to-r from-emerald-50 to-indigo-50 border border-emerald-100">
+                                                            <div className="flex items-center gap-1 mb-1.5">
+                                                                <Car className="h-3 w-3 text-emerald-600" />
+                                                                <span className="text-[9px] font-black text-emerald-700 uppercase">Vehicle Loan</span>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-1.5 text-[9px]">
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Monthly</span>
+                                                                    <span className="text-gray-900 font-black">{formatPrice(order.financing.monthly_payment)}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Term</span>
+                                                                    <span className="text-gray-900 font-black">{order.financing.tenor_months / 12}yr ({order.financing.tenor_months}mo)</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Balance</span>
+                                                                    <span className="text-amber-700 font-black">{formatPrice(order.financing.loan_balance)}</span>
+                                                                </div>
+                                                                <div>
+                                                                    <span className="text-gray-400 font-bold block">Rate</span>
+                                                                    <span className="text-gray-900 font-black">{(order.financing.interest_rate * 100).toFixed(1)}% p.a.</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     <div className="pt-3 border-t border-gray-100">
                                                         {order.status === "pending" && (
+                                                            <div className="flex flex-col gap-1.5">
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    DemoStore.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
+                                                                    DataSyncService.updateTrackingStatus(order.id, "Order Accepted", "Seller Storefront");
                                                                     handleStatusUpdate(order.id, "processing");
                                                                 }}
                                                                 className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold h-7 w-full"
                                                             >
                                                                 <CheckCircle className="h-3 w-3 mr-1" /> Accept Order
                                                             </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    const reason = window.prompt("Reason for cancellation:\n• Stock unavailable\n• Pricing error\n• Cannot fulfill\n• Other");
+                                                                    if (reason) {
+                                                                        DataSyncService.cancelOrderBySeller(order.id, reason);
+                                                                        const sellerId = DataSyncService.getCurrentSellerId();
+                                                                        if (sellerId) setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+                                                                    }
+                                                                }}
+                                                                className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg text-[10px] font-bold h-7 w-full"
+                                                            >
+                                                                <XCircle className="h-3 w-3 mr-1" /> Cancel
+                                                            </Button>
+                                                            </div>
                                                         )}
 
                                                         {order.status === "processing" && (
+                                                            <div className="flex flex-col gap-1.5">
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    DemoStore.updateTrackingStatus(order.id, "Shipped from Warehouse", "In transit", "Logistics", "TRK000");
+                                                                    DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", "In transit", "Logistics", "TRK000");
                                                                     handleStatusUpdate(order.id, "shipped");
                                                                 }}
                                                                 className="bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold h-7 w-full"
                                                             >
                                                                 <Truck className="h-3 w-3 mr-1" /> Mark Shipped
                                                             </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    const reason = window.prompt("Reason for cancellation:\n• Stock unavailable\n• Pricing error\n• Cannot fulfill\n• Other");
+                                                                    if (reason) {
+                                                                        DataSyncService.cancelOrderBySeller(order.id, reason);
+                                                                        const sellerId = DataSyncService.getCurrentSellerId();
+                                                                        if (sellerId) setOrders(DataSyncService.getOrders().filter(o => o.seller_id === sellerId));
+                                                                    }
+                                                                }}
+                                                                className="text-rose-600 border-rose-200 hover:bg-rose-50 rounded-lg text-[10px] font-bold h-7 w-full"
+                                                            >
+                                                                <XCircle className="h-3 w-3 mr-1" /> Cancel
+                                                            </Button>
+                                                            </div>
                                                         )}
 
                                                         {order.status === "shipped" && (
                                                             <Button
                                                                 size="sm"
                                                                 onClick={() => {
-                                                                    DemoStore.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
+                                                                    DataSyncService.updateTrackingStatus(order.id, "Delivered to Customer", "Customer Address");
                                                                     handleStatusUpdate(order.id, "delivered");
                                                                 }}
                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold h-7 w-full"
                                                             >
                                                                 <CheckCircle className="h-3 w-3 mr-1" /> Confirm Delivery
                                                             </Button>
+                                                        )}
+
+                                                        {order.status !== "delivered" && order.status !== "returned" && order.status !== "return_requested" && order.status !== "return_approved" && (
+                                                            <Link href={`/seller/dashboard/messages?order=${order.id}&customer=${order.customer_id}`}>
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="w-full mt-2 text-brand-green-700 bg-brand-green-50/50 border-brand-green-200 hover:bg-brand-green-100 rounded-lg text-[10px] font-bold h-7"
+                                                                >
+                                                                    <MessageSquare className="h-3 w-3 mr-1" /> View Buyer Chat
+                                                                </Button>
+                                                            </Link>
                                                         )}
 
                                                         {order.status === "delivered" && (
@@ -599,9 +987,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "approved");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "approved");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
@@ -614,9 +1002,9 @@ export default function SellerOrders() {
                                                                     onClick={() => {
                                                                         const req = returnRequests.find(r => r.order_id === order.id);
                                                                         if (req) {
-                                                                            DemoStore.updateReturnRequestStatus(req.id, "rejected");
-                                                                            setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                            setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                            DataSyncService.updateReturnRequestStatus(req.id, "rejected");
+                                                                            setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                            setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                         }
                                                                     }}
                                                                     className="text-gray-700 border-gray-200 hover:bg-gray-50 rounded-lg text-[10px] font-bold h-7 w-full shadow-sm"
@@ -632,9 +1020,9 @@ export default function SellerOrders() {
                                                                 onClick={() => {
                                                                     const req = returnRequests.find(r => r.order_id === order.id);
                                                                     if (req) {
-                                                                        DemoStore.updateReturnRequestStatus(req.id, "refunded");
-                                                                        setReturnRequests(DemoStore.getReturnRequests(DemoStore.getCurrentSellerId()!));
-                                                                        setOrders(DemoStore.getOrders().filter(o => o.seller_id === DemoStore.getCurrentSellerId()));
+                                                                        DataSyncService.updateReturnRequestStatus(req.id, "refunded");
+                                                                        setReturnRequests(DataSyncService.getReturnRequests(DataSyncService.getCurrentSellerId()!));
+                                                                        setOrders(DataSyncService.getOrders().filter(o => o.seller_id === DataSyncService.getCurrentSellerId()));
                                                                     }
                                                                 }}
                                                                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold h-7 w-full mt-2 shadow-sm"

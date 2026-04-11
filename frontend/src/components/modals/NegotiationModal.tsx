@@ -8,12 +8,14 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Product, PriceComparison } from "@/lib/types";
-import { formatPrice } from "@/lib/utils";
-import { ShieldCheck, MessageSquare, Tag, AlertTriangle } from "lucide-react";
-import { DemoStore } from "@/lib/demo-store";
+import { formatPrice, getProductUrl } from "@/lib/utils";
+import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight } from "lucide-react";
+import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
 import { useMessages } from "@/context/MessageContext";
+import Link from "next/link";
+import { playDingSound } from "@/lib/audio";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -33,12 +35,19 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const [isSystemCalculated, setIsSystemCalculated] = useState(false);
     const { user } = useAuth();
     const { startConversation, openMessageBox } = useMessages();
+    const [showPushOptIn, setShowPushOptIn] = useState(false);
 
     // Max negotiation discount — admin-configurable via SystemSettings.
     // Default: 5% means users cannot offer less than 95% of the listing price.
     const maxDiscountPct = (typeof window !== "undefined" && localStorage.getItem("fp_max_negotiation_discount"))
         ? Number(localStorage.getItem("fp_max_negotiation_discount")) : 5;
     const minAllowedPrice = Math.round(product.price * (1 - maxDiscountPct / 100));
+
+    // Get 3 similar products to suggest
+    const similarProducts = DataSyncService.getProducts()
+        .filter(p => p.category === product.category && p.id !== product.id && p.price < product.price)
+        .sort((a, b) => b.sold_count - a.sold_count)
+        .slice(0, 3);
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
@@ -110,29 +119,63 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         // Logic to simulate API call
         await new Promise(resolve => setTimeout(resolve, 800));
 
-        // Create new negotiation
+        let tempGuestName = "Guest Buyer";
+        let currentUserId = user?.id;
+
+        if (typeof window !== "undefined") {
+            // Priority 1: Use specific guest name if set (e.g. from a form field in the future)
+            // Priority 2: Use the globally persistent fp_guest_name
+            const savedGuestName = localStorage.getItem("fp_guest_name");
+            if (savedGuestName) {
+                tempGuestName = savedGuestName;
+            }
+
+            // Ensure we have a stable guest ID if not logged in
+            if (!currentUserId) {
+                currentUserId = DataSyncService.getOrInitializeGuestId();
+            }
+        }
+
+        if (!currentUserId) currentUserId = "guest_session";
+
+        // Create a conversation thread message string
+        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
+
+        // Create new negotiation with the initial message bundled in so it hot renders in the seller inbox
         const newNegotiation = {
             id: `neg_${Date.now()}`,
             product_id: product.id,
-            customer_id: user?.id || "guest",
-            customer_name: user?.name || "Guest Buyer",
+            customer_id: currentUserId,
+            customer_name: user?.name || tempGuestName,
             proposed_price: Number(proposedPrice),
             message: message,
             status: "pending" as const,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            chat_messages: [{
+                sender: "buyer" as const,
+                text: negMessageText,
+                timestamp: new Date().toISOString()
+            }]
         };
 
-        DemoStore.addNegotiation(newNegotiation);
-
-        // Create a conversation thread for this negotiation
-        const negMessage = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
+        DataSyncService.addNegotiation(newNegotiation);
 
         startConversation(
-            `neg_${product.id}_${Date.now()}`,
+            `neg_${product.id}`,
             product.name,
             product.image_url,
-            negMessage
+            negMessageText,
+            product.seller_name || "Global Store"
         );
+
+        playDingSound(); // Play the sweet glass chime on successful negotiation request
+        
+        // Show push opt-in if permission is not already granted/denied
+        if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+            setTimeout(() => {
+                setShowPushOptIn(true);
+            }, 1500);
+        }
 
         setIsSubmitting(false);
         setSubmitted(true);
@@ -162,9 +205,9 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                 </DialogHeader>
 
                 {!submitted ? (
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-6 py-4 pb-12">
+                    <form onSubmit={handleSubmit} className="flex flex-col gap-4 py-3 pb-6">
                         <div className="bg-zinc-50 p-4 rounded-xl border border-zinc-100 flex gap-4 shrink-0">
-                            <img src={product.image_url} alt={product.name} className="w-16 h-16 object-contain mix-blend-multiply" />
+                            <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-16 h-16 object-contain mix-blend-multiply" />
                             <div>
                                 <p className="font-bold text-sm line-clamp-1">{product.name}</p>
                                 <p className="text-xs text-zinc-500">Current Price: {formatPrice(product.price)}</p>
@@ -190,16 +233,33 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     </p>
                                 </div>
                             ) : (
-                                <div className="space-y-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={handleAnalyze}
-                                        className="w-full border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-blue-50/50"
-                                    >
-                                        <Tag className="h-4 w-4 mr-2" />
-                                        {proposedPrice ? "Recalculate Fair Price" : "Auto-Calculate Fair Price"}
-                                    </Button>
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={handleAnalyze}
+                                            className="flex-1 border-blue-200 text-blue-600 hover:text-blue-700 hover:bg-blue-50 bg-blue-50/50 animate-pulse-grow"
+                                        >
+                                            <Tag className="h-4 w-4 mr-2" />
+                                            AI Price Checker
+                                        </Button>
+                                        
+                                        {(product.category === 'cars' || product.category === 'vehicles' || product.name.toLowerCase().includes('car') || product.name.toLowerCase().includes('toyota') || product.name.toLowerCase().includes('honda')) && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setProposedPrice(minAllowedPrice.toString());
+                                                    setMessage(`What is the last price for this ${product.name}? I am interested and ready to pay.`);
+                                                }}
+                                                className="flex-1 border-amber-200 text-amber-600 hover:text-amber-700 hover:bg-amber-50 bg-amber-50/50"
+                                            >
+                                                <MessageSquare className="h-4 w-4 mr-2" />
+                                                Last price?
+                                            </Button>
+                                        )}
+                                    </div>
 
                                     {isSystemCalculated && (
                                         <div className="flex items-center gap-2 text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100">
@@ -247,7 +307,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             <Textarea
                                 id="message"
                                 placeholder="Explain why you are suggesting this price..."
-                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[100px] focus:ring-brand-green-600 focus:border-brand-green-600"
+                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[60px] focus:ring-brand-green-600 focus:border-brand-green-600"
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                             />
@@ -294,6 +354,60 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             >
                                 Got it
                             </Button>
+                        </div>
+                        {similarProducts.length > 0 && (
+                            <div className="mt-8 pt-6 border-t border-zinc-100 text-left">
+                                <h4 className="text-sm font-bold text-zinc-900 mb-3 text-center">While you wait, check out these similar deals:</h4>
+                                <div className="space-y-3">
+                                    {similarProducts.map((p) => (
+                                        <Link key={p.id} href={getProductUrl(p.id, p.name)} onClick={handleReset} className="flex gap-3 items-center p-3 rounded-xl border border-zinc-100 hover:border-brand-green-200 hover:bg-brand-green-50/50 group transition-all">
+                                            <div className="h-12 w-12 bg-white rounded-lg border border-zinc-100 overflow-hidden shrink-0">
+                                                <img src={p.image_url || "/assets/images/placeholder.png"} alt={p.name} className="w-full h-full object-cover" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-zinc-900 truncate group-hover:text-brand-green-700">{p.name}</p>
+                                                <p className="text-xs text-zinc-500 font-medium">{formatPrice(p.price)}</p>
+                                            </div>
+                                            <ChevronRight className="h-4 w-4 text-zinc-300 group-hover:text-brand-green-500" />
+                                        </Link>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Push Notification Opt-in Prompt */}
+                {showPushOptIn && (
+                    <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 animate-in fade-in zoom-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex gap-4 items-center mb-3">
+                            <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center shrink-0 shadow-lg shadow-emerald-500/20">
+                                <Tag className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-black text-emerald-900">Get Offer Updates! 🔔</h4>
+                                <p className="text-[10px] text-emerald-700 leading-tight">Enable notifications to know the instant the seller responds.</p>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <Button 
+                                size="sm" 
+                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] h-8"
+                                onClick={async () => {
+                                    try {
+                                        await Notification.requestPermission();
+                                    } catch {}
+                                    setShowPushOptIn(false);
+                                }}
+                            >
+                                Enable Now
+                            </Button>
+                            <button 
+                                className="px-3 text-[10px] font-bold text-emerald-600 hover:text-emerald-800"
+                                onClick={() => setShowPushOptIn(false)}
+                            >
+                                Maybe Later
+                            </button>
                         </div>
                     </div>
                 )}

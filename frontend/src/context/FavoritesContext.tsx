@@ -51,14 +51,14 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         if (!loaded.current) return;
         localStorage.setItem(PRODUCTS_KEY, JSON.stringify(favorites));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }, [favorites]);
 
     // Persist stores to localStorage
     useEffect(() => {
         if (!loaded.current) return;
         localStorage.setItem(STORES_KEY, JSON.stringify(favoriteStores));
-        window.dispatchEvent(new Event("demo-store-update"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }, [favoriteStores]);
 
     const toggleFavorite = useCallback((productId: string) => {

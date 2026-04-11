@@ -2,15 +2,17 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProductUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
+import { nativeBridge } from "@/lib/native-bridge";
+import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 // Category icon map for product image fallback
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -57,7 +59,7 @@ export function SearchResultCard({
     const [imgError, setImgError] = useState(false);
 
     // Fetch seller dynamically
-    const seller = DemoStore.getSellers().find(s => s.id === product.seller_id);
+    const seller = DataSyncService.getSellers().find(s => s.id === product.seller_id);
 
     const handleDoubleTap = () => {
         const now = Date.now();
@@ -65,6 +67,7 @@ export function SearchResultCard({
             if (!isFavorite(product.id)) {
                 toggleFavorite(product.id);
             }
+            nativeBridge.hapticFeedback("heavy");
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 900);
         }
@@ -79,6 +82,9 @@ export function SearchResultCard({
     })();
     const listPrice = product.original_price || product.price * 1.2;
     const savingsPct = Math.round(((listPrice - product.price) / listPrice) * 100);
+
+    const showFinancing = isVehicle(product) && (product._source === "global" || product.financing_available || product.seller_id === 'global-partners');
+    const financingResult = showFinancing ? calculateMonthlyPayment(product.price) : null;
 
     return (
         <div className={cn(
@@ -102,7 +108,15 @@ export function SearchResultCard({
                 )}
                 {/* Heart button */}
                 <button
-                    onClick={(e) => { e.stopPropagation(); toggleFavorite(product.id); }}
+                    onClick={(e) => { 
+                        e.stopPropagation(); 
+                        toggleFavorite(product.id); 
+                        nativeBridge.hapticFeedback("heavy");
+                        if (!isFavorite(product.id)) {
+                            setShowHeartBurst(true);
+                            setTimeout(() => setShowHeartBurst(false), 900);
+                        }
+                    }}
                     className="absolute top-3 right-3 z-20 p-1.5 bg-white/80 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 hover:bg-white transition-colors"
                 >
                     <Heart className={`h-4 w-4 transition-colors ${isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}`} />
@@ -126,12 +140,25 @@ export function SearchResultCard({
                         <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
                     </div>
                 )}
-                <Link href={`/product/${product.id}`} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
+                <Link href={getProductUrl(product.id, product.name)} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
                     {!imgError ? (
                         <img
-                            src={product.images?.[0] || product.image_url}
-                            alt={product.name}
+                            src={(() => {
+                                const isValid = (url: string | undefined | null) =>
+                                  url && url.trim().length > 4 &&
+                                  !url.toLowerCase().includes('no photo') &&
+                                  !url.toLowerCase().includes('no image') &&
+                                  !url.toLowerCase().includes('n/a') &&
+                                  !url.toLowerCase().includes('undefined') &&
+                                  !url.includes('vertexaisearch.cloud.google.com') &&
+                                  !url.includes('grounding-api-redirect');
+                                if (isValid(product.image_url)) return product.image_url;
+                                if (isValid(product.images?.[0])) return product.images[0];
+                                return "/assets/images/placeholder.png";
+                            })()}
+                            alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
                             className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                            loading="lazy"
                             onError={() => setImgError(true)}
                         />
                     ) : (
@@ -146,13 +173,34 @@ export function SearchResultCard({
             <div className="flex-1 flex flex-col pt-1">
                 {isSponsored && <span className="text-[10px] text-gray-400 font-medium mb-1">Sponsored</span>}
 
-                <Link href={`/product/${product.id}`} className="group-hover:text-brand-green-600 transition-colors">
+                <Link href={getProductUrl(product.id, product.name)} className="group-hover:text-brand-green-600 transition-colors">
                     <h2 className="text-xl font-medium leading-tight mb-1 line-clamp-2">
                         {product.name}
                     </h2>
                 </Link>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-3 text-xs text-gray-500 mb-1">
                     <span>by <span className="text-blue-600 hover:underline cursor-pointer font-medium">{product.seller_name}</span></span>
+                    
+                    {/* Phase 5: Trust Shield & Acceptance Rate OR Financing */}
+                    <div className="flex items-center gap-1.5 ml-1">
+                        {financingResult ? (
+                             <div className="flex items-center gap-1.5 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full shadow-sm" title="Financing Available via FairPrice">
+                                <Coins className="h-3 w-3 text-emerald-600" />
+                                <span className="text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
+                             </div>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full" title={`Trust Score: ${seller?.trust_score || 80}%`}>
+                                   <ShieldCheck className="h-3 w-3 text-emerald-600" />
+                                   <span className="text-[10px] font-bold text-emerald-700">{seller?.trust_score || 80}%</span>
+                                </div>
+                                <span className="text-[10px] font-medium text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
+                                    85% Acceptance
+                                </span>
+                            </>
+                        )}
+                    </div>
+
                     {seller?.verified && (
                         <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
                     )}

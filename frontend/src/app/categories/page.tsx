@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Camera, Check, ChevronRight, ShoppingCart, Star, ChevronDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { DemoStore } from "@/lib/demo-store";
+import { SmartSearchInput } from "@/components/ui/SmartSearchInput";
+import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { useCart } from "@/context/CartContext";
+import { useAuth } from "@/context/AuthContext";
+import { Loader2, PlusCircle } from "lucide-react";
 
 // ─── Sidebar Categories (Temu-style extensive list, adapted to our platform) ───
 const SIDEBAR_CATEGORIES = [
@@ -253,63 +255,202 @@ export default function CategoriesPage() {
     const [activeCategory, setActiveCategory] = useState(SIDEBAR_CATEGORIES[0].key);
     const [searchQuery, setSearchQuery] = useState("");
     const [products, setProducts] = useState<Product[]>([]);
+    const [page, setPage] = useState(1);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+    const loaderRef = useRef<HTMLDivElement>(null);
+    const ITEMS_PER_PAGE = 16;
+    
     const [activeFilter, setActiveFilter] = useState("all");
     const [sortBy, setSortBy] = useState<string>("trending");
     const [showSortMenu, setShowSortMenu] = useState(false);
     const { addToCart } = useCart();
     const router = useRouter();
+    const { user } = useAuth();
 
     const currentSubcategories = SUBCATEGORIES[activeCategory] || SUBCATEGORIES.featured;
 
+    const [globalProducts, setGlobalProducts] = useState<Product[]>([]);
+    const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+    const [globalSearchDone, setGlobalSearchDone] = useState(false);
+
     useEffect(() => {
-        const allProducts = DemoStore.getApprovedProducts();
+        const allProducts = DataSyncService.getApprovedProducts();
         let filtered = allProducts;
 
+        // 1. Filter by Active Sidebar Category FIRST
+        if (activeCategory !== 'featured') {
+            const baseCat = activeCategory.split('_')[0].toLowerCase();
+            filtered = filtered.filter(p => {
+                const pc = (p.category || "").toLowerCase();
+                const pName = (p.name || "").toLowerCase();
+                if (activeCategory === 'cars') return pc.includes('car') || pc.includes('auto') || pName.includes('car');
+                if (activeCategory === 'energy') return pc.includes('energy') || pc.includes('solar') || pName.includes('solar') || pName.includes('generator') || pName.includes('inverter');
+                return pc.includes(baseCat) || baseCat.includes(pc) || pName.includes(baseCat);
+            });
+        }
+
+        // 2. Apply Pill Filter (Subcategory) — only when NOT "all"
         if (activeFilter !== "all") {
-            // Try to match by name, category, or description
             const filterTerm = activeFilter.toLowerCase();
-            filtered = allProducts.filter(p =>
+            let subFiltered = filtered.filter(p =>
                 p.category.toLowerCase().includes(filterTerm) ||
                 p.name.toLowerCase().includes(filterTerm) ||
                 (p.description && p.description.toLowerCase().includes(filterTerm))
             );
 
-            // If no direct match, try the filterKey from the subcategory
-            if (filtered.length === 0) {
+            if (subFiltered.length === 0) {
                 const sub = currentSubcategories.find(s => s.name === activeFilter);
                 if (sub?.filterKey) {
-                    filtered = allProducts.filter(p =>
-                        p.category.toLowerCase().includes(sub.filterKey!.toLowerCase())
+                    subFiltered = filtered.filter(p =>
+                        p.category.toLowerCase().includes(sub.filterKey!.toLowerCase()) ||
+                        p.name.toLowerCase().includes(sub.filterKey!.toLowerCase())
                     );
                 }
             }
 
-            // If still empty, show random products as placeholder
-            if (filtered.length === 0) {
-                filtered = [...allProducts].sort(() => 0.5 - Math.random()).slice(0, 8);
+            // If still empty after sub-filter, keep the category-filtered set (don't reset to random)
+            if (subFiltered.length > 0) {
+                filtered = subFiltered;
             }
-        } else {
-            // Default "Trending items" view - shuffle
-            filtered = [...allProducts].sort(() => 0.5 - Math.random());
+            // else: keep `filtered` as-is (the category-level results)
+        }
+
+        // 3. If category filter returned nothing, show all products as fallback
+        if (filtered.length === 0 && activeCategory !== 'featured') {
+            filtered = allProducts;
         }
 
         setProducts(filtered);
+        setGlobalProducts([]);
+        setGlobalSearchDone(false);
+        setPage(1);
     }, [activeCategory, activeFilter]);
 
-    // Apply sorting
-    const sortedProducts = [...products].sort((a, b) => {
-        // ALWAYS put sponsored products first
-        if (a.is_sponsored && !b.is_sponsored) return -1;
-        if (!a.is_sponsored && b.is_sponsored) return 1;
+    // Apply sorting to base products — MEMOIZED to prevent infinite re-render loops
+    const sortedProducts = useMemo(() => {
+        const combined = [...products, ...globalProducts];
+        return combined.sort((a, b) => {
+            // ALWAYS put sponsored products first
+            if (a.is_sponsored && !b.is_sponsored) return -1;
+            if (!a.is_sponsored && b.is_sponsored) return 1;
 
-        switch (sortBy) {
-            case "price_low": return (a.price || 0) - (b.price || 0);
-            case "price_high": return (b.price || 0) - (a.price || 0);
-            case "rating": return (b.avg_rating || 0) - (a.avg_rating || 0);
-            case "newest": return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-            default: return 0; // trending = keep existing order
-        }
-    });
+            switch (sortBy) {
+                case "price_low": return (a.price || 0) - (b.price || 0);
+                case "price_high": return (b.price || 0) - (a.price || 0);
+                case "rating": return (b.avg_rating || 0) - (a.avg_rating || 0);
+                case "newest": return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+                default: return 0;
+            }
+        });
+    }, [products, globalProducts, sortBy]);
+
+    // Sync displayed products when sortedProducts or page changes — MEMOIZED to prevent loops
+    const displayedProducts = useMemo(() => {
+        const batch = sortedProducts.slice(0, page * ITEMS_PER_PAGE);
+        return batch;
+    }, [sortedProducts, page, ITEMS_PER_PAGE]);
+
+    // Use refs for values needed inside the IntersectionObserver callback
+    const pageRef = useRef(page);
+    const sortedRef = useRef(sortedProducts);
+    const loadingRef = useRef(isLoadingMore);
+    const globalDoneRef = useRef(globalSearchDone);
+    const activeCatRef = useRef(activeCategory);
+    useEffect(() => { pageRef.current = page; }, [page]);
+    useEffect(() => { sortedRef.current = sortedProducts; }, [sortedProducts]);
+    useEffect(() => { loadingRef.current = isLoadingMore; }, [isLoadingMore]);
+    useEffect(() => { globalDoneRef.current = globalSearchDone; }, [globalSearchDone]);
+    useEffect(() => { activeCatRef.current = activeCategory; }, [activeCategory]);
+
+    // Global search fallback — fetch related products from API when local catalogue is exhausted
+    const fetchGlobalProducts = useCallback((categoryKey: string) => {
+        if (isGlobalSearching || globalSearchDone) return;
+        setIsGlobalSearching(true);
+
+        // Map category keys to search-friendly terms
+        const searchTermMap: Record<string, string> = {
+            phones: "smartphone", computers: "laptop computer", electronics: "electronics gadget",
+            fashion_women: "women fashion clothing", fashion_men: "men fashion clothing",
+            shoes_men: "men shoes sneakers", shoes_women: "women shoes heels",
+            beauty: "beauty skincare", home: "home kitchen appliance",
+            gaming: "gaming console controller", cars: "car automobile",
+            energy: "solar panel inverter generator", health: "health fitness supplement",
+            baby: "baby products essentials", grocery: "food grocery",
+            pets: "pet supplies", sports: "sports equipment", office: "office supplies furniture",
+            featured: "trending products Nigeria",
+        };
+        const searchTerm = searchTermMap[categoryKey] || categoryKey.replace(/_/g, ' ');
+
+        fetch("/api/gemini-price", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ productName: searchTerm, mode: "search" }),
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.suggestions && Array.isArray(data.suggestions)) {
+                    const mapped: Product[] = data.suggestions.map((r: any, i: number) => {
+                        const stableId = `global-cat-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+                        const rawImg = r.image_url || "";
+                        const hasValidPhoto = rawImg && !rawImg.toLowerCase().includes('no photo') && !rawImg.toLowerCase().includes('n/a') && !rawImg.toLowerCase().includes('placeholder');
+                        return {
+                            id: stableId,
+                            name: r.name || "Global Product",
+                            price: r.approxPrice || r.price || 0,
+                            original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : undefined,
+                            image_url: hasValidPhoto ? rawImg : "/assets/images/placeholder.png",
+                            images: hasValidPhoto ? [rawImg] : ["/assets/images/placeholder.png"],
+                            category: r.category || categoryKey,
+                            description: r.reason || "",
+                            avg_rating: 4.2 + Math.random() * 0.6,
+                            review_count: Math.floor(Math.random() * 200) + 20,
+                            sold_count: Math.floor(Math.random() * 500) + 50,
+                            stock: 10,
+                            is_active: true,
+                            is_global: true,
+                            seller_name: "Global Store",
+                            created_at: new Date().toISOString(),
+                        } as any as Product;
+                    });
+                    setGlobalProducts(prev => [...prev, ...mapped]);
+                }
+                setGlobalSearchDone(true);
+            })
+            .catch(() => { setGlobalSearchDone(true); })
+            .finally(() => setIsGlobalSearching(false));
+    }, [isGlobalSearching, globalSearchDone]);
+
+    // IntersectionObserver — reads from refs to prevent closure staleness
+    useEffect(() => {
+        const observer = new IntersectionObserver((entries) => {
+            const target = entries[0];
+            if (target.isIntersecting && !loadingRef.current) {
+                // Check if we actually have more to show
+                const currentPage = pageRef.current;
+                const currentSorted = sortedRef.current;
+                if (currentPage * ITEMS_PER_PAGE < currentSorted.length || !globalDoneRef.current) {
+                    setIsLoadingMore(true);
+                    setTimeout(() => {
+                        const nextIndex = pageRef.current * ITEMS_PER_PAGE;
+                        const nextBatch = currentSorted.slice(nextIndex, nextIndex + ITEMS_PER_PAGE);
+
+                        if (nextBatch.length > 0) {
+                            setPage(prev => prev + 1);
+                        } else if (!globalDoneRef.current) {
+                            // Local catalogue exhausted — fetch global products
+                            fetchGlobalProducts(activeCatRef.current);
+                        }
+                        setIsLoadingMore(false);
+                    }, 600);
+                }
+            }
+        }, { root: null, rootMargin: '400px', threshold: 0 });
+
+        const node = loaderRef.current;
+        if (node) observer.observe(node);
+        return () => { if (node) observer.unobserve(node); };
+    }, [fetchGlobalProducts]); // Re-attach only if search method changes
 
     const handleSearch = () => {
         if (searchQuery.trim()) {
@@ -318,20 +459,23 @@ export default function CategoriesPage() {
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-64px)] md:h-screen bg-gray-50 pb-16 md:pb-0">
+        <div className="flex flex-col h-[calc(100dvh-64px)] md:h-screen bg-gray-50 pb-16 md:pb-0">
             {/* Top Search Header */}
-            <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100 z-10 bg-white shadow-sm">
-                <div className="flex-1 relative">
+            <div className="px-4 py-2 flex items-center gap-2 border-b border-gray-100 relative z-[100] bg-white shadow-sm">
+                <div className="flex-1 relative z-[110]">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                         <Search className="h-4 w-4 text-gray-400" />
                     </div>
-                    <Input
-                        type="search"
+                    <SmartSearchInput
                         placeholder="iPhone 17 Pro Max Refurbished..."
-                        className="w-full pl-9 pr-10 py-2 h-10 border-2 border-brand-green-600 rounded-full focus-visible:ring-0 focus-visible:border-brand-green-700 bg-white text-sm font-medium"
+                        className="w-full pl-9 pr-10 h-10 border-2 border-brand-green-600 rounded-full focus-visible:ring-0 focus-visible:border-brand-green-700 bg-white text-sm font-medium"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                        onSearch={(term) => {
+                             setSearchQuery(term);
+                             router.push(`/search?q=${encodeURIComponent(term)}`);
+                        }}
+                        hideSearchIcon={true}
                     />
                     {/* <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                         <Camera className="h-5 w-5 text-gray-500 cursor-pointer" />
@@ -388,7 +532,33 @@ export default function CategoriesPage() {
                     {/* Subcategory Circles View */}
                     {activeFilter === "all" ? (
                         <>
-                            <div className="mb-3 sticky top-0 bg-white z-10 pt-1 pb-2">
+                            {/* ✨ Dynamic Seller Banner ✨ */}
+                            <div 
+                                onClick={() => {
+                                    if (user && user.role === 'seller') {
+                                        router.push('/seller/dashboard');
+                                    } else {
+                                        router.push('/seller/onboarding');
+                                    }
+                                }}
+                                className="bg-gradient-to-r from-brand-orange to-brand-green-600 rounded-xl p-3 md:p-4 mb-5 mt-1 cursor-pointer relative overflow-hidden group shadow-sm hover:shadow-md transition-all active:scale-[0.99] flex items-center justify-between"
+                            >
+                                {/* Shimmer Effect */}
+                                <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/30 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+                                <div className="relative z-10 flex flex-col pt-0.5">
+                                    <h3 className="text-white font-extrabold text-sm md:text-base leading-tight drop-shadow-sm flex items-center gap-1.5">
+                                        {activeCategory === 'featured' ? 'Got any items to sell?' : `Got ${SIDEBAR_CATEGORIES.find(c => c.key === activeCategory)?.label}?`}
+                                    </h3>
+                                    <p className="text-white/90 text-[11px] md:text-xs font-semibold drop-shadow-sm mt-0.5">
+                                        Start selling them today and earn!
+                                    </p>
+                                </div>
+                                <div className="relative z-10 bg-white/20 backdrop-blur-sm rounded-full px-3 py-1.5 text-white flex items-center gap-1 font-bold text-xs shadow-[inset_0_1px_rgba(255,255,255,0.4)]">
+                                    <PlusCircle className="h-3.5 w-3.5" strokeWidth={3} /> Post Item
+                                </div>
+                            </div>
+
+                            <div className="mb-3 sticky top-0 bg-white z-10 pt-1 pb-2 flex items-center justify-between">
                                 <h2 className="text-[13px] md:text-sm font-bold text-gray-900">Shop by category</h2>
                             </div>
 
@@ -432,8 +602,7 @@ export default function CategoriesPage() {
                         </div>
                     )}
 
-                    {/* Products Grid Section */}
-                    <div className="mt-6">
+                    <div className="mt-2">
                         <div className="flex items-center justify-between mb-3 px-1 sticky top-0 bg-white/95 backdrop-blur-sm z-10 py-2">
                             <h2 className="text-[14px] md:text-base font-bold text-gray-900 tracking-tight">
                                 {activeFilter !== 'all' ? activeFilter : 'Trending items'}
@@ -454,9 +623,9 @@ export default function CategoriesPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 -mx-1 md:mx-0">
-                            {sortedProducts.map(product => (
-                                <div key={product.id} className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-md overflow-hidden cursor-pointer" onClick={() => router.push(`/product/${product.id}`)}>
+                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-3 -mx-1 md:mx-0 min-h-[300px]">
+                            {displayedProducts.map((product, idx) => (
+                                <div key={`${product.id}-${idx}`} className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-md overflow-hidden cursor-pointer" onClick={() => router.push(`/product/${product.id}`)}>
                                     <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
                                         <img
                                             src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
@@ -473,14 +642,23 @@ export default function CategoriesPage() {
                                             </div>
                                         )}
 
-                                        {/* Cart Button */}
+                                        {/* Cart Button — high visibility on white */}
                                         <button
                                             onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                                            className="absolute bottom-2 right-2 w-8 h-8 rounded-full border-[1.5px] border-white/90 shadow-[0_2px_4px_rgba(0,0,0,0.25)] bg-green-600/10 flex items-center justify-center transition-colors z-10 hover:bg-green-600/25"
+                                            className="absolute bottom-2 right-2 w-9 h-9 rounded-full bg-emerald-600 shadow-lg shadow-emerald-600/30 flex items-center justify-center transition-all z-10 hover:bg-emerald-700 hover:scale-110 active:scale-95"
                                         >
-                                            <ShoppingCart className="h-4 w-4 text-white drop-shadow-md" strokeWidth={2.5} />
-                                            <div className="absolute top-[1px] right-[3px] font-black text-white text-[11px] leading-none drop-shadow-md">+</div>
+                                            <ShoppingCart className="h-4 w-4 text-white" strokeWidth={2.5} />
+                                            <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                                <span className="font-black text-emerald-600 text-[9px] leading-none">+</span>
+                                            </div>
                                         </button>
+
+                                        {/* Discount Badge */}
+                                        {product.original_price && product.original_price > product.price && (
+                                            <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-sm z-10">
+                                                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Product Details */}
@@ -497,26 +675,43 @@ export default function CategoriesPage() {
                                                     return (
                                                         <Star
                                                             key={i}
-                                                            className={`h-2.5 w-2.5 ${i < Math.floor(rating) ? "fill-gray-900 text-gray-900" : i < rating ? "fill-gray-900 text-gray-900 opacity-60" : "fill-gray-200 text-gray-200"}`}
+                                                            className={`h-2.5 w-2.5 ${i < Math.floor(rating) ? "fill-amber-400 text-amber-400" : i < rating ? "fill-amber-400 text-amber-400 opacity-60" : "fill-gray-200 text-gray-200"}`}
                                                             strokeWidth={1}
                                                         />
                                                     );
                                                 })}
                                             </div>
-                                            <span className="text-[11px] text-gray-600">{product.review_count > 0 ? product.review_count.toLocaleString() : Math.floor(product.sold_count / 8)}</span>
+                                            <span className="text-[11px] text-gray-500">{product.review_count > 0 ? product.review_count.toLocaleString() : Math.floor(product.sold_count / 8)}</span>
                                         </div>
 
-                                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                        <div className="flex items-baseline gap-1.5 mt-1 flex-wrap">
                                             <span className="text-[15px] sm:text-[16px] font-black text-gray-900 tracking-tight leading-none">
                                                 ₦{product.price.toLocaleString()}
                                             </span>
-                                            <span className="text-[11px] text-gray-400 font-medium">
-                                                {product.sold_count > 1000 ? `${Math.floor(product.sold_count / 1000)}K+` : product.sold_count} sold
-                                            </span>
+                                            {product.original_price && product.original_price > product.price && (
+                                                <span className="text-[11px] text-gray-400 line-through font-medium leading-none">
+                                                    ₦{product.original_price.toLocaleString()}
+                                                </span>
+                                            )}
                                         </div>
+                                        <span className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                            {product.sold_count > 1000 ? `${Math.floor(product.sold_count / 1000)}K+` : product.sold_count} sold
+                                        </span>
                                     </div>
                                 </div>
                             ))}
+                        </div>
+
+                        {/* Infinite Scroll Loader */}
+                        <div ref={loaderRef} className="w-full py-8 flex justify-center items-center h-20">
+                            {(isLoadingMore || isGlobalSearching) && (
+                                <div className="flex flex-col items-center justify-center gap-2 text-brand-green-600">
+                                    <Loader2 className="h-6 w-6 animate-spin" />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/60">
+                                        {isGlobalSearching ? "Searching globally for more products…" : "Loading more"}
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

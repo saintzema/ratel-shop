@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { DEMO_PRODUCTS, DEMO_DEALS } from "@/lib/data";
+import { SEED_PRODUCTS, SEED_DEALS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -15,10 +16,11 @@ export default function DealsPage() {
     // Get active deals with their products
     const activeDeals = useMemo(() => {
         const now = new Date();
-        return DEMO_DEALS
+        const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
+        return allDeals
             .filter(d => d.is_active && new Date(d.end_at) > now)
             .map(deal => {
-                const product = DEMO_PRODUCTS.find(p => p.id === deal.product_id);
+                const product = SEED_PRODUCTS.find(p => p.id === deal.product_id);
                 if (!product) return null;
                 const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
                 return {
@@ -31,7 +33,7 @@ export default function DealsPage() {
             .filter(Boolean) as Array<{
                 id: string;
                 product_id: string;
-                product: typeof DEMO_PRODUCTS[0];
+                product: typeof SEED_PRODUCTS[0];
                 discount_pct: number;
                 discountedPrice: number;
                 savings: number;
@@ -44,7 +46,7 @@ export default function DealsPage() {
     // Also find products with significant price drops (original > price) that aren't already in deals
     const priceDropProducts = useMemo(() => {
         const dealProductIds = new Set(activeDeals.map(d => d.product_id));
-        return DEMO_PRODUCTS
+        return SEED_PRODUCTS
             .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
             .map(p => ({
                 product: p,
@@ -135,16 +137,12 @@ export default function DealsPage() {
 
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {sortedDeals.map((deal) => (
-                                <div key={deal.id} className="relative">
-                                    {/* Discount badge */}
-                                    <div className="absolute top-2 left-2 z-10 bg-red-500 text-white text-xs font-black px-2 py-1 rounded-lg shadow-md flex items-center gap-1">
-                                        <Percent className="h-3 w-3" /> {deal.discount_pct}% OFF
-                                    </div>
-                                    {/* Countdown */}
-                                    <div className="absolute top-2 right-2 z-10 bg-black/70 text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1 backdrop-blur-sm">
-                                        <Clock className="h-3 w-3" /> {getTimeRemaining(deal.end_at)}
-                                    </div>
-                                    <ProductCard product={{ ...deal.product, price: deal.discountedPrice, original_price: deal.product.price }} />
+                                <div key={deal.id}>
+                                    <ProductCard 
+                                        product={{ ...deal.product, price: deal.discountedPrice, original_price: deal.product.price }} 
+                                        dealEndTime={deal.end_at}
+                                        dealDiscountText={`${deal.discount_pct}% OFF`}
+                                    />
                                 </div>
                             ))}
                         </div>
@@ -166,11 +164,11 @@ export default function DealsPage() {
 
                         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                             {priceDropProducts.slice(0, 20).map((item) => (
-                                <div key={item.product.id} className="relative">
-                                    <div className="absolute top-2 left-2 z-10 bg-emerald-500 text-white text-xs font-black px-2 py-1 rounded-lg shadow-md">
-                                        Save {formatPrice(item.savings)}
-                                    </div>
-                                    <ProductCard product={item.product} />
+                                <div key={item.product.id}>
+                                    <ProductCard 
+                                        product={item.product} 
+                                        dealDiscountText={`Save ${formatPrice(item.savings)}`}
+                                    />
                                 </div>
                             ))}
                         </div>

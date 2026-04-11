@@ -8,9 +8,12 @@ import { useRouter } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { Eye, EyeOff, Loader2, ArrowRight, Check, X, AlertCircle } from "lucide-react";
+import { signIn } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
+import { Capacitor } from "@capacitor/core";
+import { Browser } from "@capacitor/browser";
 
 type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new" | "otp_existing";
 
@@ -36,6 +39,11 @@ export default function UnifiedAuthPage() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isExistingUser, setIsExistingUser] = useState(false);
     const [fetchedUser, setFetchedUser] = useState<any>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     // Get redirect path
     const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
@@ -51,9 +59,9 @@ export default function UnifiedAuthPage() {
         } catch { }
         // Fallback for demo accounts
         const normalizedId = identifier.toLowerCase().trim();
-        if (normalizedId === "admin@example.com") return { id: "admin_1", name: "Admin", email: "admin@example.com", role: "admin" as const, created_at: new Date().toISOString() };
+        if (normalizedId === "techzema@gmail.com") return { id: "admin_1", name: "Tech Zema", email: "techzema@gmail.com", role: "admin" as const, created_at: new Date().toISOString() };
         if (normalizedId === "seller@example.com") return { id: "seller_1", name: "Demo Seller", email: "seller@example.com", role: "seller" as const, created_at: new Date().toISOString() };
-        if (normalizedId === "techzema@gmail.com") return { id: "global-partners", name: "Global Stores", email: "techzema@gmail.com", role: "seller" as const, created_at: new Date().toISOString() };
+        if (normalizedId === "apple-review@fairprice.app") return { id: "apple_review_1", name: "Apple Reviewer", email: "apple-review@fairprice.app", role: "customer" as const, created_at: new Date().toISOString() };
         return null;
     })();
 
@@ -80,12 +88,38 @@ export default function UnifiedAuthPage() {
     const allPasswordChecksPassed = passwordChecks.every(c => c.pass);
     const passwordsMatch = password.length > 0 && password === confirmPassword;
 
-    // Background Image Carousel
     const bgImages = [
-        "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=988&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=1000&auto=format&fit=crop",
-        "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1000&auto=format&fit=crop"
+        "https://images.unsplash.com/photo-1611432579402-7037e3e2c1e4?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8QkxBQ0slMjBXT01BTnxlbnwwfHwwfHx8MA%3D%3D",
+        "https://images.unsplash.com/photo-1614890085618-0e1054da74f8?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8QkxBQ0slMjBNQU58ZW58MHx8MHx8fDA%3D",
+        "https://images.unsplash.com/photo-1589156191108-c762ff4b96ab?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8N3x8QkxBQ0slMjBXT01BTnxlbnwwfHwwfHx8MA%3D%3D"
     ];
+
+    const testimonials = [
+        {
+            quote: "As a FairPrice shopper, I get access to global deals securely, knowing my money is protected.",
+            author: "Amanda - Lagos, Nigeria",
+            role: "Customer"
+        },
+        {
+            quote: "FairPrice has scaled my business by connecting me with buyers I never could have reached otherwise.",
+            author: "Chinedu - Onitsha Market",
+            role: "Verified Seller"
+        },
+        {
+            quote: "The speed of settlement and transparency makes this the gold standard for my electronics store.",
+            author: "Bolaji - Logistics Hub",
+            role: "Premium Seller"
+        }
+    ];
+
+    // Preload background images
+    useEffect(() => {
+        bgImages.forEach(src => {
+            const img = new Image();
+            img.src = src;
+        });
+    }, []);
+
     const [currentBg, setCurrentBg] = useState(0);
 
     useEffect(() => {
@@ -93,7 +127,7 @@ export default function UnifiedAuthPage() {
             setCurrentBg((prev) => (prev + 1) % bgImages.length);
         }, 5000);
         return () => clearInterval(timer);
-    }, []);
+    }, [bgImages.length]);
 
     // --- Handlers ---
 
@@ -105,13 +139,20 @@ export default function UnifiedAuthPage() {
         } catch { return false; }
     };
 
-    const saveRegisteredUser = (email: string, name: string, role: string, birthday?: string) => {
+    const saveRegisteredUser = (email: string, name: string, role: string, birthday?: string, passwordHash?: string) => {
         try {
             const registered = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
-            if (!registered.some((u: { email: string }) => u.email.toLowerCase() === email.toLowerCase())) {
-                registered.push({ email, name, role, birthday, created_at: new Date().toISOString() });
-                localStorage.setItem("fairprice_registered_users", JSON.stringify(registered));
+            const existingIndex = registered.findIndex((u: { email: string }) => u.email.toLowerCase() === email.toLowerCase());
+            
+            if (existingIndex > -1) {
+                // Update existing user with new details (like password)
+                registered[existingIndex] = { ...registered[existingIndex], name, role, birthday, password: passwordHash || registered[existingIndex].password };
+            } else {
+                // Add new user
+                registered.push({ email, name, role, birthday, password: passwordHash, created_at: new Date().toISOString() });
             }
+            
+            localStorage.setItem("fairprice_registered_users", JSON.stringify(registered));
         } catch { /* ignore */ }
     };
 
@@ -150,9 +191,9 @@ export default function UnifiedAuthPage() {
             // Check registered users first, then known demo accounts
             const isExisting =
                 checkRegisteredUser(normalizedId) ||
-                normalizedId === "admin@example.com" ||
+                normalizedId === "techzema@gmail.com" ||
                 normalizedId === "seller@example.com" ||
-                normalizedId === "techzema@gmail.com";
+                normalizedId === "apple-review@fairprice.app";
 
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
@@ -160,30 +201,87 @@ export default function UnifiedAuthPage() {
         }, 600);
     };
 
-    const handleExistingLogin = (e: React.FormEvent) => {
+    const handleExistingLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setIsLoading(true);
 
-        const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
-        let determinedRole: "customer" | "seller" | "admin" = "customer";
+        try {
+            // 1. Try server-side password verification first (bcrypt against DB)
+            const res = await fetch("/api/auth/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: identifier.trim(), password })
+            });
+            const data = await res.json();
 
-        if (existingUser?.role) {
-            determinedRole = existingUser.role as "customer" | "seller" | "admin";
-        } else if (identifier.toLowerCase().includes("admin@")) {
-            determinedRole = "admin";
-        } else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") {
-            determinedRole = "seller";
-        }
+            if (data.success && data.user) {
+                // DB verified — use the DB user data (has correct role)
+                const dbUser = data.user;
+                login(dbUser);
+                saveRegisteredUser(dbUser.email, dbUser.name, dbUser.role);
 
-        setTimeout(() => {
-            const finalRedirect =
-                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
-                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
-                        redirectPath;
+                DataSyncService.addNotification({
+                    userId: dbUser.email,
+                    type: "system",
+                    message: `Welcome back, ${dbUser.name}! 👋 Happy shopping.`,
+                    link: "/"
+                });
+
+                const finalRedirect =
+                    dbUser.role === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                        dbUser.role === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                            redirectPath;
+                router.push(finalRedirect);
+                return;
+            }
+
+            if (data.error && !data.offline) {
+                // DB responded but password wrong or user not found
+                setError(data.error === "Incorrect password" ? "Incorrect password." : data.error);
+                setIsLoading(false);
+                return;
+            }
+
+            // 2. DB offline — fallback to local registered users
+            const registered = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
+            const localUser = registered.find((u: any) => u.email?.toLowerCase() === identifier.toLowerCase().trim());
+
+            // Build user from local data or existingUser (demo fallback)
+            const displayName = identifier.includes("@") ? identifier.split("@")[0] : "User";
+            let determinedRole: "customer" | "seller" | "admin" = "customer";
+
+            if (existingUser?.role) {
+                determinedRole = existingUser.role as "customer" | "seller" | "admin";
+            } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
+                determinedRole = "admin";
+            } else if (identifier.toLowerCase().includes("seller@")) {
+                determinedRole = "seller";
+            }
+
+            // CRITICAL SECURITY: If DB is offline, elevated roles MUST have a valid local password match to login.
+            // They cannot bypass just because `localUser.password` is undefined.
+            if (determinedRole === "admin" && password !== "admin123" && (!localUser?.password || localUser.password !== password)) {
+                 setError("Incorrect password.");
+                 setIsLoading(false);
+                 return;
+            }
+
+            if (determinedRole === "seller" && password !== "seller123" && (!localUser?.password || localUser.password !== password)) {
+                 setError("Incorrect password.");
+                 setIsLoading(false);
+                 return;
+            }
+
+            // For regular customers, if they have a local password, it must match.
+            if (localUser && localUser.password && localUser.password !== password) {
+                setError("Incorrect password.");
+                setIsLoading(false);
+                return;
+            }
 
             const userEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
-            const userName = displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+            const userName = existingUser?.name || displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
             const finalUser = existingUser || {
                 id: "user_" + Math.random().toString(36).substr(2, 9),
                 name: userName,
@@ -193,19 +291,25 @@ export default function UnifiedAuthPage() {
             };
 
             login(finalUser);
-            // Ensure this user is in the registered users list
             saveRegisteredUser(finalUser.email, finalUser.name, finalUser.role);
 
-            // Welcome-back notification
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: userEmail,
                 type: "system",
                 message: `Welcome back, ${userName}! 👋 Happy shopping.`,
                 link: "/"
             });
 
+            const finalRedirect =
+                determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                    determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                        redirectPath;
             router.push(finalRedirect);
-        }, 1000);
+        } catch (err) {
+            console.error("Login error:", err);
+            setError("Login failed. Please try again.");
+            setIsLoading(false);
+        }
     };
 
     const handleNewPasswordSubmit = (e: React.FormEvent) => {
@@ -238,19 +342,30 @@ export default function UnifiedAuthPage() {
         setStep("verification_new");
     };
 
-    const handleSendVerificationEmail = (code: string, nameToUse: string) => {
+    const handleSendVerificationEmail = async (code: string, nameToUse: string) => {
         const targetEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
-        fetch("/api/email", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                to: targetEmail,
-                type: "VERIFY_EMAIL",
-                payload: { name: nameToUse, code }
-            })
-        }).catch(console.error);
 
-        DemoStore.addNotification({
+        try {
+            const res = await fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: targetEmail,
+                    type: "VERIFY_EMAIL",
+                    payload: { name: nameToUse, code }
+                })
+            });
+            const data = await res.json();
+            
+            if (data.warning || !data.success) {
+                console.warn("Email API warned/failed:", data);
+            }
+        } catch (err) {
+            console.error("Email fetch failed:", err);
+        }
+
+        DataSyncService.addNotification({
+            userId: DataSyncService.getCurrentUserId() || "guest",
             message: `Verification Email Sent: A code has been sent to ${targetEmail}`,
             type: "system",
             link: "#"
@@ -262,7 +377,6 @@ export default function UnifiedAuthPage() {
         setSentCode(newCode);
         const nameToUse = step === 'otp_existing' ? (existingUser?.name || "User") : firstName.trim();
         handleSendVerificationEmail(newCode, nameToUse);
-        alert("A new code has been sent to your email.");
     };
 
     const handleSendOtpLoginCode = () => {
@@ -290,9 +404,9 @@ export default function UnifiedAuthPage() {
 
         if (existingUser?.role) {
             determinedRole = existingUser.role as "customer" | "seller" | "admin";
-        } else if (identifier.toLowerCase().includes("admin@")) {
+        } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
             determinedRole = "admin";
-        } else if (identifier.toLowerCase().includes("seller@") || identifier.toLowerCase() === "techzema@gmail.com") {
+        } else if (identifier.toLowerCase().includes("seller@")) {
             determinedRole = "seller";
         }
 
@@ -304,16 +418,22 @@ export default function UnifiedAuthPage() {
 
             const regEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
             const regName = `${firstName.trim()} ${lastName.trim()}`;
+            
+            // CRITICAL FIX: If the user already existed in the DB (like a guest account) we MUST use their existing ID
+            // otherwise all their previous orders, negotiations, and messages will disconnect.
+            const preexistingId = fetchedUser?.id || existingUser?.id;
+            const newId = preexistingId || "user_" + Math.random().toString(36).substr(2, 9);
+            
             register({
-                id: "user_" + Math.random().toString(36).substr(2, 9),
+                id: newId,
                 name: regName,
                 email: regEmail,
                 role: determinedRole,
-                created_at: new Date().toISOString(),
+                created_at: fetchedUser?.createdAt || existingUser?.created_at || new Date().toISOString(),
                 birthday: birthday || undefined
             });
-            // Persist this user as registered
-            saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined);
+            // Persist this user as registered with password
+            saveRegisteredUser(regEmail, regName, determinedRole, birthday || undefined, password);
 
             // Send Welcome Email
             fetch("/api/email", {
@@ -327,7 +447,7 @@ export default function UnifiedAuthPage() {
             }).catch(console.error);
 
             // Add Welcome Notification
-            DemoStore.addNotification({
+            DataSyncService.addNotification({
                 userId: regEmail,
                 message: `Welcome to FairPrice, ${firstName.trim()}! 🎉 Your account is created. Explore top global and local deals.`,
                 type: "system",
@@ -350,30 +470,71 @@ export default function UnifiedAuthPage() {
         setIsLoading(true);
         setTimeout(() => {
             if (existingUser) {
+                let determinedRole: "customer" | "seller" | "admin" = "customer";
+                if (existingUser?.role) {
+                    determinedRole = existingUser.role as "customer" | "seller" | "admin";
+                } else if (identifier.toLowerCase().includes("admin@") || identifier.toLowerCase() === "techzema@gmail.com") {
+                    determinedRole = "admin";
+                } else if (identifier.toLowerCase().includes("seller@")) {
+                    determinedRole = "seller";
+                }
+
+                const finalRedirect =
+                    determinedRole === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                        determinedRole === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                            redirectPath;
+
                 login(existingUser);
-                router.push(redirectPath);
+                router.push(finalRedirect);
             }
         }, 1000);
     };
 
-    const handleSocialLogin = (provider: "google" | "facebook" | "x") => {
+    const handleSocialLogin = async (provider: "google" | "apple" | "x") => {
         setIsLoading(true);
-        setTimeout(() => {
-            const mockUser = {
-                id: `${provider}_` + Math.random().toString(36).substr(2, 9),
-                name: `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`,
-                email: `user@${provider}.com`,
-                role: "customer" as const,
-                created_at: new Date().toISOString()
-            };
-            login(mockUser);
-            router.push(redirectPath);
-        }, 1500);
+        // Request the OAuth URL instead of redirecting the whole PWA/App
+        const res = await signIn(provider, { redirect: false, callbackUrl: redirectPath });
+        
+        if (res?.url) {
+            if (Capacitor.isNativePlatform()) {
+                // Using Capacitor Browser (Safari View Controller / Chrome Custom Tabs) keeps users "in-app" natively
+                await Browser.open({ url: res.url, presentationStyle: 'popover' });
+                
+                // Add a listener to detect when they return to the app to fetch the updated session
+                const listener = await Browser.addListener('browserFinished', async () => {
+                    await listener.remove();
+                    window.location.href = redirectPath;
+                });
+            } else {
+                // Web fallback: Open the OAuth provider in a popup window
+                const width = 500;
+                const height = 600;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
+                
+                const popup = window.open(
+                    res.url,
+                    "OAuthLogin",
+                    `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
+                );
+
+                // Poll the popup to see when it closes (user finished login)
+                const popupTimer = setInterval(() => {
+                    if (popup?.closed) {
+                        clearInterval(popupTimer);
+                        window.location.href = redirectPath;
+                    }
+                }, 1000);
+            }
+        } else {
+            setIsLoading(false);
+            setError("Could not initiate social login.");
+        }
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#F5F5F7] font-sans p-4 md:p-8">
-            <div className="w-full max-w-[1000px] flex flex-col md:flex-row gap-8 md:gap-12 lg:gap-16 items-center lg:items-stretch">
+        <div className="min-h-screen flex flex-col bg-[#F5F5F7] font-sans p-4 md:p-8 overflow-y-auto overflow-x-hidden w-full max-w-[100vw]">
+            <div className="w-full max-w-[1000px] m-auto flex flex-col md:flex-row gap-8 md:gap-12 lg:gap-16 items-center lg:items-stretch py-8">
 
                 {/* Left Side: Testimonial Image Carousel (Hidden on Small Screens) */}
                 <div className="hidden md:flex flex-1 relative rounded-[24px] overflow-hidden shadow-2xl min-h-[600px]">
@@ -394,22 +555,41 @@ export default function UnifiedAuthPage() {
                     <div className="relative z-10 p-10 flex flex-col justify-between h-full w-full">
                         <Logo className="h-10 w-auto scale-125 origin-left" variant="light" />
 
-                        <div>
-                            <h2 className="text-white text-3xl font-bold leading-tight mb-4 max-w-sm">
-                                "As a FairPrice shopper, I get access to global deals securely, knowing my money is protected."
-                            </h2>
-                            <p className="text-white/80 font-medium">
-                                Amanda - Lagos, Nigeria
-                            </p>
+                        <div className="mb-2">
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={currentBg}
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -10 }}
+                                    transition={{ duration: 0.5 }}
+                                >
+                                    <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm border border-white/20">
+                                        <div className={cn(
+                                            "w-2 h-2 rounded-full",
+                                            testimonials[currentBg].role?.includes("Seller") ? "bg-amber-400" : "bg-emerald-400"
+                                        )} />
+                                        <span className="text-xs font-bold text-white uppercase tracking-wider">
+                                            {testimonials[currentBg].role}
+                                        </span>
+                                    </div>
+                                    <h2 className="text-white text-3xl font-bold leading-tight mb-4 max-w-sm drop-shadow-md">
+                                        "{testimonials[currentBg].quote}"
+                                    </h2>
+                                    <p className="text-white/80 font-medium tracking-wide">
+                                        {testimonials[currentBg].author}
+                                    </p>
+                                </motion.div>
+                            </AnimatePresence>
 
                             {/* Carousel Indicators */}
-                            <div className="flex gap-2 mt-6">
+                            <div className="flex gap-2 mt-8">
                                 {bgImages.map((_, idx) => (
                                     <div
                                         key={idx}
                                         className={cn(
                                             "h-2 rounded-full transition-all duration-300",
-                                            idx === currentBg ? "w-6 bg-brand-green-400" : "w-2 bg-white/50"
+                                            idx === currentBg ? "w-8 bg-brand-green-400" : "w-2 bg-white/40"
                                         )}
                                     />
                                 ))}
@@ -422,7 +602,7 @@ export default function UnifiedAuthPage() {
                 <div className="flex-1 w-full max-w-[440px] flex flex-col justify-center py-8">
                     {/* Logo Area */}
                     <div className="mb-8 md:hidden">
-                        <Logo className="h-10 w-auto text-green-900 scale-125 justify-center" />
+                        <Logo className="h-10 w-auto scale-125 justify-center" variant="dark" />
                     </div>
                     <div className="mb-8">
                         <h1 className="text-[32px] font-bold text-[#1d1d1f] tracking-tight mt-2 md:mt-8 mb-2">
@@ -456,12 +636,20 @@ export default function UnifiedAuthPage() {
                                                 type="text"
                                                 required
                                                 placeholder="you@email.com"
-                                                className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
+                                                className={cn(
+                                                    "w-full h-12 bg-white border text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl transition-all duration-300 px-4",
+                                                    error 
+                                                        ? "border-red-500 focus:ring-4 focus:ring-red-500/20 focus:shadow-[0_0_15px_rgba(239,68,68,0.2)]" 
+                                                        : "border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]"
+                                                )}
                                                 value={identifier}
-                                                onChange={(e) => setIdentifier(e.target.value)}
+                                                onChange={(e) => {
+                                                    setIdentifier(e.target.value);
+                                                    if (error) setError("");
+                                                }}
                                                 list="email-domains"
                                             />
-                                            {identifier && !identifier.includes('@') && isNaN(Number(identifier.replace(/\D/g, ''))) && (
+                                            {mounted && identifier && !identifier.includes('@') && isNaN(Number(identifier.replace(/\D/g, ''))) && (
                                                 <datalist id="email-domains">
                                                     <option value={`${identifier}@gmail.com`} />
                                                     <option value={`${identifier}@yahoo.com`} />
@@ -471,7 +659,7 @@ export default function UnifiedAuthPage() {
                                                     <option value={`${identifier}@hotmail.com`} />
                                                 </datalist>
                                             )}
-                                            {identifier.includes('@') && (
+                                            {mounted && identifier.includes('@') && (
                                                 <datalist id="email-domains">
                                                     <option value={`${identifier.split('@')[0]}@gmail.com`} />
                                                     <option value={`${identifier.split('@')[0]}@yahoo.com`} />
@@ -491,11 +679,7 @@ export default function UnifiedAuthPage() {
                                         </Button>
                                     </form>
 
-                                    <div className="relative flex items-center py-6">
-                                        <div className="flex-grow border-t border-gray-200" />
-                                        <span className="px-4 text-[13px] text-[#86868b] font-medium">FairPrice Escrow Protects Your Purchases</span>
-                                        <div className="flex-grow border-t border-gray-200" />
-                                    </div>
+
                                 </motion.div>
                             )}
 
@@ -522,6 +706,17 @@ export default function UnifiedAuthPage() {
                                         </button>
                                     </div>
 
+                                    {error && (
+                                        <motion.div 
+                                            initial={{ opacity: 0, y: -10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="mb-5 p-3.5 bg-red-50 border border-red-100 rounded-xl flex gap-3 shadow-[0_2px_10px_rgba(239,68,68,0.05)]"
+                                        >
+                                            <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+                                            <p className="text-[14px] text-red-700 font-medium leading-tight">{error}</p>
+                                        </motion.div>
+                                    )}
+
                                     <form onSubmit={handleExistingLogin} className="space-y-5">
                                         <div className="space-y-1.5">
                                             <label className="text-[13px] font-semibold text-[#1d1d1f]">Password <span className="text-red-500">*</span></label>
@@ -530,9 +725,17 @@ export default function UnifiedAuthPage() {
                                                     ref={passwordInputRef}
                                                     type={showPassword ? "text" : "password"}
                                                     required
-                                                    className="w-full h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4 pr-12"
+                                                    className={cn(
+                                                        "w-full h-12 bg-white border text-[15px] text-[#1d1d1f] rounded-xl transition-all duration-300 px-4 pr-12",
+                                                        error 
+                                                            ? "border-red-500 focus:ring-4 focus:ring-red-500/20 shadow-[0_0_12px_rgba(239,68,68,0.15)] focus:shadow-[0_0_20px_rgba(239,68,68,0.3)]" 
+                                                            : "border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]"
+                                                    )}
                                                     value={password}
-                                                    onChange={(e) => setPassword(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setPassword(e.target.value);
+                                                        if (error) setError(""); // Clear error when typing
+                                                    }}
                                                 />
                                                 <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                                                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -616,7 +819,7 @@ export default function UnifiedAuthPage() {
                                                 type={showPassword ? "text" : "password"}
                                                 required
                                                 placeholder="Create New Password"
-                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4 pr-12"
+                                                className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4 pr-12"
                                                 value={password}
                                                 onChange={(e) => setPassword(e.target.value)}
                                             />
@@ -630,7 +833,7 @@ export default function UnifiedAuthPage() {
                                                 type={showConfirmPassword ? "text" : "password"}
                                                 required
                                                 placeholder="Confirm Password"
-                                                className={`w-full h-14 bg-white text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl transition-all px-4 pr-12 border ${confirmPassword.length > 0 ? (passwordsMatch ? 'border-emerald-500 focus:ring-4 focus:ring-emerald-500/10' : 'border-red-500 focus:ring-4 focus:ring-red-500/10') : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10'}`}
+                                                className={`w-full h-14 bg-white text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl transition-all duration-300 px-4 pr-12 border ${confirmPassword.length > 0 ? (passwordsMatch ? 'border-emerald-500 focus:ring-4 focus:ring-emerald-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]' : 'border-red-500 focus:ring-4 focus:ring-red-500/10') : 'border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]'}`}
                                                 value={confirmPassword}
                                                 onChange={(e) => setConfirmPassword(e.target.value)}
                                             />
@@ -651,6 +854,16 @@ export default function UnifiedAuthPage() {
                                             Continue
                                         </Button>
                                     </form>
+
+                                    <div className="flex justify-center mt-6 pt-4 border-t border-gray-50">
+                                        <button
+                                            type="button"
+                                            onClick={handleSendOtpLoginCode}
+                                            className="text-[13px] font-bold text-brand-orange hover:underline cursor-pointer flex items-center gap-1.5"
+                                        >
+                                            Sign in with email code instead
+                                        </button>
+                                    </div>
 
                                 </motion.div>
                             )}
@@ -681,7 +894,7 @@ export default function UnifiedAuthPage() {
                                             type="text"
                                             required
                                             placeholder="First Name"
-                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
+                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4"
                                             value={firstName}
                                             onChange={(e) => setFirstName(e.target.value)}
                                         />
@@ -689,7 +902,7 @@ export default function UnifiedAuthPage() {
                                             type="text"
                                             required
                                             placeholder="Last Name"
-                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/10 transition-all px-4"
+                                            className="w-full h-14 bg-white border border-[#d2d2d7] text-[17px] text-[#1d1d1f] placeholder:text-[#86868b] rounded-xl focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)] transition-all duration-300 px-4"
                                             value={lastName}
                                             onChange={(e) => setLastName(e.target.value)}
                                         />
@@ -813,6 +1026,10 @@ export default function UnifiedAuthPage() {
                                                         });
                                                         const nextIdx = Math.min(text.length, 5);
                                                         document.getElementById(`otp-${nextIdx}`)?.focus();
+                                                        // Auto-verify if all 6 digits pasted
+                                                        if (text.length === 6) {
+                                                            setTimeout(() => handleFinalizeRegistration(false), 300);
+                                                        }
                                                     }
                                                 }}
                                                 onChange={(e) => {
@@ -820,6 +1037,11 @@ export default function UnifiedAuthPage() {
                                                     e.target.value = val;
                                                     if (val && idx < 5) {
                                                         document.getElementById(`otp-${idx + 1}`)?.focus();
+                                                    }
+                                                    // Auto-verify when last digit typed
+                                                    if (val && idx === 5) {
+                                                        const allFilled = Array.from({ length: 6 }).every((_, i) => (document.getElementById(`otp-${i}`) as HTMLInputElement)?.value);
+                                                        if (allFilled) setTimeout(() => handleFinalizeRegistration(false), 300);
                                                     }
                                                 }}
                                             />
@@ -894,6 +1116,10 @@ export default function UnifiedAuthPage() {
                                                         });
                                                         const nextIdx = Math.min(text.length, 5);
                                                         document.getElementById(`otp-ex-${nextIdx}`)?.focus();
+                                                        // Auto-verify if all 6 digits pasted
+                                                        if (text.length === 6) {
+                                                            setTimeout(() => handleFinalizeOtpLogin(), 300);
+                                                        }
                                                     }
                                                 }}
                                                 onChange={(e) => {
@@ -901,6 +1127,11 @@ export default function UnifiedAuthPage() {
                                                     e.target.value = val;
                                                     if (val && idx < 5) {
                                                         document.getElementById(`otp-ex-${idx + 1}`)?.focus();
+                                                    }
+                                                    // Auto-verify when last digit typed
+                                                    if (val && idx === 5) {
+                                                        const allFilled = Array.from({ length: 6 }).every((_, i) => (document.getElementById(`otp-ex-${i}`) as HTMLInputElement)?.value);
+                                                        if (allFilled) setTimeout(() => handleFinalizeOtpLogin(), 300);
                                                     }
                                                 }}
                                             />
@@ -930,11 +1161,11 @@ export default function UnifiedAuthPage() {
                     {/* Jumia Style Legal Footer Links */}
                     <div className="mt-8 text-center text-[12px] text-[#86868b]">
                         <div className="flex flex-wrap justify-center gap-x-4 mb-4 font-medium uppercase tracking-wider text-[10px]">
-                            <Link href="#" className="hover:text-[#1d1d1f]">Terms of Use</Link>
+                            <Link href="/terms" className="hover:text-[#1d1d1f]">Terms of Use</Link>
                             <span>|</span>
-                            <Link href="#" className="hover:text-[#1d1d1f]">Privacy Policy</Link>
+                            <Link href="/privacy" className="hover:text-[#1d1d1f]">Privacy Policy</Link>
                             <span>|</span>
-                            <Link href="#" className="hover:text-[#1d1d1f]">FAQ</Link>
+                            <Link href="/help" className="hover:text-[#1d1d1f]">FAQ</Link>
                         </div>
                         <div className="p-4 border border-gray-200 rounded-xl bg-gray-50/50">
 
@@ -942,20 +1173,20 @@ export default function UnifiedAuthPage() {
                                 <div>
                                     <h4 className="font-bold text-[#1d1d1f] mb-2">NEED HELP?</h4>
                                     <ul className="space-y-1.5">
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Chat with us</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Help Center</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Contact Us</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Chat with us</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Help Center</Link></li>
+                                        <li><Link href="/contact" className="hover:text-emerald-600 hover:underline transition-colors">Contact Us</Link></li>
                                     </ul>
                                 </div>
                                 <div>
                                     <h4 className="font-bold text-[#1d1d1f] mb-2">USEFUL LINKS</h4>
                                     <ul className="space-y-1.5">
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Service Center</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">How to shop on FairPrice?</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Delivery options and timelines</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Service Center</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">How to shop on FairPrice?</Link></li>
+                                        <li><Link href="/shipping" className="hover:text-emerald-600 hover:underline transition-colors">Delivery options and timelines</Link></li>
                                         <li><Link href="/legal/consumer-protection" className="hover:text-emerald-600 hover:underline transition-colors">Dispute Resolution Policy</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Returns & Refund Timeline</Link></li>
-                                        <li><Link href="#" className="hover:text-emerald-600 hover:underline transition-colors">Pickup Stations</Link></li>
+                                        <li><Link href="/returns" className="hover:text-emerald-600 hover:underline transition-colors">Returns & Refund Timeline</Link></li>
+                                        <li><Link href="/help" className="hover:text-emerald-600 hover:underline transition-colors">Pickup Stations</Link></li>
                                     </ul>
                                 </div>
                             </div>

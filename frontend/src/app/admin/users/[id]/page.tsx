@@ -23,11 +23,18 @@ import {
     Package,
     Edit,
     Save,
-    X
+    X,
+    FileText,
+    Building2,
+    Users,
+    Globe,
+    Landmark,
+    Hash,
+    Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { cn } from "@/lib/utils";
 import { Seller, User, Order } from "@/lib/types";
 
@@ -42,6 +49,7 @@ export default function AdminUserDetailPage() {
     const [editForm, setEditForm] = useState<any>({});
     const [userEntity, setUserEntity] = useState<any>(null);
     const [orders, setOrders] = useState<any[]>([]);
+    const [kycSubmission, setKycSubmission] = useState<any>(null);
 
     useEffect(() => {
         if (userEntity) setEditForm(userEntity);
@@ -51,7 +59,7 @@ export default function AdminUserDetailPage() {
         if (!id || isUpdating) return;
         setIsUpdating(true);
         if (editForm.role === "seller") {
-            DemoStore.updateSeller(id, editForm);
+            DataSyncService.updateSeller(id, editForm);
         }
         setUserEntity({ ...userEntity, ...editForm });
         setIsEditing(false);
@@ -64,10 +72,17 @@ export default function AdminUserDetailPage() {
         let found = false;
         let localStatus: string | null | undefined = null;
 
-        // ── Step 1: Check if this is a seller (match by id, user_id, or email) ──
-        const dsSeller = DemoStore.getSellers().find((s: any) => s.id === id || s.user_id === id || s.owner_email === id);
+        const dsSeller = DataSyncService.getSellers().find((s: any) => s.id === id || s.user_id === id || s.owner_email === id);
         if (dsSeller) {
-            const dsOrders = DemoStore.getOrders().filter((o: any) => o.seller_id === dsSeller.id || o.customer_id === id || o.customer_email === id);
+            const dsOrders = DataSyncService.getOrders().filter((o: any) => o.seller_id === dsSeller.id || o.customer_id === id || o.customer_email === id);
+            
+            // Check for KYC submissions
+            const kycList = DataSyncService.getKYCSubmissions();
+            const kyc = kycList.find((k: any) => k.seller_id === dsSeller.id || k.seller_id === id);
+            if (kyc) {
+                setKycSubmission(kyc);
+            }
+
             localStatus = dsSeller.status;
             setUserEntity({ ...dsSeller, role: "seller" });
             setOrders(dsOrders);
@@ -76,11 +91,11 @@ export default function AdminUserDetailPage() {
 
         // ── Step 2: If not a seller, check if buyer from orders or getAllUsers ──
         if (!found) {
-            const dsOrders = DemoStore.getOrders();
+            const dsOrders = DataSyncService.getOrders();
             const buyerOrders = dsOrders.filter((o: any) => o.customer_id === id || o.customer_email === id);
 
             // Also check getAllUsers for registered users who may have no orders yet
-            const dsUser = DemoStore.getAllUsers().find((u: any) => u.id === id || u.email === id);
+            const dsUser = DataSyncService.getAllUsers().find((u: any) => u.id === id || u.email === id);
 
             if (buyerOrders.length > 0 || dsUser) {
                 const first = buyerOrders[0];
@@ -145,7 +160,7 @@ export default function AdminUserDetailPage() {
                 }
             }
         } catch {
-            // API unavailable — DemoStore data is already loaded
+            // API unavailable — DataSyncService data is already loaded
         }
 
         setLoading(false);
@@ -154,8 +169,8 @@ export default function AdminUserDetailPage() {
     const handleApprove = async () => {
         if (!userEntity?.id || isUpdating) return;
         setIsUpdating(true);
-        // Update in DemoStore immediately using the resolved seller ID
-        DemoStore.updateSeller(userEntity.id, { status: "active", verified: true, kyc_status: "approved" });
+        // Update in DataSyncService immediately using the resolved seller ID
+        DataSyncService.updateSeller(userEntity.id, { status: "active", verified: true, kyc_status: "approved" });
         // Also try API
         try {
             await fetch(`/api/sellers/${userEntity.id}`, {
@@ -219,7 +234,7 @@ export default function AdminUserDetailPage() {
                 <div className="flex flex-wrap items-center gap-3">
                     {/* View Store if seller */}
                     {isSeller && (
-                        <Button onClick={() => router.push(`/store/${id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
+                        <Button onClick={() => router.push(`/store/${userEntity.store_url || userEntity.business_name?.toLowerCase().replace(/\s+/g, '-') || id}`)} variant="outline" className="h-11 px-5 rounded-2xl border-indigo-100 bg-white/80 text-indigo-700 font-bold text-xs uppercase tracking-wider hover:bg-white shadow-sm">
                             <Store className="h-4 w-4 mr-2" /> View Store
                         </Button>
                     )}
@@ -269,10 +284,16 @@ export default function AdminUserDetailPage() {
                                 setIsUpdating(true);
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
-                                    DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
+                                    DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
                                     try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
-                                    DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                    // Update by both ID and email for reliable persistence
+                                    DataSyncService.updateUserStatus(userEntity.id, newStatus);
+                                    if (userEntity.email && userEntity.email !== userEntity.id) {
+                                        DataSyncService.updateUserStatus(userEntity.email, newStatus);
+                                    }
+                                    // Persist to API
+                                    try { await fetch(`/api/users?id=${encodeURIComponent(userEntity.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus }) }); } catch { }
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
                                 setIsUpdating(false);
@@ -289,10 +310,10 @@ export default function AdminUserDetailPage() {
                                 setIsUpdating(true);
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
-                                    DemoStore.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
+                                    DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
                                     try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
-                                    DemoStore.updateUserStatus(userEntity.id, newStatus);
+                                    DataSyncService.updateUserStatus(userEntity.id, newStatus);
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
                                 setIsUpdating(false);
@@ -308,10 +329,10 @@ export default function AdminUserDetailPage() {
                             if (confirm("Are you sure you want to suspend this account?")) {
                                 const newStatus = userEntity.role === "seller" ? "frozen" : "banned";
                                 if (userEntity.role === "seller") {
-                                    DemoStore.updateSeller(userEntity.id, { status: newStatus });
+                                    DataSyncService.updateSeller(userEntity.id, { status: newStatus });
                                     try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus }) }); } catch { }
                                 } else {
-                                    DemoStore.updateUserStatus(userEntity.id, newStatus as any);
+                                    DataSyncService.updateUserStatus(userEntity.id, newStatus as any);
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus }));
                             }
@@ -370,9 +391,9 @@ export default function AdminUserDetailPage() {
                                     </div>
                                     <div className={cn(
                                         "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest",
-                                        userEntity.status === 'active' ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+                                        userEntity.status === 'active' || !userEntity.status ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
                                     )}>
-                                        Status: {userEntity.status || "Pending"}
+                                        Status: {userEntity.status || "Active"}
                                     </div>
                                 </div>
                                 <p className="text-[10px] text-gray-400 font-black uppercase tracking-tighter opacity-70">Internal ID: {userEntity.id}</p>
@@ -399,14 +420,31 @@ export default function AdminUserDetailPage() {
                                         <Phone className="h-4 w-4 text-gray-400" />
                                     </div>
                                     {isEditing ? (
-                                        <input
-                                            type="text"
-                                            value={editForm.phone || ""}
-                                            onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
-                                            className="bg-white border border-gray-200 rounded-lg px-3 py-1 flex-1 max-w-sm"
-                                        />
+                                        <div className="flex-1 w-full space-y-2">
+                                            <input
+                                                type="text"
+                                                value={editForm.phone || ""}
+                                                onChange={e => setEditForm({ ...editForm, phone: e.target.value })}
+                                                className="bg-white border border-gray-200 rounded-lg px-3 py-1 w-full max-w-sm"
+                                                placeholder="Primary Phone"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={editForm.phone_numbers ? editForm.phone_numbers.join(", ") : ""}
+                                                onChange={e => setEditForm({ ...editForm, phone_numbers: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) })}
+                                                className="bg-white border text-[11px] border-gray-200 rounded-lg px-3 py-1 w-full max-w-sm"
+                                                placeholder="Other Phones (comma separated)"
+                                            />
+                                        </div>
                                     ) : (
-                                        userEntity.phone || "N/A"
+                                        <div className="flex flex-col">
+                                            <span>{userEntity.phone || "N/A"}</span>
+                                            {userEntity.phone_numbers && userEntity.phone_numbers.length > 1 && (
+                                                <span className="text-[10px] text-gray-400 mt-0.5 font-medium leading-tight">
+                                                    Other: {userEntity.phone_numbers.filter((p: string) => p !== userEntity.phone).join(", ")}
+                                                </span>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                                 <div className="flex items-start text-[13px] font-semibold text-gray-700">
@@ -443,7 +481,7 @@ export default function AdminUserDetailPage() {
                                 Compliance & Plan
                             </h3>
 
-                            <div className="space-y-6">
+                            <div className="space-y-4">
                                 <div className="flex justify-between items-center bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
                                     <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Subscription</span>
                                     <span className="text-sm font-black text-indigo-700">{(userEntity.subscription_plan || 'Starter').toUpperCase()}</span>
@@ -461,6 +499,97 @@ export default function AdminUserDetailPage() {
                                         {userEntity.kyc_status || 'Not Submitted'}
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Seller Onboarding Details ── */}
+                    {isSeller && (
+                        <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="h-2 w-2 rounded-full bg-violet-500" />
+                                Onboarding Details
+                            </h3>
+                            <div className="space-y-3">
+                                {([
+                                    { icon: Building2, label: "Business Name", value: userEntity.business_name },
+                                    { icon: Users, label: "Owner Name", value: userEntity.owner_name },
+                                    { icon: Mail, label: "Owner Email", value: userEntity.owner_email },
+                                    { icon: Phone, label: "Phone(s)", value: userEntity.phone_numbers?.length ? userEntity.phone_numbers.join(", ") : userEntity.phone },
+                                    { icon: Globe, label: "Store URL", value: userEntity.store_url },
+                                    { icon: MapPin, label: "Street Address", value: userEntity.street_address },
+                                    { icon: MapPin, label: "City", value: userEntity.city },
+                                    { icon: MapPin, label: "State", value: userEntity.state },
+                                    { icon: MapPin, label: "Location", value: userEntity.location },
+                                    { icon: ShoppingBag, label: "Category", value: userEntity.category },
+                                    { icon: Hash, label: "Weekly Orders", value: userEntity.weekly_orders },
+                                    { icon: Users, label: "Staff Count", value: userEntity.staff_count },
+                                    { icon: Store, label: "Physical Stores", value: userEntity.physical_stores },
+                                    { icon: Globe, label: "Currencies", value: Array.isArray(userEntity.currencies) ? userEntity.currencies.join(', ') : userEntity.currencies },
+                                    { icon: Landmark, label: "Bank", value: userEntity.bank_name },
+                                    { icon: Hash, label: "Account Number", value: userEntity.account_number },
+                                    { icon: Users, label: "Account Name", value: userEntity.account_name },
+                                    { icon: FileText, label: "CAC RC Number", value: userEntity.cac_rc_number },
+                                    { icon: CheckCircle2, label: "Business Registered", value: userEntity.business_registered != null ? (userEntity.business_registered ? 'Yes' : 'No') : undefined },
+                                ]).filter(item => item.value != null && item.value !== '' && item.value !== undefined).map((item, i) => (
+                                    <div key={i} className="flex items-center gap-3 bg-gray-50/50 p-3 rounded-xl border border-gray-100">
+                                        <div className="h-7 w-7 rounded-lg bg-white flex items-center justify-center border border-gray-100 shrink-0">
+                                            <item.icon className="h-3.5 w-3.5 text-gray-400" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">{item.label}</p>
+                                            <p className="text-xs font-bold text-gray-800 truncate">{String(item.value)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── Uploaded Documents ── */}
+                    {isSeller && (userEntity.cac_document_url || userEntity.id_document_url || userEntity.document_url || kycSubmission?.document_url) && (
+                        <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                <div className="h-2 w-2 rounded-full bg-rose-500" />
+                                Uploaded Documents
+                            </h3>
+                            <div className="space-y-4">
+                                {userEntity.cac_document_url && (
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">CAC Certificate</p>
+                                        {userEntity.cac_document_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                            <img src={userEntity.cac_document_url} alt="CAC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
+                                        ) : (
+                                            <a href={userEntity.cac_document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
+                                                <FileText className="h-4 w-4" /> View CAC Document <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                                {(userEntity.id_document_url || userEntity.document_url) && (
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Government ID ({userEntity.id_type || 'Document'})</p>
+                                        {(userEntity.id_document_url || userEntity.document_url || '').match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                            <img src={userEntity.id_document_url || userEntity.document_url} alt="ID Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
+                                        ) : (
+                                            <a href={userEntity.id_document_url || userEntity.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
+                                                <FileText className="h-4 w-4" /> View ID Document <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+                                {kycSubmission && kycSubmission.document_url && !userEntity.document_url && !userEntity.id_document_url && (
+                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
+                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Submitted KYC Document ({kycSubmission.document_type || 'Document'})</p>
+                                        {kycSubmission.document_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                            <img src={kycSubmission.document_url} alt="KYC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
+                                        ) : (
+                                            <a href={kycSubmission.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
+                                                <FileText className="h-4 w-4" /> View KYC Document <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -557,7 +686,7 @@ export default function AdminUserDetailPage() {
 
                     {/* Payout History (Sellers Only) */}
                     {isSeller && (() => {
-                        const payouts = DemoStore.getPayouts().filter((p: any) => p.seller_id === id);
+                        const payouts = DataSyncService.getPayouts().filter((p: any) => p.seller_id === id);
                         return (
                             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden mt-8">
                                 <div className="p-6 border-b border-gray-100 flex items-center justify-between">
@@ -593,13 +722,13 @@ export default function AdminUserDetailPage() {
                                                             {p.status === 'processing' ? (
                                                                 <div className="flex items-center justify-end gap-2">
                                                                     <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg h-8 px-3" onClick={() => {
-                                                                        DemoStore.updatePayoutStatus(p.id, 'completed');
-                                                                        DemoStore.addNotification({ userId: id, type: 'system', message: `Your payout of ₦${(p.amount || 0).toLocaleString()} has been approved and processed! 🎉`, link: '/seller/dashboard/payouts' });
+                                                                        DataSyncService.updatePayoutStatus(p.id, 'completed');
+                                                                        DataSyncService.addNotification({ userId: id, type: 'system', message: `Your payout of ₦${(p.amount || 0).toLocaleString()} has been approved and processed! 🎉`, link: '/seller/dashboard/payouts' });
                                                                         loadData();
                                                                     }}>Approve</Button>
                                                                     <Button size="sm" variant="outline" className="text-xs font-bold rounded-lg h-8 px-3 border-red-200 text-red-600 hover:bg-red-50" onClick={() => {
-                                                                        DemoStore.updatePayoutStatus(p.id, 'rejected');
-                                                                        DemoStore.addNotification({ userId: id, type: 'system', message: `Your payout request of ₦${(p.amount || 0).toLocaleString()} was not approved. Please contact support.`, link: '/seller/dashboard/payouts' });
+                                                                        DataSyncService.updatePayoutStatus(p.id, 'rejected');
+                                                                        DataSyncService.addNotification({ userId: id, type: 'system', message: `Your payout request of ₦${(p.amount || 0).toLocaleString()} was not approved. Please contact support.`, link: '/seller/dashboard/payouts' });
                                                                         loadData();
                                                                     }}>Reject</Button>
                                                                 </div>

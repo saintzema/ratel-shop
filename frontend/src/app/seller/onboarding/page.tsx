@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Check, ChevronRight, Upload, Building, User, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Seller } from "@/lib/types";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 
@@ -23,6 +23,7 @@ export default function KYCOnboarding() {
     const [streetAddress, setStreetAddress] = useState("");
     const [city, setCity] = useState("");
     const [stateRegion, setStateRegion] = useState("");
+    const [phoneNumbers, setPhoneNumbers] = useState("");
     const [isRegistered, setIsRegistered] = useState(false);
     const [cacNumber, setCacNumber] = useState("");
     const [cacFileName, setCacFileName] = useState<string | null>(null);
@@ -34,7 +35,61 @@ export default function KYCOnboarding() {
     const [bankName, setBankName] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [accountName, setAccountName] = useState("");
-    const { user, updateUser } = useAuth();
+    const [isResolving, setIsResolving] = useState(false);
+    const [resolutionError, setResolutionError] = useState("");
+
+    const BANK_CODES: Record<string, string> = {
+        "Access Bank": "044",
+        "First Bank of Nigeria": "011",
+        "Guaranty Trust Bank (GTBank)": "058",
+        "United Bank for Africa (UBA)": "033",
+        "Zenith Bank": "057",
+        "Ecobank Nigeria": "050",
+        "Fidelity Bank": "070",
+        "First City Monument Bank (FCMB)": "214",
+        "Kuda Microfinance Bank": "50211",
+        "Moniepoint": "50515",
+        "OPay": "100004",
+        "PalmPay": "100033",
+        "Wema Bank": "035"
+    };
+
+    useEffect(() => {
+        const resolveAccount = async () => {
+            if (accountNumber.length === 10 && bankName) {
+                const code = BANK_CODES[bankName];
+                if (!code) return;
+
+                setIsResolving(true);
+                setResolutionError("");
+
+                try {
+                    const res = await fetch(`/api/payouts/verify?account_number=${accountNumber}&bank_code=${code}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        setAccountName(data.account_name);
+                    } else {
+                        setResolutionError(data.error || "Could not resolve account");
+                        setAccountName("");
+                    }
+                } catch (err) {
+                    setResolutionError("Network error during verification");
+                } finally {
+                    setIsResolving(false);
+                }
+            }
+        };
+
+        const timer = setTimeout(resolveAccount, 500);
+        return () => clearTimeout(timer);
+    }, [accountNumber, bankName]);
+    const { user, isLoading: isAuthLoading, updateUser } = useAuth();
+    
+    useEffect(() => {
+        if (!isAuthLoading && !user) {
+            router.push("/login?returnUrl=/seller/onboarding");
+        }
+    }, [user, isAuthLoading, router]);
 
     const toggleCurrency = (currency: string) => {
         setCurrencies(prev =>
@@ -52,6 +107,7 @@ export default function KYCOnboarding() {
             if (!streetAddress.trim()) errors.push("Street Address is required");
             if (!stateRegion) errors.push("State is required");
             if (!city) errors.push("City is required");
+            if (!phoneNumbers.trim()) errors.push("At least one phone number is required");
             if (!weeklyOrders) errors.push("Weekly orders selection is required");
             if (!staffCount) errors.push("Staff count selection is required");
             if (!physicalStores) errors.push("Number of physical stores is required");
@@ -87,8 +143,9 @@ export default function KYCOnboarding() {
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        const currentSeller = DemoStore.getCurrentSeller();
-        const sellerId = currentSeller?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
+        const currentSeller = DataSyncService.getCurrentSeller();
+        // Force the seller ID to match the user's custom store URL input for aesthetic links, falling back to user ID or random
+        const sellerId = currentSeller?.id || storeUrl || user?.id || `s_${Math.random().toString(36).substr(2, 9)}`;
 
         const sellerUpdates: Partial<Seller> = {
             business_name: businessName || (user ? `${user.name}'s Shop` : "New Seller"),
@@ -99,6 +156,8 @@ export default function KYCOnboarding() {
             city: city,
             state: stateRegion,
             location: `${city}, ${stateRegion}`,
+            phone_number: phoneNumbers.split(",")[0].trim(),
+            phone_numbers: phoneNumbers.split(",").map(p => p.trim()).filter(Boolean),
             business_registered: isRegistered,
             cac_rc_number: isRegistered ? cacNumber : undefined,
             cac_document_url: isRegistered && cacFileName ? `/mock/cac/${cacFileName}` : undefined,
@@ -118,20 +177,22 @@ export default function KYCOnboarding() {
         };
 
         if (currentSeller) {
-            DemoStore.updateSeller(sellerId, sellerUpdates);
+            DataSyncService.updateSeller(sellerId, sellerUpdates);
         } else {
-            // Fallback just in case onboarding was reached directly
-            DemoStore.addSeller({
+            // New seller onboarding
+            DataSyncService.addSeller({
                 ...sellerUpdates,
                 id: sellerId,
-                user_id: user?.id || "",
+                user_id: user?.id || sellerId,
+                owner_email: user?.email || (businessName + "@fairprice.ng").replace(/\s+/g, '').toLowerCase(),
+                owner_name: user?.name || businessName,
                 created_at: new Date().toISOString()
             } as Seller);
-            DemoStore.loginSeller(sellerId);
+            DataSyncService.loginSeller(sellerId);
         }
 
         // Create KYC submission so admin sees it in dashboard
-        DemoStore.addKYCSubmission({
+        DataSyncService.addKYCSubmission({
             id: `kyc_${sellerId}`,
             seller_id: sellerId,
             seller_name: businessName || "New Seller",
@@ -141,7 +202,7 @@ export default function KYCOnboarding() {
             status: "pending",
         });
 
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             userId: sellerId,
             type: "system",
             message: `Welcome to FairPrice! Your KYC details are currently under review. While you wait for verification, you can already start uploading products to your store.`,
@@ -165,7 +226,7 @@ export default function KYCOnboarding() {
         } catch (e) { }
 
         // Admin notification (in-app bell) for KYC review
-        DemoStore.addNotification({
+        DataSyncService.addNotification({
             type: "system",
             title: "New Seller KYC Submitted",
             message: `${businessName || "A new seller"} has completed onboarding and is awaiting approval.`,
@@ -253,6 +314,18 @@ export default function KYCOnboarding() {
                                             className="border border-gray-300"
                                             required
                                         />
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Business Phone Number(s) *</label>
+                                        <Input
+                                            placeholder="E.g. +2348012345678, +2349012345678"
+                                            value={phoneNumbers}
+                                            onChange={(e) => setPhoneNumbers(e.target.value)}
+                                            className="border border-gray-300"
+                                            required
+                                        />
+                                        <p className="text-[11px] text-gray-500">Separate multiple numbers with commas.</p>
                                     </div>
 
                                     <div className="space-y-2">
@@ -523,17 +596,17 @@ export default function KYCOnboarding() {
                                             <option value="First Bank of Nigeria">First Bank of Nigeria</option>
                                             <option value="First City Monument Bank">First City Monument Bank</option>
                                             <option value="Globus Bank">Globus Bank</option>
-                                            <option value="Guaranty Trust Bank (GTB)">Guaranty Trust Bank (GTB)</option>
-                                            <option value="Heritage Bank">Heritage Bank</option>
+                                            <option value="Guaranty Trust Bank (GTBank)">Guaranty Trust Bank (GTBank)</option>
+                                            <option value="Heritage Banking Company">Heritage Banking Company</option>
                                             <option value="Keystone Bank">Keystone Bank</option>
-                                            <option value="Kuda Bank">Kuda Bank</option>
+                                            <option value="Kuda Microfinance Bank">Kuda Microfinance Bank</option>
                                             <option value="Moniepoint">Moniepoint</option>
-                                            <option value="Opay">Opay</option>
-                                            <option value="Palmpay">Palmpay</option>
+                                            <option value="OPay">OPay</option>
+                                            <option value="PalmPay">PalmPay</option>
                                             <option value="Polaris Bank">Polaris Bank</option>
                                             <option value="Providus Bank">Providus Bank</option>
                                             <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
-                                            <option value="Standard Chartered">Standard Chartered</option>
+                                            <option value="Standard Chartered Bank">Standard Chartered Bank</option>
                                             <option value="Sterling Bank">Sterling Bank</option>
                                             <option value="SunTrust Bank">SunTrust Bank</option>
                                             <option value="Titan Trust Bank">Titan Trust Bank</option>
@@ -544,25 +617,29 @@ export default function KYCOnboarding() {
                                             <option value="Zenith Bank">Zenith Bank</option>
                                         </select>
                                     </div>
-
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium">Account Number</label>
+                                        <label className="text-sm font-medium">Account Number *</label>
                                         <Input
                                             placeholder="0123456789"
                                             maxLength={10}
                                             value={accountNumber}
                                             onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ''))}
-                                            className="border border-gray-300"
+                                            className={`border ${resolutionError ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
                                         />
+                                        {resolutionError && <p className="text-[10px] text-red-500 font-bold mt-1">{resolutionError}</p>}
                                     </div>
 
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium">Account Name</label>
+                                        <label className="text-sm font-medium flex items-center justify-between">
+                                            <span>Account Name</span>
+                                            {isResolving && <span className="text-[10px] text-emerald-600 animate-pulse font-black">Verifying...</span>}
+                                        </label>
                                         <Input
-                                            placeholder="E.g. Oreoluwa Ajibola"
+                                            placeholder={isResolving ? "Fetching..." : "Auto-resolved from bank"}
                                             value={accountName}
+                                            readOnly={accountNumber.length === 10 && !!bankName}
                                             onChange={e => setAccountName(e.target.value)}
-                                            className="border border-gray-300"
+                                            className={`border transition-all ${accountNumber.length === 10 && !!bankName ? 'bg-gray-50 font-bold text-emerald-700' : 'border-gray-300'}`}
                                         />
                                     </div>
                                 </motion.div>

@@ -26,7 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Seller, NegotiationRequest } from "@/lib/types";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import {
@@ -55,6 +55,7 @@ export default function SellerLayout({
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
     const [allUserStores, setAllUserStores] = useState<Seller[]>([]);
     const [pendingNegotiations, setPendingNegotiations] = useState(0);
+    const [unreadMessages, setUnreadMessages] = useState(0);
     const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
@@ -66,35 +67,136 @@ export default function SellerLayout({
         if (isPublicRoute) return;
 
         const loadData = () => {
-            const seller = DemoStore.getCurrentSeller();
+            const seller = DataSyncService.getCurrentSeller();
             if (seller) {
                 setCurrentSeller(seller);
-                const negs = DemoStore.getNegotiations(seller.id);
+                const negs = DataSyncService.getNegotiations(seller.id);
                 setPendingNegotiations(negs.filter(n => n.status === "pending").length);
 
+                const convs = DataSyncService.getConversations(seller.id);
+                const unreadCount = convs.reduce((acc, c) => acc + (c.unread_count[seller.id] || 0), 0);
+                setUnreadMessages(unreadCount);
+
                 // Load all stores owned by this user
-                const allSellers = DemoStore.getSellers();
+                const allSellers = DataSyncService.getSellers();
                 const myStores = allSellers.filter(s => s.user_id === seller.user_id || s.owner_email === seller.owner_email);
                 setAllUserStores(myStores);
 
                 // Check for plan expiry and send notifications/deactivate if needed
-                DemoStore.checkPlanExpiry(seller.id);
+                DataSyncService.checkPlanExpiry(seller.id);
+            } else {
+                // If loadData is called but still no seller, let's gracefully handle it rather than hanging on "Loading..."
+                const userStr = localStorage.getItem("fp_user");
+                if (userStr) {
+                    try {
+                        const user = JSON.parse(userStr);
+                        if ((user.role === "seller" || user.role === "admin") && !isPublicRoute) {
+                            // Synthesize a placeholder store so they don't get locked out
+                            const minimalStore = {
+                                id: `s_${user.id || Math.random().toString(36).substr(2, 9)}`,
+                                user_id: user.id || "admin",
+                                business_name: user.name ? `${user.name}'s Shop` : "My Shop",
+                                owner_email: user.email || "",
+                                owner_name: user.name || "Owner",
+                                status: "pending",
+                                verified: false
+                            };
+                            DataSyncService.addSeller(minimalStore as any);
+                            DataSyncService.loginSeller(minimalStore.id);
+                            setCurrentSeller(minimalStore as any);
+                        }
+                    } catch(e) {}
+                }
             }
         };
 
-        // If no seller session at all, redirect to login
-        const sellerId = DemoStore.getCurrentSellerId();
+        // If no seller session at all, check for auto-login or redirect
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) {
-            router.push("/seller/login");
+            const userStr = localStorage.getItem("fp_user");
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const allSellers = DataSyncService.getSellers();
+                    const myStore = allSellers.find(s => s.user_id === user.id || s.owner_email === user.email);
+                    if (myStore) {
+                        // User owns a store, auto-login to seller session
+                        DataSyncService.loginSeller(myStore.id);
+                        loadData();
+                        return;
+                    }
+
+                    // Store not found locally. It might be in the database but not synced yet.
+                    // Let's do a direct check before redirecting.
+                    fetch('/api/sellers?all=true')
+                        .then(async (res) => {
+                            // Check if DB is offline (Network/Access error)
+                            if (res.headers.get("X-DB-Status") === "offline") {
+                                console.warn("Database is offline. Using local layout fallback.");
+                                loadData();
+                                return null; // Signal skip
+                            }
+                            return res.json();
+                        })
+                        .then(dbSellers => {
+                            if (dbSellers === null) return; // Skipped due to offline
+                            
+                            if (Array.isArray(dbSellers)) {
+                                const dbStore = dbSellers.find((s: any) => 
+                                    s.user_id === user.id || 
+                                    s.owner_email === user.email || 
+                                    s.userId === user.id || 
+                                    s.ownerEmail === user.email
+                                );
+                                if (dbStore) {
+                                    // Found it in the backend!
+                                    // Make sure it's seeded locally so DataSyncService functions work
+                                    const allSellers = DataSyncService.getSellers();
+                                    if (!allSellers.find(s => s.id === dbStore.id)) {
+                                        DataSyncService.addSeller(dbStore);
+                                    }
+                                    DataSyncService.loginSeller(dbStore.id);
+                                    loadData();
+                                } else {
+                                    // NO store found in DB either.
+                                    if (user.role === "seller" || user.role === "admin") {
+                                        console.warn("Seller/Admin role detected but no store found. Staying on dashboard.");
+                                        loadData();
+                                    } else {
+                                        router.push("/seller/onboarding");
+                                    }
+                                }
+                            } else {
+                                // Not an array or empty result
+                                if (user.role === "seller" || user.role === "admin") {
+                                    loadData();
+                                } else {
+                                    router.push("/seller/onboarding");
+                                }
+                            }
+                        })
+                        .catch(() => {
+                            // Fetch failed completely (e.g. network failure). Don't redirect to onboarding.
+                            console.warn("Network fetch failed. Falling back to local data.");
+                            loadData();
+                        });
+                    return;
+
+                } catch(e) {
+                    console.error("Failed to parse user for auto-login", e);
+                }
+            }
+            // Not logged in at all -> Send to main login
+            router.push(`/login?returnUrl=${encodeURIComponent(pathname)}`);
             return;
         }
 
         loadData();
         window.addEventListener("storage", loadData);
-        window.addEventListener("demo-store-update", loadData);
+        window.addEventListener("sync-store-update", loadData);
         return () => {
             window.removeEventListener("storage", loadData);
-            window.removeEventListener("demo-store-update", loadData);
+            window.removeEventListener("sync-store-update", loadData);
         };
     }, [router, isPublicRoute]);
 
@@ -107,12 +209,12 @@ export default function SellerLayout({
         { label: "Overview", href: "/seller/dashboard", icon: LayoutDashboard },
         { label: "Products", href: "/seller/products", icon: Package },
         { label: "Orders", href: "/seller/orders", icon: ShoppingBag },
-        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: pendingNegotiations > 0 ? pendingNegotiations.toString() : undefined },
+        { label: "Messages", href: "/seller/dashboard/messages", icon: MessageSquare, badge: (pendingNegotiations + unreadMessages) > 0 ? (pendingNegotiations + unreadMessages).toString() : undefined },
         { label: "Customers", href: "/seller/customers", icon: Users },
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
-        { label: "Payouts", href: "/seller/dashboard/payouts", icon: Wallet },
+        { label: "Wallet & Payouts", href: "/seller/wallet", icon: Wallet },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
     ];
@@ -131,7 +233,7 @@ export default function SellerLayout({
                 {/* Mobile overlay */}
                 {isSidebarOpen && (
                     <div
-                        className="fixed inset-0 bg-black/40 z-40 md:hidden"
+                        className="fixed inset-0 bg-black/40 z-40 lg:hidden"
                         onClick={() => setIsSidebarOpen(false)}
                     />
                 )}
@@ -139,7 +241,7 @@ export default function SellerLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto",
+                        "fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto",
                         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
@@ -214,7 +316,7 @@ export default function SellerLayout({
                     {/* Logout */}
                     <div className="p-4 border-t border-gray-200">
                         <button
-                            onClick={() => { DemoStore.logout(); router.push("/seller/login"); }}
+                            onClick={() => { DataSyncService.logout(); router.push("/seller/login"); }}
                             className="flex items-center gap-3 px-3 py-2.5 text-[13px] font-semibold text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl w-full transition-colors"
                         >
                             <LogOut className="h-[18px] w-[18px]" />
@@ -231,7 +333,7 @@ export default function SellerLayout({
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="md:hidden h-9 w-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                                className="lg:hidden h-9 w-9 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                             >
                                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -256,7 +358,7 @@ export default function SellerLayout({
                                 <DropdownMenuContent align="end" className="w-64 rounded-2xl p-2 border-gray-100 shadow-xl bg-white/95 backdrop-blur-xl">
                                     <DropdownMenuLabel className="font-bold text-gray-900 px-3 py-2">
                                         {currentSeller.business_name}
-                                        <div className="text-[10px] text-gray-400 font-medium uppercase tracking-widest mt-0.5" >Seller ID: {currentSeller.id}</div>
+                                        <div className="text-[11px] text-gray-500 font-medium lowercase mt-0.5" >{currentSeller.owner_email || `ID: ${currentSeller.id}`}</div>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
                                     <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors">
@@ -306,7 +408,7 @@ export default function SellerLayout({
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />
                                     <DropdownMenuItem
                                         className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-red-50 focus:text-red-700 text-red-600 transition-colors font-bold"
-                                        onClick={() => { DemoStore.logout(); router.push("/login"); }}
+                                        onClick={() => { DataSyncService.logout(); router.push("/login"); }}
                                     >
                                         <LogOut className="mr-3 h-4 w-4" />
                                         Log out
@@ -336,9 +438,9 @@ export default function SellerLayout({
                                 <button
                                     key={store.id}
                                     onClick={() => {
-                                        DemoStore.loginSeller(store.id);
+                                        DataSyncService.loginSeller(store.id);
                                         setIsSwitchModalOpen(false);
-                                        window.dispatchEvent(new Event("demo-store-update"));
+                                        window.dispatchEvent(new Event("sync-store-update"));
                                         router.push("/seller/dashboard");
                                     }}
                                     className={cn(

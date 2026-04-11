@@ -2,23 +2,26 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useCallback } from "react";
-import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, getTrustColor, cn } from "@/lib/utils";
+import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl, formatNumber } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
+import { nativeBridge } from "@/lib/native-bridge";
+import { isVehicle, getVehiclePaymentRange } from "@/lib/financing-utils";
 
 interface ProductCardProps {
     product: Product;
-    showDealTimer?: boolean;
+    dealEndTime?: string | null;
+    dealDiscountText?: string | null;
     className?: string;
 }
 
-export function ProductCard({ product, showDealTimer, className }: ProductCardProps) {
+export function ProductCard({ product, dealEndTime, dealDiscountText, className }: ProductCardProps) {
     const { user } = useAuth();
     const { addToCart } = useCart();
     const { toggleFavorite, isFavorite } = useFavorites();
@@ -27,6 +30,31 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     const [addedToCart, setAddedToCart] = useState(false);
     const lastTapRef = useRef<number>(0);
     const favorited = isFavorite(product.id);
+    const [timeLeft, setTimeLeft] = useState<string>("");
+
+    // Real ticking countdown timer
+    useEffect(() => {
+        if (!dealEndTime) return;
+        
+        const updateTimer = () => {
+            const diff = new Date(dealEndTime).getTime() - Date.now();
+            if (diff <= 0) {
+                setTimeLeft("Expired");
+                return;
+            }
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            if (days > 0) setTimeLeft(`${days}d ${hours}h left`);
+            else setTimeLeft(`${hours}h ${mins}m ${secs}s left`);
+        };
+        
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, [dealEndTime]);
 
     // Mock savings calculation
     const savings = product.original_price ? product.original_price - product.price : 0;
@@ -47,7 +75,8 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
             if (!favorited) {
                 toggleFavorite(product.id);
             }
-            // Show heart burst animation
+            // Show heart burst animation and play haptic
+            nativeBridge.hapticFeedback("heavy");
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 1000);
             lastTapRef.current = 0;
@@ -66,6 +95,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
         }
 
         toggleFavorite(product.id);
+        nativeBridge.hapticFeedback("heavy");
         if (!favorited) {
             setShowHeartBurst(true);
             setTimeout(() => setShowHeartBurst(false), 1000);
@@ -73,8 +103,8 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
     }, [favorited, toggleFavorite, product.id, user, router]);
 
     return (
-        <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full", className)}>
-            <Link href={`/product/${product.id}`} className="flex flex-col flex-1">
+        <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full cursor-pointer", className)}>
+            <div onClick={() => router.push(getProductUrl(product.id, product.name))} className="flex flex-col flex-1">
                 <div
                     className="relative aspect-square object-cover bg-muted"
                     onClick={handleDoubleTap}
@@ -114,6 +144,21 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                         />
                     </button>
 
+                    {/* Left Deal/Discount Tag UNDER Fair Price tag */}
+                    {dealDiscountText && (
+                        <div className="absolute top-[48px] left-3 z-20 bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-md shadow-md flex items-center gap-1 group-hover:scale-105 transition-transform duration-300">
+                            {dealDiscountText.includes("%") ? <Percent className="h-3 w-3" /> : <Tag className="h-3 w-3" />} 
+                            {dealDiscountText}
+                        </div>
+                    )}
+
+                    {/* Right Countdown Tag UNDER Heart icon */}
+                    {dealEndTime && (
+                        <div className="absolute top-[48px] right-3 z-20 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-brand-orange animate-pulse" /> {timeLeft}
+                        </div>
+                    )}
+
                     {/* Instagram Heart Burst Overlay */}
                     {showHeartBurst && (
                         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none">
@@ -122,16 +167,21 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                     )}
 
                     <img
-                        src={product.image_url || "/assets/images/placeholder.png"}
-                        alt={product.name}
+                        src={getProxiedImageUrl(product.image_url)}
+                        alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        loading="lazy"
                         onError={(e) => {
-                            e.currentTarget.src = "/assets/images/placeholder.png";
+                            const target = e.currentTarget as HTMLImageElement;
+                            if (target.src.includes('placeholder.png')) return; // Prevent infinite loops
+                            target.onerror = null;
+                            target.src = "/assets/images/placeholder.png";
+                            target.className = target.className + " object-contain p-4 opacity-50"; // Make placeholder look distinct
                         }}
                     />
                 </div>
 
-                <div className="flex flex-col flex-1 px-3 pb-2 pt-2.5">
+                <div className="flex flex-col px-3 pb-1.5 pt-2">
                     <h3 className="text-sm font-bold line-clamp-2 mb-1 group-hover:text-brand-green-600 transition-colors leading-tight min-h-[36px]">
                         {product.name}
                     </h3>
@@ -166,15 +216,22 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                             </span>
                         )}
                     </div>
+                    
+                    {/* Vehicle Payment Range */}
+                    {isVehicle(product) && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] sm:text-[11px] font-bold text-emerald-600 leading-tight bg-emerald-50 w-fit px-1.5 py-0.5 rounded border border-emerald-100">
+                            <span>₦{formatNumber(getVehiclePaymentRange(product.price).min)} ~ ₦{formatNumber(getVehiclePaymentRange(product.price).max)} MONTHLY</span>
+                        </div>
+                    )}
                 </div>
-            </Link>
+            </div>
 
             {/* Action Buttons */}
-            <div className="px-3 pb-3 mt-auto">
+            <div className="px-3 pb-3 mt-1.5">
                 {product.price_flag === "overpriced" ? (
                     <div className="flex gap-1.5 overflow-hidden">
                         <Button
-                            className="flex-1 min-w-0 bg-brand-green-600 text-white font-black hover:bg-brand-green-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
+                            className="flex-1 min-w-0 bg-emerald-600 text-white font-black hover:bg-emerald-700 transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 text-xs px-2 active:scale-95 transition-transform"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();
@@ -186,7 +243,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                             <ShoppingCart className="h-4 w-4 mr-1 lg:mr-1.5 shrink-0" /> <span className="truncate">Buy Now</span>
                         </Button>
                         <Link
-                            href={`/product/${product.id}?negotiate=true`}
+                            href={`${getProductUrl(product.id, product.name)}?negotiate=true`}
                             className="relative z-20 flex-1 min-w-0"
                             onClick={(e) => e.stopPropagation()}
                         >
@@ -202,7 +259,7 @@ export function ProductCard({ product, showDealTimer, className }: ProductCardPr
                 ) : (
                     <>
                         <Button
-                            className="w-full bg-brand-green-600 text-white font-black hover:bg-brand-green-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
+                            className="w-full bg-emerald-600 text-white font-black hover:bg-emerald-700 hover:scale-[1.02] transition-all duration-300 cursor-pointer rounded-xl h-9 shadow-sm relative z-20 active:scale-95"
                             size="sm"
                             onClick={(e) => {
                                 e.preventDefault();

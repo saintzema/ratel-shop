@@ -4,15 +4,55 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Ticket, Copy, Check, LogOut } from "lucide-react";
+import { Package, User, CreditCard, Lock, MapPin, MessageSquare, Heart, Share2, Store, Ticket, Copy, Check, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useState, useEffect } from "react";
 
 import { useRouter } from "next/navigation";
 
 export default function AccountPage() {
     const { user, logout } = useAuth();
+    const router = useRouter();
+
+    // Check if user is already a seller
+    const [isSeller, setIsSeller] = useState(false);
+    useEffect(() => {
+        if (user) {
+            // Background sync for the buyer's orders/negotiations
+            DataSyncService.autoSync();
+
+            if (user.role === 'seller' || user.role === 'admin') {
+                setIsSeller(true);
+                return;
+            }
+            const sellers = DataSyncService.getSellers();
+            const localMatch = sellers.some(s => s.owner_email === user.email || s.user_id === user.id || s.id === user.id);
+            if (localMatch) {
+                setIsSeller(true);
+            } else {
+                fetch('/api/sellers?all=true')
+                    .then(res => res.json())
+                    .then(data => {
+                        const sers = Array.isArray(data) ? data : [];
+                        const match = sers.some((s: any) =>
+                            s.owner_email === user.email ||
+                            s.user_id === user.id ||
+                            s.id === user.id
+                        );
+                        setIsSeller(match);
+                    })
+                    .catch(() => setIsSeller(false));
+            }
+        } else {
+            setIsSeller(false);
+        }
+    }, [user]);
+
+    const sellerCard = isSeller
+        ? { icon: Store, title: "Seller Dashboard", desc: "Manage your store, orders & payouts", href: "/seller/dashboard" }
+        : { icon: Store, title: "Become a Seller", desc: "Start selling on FairPrice today", href: "/seller/onboarding" };
+
     const cards = [
         {
             icon: Package,
@@ -20,12 +60,7 @@ export default function AccountPage() {
             desc: "Track, return, or buy things again",
             href: "/account/orders"
         },
-        {
-            icon: Share2,
-            title: "Become a Seller",
-            desc: "Start selling on FairPrice today",
-            href: "/seller/onboarding"
-        },
+        sellerCard,
         {
             icon: User,
             title: "Prime / FairPrice Premium",
@@ -33,16 +68,9 @@ export default function AccountPage() {
             href: "/account/premium"
         },
         {
-            icon: MessageSquare,
-            title: "Your Messages",
-            desc: "View messages from sellers and FairPrice",
-            href: "/account/messages"
-        },
-
-        {
             icon: Lock,
             title: "Login & security",
-            desc: "Update profile picture, and login detials",
+            desc: "Update profile picture, and login details",
             href: "/account/profile"
         },
         {
@@ -78,7 +106,7 @@ export default function AccountPage() {
 
     useEffect(() => {
         if (user) {
-            const coupons = DemoStore.getActiveCoupons(user.id || user.email || "");
+            const coupons = DataSyncService.getActiveCoupons(user.id || user.email || "");
             const total = coupons.reduce((sum, c) => sum + c.amount, 0);
             setCouponBalance(total);
         }
@@ -88,7 +116,8 @@ export default function AccountPage() {
         if (!user) return;
         // Keep full encoded ID so we can decode it later on checkout
         const refCode = user.id ? btoa(user.id).replace(/=/g, '') : "DEMOREF";
-        const link = `${window.location.origin}/?ref=${refCode}`;
+        const origin = window.location.origin.includes('localhost') ? 'https://fairprice-ten.vercel.app' : window.location.origin;
+        const link = `${origin}/?ref=${refCode}`;
 
         const { copyToClipboard } = await import("@/lib/utils");
         const success = await copyToClipboard(link);
@@ -171,7 +200,7 @@ export default function AccountPage() {
                 </div>
 
                 {/* Logout Button */}
-                <div className="mt-8 flex justify-center">
+                <div className="mt-8 pb-10 flex justify-center">
                     <Button
                         variant="outline"
                         className="rounded-full px-8 py-3 font-bold text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 transition-all gap-2"

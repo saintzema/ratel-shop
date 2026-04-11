@@ -13,6 +13,20 @@ export async function GET(req: Request) {
 
         const discounts = await (db as any).discount.findMany({
             where: { sellerId },
+            include: {
+                usages: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true
+                                // NO EMAIL PER USER REQUEST
+                            }
+                        }
+                    },
+                    orderBy: { usedAt: "desc" }
+                }
+            },
             orderBy: { createdAt: "desc" },
         });
 

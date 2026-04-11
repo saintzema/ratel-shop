@@ -50,7 +50,7 @@ export default function ConditionsOfUsePage() {
                     <section>
                         <h2 className="text-xl font-bold text-gray-900 mb-3">6. Returns & Refunds</h2>
                         <p>
-                            Items may be returned within 7 days of delivery if they are defective, damaged, or significantly different from the listing description. Used or refurbished items must be accurately described by sellers. FairPrice facilitates returns and processes refunds within 5–10 business days of receiving the returned item.
+                            Items may be returned within 14 days of delivery (16 days during the Dec 22 – Jan 3 holiday window). We accept returns for defective/damaged items and Change of Mind (Buyer&apos;s Remorse), provided the item is in <strong>New Only</strong> condition (Unopened, tags attached, no wear). FairPrice facilitates returns with a $0 restocking fee and processes refunds within 7 business days.
                         </p>
                     </section>
 
@@ -78,7 +78,7 @@ export default function ConditionsOfUsePage() {
                     <section>
                         <h2 className="text-xl font-bold text-gray-900 mb-3">10. Contact Us</h2>
                         <p>
-                            For questions about these Conditions of Use, contact us at <a href="mailto:support@fairprice.ng" className="text-emerald-600 font-medium hover:underline">support@fairprice.ng</a> or through the Help Center.
+                            For questions about these Conditions of Use, contact us at <a href="mailto:hello@fairprice.ng" className="text-emerald-600 font-medium hover:underline">hello@fairprice.ng</a> or through the Help Center.
                         </p>
                     </section>
                 </div>

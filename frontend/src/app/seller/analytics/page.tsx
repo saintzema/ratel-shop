@@ -13,7 +13,7 @@ import {
     Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 
@@ -26,8 +26,8 @@ export default function AnalyticsPage() {
     const router = useRouter();
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
-        const seller = DemoStore.getCurrentSeller();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const seller = DataSyncService.getCurrentSeller();
         if (seller) {
             setSellerName(seller.business_name);
             setSellerPlan(seller.subscription_plan || "Starter");
@@ -35,7 +35,7 @@ export default function AnalyticsPage() {
         if (!sellerId) return;
 
         const loadData = () => {
-            const orders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+            const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
             const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
             const totalOrders = orders.length;
             const simulatedVisits = totalOrders === 0 ? 0 : totalOrders * 12 + Math.floor(Math.random() * 50);
@@ -90,10 +90,10 @@ export default function AnalyticsPage() {
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
                 {[
-                    { title: "Total Revenue", value: formatPrice(stats.revenue), trend: "+14.5%", up: true },
-                    { title: "Orders", value: stats.orders.toString(), trend: "+5.2%", up: true },
-                    { title: "Conversion Rate", value: `${stats.conversion.toFixed(1)}%`, trend: "-0.4%", up: false },
-                    { title: "Store Visits", value: stats.visits.toLocaleString(), trend: "+22.1%", up: true }
+                    { title: "Total Revenue", value: formatPrice(stats.revenue), trend: stats.revenue > 0 ? "+14.5%" : "0.0%", up: stats.revenue > 0 },
+                    { title: "Orders", value: stats.orders.toString(), trend: stats.orders > 0 ? "+5.2%" : "0.0%", up: stats.orders > 0 },
+                    { title: "Conversion Rate", value: `${stats.conversion.toFixed(1)}%`, trend: stats.conversion > 0 ? "-0.4%" : "0.0%", up: false },
+                    { title: "Store Visits", value: stats.visits.toLocaleString(), trend: stats.visits > 0 ? "+22.1%" : "0.0%", up: stats.visits > 0 }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white rounded-[24px] border border-gray-100 p-6 shadow-sm">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">{stat.title}</p>

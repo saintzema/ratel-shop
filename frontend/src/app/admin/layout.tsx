@@ -19,13 +19,15 @@ import {
     MessageSquare,
     Inbox,
     Vault,
-    Megaphone
+    Megaphone,
+    Wallet as LucideWallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useAuth } from "@/context/AuthContext";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
@@ -37,6 +39,7 @@ export default function AdminLayout({
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const pathname = usePathname();
     const router = useRouter();
+    const { user } = useAuth();
     const [searchQuery, setSearchQuery] = useState("");
 
     const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -47,13 +50,15 @@ export default function AdminLayout({
 
     const navItems = [
         { label: "Overview", href: "/admin/dashboard", icon: LayoutDashboard },
-        { label: "Concierge Ops", href: "/admin/orders", icon: MessageSquare },
+        { label: "Platform Orders", href: "/admin/orders", icon: Package },
+        { label: "Concierge Ops", href: "/admin/inbox", icon: MessageSquare },
         { label: "User Directory", href: "/admin/users", icon: Users },
         { label: "Catalog Control", href: "/admin/products", icon: Package },
         { label: "Governance", href: "/admin/governance", icon: ShieldCheck },
         { label: "Escrow", href: "/admin/escrow", icon: Vault },
-        { label: "Support Inbox", href: "/admin/inbox", icon: Inbox },
+        { label: "Payouts", href: "/admin/payouts", icon: LucideWallet },
         { label: "Sponsored Ads", href: "/admin/ads", icon: Megaphone },
+        { label: "Push Alerts", href: "/admin/notifications", icon: Bell },
         { label: "Settings", href: "/admin/settings", icon: Settings },
     ];
 
@@ -63,7 +68,7 @@ export default function AdminLayout({
                 {/* Mobile overlay */}
                 {isSidebarOpen && (
                     <div
-                        className="fixed inset-0 bg-black/40 z-40 md:hidden"
+                        className="fixed inset-0 bg-black/40 z-40 lg:hidden"
                         onClick={() => setIsSidebarOpen(false)}
                     />
                 )}
@@ -71,7 +76,7 @@ export default function AdminLayout({
                 {/* Sidebar */}
                 <aside
                     className={cn(
-                        "fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto",
+                        "fixed inset-y-0 left-0 z-50 w-[280px] bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto",
                         isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                     )}
                 >
@@ -132,12 +137,12 @@ export default function AdminLayout({
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col h-full overflow-hidden">
                     {/* Top bar */}
-                    <header className="flex items-center justify-between px-6 md:px-10 py-4 bg-[#0F1B12]/90 backdrop-blur-xl border-b border-[#0F1B12]/10 sticky top-0 z-30">
+                    <header className="flex items-center justify-between px-6 md:px-10 py-4 bg-gradient-to-r from-emerald-800 via-emerald-900 to-emerald-800 backdrop-blur-xl border-b border-emerald-700/30 sticky top-0 z-30">
                         <div className="flex items-center gap-4">
                             <Button
                                 size="icon"
                                 variant="ghost"
-                                className="md:hidden h-10 w-10 bg-gray-50"
+                                className="lg:hidden h-10 w-10 bg-gray-50"
                                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                             >
                                 {isSidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -171,13 +176,13 @@ export default function AdminLayout({
                             <DropdownMenu>
                                 <DropdownMenuTrigger className="outline-none">
                                     <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black flex items-center justify-center shadow-lg shadow-indigo-500/20 cursor-pointer hover:scale-105 transition-transform">
-                                        AD
+                                        {user?.name?.slice(0, 2).toUpperCase() || "AD"}
                                     </div>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2 border-gray-100 shadow-xl mt-2 z-50 bg-white">
                                     <DropdownMenuLabel className="font-black text-gray-900 text-sm py-2 px-3">
-                                        Superadmin
-                                        <p className="text-xs font-bold text-gray-500 mt-0.5">admin@globalstores.shop</p>
+                                        {user?.name || "Superadmin"}
+                                        <p className="text-xs font-bold text-gray-500 mt-0.5">{user?.email || "admin@globalstores.shop"}</p>
                                     </DropdownMenuLabel>
                                     <DropdownMenuSeparator className="bg-gray-100 my-1" />
                                     <Link href="/admin/settings">

@@ -27,7 +27,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 
 export default function UserDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
@@ -38,13 +38,18 @@ export default function UserDirectory() {
     const [editingCommissionSeller, setEditingCommissionSeller] = useState<any | null>(null);
     const [commissionInput, setCommissionInput] = useState("");
 
+    // Delete Confirmation State
+    const [deletingUser, setDeletingUser] = useState<any | null>(null);
+    const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
+    const [deleteLoading, setDeleteLoading] = useState(false);
+
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const load = async () => {
             setLoading(true);
             try {
-                // Try API first, fall back to DemoStore
+                // Try API first, fall back to DataSyncService
                 let sellers: any[] = [];
                 let buyers: any[] = [];
 
@@ -58,15 +63,15 @@ export default function UserDirectory() {
                     sellers = Array.isArray(sellersData) ? sellersData : [];
                     buyers = Array.isArray(usersData) ? usersData : [];
                 } catch {
-                    // API down — use DemoStore
+                    // API down — use DataSyncService
                 }
 
-                // Always merge with DemoStore so newly registered sellers appear
-                const dsSellers = DemoStore.getSellers();
-                const dsOrders = DemoStore.getOrders();
-                const dsUsers = DemoStore.getAllUsers ? DemoStore.getAllUsers() : [];
+                // Always merge with DataSyncService so newly registered sellers appear
+                const dsSellers = DataSyncService.getSellers();
+                const dsOrders = DataSyncService.getOrders();
+                const dsUsers = DataSyncService.getAllUsers ? DataSyncService.getAllUsers() : [];
 
-                // Merge sellers: DemoStore is authoritative for recent registrations  
+                // Merge sellers: DataSyncService is authoritative for recent registrations  
                 const sellerIdSet = new Set(sellers.map((s: any) => s.id));
                 for (const ds of dsSellers) {
                     if (!sellerIdSet.has(ds.id)) {
@@ -97,7 +102,7 @@ export default function UserDirectory() {
                 const sellerIds = new Set(mappedSellers.map((s: any) => s.id));
                 const sellerEmails = new Set(mappedSellers.map((s: any) => s.owner_email || s.email).filter(Boolean));
 
-                // Merge buyers from API + DemoStore
+                // Merge buyers from API + DataSyncService
                 const buyerIdSet = new Set<string>();
                 const allBuyers: any[] = [];
 
@@ -116,7 +121,7 @@ export default function UserDirectory() {
                         display_name: u.name || u.full_name || u.email?.split("@")[0] || "Buyer",
                         owner_email: u.email,
                         avatar_url: u.avatarUrl || u.avatar_url || null,
-                        role: "buyer",
+                        role: u.role && u.role !== "customer" ? u.role : "buyer",
                         is_buyer: true,
                         status: u.status || (u.is_active === false ? "suspended" : "active"),
                         created_at: u.created_at || new Date().toISOString(),
@@ -142,10 +147,10 @@ export default function UserDirectory() {
             }
         };
         load();
-        window.addEventListener("demo-store-update", load);
+        window.addEventListener("sync-store-update", load);
         window.addEventListener("storage", load);
         return () => {
-            window.removeEventListener("demo-store-update", load);
+            window.removeEventListener("sync-store-update", load);
             window.removeEventListener("storage", load);
         };
     }, []);
@@ -168,7 +173,7 @@ export default function UserDirectory() {
 
         const rate = parseFloat(commissionInput) / 100;
         if (!isNaN(rate)) {
-            DemoStore.updateSeller(editingCommissionSeller.id, { commission_rate: rate });
+            DataSyncService.updateSeller(editingCommissionSeller.id, { commission_rate: rate });
 
             // Update local state to reflect change immediately
             setParticipants(prev => prev.map(p =>
@@ -181,6 +186,49 @@ export default function UserDirectory() {
         setEditingCommissionSeller(null);
     };
 
+    const handleDeleteUser = async () => {
+        if (!deletingUser) return;
+        const targetEmail = deletingUser.owner_email || deletingUser.email || "";
+        if (deleteConfirmEmail.trim().toLowerCase() !== targetEmail.trim().toLowerCase()) {
+            alert("Email does not match. Deletion cancelled.");
+            return;
+        }
+        setDeleteLoading(true);
+        try {
+            // Try API cascade delete first
+            const res = await fetch(`/api/users/${deletingUser.id}`, { method: "DELETE" });
+            if (!res.ok) {
+                // Fallback: remove from DataSyncService
+                if (deletingUser.role === "seller") {
+                    DataSyncService.updateSeller(deletingUser.id, { status: "banned" as any });
+                }
+            }
+            // Remove from local UI
+            setParticipants(prev => prev.filter(p => p.id !== deletingUser.id));
+            window.dispatchEvent(new Event("sync-store-update"));
+            alert(`User ${deletingUser.display_name} has been removed.`);
+        } catch (e) {
+            console.error("Delete failed:", e);
+            alert("Failed to delete user. They may have linked orders — try suspending instead.");
+        } finally {
+            setDeleteLoading(false);
+            setDeletingUser(null);
+            setDeleteConfirmEmail("");
+        }
+    };
+
+    const handleToggleSuspend = (p: any) => {
+        const newStatus = p.status === "suspended" ? "active" : "suspended";
+        if (p.role === "seller") {
+            DataSyncService.updateSeller(p.id, { status: newStatus as any });
+        }
+        setParticipants(prev => prev.map(participant =>
+            participant.id === p.id ? { ...participant, status: newStatus } : participant
+        ));
+        window.dispatchEvent(new Event("sync-store-update"));
+        alert(`${p.display_name} has been ${newStatus === "suspended" ? "suspended" : "reactivated"}.`);
+    };
+
     return (
         <div className="space-y-8">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -189,16 +237,16 @@ export default function UserDirectory() {
                     <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">{participants.length} total accounts</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="bg-white p-1.5 rounded-2xl border border-gray-100 flex gap-1">
+                    <div className="bg-white/40 backdrop-blur-md p-1.5 rounded-3xl border border-white/50 shadow-sm flex gap-1">
                         {(["all", "sellers", "buyers", "pending"] as const).map((v) => (
                             <button
                                 key={v}
                                 onClick={() => setView(v)}
                                 className={cn(
-                                    "px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all",
+                                    "px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all",
                                     view === v
-                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-indigo-600 text-white shadow-lg"
-                                        : "text-gray-400 hover:text-gray-600"
+                                        ? v === "pending" ? "bg-amber-500 text-white shadow-lg" : "bg-emerald-600 text-white shadow-lg"
+                                        : "text-emerald-800/60 hover:text-emerald-900 hover:bg-white/50"
                                 )}
                             >
                                 {v === "pending" ? `⏳ Pending (${participants.filter(p => p.status === "pending" || p.kyc_status === "pending").length})` : v}
@@ -209,35 +257,36 @@ export default function UserDirectory() {
             </div>
 
             <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-emerald-600/50" />
                 <Input
                     placeholder="Search by name, email, business, or ID..."
-                    className="pl-12 h-12 bg-white border-gray-100 rounded-2xl text-sm font-medium shadow-sm"
+                    className="pl-12 h-14 bg-white/40 backdrop-blur-md border-[1.5px] border-white/60 rounded-3xl text-sm font-bold shadow-sm placeholder:text-emerald-800/40 focus:bg-white/60 transition-all text-emerald-900"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                 />
             </div>
 
-            <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+            <div className="bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden relative">
+                <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                <div className="overflow-x-auto -webkit-overflow-scrolling-touch relative z-10">
                     <table className="w-full min-w-[700px] text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50/50">
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">User</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Role & Status</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Activity</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Joined</th>
-                                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Actions</th>
+                            <tr className="bg-white/20 text-[10px] font-black uppercase tracking-widest text-emerald-800 border-b border-white/30 backdrop-blur-md">
+                                <th className="px-6 py-4">User</th>
+                                <th className="px-6 py-4">Role & Status</th>
+                                <th className="px-6 py-4">Activity</th>
+                                <th className="px-6 py-4">Joined</th>
+                                <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-white/20">
                             {filtered.map((p) => (
-                                <tr key={p.id} className="group hover:bg-gray-50/50 transition-colors">
+                                <tr key={p.id} className="group hover:bg-white/40 transition-all">
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className={cn(
-                                                "h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm shadow-sm border overflow-hidden shrink-0",
-                                                p.role === "seller" ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-blue-50 text-blue-600 border-blue-100"
+                                                "h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm shadow-md border border-white/60 overflow-hidden shrink-0 backdrop-blur-sm",
+                                                p.role === "seller" ? "bg-emerald-100/50 text-emerald-700" : "bg-white/60 text-emerald-800"
                                             )}>
                                                 {p.avatar_url || p.logo_url ? (
                                                     <img src={p.avatar_url || p.logo_url} alt="" className="w-full h-full object-cover" />
@@ -246,7 +295,7 @@ export default function UserDirectory() {
                                                 )}
                                             </div>
                                             <div className="min-w-0">
-                                                <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-sm hover:text-indigo-600 hover:underline block truncate max-w-[200px]">
+                                                <Link href={`/admin/users/${p.id}`} className="font-bold text-gray-900 text-sm hover:text-emerald-700 hover:underline block truncate max-w-[200px]">
                                                     {p.display_name}
                                                 </Link>
                                                 <p className="text-[11px] text-gray-400 truncate">{p.owner_email || p.email || p.id}</p>
@@ -255,20 +304,21 @@ export default function UserDirectory() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5">
                                                 <span className={cn(
-                                                    "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
-                                                    p.role === "seller" ? "bg-indigo-100 text-indigo-700" : "bg-zinc-100 text-zinc-700"
+                                                    "text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border border-white/50 shadow-sm",
+                                                    p.role === "admin" ? "bg-purple-100/50 text-purple-700" :
+                                                    p.role === "seller" ? "bg-emerald-100/50 text-emerald-700" : "bg-white/60 text-emerald-800"
                                                 )}>
                                                     {p.role}
                                                 </span>
                                                 {p.verified && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
                                                 <span className={cn(
-                                                    "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
-                                                    p.status === "active" ? "bg-emerald-50 text-emerald-600" :
-                                                        p.status === "pending" ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
+                                                    "text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border border-white/50 shadow-sm",
+                                                    (p.status === "active" && p.kyc_status !== "pending") ? "bg-emerald-50/50 text-emerald-700" :
+                                                        (p.status === "pending" || p.kyc_status === "pending") ? "bg-amber-50 text-amber-600" : "bg-rose-50 text-rose-600"
                                                 )}>
-                                                    {p.status || "active"}
+                                                    {p.status === "pending" || p.kyc_status === "pending" ? "pending" : p.status || "active"}
                                                 </span>
                                             </div>
                                         </div>
@@ -283,34 +333,88 @@ export default function UserDirectory() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-sm text-gray-500">
-                                        {p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}
+                                        <div className="font-bold text-gray-900">
+                                            {p.created_at ? new Date(p.created_at).toLocaleDateString() : "—"}
+                                        </div>
+                                        {p.created_at && (
+                                            <div className="text-[11px] text-gray-400 mt-0.5 font-medium tracking-tight">
+                                                {(() => {
+                                                    const created = new Date(p.created_at);
+                                                    const now = new Date();
+                                                    const diffTime = Math.max(0, now.getTime() - created.getTime());
+                                                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                                    if (diffDays === 0) return "Joined today";
+                                                    if (diffDays === 1) return "1 day on platform";
+                                                    if (diffDays < 30) return `${diffDays} days on platform`;
+                                                    const diffMonths = Math.floor(diffDays / 30);
+                                                    if (diffMonths < 12) return `${diffMonths} month${diffMonths > 1 ? "s" : ""} on platform`;
+                                                    const diffYears = (diffDays / 365.25).toFixed(1);
+                                                    return `${diffYears} year${parseFloat(diffYears) > 1 ? "s" : ""} on platform`;
+                                                })()}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                             <Link href={`/admin/users/${p.id}`}>
-                                                <Button size="sm" variant="ghost" className="h-8 rounded-lg text-xs font-bold text-indigo-600 hover:bg-indigo-50">
+                                                <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-white/50 border-[0.5px] border-white/60 hover:bg-white hover:shadow-lg transition-all">
                                                     View
                                                 </Button>
                                             </Link>
+                                            {/* Approve: only for pending sellers */}
                                             {p.role === "seller" && (p.status === "pending" || p.kyc_status === "pending") && (
                                                 <Button
                                                     size="sm"
                                                     className="h-8 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold"
                                                     onClick={() => {
-                                                        DemoStore.updateSeller(p.id, { status: "active", verified: true, kyc_status: "approved" });
+                                                        DataSyncService.updateSeller(p.id, { status: "active", verified: true, kyc_status: "approved" });
                                                         setParticipants(prev => prev.map(participant =>
                                                             participant.id === p.id ? { ...participant, status: "active", verified: true, kyc_status: "approved" } : participant
                                                         ));
                                                         alert(`Seller ${p.display_name} has been approved.`);
-                                                        window.dispatchEvent(new Event("demo-store-update"));
+                                                        window.dispatchEvent(new Event("sync-store-update"));
                                                     }}
                                                 >
                                                     Approve
                                                 </Button>
                                             )}
-                                            <Button size="icon" variant="ghost" className="h-8 w-8 rounded-lg hover:bg-rose-50 hover:text-rose-600">
-                                                <Ban className="h-3.5 w-3.5" />
-                                            </Button>
+                                            {/* Activate: only for suspended users */}
+                                            {p.status === "suspended" && (
+                                                <Button
+                                                    size="sm"
+                                                    className="h-8 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold"
+                                                    onClick={() => handleToggleSuspend(p)}
+                                                >
+                                                    Activate
+                                                </Button>
+                                            )}
+                                            {/* Suspend: only for active users (not pending or already suspended) */}
+                                            {p.status === "active" && p.role !== "admin" && (
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600"
+                                                    title="Suspend user"
+                                                    onClick={() => handleToggleSuspend(p)}
+                                                >
+                                                    <ShieldOff className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
+                                            {/* Delete: always available except for admins */}
+                                            {p.role !== "admin" && (
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8 rounded-lg hover:bg-rose-50 hover:text-rose-600"
+                                                    title="Delete user"
+                                                    onClick={() => {
+                                                        setDeletingUser(p);
+                                                        setDeleteConfirmEmail("");
+                                                    }}
+                                                >
+                                                    <Ban className="h-3.5 w-3.5" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -360,6 +464,49 @@ export default function UserDirectory() {
                     <div className="flex justify-end gap-3 mt-4">
                         <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingCommissionSeller(null)}>Cancel</Button>
                         <Button className="h-12 px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSaveCommission}>Save Rate</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open) { setDeletingUser(null); setDeleteConfirmEmail(""); } }}>
+                <DialogContent className="sm:max-w-[450px]">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900 text-lg">⚠️ Delete User Account</DialogTitle>
+                    </DialogHeader>
+                    <div className="py-4 space-y-4">
+                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4">
+                            <p className="text-sm font-bold text-rose-800">This action is irreversible.</p>
+                            <p className="text-xs text-rose-600 mt-1">
+                                Deleting <strong>{deletingUser?.display_name}</strong> will remove their account, associated orders, and all linked data.
+                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                                Type the user's email to confirm:
+                            </Label>
+                            <p className="text-sm font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
+                                {deletingUser?.owner_email || deletingUser?.email || deletingUser?.id}
+                            </p>
+                            <Input
+                                type="email"
+                                placeholder="Type email here to confirm..."
+                                value={deleteConfirmEmail}
+                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-2">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => { setDeletingUser(null); setDeleteConfirmEmail(""); }}>Cancel</Button>
+                        <Button
+                            className="h-12 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                            onClick={handleDeleteUser}
+                            disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== (deletingUser?.owner_email || deletingUser?.email || "").trim().toLowerCase()}
+                        >
+                            {deleteLoading ? "Deleting..." : "Permanently Delete"}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

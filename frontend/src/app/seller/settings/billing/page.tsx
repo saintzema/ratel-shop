@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { CheckCircle2, Crown, Zap, TrendingUp, ShieldCheck, ArrowRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 
 const PLANS = [
@@ -85,7 +85,7 @@ export default function BillingPage() {
     const [paystackPlan, setPaystackPlan] = useState("");
 
     useEffect(() => {
-        const seller = DemoStore.getCurrentSeller();
+        const seller = DataSyncService.getCurrentSeller();
         if (seller?.subscription_plan) {
             setCurrentPlan(seller.subscription_plan);
         }
@@ -93,9 +93,9 @@ export default function BillingPage() {
 
     const handleUpgrade = (planName: string, priceStr: string) => {
         if (priceStr === "Free") {
-            const sellerId = DemoStore.getCurrentSellerId();
+            const sellerId = DataSyncService.getCurrentSellerId();
             if (sellerId) {
-                DemoStore.updateSeller(sellerId, { subscription_plan: planName as any });
+                DataSyncService.updateSeller(sellerId, { subscription_plan: planName as any });
                 setCurrentPlan(planName);
                 window.dispatchEvent(new Event("storage"));
             }
@@ -111,11 +111,38 @@ export default function BillingPage() {
     };
 
     const handlePaystackSuccess = (reference: string) => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const seller = DataSyncService.getCurrentSeller();
         if (sellerId) {
-            DemoStore.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
+            DataSyncService.updateSeller(sellerId, { subscription_plan: paystackPlan as any });
             setCurrentPlan(paystackPlan);
             window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
+            
+            // Send Notification
+            if (seller) {
+                DataSyncService.addNotification({
+                     userId: seller.owner_email || seller.id,
+                     type: "order", // Using order icon for billing/admin messages
+                     message: `🚀 Congratulations! Your store has been upgraded to the ${paystackPlan} plan. Enjoy your new premium features!`,
+                     link: "/seller/dashboard"
+                });
+                
+                // Fire and forget email attempt
+                fetch('/api/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: seller.owner_email || 'demo@fairprice.store',
+                        subject: `Store Upgraded to ${paystackPlan}`,
+                        type: 'security_alert', // Using generic template
+                        data: {
+                            storeName: seller.business_name,
+                            message: `Your store has been successfully upgraded to the ${paystackPlan} plan.`
+                        }
+                    })
+                }).catch(() => {});
+            }
         }
         setShowPaystack(false);
     };
@@ -155,7 +182,7 @@ export default function BillingPage() {
                     return (
                         <div
                             key={plan.name}
-                            className={`relative bg-white rounded-[32px] border flex flex-col transition-all duration-300 ${plan.popular ? 'border-brand-green-500 shadow-[0_8px_40px_rgba(22,163,74,0.12)] scale-105 z-10' : 'border-gray-200 hover:border-gray-300 hover:shadow-xl'}`}
+                            className={`relative bg-white rounded-[32px] border flex flex-col transition-all duration-300 ${plan.popular ? 'border-brand-green-500 shadow-[0_8px_40px_rgba(22,163,74,0.12)] md:scale-105 z-10' : 'border-gray-200 hover:border-gray-300 hover:shadow-xl'}`}
                         >
                             {plan.popular && (
                                 <div className="absolute -top-4 left-0 right-0 flex justify-center">
@@ -186,7 +213,7 @@ export default function BillingPage() {
                             <div className="p-8 pt-6 flex-1 flex flex-col">
                                 <ul className="space-y-4 mb-8 flex-1">
                                     {plan.features.map((feature, i) => (
-                                        <li key={i} className="flex flex-items gap-3">
+                                        <li key={i} className="flex items-center gap-3">
                                             <CheckCircle2 className={`h-5 w-5 shrink-0 ${plan.popular ? 'text-brand-green-500' : 'text-gray-400'}`} />
                                             <span className="text-[13px] font-medium text-gray-700">{feature}</span>
                                         </li>
@@ -196,7 +223,7 @@ export default function BillingPage() {
                                 <Button
                                     onClick={() => handleUpgrade(plan.name, plan.price)}
                                     disabled={isCurrent || isProcessing}
-                                    className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex flex-items gap-2 items-center justify-center ${isCurrent
+                                    className={`w-full h-14 rounded-2xl text-[13px] font-black uppercase tracking-widest transition-all shadow-sm flex items-center justify-center gap-2 ${isCurrent
                                         ? 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
                                         : plan.popular
                                             ? 'bg-brand-green-600 hover:bg-brand-green-700 text-white shadow-brand-green-600/20 hover:shadow-lg'
@@ -245,7 +272,7 @@ export default function BillingPage() {
             {showPaystack && (
                 <PaystackCheckout
                     amount={paystackAmount}
-                    email={DemoStore.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    email={DataSyncService.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
                     onSuccess={handlePaystackSuccess}
                     onClose={() => setShowPaystack(false)}
                     autoStart={true}

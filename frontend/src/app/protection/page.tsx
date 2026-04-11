@@ -21,7 +21,7 @@ export default function ProtectionPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {[
                                 { icon: Lock, title: "Escrow Protection", desc: "Your money is held securely until you confirm the item is exactly as described." },
-                                { icon: RotateCcw, title: "Easy Returns", desc: "Hassle-free returns within 7 days if the item doesn't match the listing." },
+                                { icon: RotateCcw, title: "Easy Returns", desc: "Hassle-free 14-day returns for defective items or Change of Mind (New Only condition)." },
                                 { icon: MessageSquare, title: "Dispute Resolution", desc: "Our dedicated team mediates any issues between buyers and sellers within 24 hours." },
                             ].map(c => (
                                 <div key={c.title} className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
@@ -39,7 +39,7 @@ export default function ProtectionPage() {
                                 "You place an order and pay securely through Paystack",
                                 "Your funds are held in FairPrice escrow — the seller can't access them yet",
                                 "The seller ships your order with full tracking",
-                                "You receive the item and have 7 days to inspect it",
+                                "You receive the item and have 14 days to inspect it",
                                 "Click 'Confirm Delivery' when satisfied — funds are released to the seller",
                                 "If there's an issue, click 'Initiate Return' and our team steps in",
                             ].map((s, i) => (

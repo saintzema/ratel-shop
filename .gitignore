@@ -1,6 +1,9 @@
-# Root ignored files
+# Local Data & Enviroments
+database/
+venv/
 backend/database/
 backend/venv/
+
 .DS_Store
 node_modules/
 dist/

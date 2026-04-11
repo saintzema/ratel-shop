@@ -7,7 +7,7 @@ import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, 
 import { formatPrice } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
 import { PriceEngine } from "@/lib/price-engine";
 
@@ -210,14 +210,20 @@ export default function NewProduct() {
     };
 
     const handleSubmit = () => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId || !formData.name || !formData.price) return;
+
+        const generateSlug = (name: string) => {
+            const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+            const randomSuffix = Math.random().toString(36).substring(2, 8);
+            return `${baseSlug}-${randomSuffix}`;
+        };
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
         const newProduct = {
-            id: `seller-${Date.now()}`,
+            id: generateSlug(formData.name),
             seller_id: sellerId,
-            seller_name: DemoStore.getCurrentSeller()?.business_name || "New Store",
+            seller_name: DataSyncService.getCurrentSeller()?.business_name || "New Store",
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,
@@ -237,7 +243,7 @@ export default function NewProduct() {
             created_at: new Date().toISOString(),
         };
 
-        DemoStore.addRawProduct(newProduct);
+        DataSyncService.addRawProduct(newProduct);
         router.push("/seller/products");
     };
 

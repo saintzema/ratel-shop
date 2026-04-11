@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { DEMO_PRODUCTS } from '@/lib/data';
+import { SEED_PRODUCTS } from '@/lib/data';
+import { db } from '@/lib/db';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
@@ -9,7 +10,7 @@ const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-
    (Inspired by Google ADK Personalized Shopping Agent)
    ────────────────────────────────────────────────────────── */
 
-function searchCatalog(keywords: string, catalogue: any[], searchCache: any[], maxBudget?: number): any {
+async function searchCatalog(keywords: string, maxBudget?: number): Promise<any> {
     const q = keywords.toLowerCase();
     const tokens = q.split(/\s+/).filter(t => t.length > 2);
 
@@ -64,11 +65,19 @@ function searchCatalog(keywords: string, catalogue: any[], searchCache: any[], m
         return s;
     };
 
-    // Search both catalog and cache
-    const allProducts = [
-        ...catalogue.map(p => ({ ...p, _src: 'catalog' })),
-        ...searchCache.map(p => ({ ...p, _src: 'cache' }))
-    ];
+    // Fetch live products directly from the database
+    let allProducts: any[] = [];
+    try {
+        const dbProducts = await db.product.findMany({
+            where: { isActive: true },
+            take: 300, 
+            select: { id: true, name: true, price: true, category: true, description: true }
+        });
+        allProducts = dbProducts.map(p => ({ ...p, _src: 'catalog' }));
+    } catch (e) {
+        // Fallback to Seed if database is offline
+        allProducts = SEED_PRODUCTS.map(p => ({ ...p, _src: 'catalog' }));
+    }
 
     let results = allProducts
         .map(p => ({ ...p, _score: score(p) }))
@@ -96,9 +105,20 @@ function searchCatalog(keywords: string, catalogue: any[], searchCache: any[], m
     };
 }
 
-function exploreProduct(productName: string, catalogue: any[], searchCache: any[]): any {
+async function exploreProduct(productName: string): Promise<any> {
     const q = productName.toLowerCase();
-    const allProducts = [...catalogue, ...searchCache];
+    let allProducts: any[] = [];
+    try {
+        const dbProducts = await db.product.findMany({
+            where: { isActive: true },
+            take: 300
+        });
+        // We remap camelCase from Prisma back into Ziva's expected format
+        allProducts = dbProducts.map(p => ({ ...p, original_price: p.originalPrice, avg_rating: p.avgRating, review_count: p.reviewCount, seller_id: p.sellerId, seller_name: p.sellerName, price_flag: p.priceFlag }));
+    } catch {
+        allProducts = SEED_PRODUCTS;
+    }
+
     const match = allProducts.find(p => (p.name || '').toLowerCase().includes(q)) ||
         allProducts.find(p => {
             const tokens = q.split(/\s+/).filter(t => t.length > 2);
@@ -128,8 +148,18 @@ function exploreProduct(productName: string, catalogue: any[], searchCache: any[
     };
 }
 
-function comparePrices(productNames: string[], catalogue: any[], searchCache: any[]): any {
-    const allProducts = [...catalogue, ...searchCache];
+async function comparePrices(productNames: string[]): Promise<any> {
+    let allProducts: any[] = [];
+    try {
+        const dbProducts = await db.product.findMany({
+            where: { isActive: true },
+            take: 300
+        });
+        allProducts = dbProducts.map(p => ({ ...p, original_price: p.originalPrice, avg_rating: p.avgRating, price_flag: p.priceFlag }));
+    } catch {
+        allProducts = SEED_PRODUCTS;
+    }
+
     const products = productNames.map(name => {
         const q = name.toLowerCase();
         const match = allProducts.find(p => (p.name || '').toLowerCase().includes(q)) ||
@@ -217,7 +247,7 @@ export async function POST(req: Request) {
     try {
         const { message, history, userName, catalogue, searchCache, browsingHistory } = await req.json();
 
-        const productsToUse = catalogue || DEMO_PRODUCTS;
+        const productsToUse = catalogue || SEED_PRODUCTS;
         const cacheToUse = searchCache || [];
 
         // Build product context summary (compact)
@@ -312,13 +342,13 @@ After using tools, respond with this JSON structure:
             // Execute the tool
             switch (name) {
                 case "search_catalog":
-                    toolResult = searchCatalog(args.keywords, productsToUse, cacheToUse, args.max_budget);
+                    toolResult = await searchCatalog(args.keywords, args.max_budget);
                     break;
                 case "explore_product":
-                    toolResult = exploreProduct(args.product_name, productsToUse, cacheToUse);
+                    toolResult = await exploreProduct(args.product_name);
                     break;
                 case "compare_prices":
-                    toolResult = comparePrices(args.product_names || [], productsToUse, cacheToUse);
+                    toolResult = await comparePrices(args.product_names || []);
                     break;
                 default:
                     toolResult = { error: `Unknown tool: ${name}` };

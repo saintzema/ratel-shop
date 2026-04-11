@@ -1,0 +1,364 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, ShieldAlert, CheckCircle, Package, Send, AlertTriangle, MessageSquare, Bot, Image as ImageIcon, RotateCcw, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { useNotification } from "@/components/ui/NotificationProvider";
+import { DataSyncService } from "@/lib/sync-store";
+import { Order } from "@/lib/types";
+import { formatDateExact } from "@/lib/utils";
+
+export default function AdminOrdersTakeoverPage() {
+    const searchParams = useSearchParams();
+    const orderIdFromUrl = searchParams.get("order");
+
+    const [activeTab, setActiveTab] = useState<"all" | "active_chats" | "flagged">("active_chats");
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+    const [chatInput, setChatInput] = useState("");
+    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
+    const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+    const [hasAutoSelected, setHasAutoSelected] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const { showNotification } = useNotification();
+
+    useEffect(() => {
+        const load = () => {
+            const all = DataSyncService.getOrders();
+
+            // Build list: all orders with chat messages
+            let chatOrders = all.filter(o => o.chat_messages && o.chat_messages.length > 0);
+
+            // If we have an order ID from URL, ensure that order is in the list
+            if (orderIdFromUrl) {
+                const targetOrder = all.find(o => o.id === orderIdFromUrl);
+                if (targetOrder) {
+                    // Initialize chat if this order has no messages yet
+                    if (!targetOrder.chat_messages || targetOrder.chat_messages.length === 0) {
+                        DataSyncService.addOrderMessage(
+                            targetOrder.id,
+                            "system",
+                            "Concierge session started by Admin."
+                        );
+                        // Re-fetch after initializing
+                        const refreshed = DataSyncService.getOrders();
+                        chatOrders = refreshed.filter(o => o.chat_messages && o.chat_messages.length > 0);
+                    }
+
+                    // Ensure it's in the list (deduplicate)
+                    if (!chatOrders.find(o => o.id === targetOrder.id)) {
+                        const freshTarget = DataSyncService.getOrders().find(o => o.id === orderIdFromUrl);
+                        if (freshTarget) chatOrders.unshift(freshTarget);
+                    }
+
+                    // Auto-select it on first load
+                    if (!hasAutoSelected) {
+                        const freshTarget = DataSyncService.getOrders().find(o => o.id === orderIdFromUrl);
+                        if (freshTarget) {
+                            setSelectedOrder(freshTarget);
+                            setHasAutoSelected(true);
+                        }
+                    }
+                }
+            }
+
+            setActiveOrders(chatOrders);
+
+            // Update selected order if it exists
+            if (selectedOrder) {
+                const updated = DataSyncService.getOrders().find(o => o.id === selectedOrder.id);
+                if (updated) setSelectedOrder(updated);
+                // Mark as read when selected
+                DataSyncService.markOrderReadAsAdmin(selectedOrder.id);
+            }
+        };
+        load();
+        window.addEventListener("sync-store-update", load);
+        window.addEventListener("storage", load);
+        return () => {
+            window.removeEventListener("sync-store-update", load);
+            window.removeEventListener("storage", load);
+        };
+    }, [selectedOrder?.id, orderIdFromUrl, hasAutoSelected]);
+
+    const handleTakeover = () => {
+        if (!selectedOrder) return;
+        DataSyncService.addOrderMessage(selectedOrder.id, "system", "Human agent (Superadmin) has joined the chat.");
+        DataSyncService.updateOrder(selectedOrder.id, { zivaActive: false });
+        showNotification({
+            type: "success",
+            title: "Chat Taken Over",
+            message: `You are now interacting directly with ${selectedOrder.customer_name || 'Customer'}`
+        });
+    };
+
+    const handleHandback = () => {
+        if (!selectedOrder) return;
+        DataSyncService.updateOrder(selectedOrder.id, { zivaActive: true });
+        DataSyncService.addOrderMessage(selectedOrder.id, "system", "Chat has been handed back to Ziva AI.");
+        showNotification({
+            type: "info",
+            title: "Handed Back",
+            message: `Ziva AI is now managing the chat for ${selectedOrder.customer_name || 'Customer'}`
+        });
+    };
+
+
+
+    const handleSendMessage = () => {
+        if (!chatInput.trim() || !selectedOrder) return;
+        
+        if (selectedOrder.zivaActive) {
+            handleTakeover();
+        }
+        
+        DataSyncService.addOrderMessage(selectedOrder.id, "admin", chatInput, undefined, undefined, replyingTo || undefined);
+        setChatInput("");
+        setReplyingTo(null);
+    };
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedOrder) return;
+
+        if (selectedOrder.zivaActive) {
+            handleTakeover();
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64String = reader.result as string;
+            DataSyncService.addOrderMessage(selectedOrder.id, "admin", "Sent an image", base64String, undefined, replyingTo || undefined);
+            setReplyingTo(null);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    return (
+        <div className="p-6 md:p-8 max-w-7xl mx-auto font-sans">
+            <div className="mb-8 flex justify-between items-end">
+                <div>
+                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Concierge Command Center</h1>
+                    <p className="text-gray-500 mt-2 font-medium">Monitor live Ziva AI interactions and intervene in customer orders.</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100dvh-200px)] min-h-[600px]">
+                {/* Left Column: Orders List */}
+                <div className="lg:col-span-1 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 flex gap-2">
+                        <Button
+                            variant={activeTab === "active_chats" ? "default" : "outline"}
+                            className={`flex-1 ${activeTab === "active_chats" ? "bg-black hover:bg-gray-800" : "text-gray-600 bg-gray-50 hover:bg-gray-100"}`}
+                            onClick={() => setActiveTab("active_chats")}
+                        >
+                            Live Chats
+                        </Button>
+                        <Button
+                            variant={activeTab === "flagged" ? "default" : "outline"}
+                            className={`flex-1 ${activeTab === "flagged" ? "bg-red-600 hover:bg-red-700 text-white border-transparent" : "text-gray-600 bg-gray-50 hover:bg-gray-100"}`}
+                            onClick={() => setActiveTab("flagged")}
+                        >
+                            Needs Help
+                        </Button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                        {activeOrders
+                            // Need to assume 'flagged' comes from user sentiment, right now we mock it as false unless we have a specific property. Let's just mock it.
+                            .filter(o => activeTab === "flagged" ? false : true)
+                            .map(order => (
+                                <div
+                                    key={order.id}
+                                    onClick={() => {
+                                        setSelectedOrder(order);
+                                        DataSyncService.markOrderReadAsAdmin(order.id);
+                                    }}
+                                    className={`p-4 rounded-xl cursor-pointer border transition-all ${selectedOrder?.id === order.id ? "border-black shadow-md bg-gray-50" : "border-gray-100 hover:border-gray-300 hover:shadow-sm"} relative`}
+                                >
+                                    {order.unread_admin && (
+                                        <div className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white shadow-sm" />
+                                    )}
+                                    <div className="flex justify-between items-start mb-2">
+                                        <span className="font-bold text-gray-900 line-clamp-1">{order.customer_name || 'Anonymous User'}</span>
+                                        <span className="text-[10px] text-gray-500 font-mono shrink-0 ml-2">#{order.id.substring(0, 8)}</span>
+                                    </div>
+                                    <p className="text-xs text-gray-600 line-clamp-1 mb-3">{order.product?.name || order.product_id}</p>
+
+                                    <div className="flex justify-between items-center">
+                                        <Badge className={`${order.zivaActive ? "bg-brand-green-100 text-brand-green-700" : "bg-blue-100 text-blue-700"} border-none text-[10px]`}>
+                                            {order.zivaActive ? <><Bot className="w-3 h-3 mr-1" /> Ziva Active</> : <><ShieldAlert className="w-3 h-3 mr-1" /> Admin Handling</>}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            ))}
+                    </div>
+                </div>
+
+                {/* Right Column: Active Chat Interface */}
+                <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col overflow-hidden relative">
+                    {selectedOrder ? (
+                        <>
+                            {/* Chat Header */}
+                            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                <div>
+                                    <h2 className="font-bold text-lg text-gray-900">{selectedOrder.customer_name || 'Customer'}</h2>
+                                    <p className="text-xs text-gray-500 font-medium">Order: <span className="font-mono text-gray-900">#{selectedOrder.id.substring(0, 8)}</span> • {selectedOrder.product?.name || selectedOrder.product_id} • {formatDateExact(selectedOrder.created_at)}</p>
+                                </div>
+                                {selectedOrder.zivaActive ? (
+                                    <Button onClick={handleTakeover} className="bg-black hover:bg-gray-800 text-white font-bold h-9">
+                                        <MessageSquare className="w-4 h-4 mr-2" /> Takeover from Ziva
+                                    </Button>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 px-3 py-1 font-bold">
+                                            You are managing this chat
+                                        </Badge>
+                                        <Button onClick={handleHandback} variant="outline" size="sm" className="text-emerald-700 border-emerald-200 hover:bg-emerald-50 font-bold h-8 rounded-lg">
+                                            <Bot className="w-3 h-3 mr-1.5" /> Hand Back to Ziva
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Threat / Urgency Banner */}
+                            {selectedOrder.zivaActive && selectedOrder.unread_admin && (
+                                <div className="bg-red-50 px-4 py-2 border-b border-red-100 flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                                    <span className="text-xs font-bold text-red-800">High Urgency: Unread messages from customer. Human intervention recommended.</span>
+                                </div>
+                            )}
+
+                            {/* Messages Area */}
+                            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/30">
+                                {selectedOrder.chat_messages?.map((msg: any) => {
+                                    const isAdminOrSystem = msg.sender === "admin" || msg.sender === "system";
+                                    return (
+                                    <div key={msg.id} className={`flex ${msg.sender === "user" ? "justify-start" : msg.sender === "system" ? "justify-center" : "justify-end"}`}>
+                                        {msg.sender === "system" ? (
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider bg-gray-100 px-3 py-1 rounded-full text-center max-w-[80%]">{msg.text}</span>
+                                        ) : (
+                                            <div className={`max-w-[70%] flex flex-col ${msg.sender === "user" ? "items-start" : "items-end"} group/msg relative`}>
+                                                <div className="flex items-center gap-2 mb-1 px-1">
+                                                    {msg.sender === "ziva" && <span className="text-[10px] font-bold text-brand-green-600">Ziva AI</span>}
+                                                    {msg.sender === "admin" && <span className="text-[10px] font-bold text-blue-600">You (Admin)</span>}
+                                                    {msg.sender === "seller" && <span className="text-[10px] font-bold text-amber-600">Seller</span>}
+                                                    {msg.sender === "user" && <span className="text-[10px] font-bold text-gray-500">{selectedOrder.customer_name || 'Customer'}</span>}
+                                                    <span className="text-[9px] text-gray-400">{typeof msg.timestamp === 'string' ? msg.timestamp : msg.timestamp?.toLocaleTimeString?.([], { hour: '2-digit', minute: '2-digit' }) || ''}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 w-full">
+                                                    {msg.sender !== "admin" && (
+                                                        <button 
+                                                            onClick={() => setReplyingTo({ sender: msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : msg.sender === 'user' ? (selectedOrder.customer_name || 'Customer') : 'System', text: msg.text })}
+                                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-blue-600 transition-all rounded-full hover:bg-blue-50 shrink-0 hidden sm:block order-1"
+                                                            title="Reply"
+                                                        >
+                                                            <RotateCcw className="h-3.5 w-3.5 -rotate-90" />
+                                                        </button>
+                                                    )}
+                                                    <div 
+                                                        className={`px-4 py-2.5 rounded-2xl text-[13px] relative cursor-pointer sm:cursor-auto w-full ${msg.sender === "user"
+                                                        ? "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm order-2"
+                                                        : msg.sender === "ziva"
+                                                            ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-tr-sm order-2"
+                                                            : msg.sender === "seller"
+                                                                ? "bg-amber-600 text-white rounded-tr-sm shadow-sm order-1"
+                                                                : "bg-blue-600 text-white rounded-tr-sm shadow-sm order-1" /* Admin */
+                                                        }`}
+                                                        onDoubleClick={() => setReplyingTo({ sender: msg.sender === 'admin' ? 'You' : msg.sender === 'ziva' ? 'Ziva AI' : msg.sender === 'seller' ? 'Seller' : (selectedOrder.customer_name || 'Customer'), text: msg.text })}
+                                                    >
+                                                        {msg.replyTo && (
+                                                            <div className={`mb-2 p-2 rounded-lg text-[10px] border-l-2 opacity-80 ${msg.sender === "admin" || msg.sender === "seller" ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"}`}>
+                                                                <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                                                                <p className="truncate block max-w-[200px] sm:max-w-xs">{msg.replyTo.text}</p>
+                                                            </div>
+                                                        )}
+                                                        {msg.imageUrl && (
+                                                            <div className="mb-2 rounded-xl overflow-hidden border border-black/10">
+                                                                <img src={msg.imageUrl} className="max-w-full h-auto max-h-[200px] object-cover" alt="Upload" />
+                                                            </div>
+                                                        )}
+                                                        {msg.text}
+                                                    </div>
+                                                    {msg.sender === "admin" && (
+                                                        <button 
+                                                            onClick={() => setReplyingTo({ sender: 'You', text: msg.text })}
+                                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-blue-600 transition-all rounded-full hover:bg-blue-50 shrink-0 hidden sm:block order-2"
+                                                            title="Reply"
+                                                        >
+                                                            <RotateCcw className="h-3.5 w-3.5 -rotate-90" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )})}
+                            </div>
+
+                            {/* Input Area */}
+                            <div className="p-4 bg-white border-t border-gray-100 flex flex-col">
+                                {selectedOrder.zivaActive && (
+                                    <div className="text-center mb-3">
+                                        <span className="text-xs text-gray-400">Typing a message will automatically take over the chat from Ziva.</span>
+                                    </div>
+                                )}
+                                {replyingTo && (
+                                    <div className="mb-3 px-3 py-2 bg-blue-50/50 border border-blue-100 rounded-lg flex items-center justify-between">
+                                        <div className="flex flex-col min-w-0 flex-1">
+                                            <div className="flex items-center gap-1.5 font-bold text-[11px] text-blue-600 uppercase tracking-wider mb-0.5">
+                                                <RotateCcw className="h-3 w-3 -rotate-90" /> Replying to {replyingTo.sender}
+                                            </div>
+                                            <p className="text-xs text-gray-600 truncate pr-4">{replyingTo.text}</p>
+                                        </div>
+                                        <button onClick={() => setReplyingTo(null)} className="h-6 w-6 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="relative flex items-center">
+                                    <Input
+                                        className="pr-20 border-gray-200 h-12 rounded-xl focus:border-blue-500 focus:ring-blue-500/20 bg-gray-50"
+                                        placeholder={selectedOrder.zivaActive ? "Type to take over..." : "Reply to customer..."}
+                                        value={chatInput}
+                                        onChange={(e) => setChatInput(e.target.value)}
+                                        onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                                    />
+                                    <div className="absolute right-1.5 flex gap-1">
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            onChange={handleImageUpload}
+                                            accept="image/*"
+                                            className="hidden"
+                                        />
+                                        <Button size="icon" variant="ghost" className="w-9 h-9 text-gray-400 hover:text-gray-600 rounded-lg" onClick={() => fileInputRef.current?.click()}>
+                                            <ImageIcon className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            className={`w-9 h-9 shadow-sm rounded-lg ${selectedOrder.zivaActive ? "bg-black text-white hover:bg-gray-800" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+                                            onClick={handleSendMessage}
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
+                            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                                <MessageSquare className="w-8 h-8 text-gray-300" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900">No Chat Selected</h3>
+                            <p className="text-sm text-gray-500 max-w-sm mt-1">Select a customer's active order chat from the left panel to monitor the AI or intervene.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

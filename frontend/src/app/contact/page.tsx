@@ -5,10 +5,39 @@ import { Footer } from "@/components/layout/Footer";
 import { Mail, Phone, MapPin, MessageSquare, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function ContactPage() {
     const [submitted, setSubmitted] = useState(false);
+    const [config, setConfig] = useState({
+        email: "hello@fairprice.ng",
+        whatsapp: "2348162816305",
+        office: "Victoria Island, Lagos, Nigeria",
+        hours: "Mon - Sat: 8am - 10pm WAT",
+        serviceCenters: [] as {name: string, address: string, phone: string}[]
+    });
+
+    useEffect(() => {
+        fetch("/api/admin/settings")
+            .then(res => res.ok ? res.json() : null)
+            .then(data => {
+                if (data?.supportConfig) {
+                    setConfig(prev => ({ ...prev, ...data.supportConfig }));
+                }
+            })
+            .catch(err => console.error("Failed to load support config", err));
+    }, []);
+
+    const contactMethods = [
+        { icon: Mail, label: "Email", value: config.email, href: `mailto:${config.email}` },
+        { icon: Phone, label: "WhatsApp", value: `+${config.whatsapp.startsWith('+') ? config.whatsapp.slice(1) : config.whatsapp}`, href: `https://wa.me/${config.whatsapp.replace(/\D/g, '')}` },
+        { icon: MapPin, label: "Office", value: config.office, href: "#" },
+        { icon: Clock, label: "Hours", value: config.hours, href: "#" },
+    ];
+
+    if (config.serviceCenters.length > 0) {
+        // Optionally add service centers to the list if desired, or keep as a separate section
+    }
 
     return (
         <div className="min-h-screen bg-white flex flex-col font-sans">
@@ -27,12 +56,7 @@ export default function ContactPage() {
                         <div className="space-y-6">
                             <h2 className="text-2xl font-black text-gray-900">Get in Touch</h2>
                             <div className="space-y-4">
-                                {[
-                                    { icon: Mail, label: "Email", value: "support@fairprice.ng", href: "mailto:support@fairprice.ng" },
-                                    { icon: Phone, label: "Phone", value: "+234 (0) 800 123 4567", href: "tel:+2348001234567" },
-                                    { icon: MapPin, label: "Office", value: "14 Adeola Odeku, Victoria Island, Lagos, Nigeria", href: "#" },
-                                    { icon: Clock, label: "Hours", value: "Mon - Sat: 8am - 10pm WAT", href: "#" },
-                                ].map(c => (
+                                {contactMethods.map(c => (
                                     <a key={c.label} href={c.href} className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
                                         <div className="p-2 bg-emerald-100 rounded-lg"><c.icon className="h-5 w-5 text-emerald-600" /></div>
                                         <div>
@@ -41,6 +65,23 @@ export default function ContactPage() {
                                         </div>
                                     </a>
                                 ))}
+
+                                {config.serviceCenters.length > 0 && (
+                                    <div className="pt-6 border-t border-gray-100 mt-6">
+                                        <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                            <MapPin className="h-4 w-4 text-emerald-600" /> Pickup & Service Centers
+                                        </h3>
+                                        <div className="grid grid-cols-1 gap-3">
+                                            {config.serviceCenters.map((center, idx) => (
+                                                <div key={idx} className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                                    <p className="font-bold text-gray-900 text-sm">{center.name}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">{center.address}</p>
+                                                    {center.phone && <p className="text-xs text-emerald-600 font-medium mt-1">{center.phone}</p>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

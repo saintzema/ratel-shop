@@ -54,7 +54,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/press"
+                href="/about"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Press
@@ -71,7 +71,7 @@ export function Footer() {
           <ul className="flex flex-col gap-3 text-[13px] text-gray-300">
             <li>
               <Link
-                href="/returns"
+                href="/return-policy"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Return and refund policy
@@ -103,7 +103,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/privacy"
+                href="/legal/privacy"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Privacy Policy
@@ -111,7 +111,7 @@ export function Footer() {
             </li>
             <li>
               <Link
-                href="/terms"
+                href="/legal/conditions"
                 className="hover:underline hover:text-white transition-colors"
               >
                 Terms of Service
@@ -172,36 +172,36 @@ export function Footer() {
           <h3 className="font-bold mb-5 text-[15px] tracking-wide">
             Download the FairPrice App
           </h3>
-          <div className="grid grid-cols-2 gap-4 text-[12px] text-gray-300 mb-6">
-            <ul className="flex flex-col gap-2">
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-500" /> Price-drop
-                alerts
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-500" /> Faster &
-                more secure
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-500" /> Exclusive
-                offers
-              </li>
-            </ul>
-            <ul className="flex flex-col gap-2">
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-500" /> Track
-                orders anytime
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-500" /> Low stock
-                items alerts
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-emerald-500" /> Coupons &
-                offers
-              </li>
-            </ul>
-          </div>
+    <div className="grid grid-cols-2 gap-4 text-[12px] text-gray-300 mb-6">
+      <ul className="flex flex-col gap-2">
+        <li className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-emerald-500" /> Price-drop
+          alerts
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-emerald-500" /> Faster &
+          more secure
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-emerald-500" /> Exclusive
+          offers
+        </li>
+      </ul>
+      <ul className="flex flex-col gap-2">
+        <li className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-emerald-500" /> Track
+          orders anytime
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-emerald-500" /> Low stock
+          items alerts
+        </li>
+        <li className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-emerald-500" /> Coupons &
+          offers
+        </li>
+      </ul>
+    </div>
 
           <div className="flex gap-3 mb-8">
             <button className="flex items-center gap-2 bg-black border border-gray-600 rounded-lg px-4 py-2 hover:bg-gray-800 transition-colors">

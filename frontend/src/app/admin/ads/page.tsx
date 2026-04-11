@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { Promotion, Product, Seller } from "@/lib/types";
 import { formatPrice } from "@/lib/utils";
 import { Sparkles, Eye, MousePointerClick, Search as SearchIcon, XCircle, PlusCircle, AlertCircle, RefreshCcw } from "lucide-react";
@@ -28,9 +28,9 @@ export default function SponsoredAdsPage() {
     }, []);
 
     const loadData = () => {
-        const allPromotions = DemoStore.getPromotions(); // Custom raw getter
-        const allProducts = DemoStore.getProducts();
-        const allSellers = DemoStore.getSellers();
+        const allPromotions = DataSyncService.getPromotions(); // Custom raw getter
+        const allProducts = DataSyncService.getProducts();
+        const allSellers = DataSyncService.getSellers();
 
         const enriched = allPromotions.map(promo => ({
             ...promo,
@@ -44,14 +44,14 @@ export default function SponsoredAdsPage() {
 
     const handleEndPromotion = () => {
         if (!selectedPromo) return;
-        DemoStore.endPromotion(selectedPromo.id);
+        DataSyncService.endPromotion(selectedPromo.id);
         setEndModalOpen(false);
         loadData();
     };
 
     const handleExtendPromotion = () => {
         if (!selectedPromo) return;
-        DemoStore.extendPromotion(selectedPromo.id, extendDays);
+        DataSyncService.extendPromotion(selectedPromo.id, extendDays);
         setExtendModalOpen(false);
         setExtendDays(7);
         loadData();

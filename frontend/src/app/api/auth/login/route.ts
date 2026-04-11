@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { signToken } from "@/lib/jwt";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
     try {
         const { email, password } = await request.json();
 
-        if (!email) {
-            return NextResponse.json({ error: "Email is required" }, { status: 400 });
+        if (!email || !password) {
+            return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
         }
 
         // Find user in database
@@ -20,8 +21,27 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
         }
 
-        // For now, accept any password if none is set (demo mode) or match stored password
-        if (user.password && password !== user.password) {
+        // If user has no password set, deny access — they must set one first
+        if (!user.password) {
+            return NextResponse.json({ error: "Please set a password for your account first" }, { status: 401 });
+        }
+
+        // Compare using bcrypt (handles both hashed and legacy plaintext gracefully)
+        const isHashed = user.password.startsWith("$2a$") || user.password.startsWith("$2b$");
+        let isValid = false;
+
+        if (isHashed) {
+            isValid = await bcrypt.compare(password, user.password);
+        } else {
+            // Legacy plaintext comparison — upgrade to hash on successful match
+            isValid = password === user.password;
+            if (isValid) {
+                const hashed = await bcrypt.hash(password, 12);
+                await db.user.update({ where: { id: user.id }, data: { password: hashed } });
+            }
+        }
+
+        if (!isValid) {
             return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
         }
 

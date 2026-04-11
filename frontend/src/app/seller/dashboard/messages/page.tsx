@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { NegotiationRequest, Product, Order, SupportMessage } from "@/lib/types";
-import { DemoStore } from "@/lib/demo-store";
+import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +20,25 @@ import {
     AlertTriangle,
     Undo2,
     Headphones,
-    X
+    X,
+    Bot,
+    ShieldAlert,
+    Trash2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // Unified Conversation Type
-type ConversationType = "all" | "negotiation" | "order" | "dispute" | "return" | "support";
+type ConversationType = "all" | "negotiation" | "order" | "dispute" | "return" | "support" | "concierge";
 
 interface Conversation {
     id: string; // The ID of the neg or order or support msg
-    type: "negotiation" | "order" | "dispute" | "return" | "support";
+    type: "negotiation" | "order" | "dispute" | "return" | "support" | "concierge";
     customer_name: string;
     customer_id?: string;
     product_id?: string;
@@ -39,9 +48,13 @@ interface Conversation {
     unread: boolean;
     // Context linking
     negotiation?: NegotiationRequest;
+    negotiations?: NegotiationRequest[]; // Multiple negotiations grouped by customer
     order?: Order;
     // mock support chat
-    chat_messages: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[];
+    chat_messages: { sender: "seller" | "buyer" | "system" | "admin" | "ziva"; text: string; timestamp: Date; imageUrl?: string; imageUrls?: string[]; replyTo?: { sender: string; text: string } }[];
+    // Concierge-specific
+    orderId?: string;
+    zivaActive?: boolean;
 }
 
 export default function UniversalMessagesPage() {
@@ -54,45 +67,97 @@ export default function UniversalMessagesPage() {
     const [chatMessage, setChatMessage] = useState("");
     const [counterPrice, setCounterPrice] = useState("");
     const [counterMessage, setCounterMessage] = useState("");
-    const [selectedImagePreview, setSelectedImagePreview] = useState<string | null>(null);
+    const [selectedImagePreviews, setSelectedImagePreviews] = useState<string[]>([]);
+    const [replyingTo, setReplyingTo] = useState<{ sender: string; text: string } | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const chatInputFocusedRef = useRef(false);
 
     useEffect(() => {
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
 
         const loadData = () => {
-            const allProds = DemoStore.getProducts();
+            const allProds = DataSyncService.getProducts({ includeInactiveSellers: true });
             setProducts(allProds);
 
-            const negs = DemoStore.getNegotiations(sellerId);
-            const orders = DemoStore.getOrders().filter(o => o.seller_id === sellerId);
+            const negs = DataSyncService.getNegotiations(sellerId);
+            const orders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
 
             const convos: Conversation[] = [];
 
-            // Add Negotiations
+            // Group Negotiations by Customer + Product
+            const negotiationsByGroup = new Map<string, NegotiationRequest[]>();
             negs.forEach(neg => {
-                const prod = allProds.find(p => p.id === neg.product_id);
-                // convert chat messages
-                const chatHistory = neg.chat_messages ? neg.chat_messages.map(m => ({
+                const groupId = `${neg.customer_id}_${neg.product_id}`;
+                if (!negotiationsByGroup.has(groupId)) {
+                    negotiationsByGroup.set(groupId, []);
+                }
+                negotiationsByGroup.get(groupId)!.push(neg);
+            });
+
+            negotiationsByGroup.forEach((customerNegs, groupId) => {
+                // Sort by newest first (latest activity)
+                customerNegs.sort((a, b) => {
+                    const timeA = new Date(a.updated_at || a.created_at).getTime();
+                    const timeB = new Date(b.updated_at || b.created_at).getTime();
+                    return timeB - timeA;
+                });
+                const latestNeg = customerNegs[0];
+                const custId = latestNeg.customer_id;
+                const prod = allProds.find(p => p.id === latestNeg.product_id);
+                
+                // Combine all chat messages from all negotiations for this customer/product group
+                let allChatMessages: any[] = [];
+                customerNegs.forEach(n => {
+                    if (n.chat_messages) {
+                        allChatMessages.push(...n.chat_messages.map(m => ({
+                            ...m,
+                            contextProductId: n.product_id,
+                            contextProductName: allProds.find(p => p.id === n.product_id)?.name || "Product"
+                        })));
+                    }
+                });
+                allChatMessages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+                const mappedChatHistory = allChatMessages.map(m => ({
                     sender: m.sender as "seller" | "buyer",
                     text: m.text,
-                    timestamp: new Date(m.timestamp)
-                })) : [];
+                    timestamp: new Date(m.timestamp),
+                    replyTo: m.replyTo,
+                    imageUrl: m.imageUrl,
+                    imageUrls: m.imageUrls
+                }));
+
+                const hasUnread = customerNegs.some(n => {
+                    // Unread if it's pending and no counter has been sent yet
+                    if (n.status === "pending" && !n.counter_status) return true;
+                    // Or if there are messages the seller hasn't read (readByRecipient is false)
+                    return n.chat_messages?.some((m: any) => m.sender === "buyer" && m.readByRecipient === false);
+                });
+
+                // Senior tech lead: Use the absolute latest activity for the timestamp
+                const latestActivityTime = Math.max(
+                    new Date(latestNeg.created_at).getTime(),
+                    new Date(latestNeg.updated_at || 0).getTime(),
+                    ...allChatMessages.map(m => new Date(m.timestamp).getTime())
+                );
 
                 convos.push({
-                    id: `neg-${neg.id}`,
+                    id: `neg-group-${groupId}`,
                     type: "negotiation",
-                    customer_name: neg.customer_name,
-                    customer_id: neg.customer_id,
-                    product_id: neg.product_id,
+                    customer_name: latestNeg.customer_name || "Customer",
+                    customer_id: custId,
+                    product_id: latestNeg.product_id, 
                     product_name: prod?.name,
-                    preview: chatHistory.length > 0 ? chatHistory[chatHistory.length - 1].text : "Sent an offer",
-                    updated_at: new Date(neg.created_at),
-                    unread: neg.status === "pending" && !neg.counter_status,
-                    negotiation: neg,
-                    chat_messages: chatHistory
+                    preview: allChatMessages.length > 0 
+                        ? allChatMessages[allChatMessages.length - 1].text 
+                        : "Sent an offer",
+                    updated_at: new Date(latestActivityTime),
+                    unread: hasUnread,
+                    negotiation: latestNeg,
+                    negotiations: customerNegs,
+                    chat_messages: mappedChatHistory
                 });
             });
 
@@ -114,17 +179,61 @@ export default function UniversalMessagesPage() {
                         unread: true, // Mock unread for demo
                         order: order,
                         chat_messages: [
-                            { sender: "system", text: type === "dispute" ? "Buyer opened a dispute regarding this order." : "Buyer requested a return for this order.", timestamp: new Date(order.updated_at) }
+                            { sender: "system" as const, text: type === "dispute" ? "Buyer opened a dispute regarding this order." : "Buyer requested a return for this order.", timestamp: new Date(order.updated_at) },
+                            ...(order.chat_messages || []).map(m => ({
+                                sender: m.sender as "seller" | "buyer" | "system" | "admin" | "ziva",
+                                text: m.text,
+                                timestamp: new Date(),
+                                imageUrl: m.imageUrl,
+                                imageUrls: m.imageUrls
+                            }))
                         ]
                     });
                 }
             });
 
+            // Add Concierge chats from orders with chat_messages
+            orders.forEach(order => {
+                if (order.chat_messages && order.chat_messages.length > 0 && !order.escrow_status?.includes('disputed')) {
+                    const prod = allProds.find(p => p.id === order.product_id);
+                    const lastMsg = order.chat_messages[order.chat_messages.length - 1];
+                    convos.push({
+                        id: `conc-${order.id}`,
+                        type: "concierge",
+                        customer_name: order.customer_name || "Customer",
+                        customer_id: order.customer_id,
+                        product_id: order.product_id,
+                        product_name: prod?.name || "Product",
+                        preview: lastMsg.text?.substring(0, 60) || "Concierge chat",
+                        updated_at: new Date(order.updated_at || order.created_at),
+                        unread: !!order.chat_messages.find((m: any) => m.sender === 'user' && !m.read_by?.includes(sellerId)),
+                        chat_messages: order.chat_messages.map((m: any) => ({
+                            sender: m.sender as any,
+                            text: m.text,
+                            timestamp: new Date(m.timestamp || order.updated_at || order.created_at),
+                            imageUrl: m.imageUrl,
+                            imageUrls: m.imageUrls
+                        })),
+                        orderId: order.id,
+                        zivaActive: order.zivaActive !== false,
+                        order: order,
+                    });
+                }
+            });
+
             // Load real DM conversations
-            const dmConvs = DemoStore.getConversations(sellerId);
+            const seller = DataSyncService.getCurrentSeller();
+            const sellerMatchIds = new Set<string>([sellerId]);
+            if (seller) {
+                if (seller.id) sellerMatchIds.add(seller.id);
+                if (seller.user_id) sellerMatchIds.add(seller.user_id);
+                if (seller.owner_email) sellerMatchIds.add(seller.owner_email);
+            }
+            
+            const dmConvs = DataSyncService.getConversations(sellerId);
             dmConvs.forEach((conv: any) => {
                 const isImageRequest = conv.context?.type === "buyer_seller" && conv.context?.product_id;
-                const otherParticipantId = conv.participants.find((p: string) => p !== sellerId) || "";
+                const otherParticipantId = conv.participants.find((p: string) => !sellerMatchIds.has(p)) || "";
                 const customerName = conv.participant_names?.[otherParticipantId] || "Customer";
 
                 let productName = isImageRequest ? "Image Request" : "Chat";
@@ -134,16 +243,16 @@ export default function UniversalMessagesPage() {
                 }
 
                 // Map to unified conversation type
-                const mappedMsgs: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[] = DemoStore.getChatMessages(conv.id).map((m: any) => ({
-                    sender: m.sender_id === sellerId ? "seller" as const : "buyer" as const,
+                const mappedMsgs: { sender: "seller" | "buyer" | "system"; text: string; timestamp: Date; imageUrl?: string }[] = DataSyncService.getChatMessages(conv.id).map((m: any) => ({
+                    sender: sellerMatchIds.has(m.sender_id) ? "seller" as const : "buyer" as const,
                     text: m.text,
                     timestamp: new Date(m.timestamp),
-                    imageUrl: undefined, // Add support for images later if needed
+                    imageUrl: undefined,
                 }));
 
                 convos.push({
                     id: conv.id,
-                    type: isImageRequest ? "support" : "order", // use order icon for general chat
+                    type: isImageRequest ? "support" : "order",
                     customer_name: customerName,
                     customer_id: otherParticipantId,
                     product_id: conv.context?.product_id,
@@ -155,9 +264,31 @@ export default function UniversalMessagesPage() {
                 });
             });
 
-            // If a URL parameter specifies a customer id to message directly
+            // Handle ?order= URL param for auto-selecting concierge chat
             const params = new URLSearchParams(window.location.search);
+            const orderFromUrl = params.get('order');
             const directCustomer = params.get('customer');
+            
+            if (orderFromUrl) {
+                // Try to find existing concierge or dispute/order conversation
+                const existingThread = convos.find(c =>
+                    c.orderId === orderFromUrl ||
+                    c.id === `conc-${orderFromUrl}` ||
+                    c.id === `ord-${orderFromUrl}`
+                );
+                if (existingThread) {
+                    // Will be auto-selected by the useEffect below
+                } else {
+                    // Create a concierge entry for this order if it has no chat yet
+                    const targetOrder = orders.find(o => o.id === orderFromUrl);
+                    if (targetOrder) {
+                        DataSyncService.addOrderMessage(orderFromUrl, 'system', 'Seller joined the concierge chat.');
+                        // Re-fetch
+                        window.dispatchEvent(new Event('storage'));
+                    }
+                }
+            }
+            
             if (directCustomer) {
                 // Mock a direct chat thread for this customer if it doesn't exist
                 if (!convos.find(c => c.customer_id === directCustomer && c.type === "order")) {
@@ -174,12 +305,26 @@ export default function UniversalMessagesPage() {
                 }
             }
 
-            setConversations(convos.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime()));
+            const deletedStubs = DataSyncService.getDeletedStubs();
+            const filteredConvos = convos.filter(c => !deletedStubs.includes(c.id));
+            setConversations(filteredConvos.sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime()));
         };
 
         loadData();
         window.addEventListener("storage", loadData);
-        return () => window.removeEventListener("storage", loadData);
+        window.addEventListener("sync-store-update", loadData);
+        // Background polling — only fires when chat input is NOT focused
+        // to prevent re-render cascade from freezing the UI mid-keystroke.
+        const pollInterval = setInterval(() => {
+            if (chatInputFocusedRef.current) return; // ← Guard: skip while typing
+            loadData();
+            DataSyncService.syncWithDB();
+        }, 8000);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("sync-store-update", loadData);
+            clearInterval(pollInterval);
+        };
     }, []);
 
     const filteredConvos = conversations
@@ -190,10 +335,21 @@ export default function UniversalMessagesPage() {
     const activeProduct = activeConvo?.product_id ? products.find(p => p.id === activeConvo.product_id) : null;
     const activeNeg = activeConvo?.negotiation;
 
+    // Track last proposed price to detect when to update suggested counter offer
+    const lastProcessedProposedPriceRef = useRef<number | null>(null);
+
     useEffect(() => {
-        // Pre-fill counter price
-        if (activeProduct && activeNeg && !counterPrice && activeNeg.status === "pending" && !activeNeg.counter_status) {
-            setCounterPrice(Math.round(activeProduct.price * 0.9).toString());
+        if (activeProduct && activeNeg && activeNeg.status === "pending" && !activeNeg.counter_status) {
+            // Update suggestion if:
+            // 1. No price has been set yet
+            // 2. OR the buyer's proposed price changed (new counter-counter offer)
+            const buyerOffer = activeNeg.proposed_price || activeProduct.price * 0.8;
+            
+            if (!counterPrice || lastProcessedProposedPriceRef.current !== buyerOffer) {
+                const suggestedPrice = Math.round(buyerOffer + ((activeProduct.price - buyerOffer) * 0.6));
+                setCounterPrice(suggestedPrice.toString());
+                lastProcessedProposedPriceRef.current = buyerOffer;
+            }
         }
     }, [activeProduct, activeNeg, selectedId]);
 
@@ -207,16 +363,63 @@ export default function UniversalMessagesPage() {
         }
     }, [conversations, selectedId]);
 
+    // Auto-select conversation from ?order= or ?negotiation= URL
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const orderFromUrl = params.get('order');
+        const negotiationFromUrl = params.get('negotiation');
+
+        if (negotiationFromUrl && !selectedId && conversations.length > 0) {
+            // Find the neg-group that contains this specific negotiation ID
+            const thread = conversations.find(c => 
+                c.type === 'negotiation' && 
+                c.negotiations?.some(n => n.id === negotiationFromUrl)
+            );
+            if (thread) {
+                setSelectedId(thread.id);
+                setFilter('negotiation');
+                return;
+            }
+        }
+
+        if (orderFromUrl && !selectedId && conversations.length > 0) {
+            // Try concierge first, then dispute/order thread
+            const thread = conversations.find(c =>
+                c.orderId === orderFromUrl ||
+                c.id === `conc-${orderFromUrl}` ||
+                c.id === `ord-${orderFromUrl}`
+            );
+            if (thread) {
+                setSelectedId(thread.id);
+                setFilter(thread.type === 'dispute' ? 'dispute' : thread.type === 'concierge' ? 'concierge' : 'all');
+            }
+        }
+    }, [conversations, selectedId]);
+
+    // Clear reply context when changing conversations
+    useEffect(() => {
+        setReplyingTo(null);
+    }, [selectedId]);
+
     // Mark as read when active conversation changes
     useEffect(() => {
-        if (selectedId && !selectedId.startsWith("neg-") && !selectedId.startsWith("ord-") && !selectedId.startsWith("sup-") && !selectedId.startsWith("chat-")) {
-            const sellerId = DemoStore.getCurrentSellerId();
-            if (sellerId) DemoStore.markConversationRead(selectedId, sellerId);
+        if (selectedId) {
+            const sellerId = DataSyncService.getCurrentSellerId();
+            if (!sellerId) return;
+
+            if (selectedId.startsWith("neg-group-")) {
+                const groupId = selectedId.replace("neg-group-", "");
+                const [custId, prodId] = groupId.split("_");
+                const negs = DataSyncService.getNegotiations(sellerId).filter(n => n.customer_id === custId && n.product_id === prodId);
+                negs.forEach(n => DataSyncService.markNegotiationRead(n.id));
+            } else if (!selectedId.startsWith("ord-") && !selectedId.startsWith("sup-") && !selectedId.startsWith("chat-") && !selectedId.startsWith("conc-")) {
+                DataSyncService.markConversationRead(selectedId, sellerId);
+            }
         }
     }, [selectedId]);
 
     const handleAction = (negId: string, status: "accepted" | "rejected") => {
-        DemoStore.updateNegotiationStatus(negId, status);
+        DataSyncService.updateNegotiationStatus(negId, status);
         // Force reload by triggering a storage event manually or just state update
         window.dispatchEvent(new Event("storage"));
     };
@@ -224,45 +427,85 @@ export default function UniversalMessagesPage() {
     const handleCounterOffer = (e: React.FormEvent) => {
         e.preventDefault();
         if (!activeNeg || !counterPrice) return;
-        DemoStore.sendCounterOffer(activeNeg.id, Number(counterPrice), counterMessage);
+        DataSyncService.sendCounterOffer(activeNeg.id, Number(counterPrice), counterMessage);
         setCounterPrice("");
         setCounterMessage("");
         window.dispatchEvent(new Event("storage"));
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            if (event.target?.result) {
-                // Show a preview string (data URI)
-                setSelectedImagePreview(event.target.result as string);
-            }
-        };
-        reader.readAsDataURL(file);
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                if (event.target?.result) {
+                    setSelectedImagePreviews(prev => [...prev, event.target!.result as string]);
+                }
+            };
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const removeImage = (index: number) => {
+        setSelectedImagePreviews(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const sendStructuredBlock = (type: "shipping" | "warranty" | "condition") => {
+        let text = "";
+        switch (type) {
+            case "shipping":
+                text = "📦 Shipping Timeline: This item will be processed and handed over to GIG Logistics for delivery within 1-2 business days. Estimated arrival: 3-5 business days.";
+                break;
+            case "warranty":
+                text = "🛡️ Warranty Info: This product is covered by a 6-month limited warranty. Please retain your receipt/order ID for any claims.";
+                break;
+            case "condition":
+                text = "✨ Condition Confirmation: I've personally verified this item. It is in Pristine condition, exactly as described in the listing, with no visible wear.";
+                break;
+        }
+        setChatMessage(text);
     };
 
     const handleSendMessage = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!activeConvo || (!chatMessage.trim() && !selectedImagePreview)) return;
+        const hasImages = selectedImagePreviews.length > 0;
+        if (!activeConvo || (!chatMessage.trim() && !hasImages)) return;
 
-        const sellerId = DemoStore.getCurrentSellerId();
+        const sellerId = DataSyncService.getCurrentSellerId();
         if (!sellerId) return;
-        const sellerObj = DemoStore.getSellers().find(s => s.id === sellerId);
+        const sellerObj = DataSyncService.getSellers().find(s => s.id === sellerId);
         const sellerName = sellerObj?.business_name || "Seller";
 
-        // In a real app, logic branches based on conversation type (DemoStore handles negotiations)
+        // In a real app, logic branches based on conversation type (DataSyncService handles negotiations)
         if (activeConvo.type === "negotiation" && activeConvo.negotiation) {
-            DemoStore.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage || "[Image Attached]");
-        } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-") && !activeConvo.id.startsWith("chat-")) {
+            DataSyncService.addNegotiationMessage(activeConvo.negotiation.id, "seller", chatMessage, selectedImagePreviews[0] || undefined, replyingTo || undefined, selectedImagePreviews);
+        } else if (activeConvo.id.startsWith("ord-")) {
+            const orderId = activeConvo.id.replace("ord-", "");
+            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (hasImages ? "[Images Attached]" : ""), selectedImagePreviews[0] || undefined, selectedImagePreviews, replyingTo || undefined);
+        } else if (activeConvo.id.startsWith("conc-")) {
+            // Concierge chat — seller sends via order message system
+            const orderId = activeConvo.orderId || activeConvo.id.replace("conc-", "");
+            DataSyncService.addOrderMessage(orderId, "seller", chatMessage || (hasImages ? "[Images Attached]" : ""), selectedImagePreviews[0] || undefined, selectedImagePreviews, replyingTo || undefined);
+            // If Ziva was active, take over
+            if (activeConvo.zivaActive) {
+                DataSyncService.updateOrder(orderId, { zivaActive: false });
+                DataSyncService.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
+            }
+        } else if (activeConvo.id.startsWith("chat-")) {
+            // New direct chat created from stub
+            const newConv = DataSyncService.getOrCreateConversation(sellerId, activeConvo.customer_id || "", { [sellerId]: sellerName, [activeConvo.customer_id || ""]: activeConvo.customer_name }, { type: "buyer_seller" });
+            DataSyncService.sendChatMessage(newConv.id, sellerId, sellerName, chatMessage || (hasImages ? "[Image Uploaded]" : ""), replyingTo || undefined);
+            setSelectedId(newConv.id);
+        } else if (!activeConvo.id.startsWith("neg-") && !activeConvo.id.startsWith("ord-") && !activeConvo.id.startsWith("sup-")) {
             // It's a real DM conversation
-            DemoStore.sendChatMessage(
+            DataSyncService.sendChatMessage(
                 activeConvo.id,
                 sellerId,
                 sellerName,
-                chatMessage || (selectedImagePreview ? "[Image Uploaded]" : "")
+                chatMessage || (hasImages ? "[Image Uploaded]" : ""),
+                replyingTo || undefined
             );
         } else {
             // Mock adding to local state for legacy orders/disputes
@@ -270,17 +513,44 @@ export default function UniversalMessagesPage() {
                 if (c.id === activeConvo.id) {
                     return {
                         ...c,
-                        chat_messages: [...c.chat_messages, { sender: "seller", text: chatMessage, timestamp: new Date(), imageUrl: selectedImagePreview || undefined }]
+                        chat_messages: [...c.chat_messages, { sender: "seller", text: chatMessage, timestamp: new Date(), imageUrl: selectedImagePreviews[0] || undefined, imageUrls: selectedImagePreviews, replyTo: replyingTo || undefined }]
                     };
                 }
                 return c;
             }));
         }
 
+        // Send email notification to the customer
+        if (activeConvo.customer_id) {
+            const customerEmail = activeConvo.customer_id; // customer_id is often the email
+            const sellerObj2 = DataSyncService.getSellers().find(s => s.id === sellerId);
+            const sellerBusinessName = sellerObj2?.business_name || "Seller";
+            fetch('/api/email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    to: customerEmail,
+                    type: 'ORDER_UPDATE',
+                    payload: {
+                        name: activeConvo.customer_name || 'Customer',
+                        orderId: activeConvo.orderId || activeConvo.order?.id || '',
+                        status: 'message',
+                        message: `${sellerBusinessName} sent you a message: "${(chatMessage || '[Image Attached]').substring(0, 100)}"`,
+                    }
+                })
+            }).catch(err => console.error('Email notification failed:', err));
+        }
+
         setChatMessage("");
-        setSelectedImagePreview(null);
+        setSelectedImagePreviews([]);
+        setReplyingTo(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
         window.dispatchEvent(new Event("storage")); // mostly for negotiations
+    };
+
+    const handleSwipeToReply = (sender: string, text: string) => {
+        setReplyingTo({ sender, text });
+        // Focus input (would need a ref for the input, but user will tap anyway in mobile)
     };
 
     const getConvoIcon = (type: string) => {
@@ -290,6 +560,7 @@ export default function UniversalMessagesPage() {
             case "dispute": return <AlertTriangle className="h-4 w-4" />;
             case "return": return <Undo2 className="h-4 w-4" />;
             case "support": return <Headphones className="h-4 w-4" />;
+            case "concierge": return <Bot className="h-4 w-4" />;
             default: return <MessageSquare className="h-4 w-4" />;
         }
     };
@@ -301,16 +572,44 @@ export default function UniversalMessagesPage() {
             case "dispute": return "bg-red-100 text-red-600";
             case "return": return "bg-amber-100 text-amber-600";
             case "support": return "bg-emerald-100 text-emerald-600";
+            case "concierge": return "bg-brand-green-100 text-brand-green-600";
             default: return "bg-gray-100 text-gray-600";
         }
     };
 
+    const handleZivaTakeover = () => {
+        if (!activeConvo?.orderId) return;
+        const orderId = activeConvo.orderId;
+        const sellerId = DataSyncService.getCurrentSellerId();
+        const sellerObj = sellerId ? DataSyncService.getSellers().find(s => s.id === sellerId) : null;
+        const sellerName = sellerObj?.business_name || "Seller";
+        DataSyncService.updateOrder(orderId, { zivaActive: false });
+        DataSyncService.addOrderMessage(orderId, "system", `${sellerName} has taken over the chat from Ziva AI.`);
+        window.dispatchEvent(new Event("storage"));
+    };
+
+    const handleZivaHandback = () => {
+        if (!activeConvo?.orderId) return;
+        const orderId = activeConvo.orderId;
+        DataSyncService.updateOrder(orderId, { zivaActive: true });
+        DataSyncService.addOrderMessage(orderId, "system", "Chat has been handed back to Ziva AI.");
+        window.dispatchEvent(new Event("storage"));
+    };
+
+    const handleDeleteChat = () => {
+        if (!selectedId) return;
+        DataSyncService.deleteConversation(selectedId);
+        setConversations(prev => prev.filter(c => c.id !== selectedId));
+        setSelectedId(null);
+        window.dispatchEvent(new Event("storage"));
+    };
+
     return (
-        <div className="h-[calc(100vh-6rem)] -mt-2 -mx-2 md:-mx-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
+        <div className="h-[calc(100dvh-6rem)] -mt-2 -mx-2 md:-mx-4 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col md:flex-row">
 
             {/* Sidebar List */}
             <div className={cn(
-                "w-full md:w-[320px] lg:w-[380px] bg-gray-50/50 border-r border-gray-200 flex flex-col",
+                "w-full md:w-[320px] lg:w-[380px] bg-gray-50/50 border-r border-gray-200 flex flex-col min-h-0",
                 selectedId ? "hidden md:flex" : "flex"
             )}>
                 <div className="p-4 border-b border-gray-200 bg-white">
@@ -325,7 +624,7 @@ export default function UniversalMessagesPage() {
                         />
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-                        {(["all", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
+                        {(["all", "concierge", "negotiation", "dispute", "return", "support"] as ConversationType[]).map(t => (
                             <button
                                 key={t}
                                 onClick={() => setFilter(t)}
@@ -394,7 +693,7 @@ export default function UniversalMessagesPage() {
 
             {/* Main Chat Area */}
             <div className={cn(
-                "flex-1 bg-white flex flex-col relative",
+                "flex-1 min-h-0 bg-white flex flex-col relative",
                 !selectedId ? "hidden md:flex items-center justify-center bg-gray-50/50" : "flex"
             )}>
                 {!activeConvo ? (
@@ -418,13 +717,36 @@ export default function UniversalMessagesPage() {
                                             {activeConvo.type}
                                         </Badge>
                                     </div>
-                                    {activeConvo.customer_id && <p className="text-[11px] text-gray-400 font-bold uppercase">Customer ID: {activeConvo.customer_id.substring(0, 8)}</p>}
+                                    <p className="text-[11px] text-gray-400 font-bold uppercase">
+                                        {activeConvo.type === "negotiation" ? `Negotiation ID: ${activeConvo.id}` : `Customer: ${activeConvo.customer_id}`}
+                                    </p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-1">
-                                <Button size="icon" variant="ghost" className="text-gray-400 hover:text-gray-900">
-                                    <MoreVertical className="h-5 w-5" />
-                                </Button>
+                                {activeConvo.type === "concierge" && (
+                                    activeConvo.zivaActive ? (
+                                        <Button size="sm" onClick={handleZivaTakeover} className="bg-black hover:bg-gray-800 text-white font-bold text-xs h-8 rounded-lg">
+                                            <ShieldAlert className="w-3 h-3 mr-1.5" /> Take Over from Ziva
+                                        </Button>
+                                    ) : (
+                                        <Button size="sm" variant="outline" onClick={handleZivaHandback} className="text-brand-green-700 border-brand-green-200 hover:bg-brand-green-50 font-bold text-xs h-8 rounded-lg">
+                                            <Bot className="w-3 h-3 mr-1.5" /> Hand Back to Ziva
+                                        </Button>
+                                    )
+                                )}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button size="icon" variant="ghost" className="text-gray-400 hover:text-gray-900">
+                                            <MoreVertical className="h-5 w-5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem onClick={handleDeleteChat} className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer">
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            Delete Chat
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
 
@@ -432,13 +754,25 @@ export default function UniversalMessagesPage() {
                         {activeProduct && (
                             <div className="p-3 bg-gray-50/80 border-b border-gray-100 flex gap-4 items-center shrink-0">
                                 <div className="h-12 w-12 bg-white rounded-lg border border-gray-200 flex items-center justify-center p-1 shrink-0 shadow-sm">
-                                    <img src={activeProduct.image_url || undefined} alt="" className="max-w-full max-h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                    <img 
+                                        src={
+                                            activeProduct.image_url || 
+                                            (activeProduct as any).imageUrl || 
+                                            (typeof activeProduct.images?.[0] === 'string' ? activeProduct.images[0] : (activeProduct.images?.[0] as any)?.url) ||
+                                            undefined
+                                        } 
+                                        alt="" 
+                                        className="max-w-full max-h-full mix-blend-multiply" 
+                                        onError={e => { 
+                                            e.currentTarget.src = "https://images.unsplash.com/photo-1584036561566-baf2f5f14a4c?q=80&w=200&auto=format&fit=crop";
+                                        }} 
+                                    />
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <h4 className="text-[13px] font-bold text-gray-900 truncate">{activeProduct.name}</h4>
                                     <div className="flex items-center gap-2 mt-0.5">
                                         <span className="text-[11px] font-black text-gray-500">{formatPrice(activeProduct.price)} listed</span>
-                                        {activeConvo.order && <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">Order #{activeConvo.order.id.substring(0, 8)}</span>}
+                                        {activeConvo.order && <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-md">Order #{activeConvo.order.id}</span>}
                                     </div>
                                 </div>
                             </div>
@@ -471,22 +805,102 @@ export default function UniversalMessagesPage() {
                                     <div key={idx} className={cn("flex w-full", isSeller ? "justify-end" : "justify-start")}>
                                         <div className="flex items-end gap-2 max-w-[85%]">
                                             {!isSeller && (
-                                                <div className="h-8 w-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0 text-xs shadow-inner mb-5">
-                                                    {activeConvo.customer_name.charAt(0)}
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mb-5",
+                                                    msg.sender === "admin" ? "bg-blue-100 text-blue-700" :
+                                                    msg.sender === "ziva" ? "bg-brand-green-100 text-brand-green-700 text-[9px]" :
+                                                    "bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700"
+                                                )}>
+                                                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : activeConvo.customer_name.charAt(0)}
                                                 </div>
                                             )}
-                                            <div className="flex flex-col gap-1">
-                                                <div className={cn(
-                                                    "rounded-2xl p-3.5 text-[13px] shadow-sm relative",
-                                                    isSeller ? "bg-indigo-600 text-white rounded-br-sm" : "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
-                                                )}>
-                                                    {msg.imageUrl && (
-                                                        <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
-                                                            <img src={msg.imageUrl} alt="attachment" className="max-w-[200px] sm:max-w-xs h-auto" />
-                                                        </div>
+                                            <div className="flex flex-col gap-1 items-end group/msg">
+                                                <div className="flex items-center gap-2">
+                                                    {!isSeller && (
+                                                        <button 
+                                                            onClick={() => handleSwipeToReply(msg.sender === "admin" ? "Admin" : msg.sender === "ziva" ? "Ziva AI" : activeConvo.customer_name, msg.text)}
+                                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden md:block"
+                                                            title="Reply to message"
+                                                        >
+                                                            <Undo2 className="h-3.5 w-3.5" />
+                                                        </button>
                                                     )}
-                                                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                    <div className={cn(
+                                                        "rounded-2xl p-3.5 text-[13px] shadow-sm relative",
+                                                        isSeller ? "bg-indigo-600 text-white rounded-br-sm" : 
+                                                        msg.sender === "admin" ? "bg-blue-600 text-white rounded-bl-sm" :
+                                                        msg.sender === "ziva" ? "bg-brand-green-50 border border-brand-green-100 text-brand-green-900 rounded-bl-sm" :
+                                                        "bg-white border border-gray-100 text-gray-800 rounded-bl-sm"
+                                                    )}>
+                                                        {msg.replyTo && (
+                                                            <div className={cn(
+                                                                "mb-2 p-2 rounded-lg text-[11px] border-l-2 opacity-80",
+                                                                isSeller ? "bg-white/10 border-white text-white" : "bg-gray-50 border-gray-300 text-gray-600"
+                                                            )}>
+                                                                <p className="font-bold mb-0.5">{msg.replyTo.sender}</p>
+                                                                <p className="truncate block max-w-[200px]">{msg.replyTo.text}</p>
+                                                            </div>
+                                                        )}
+                                                        {msg.imageUrl && !msg.imageUrls && (
+                                                            <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
+                                                                <img src={msg.imageUrl} alt="attachment" className="max-w-[200px] sm:max-w-xs h-auto" />
+                                                            </div>
+                                                        )}
+                                                        {msg.imageUrls && msg.imageUrls.length > 0 && (
+                                                            <div className={cn(
+                                                                "mt-2 mb-2 overflow-hidden rounded-2xl w-full max-w-[280px] border border-black/10 shadow-sm",
+                                                                msg.imageUrls.length === 1 ? "" : "grid gap-0.5",
+                                                                msg.imageUrls.length === 2 ? "grid-cols-2" : "",
+                                                                msg.imageUrls.length === 3 ? "grid-cols-2" : "",
+                                                                msg.imageUrls.length >= 4 ? "grid-cols-2" : ""
+                                                            )}>
+                                                                {msg.imageUrls.length === 1 && (
+                                                                    <img src={msg.imageUrls[0]} alt="Attachment" className="w-full h-auto max-h-[300px] object-cover" />
+                                                                )}
+                                                                {msg.imageUrls.length === 2 && msg.imageUrls.map((url, i) => (
+                                                                    <img key={i} src={url} alt={`Attachment ${i}`} className="w-full aspect-square object-cover" />
+                                                                ))}
+                                                                {msg.imageUrls.length === 3 && (
+                                                                    <>
+                                                                        <img src={msg.imageUrls[0]} alt="Attachment 0" className="w-full aspect-square object-cover col-span-2" />
+                                                                        <img src={msg.imageUrls[1]} alt="Attachment 1" className="w-full aspect-square object-cover" />
+                                                                        <img src={msg.imageUrls[2]} alt="Attachment 2" className="w-full aspect-square object-cover" />
+                                                                    </>
+                                                                )}
+                                                                {msg.imageUrls.length >= 4 && (
+                                                                    <>
+                                                                        {msg.imageUrls.slice(0, 3).map((url, i) => (
+                                                                            <img key={i} src={url} alt={`Attachment ${i}`} className="w-full aspect-square object-cover" />
+                                                                        ))}
+                                                                        <div className="relative aspect-square">
+                                                                            <img src={msg.imageUrls[3]} alt="Attachment 3" className="w-full h-full object-cover" />
+                                                                            {msg.imageUrls.length > 4 && (
+                                                                                <div className="absolute inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center text-white font-black text-lg">
+                                                                                    +{msg.imageUrls.length - 4}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                                                    </div>
+                                                    {isSeller && (
+                                                        <button 
+                                                            onClick={() => handleSwipeToReply("You", msg.text)}
+                                                            className="opacity-0 group-hover/msg:opacity-100 p-1.5 text-gray-400 hover:text-indigo-600 transition-all rounded-full hover:bg-indigo-50 shrink-0 hidden md:block"
+                                                            title="Reply to message"
+                                                        >
+                                                            <Undo2 className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    )}
                                                 </div>
+                                                {/* Mobile swipe hint could be implemented via framer-motion, but clicking is a good fallback for now */}
+                                                <div 
+                                                    className="md:hidden opacity-0 w-full h-full absolute inset-0 cursor-pointer" 
+                                                    onDoubleClick={() => handleSwipeToReply(isSeller ? "You" : msg.sender === "admin" ? "Admin" : activeConvo.customer_name, msg.text)}
+                                                    title="Double tap to reply"
+                                                />
                                                 <span className={cn(
                                                     "text-[10px] font-semibold flex items-center gap-1",
                                                     isSeller ? "text-gray-400 justify-end" : "text-gray-400 justify-start"
@@ -501,152 +915,207 @@ export default function UniversalMessagesPage() {
                             })}
 
                             {/* Injection of specific Negotiation UI within chat stream */}
-                            {activeConvo.type === "negotiation" && activeNeg && (
-                                <>
-                                    {/* Offer Request Bubble Injection if we don't naturally have it at index 0 */}
-                                    {activeConvo.chat_messages.length === 0 && (
-                                        <div className="flex items-end gap-2 max-w-[85%]">
-                                            <div className="h-8 w-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0 text-xs shadow-inner mb-5">
-                                                {activeConvo.customer_name.charAt(0)}
-                                            </div>
-                                            <div className="flex flex-col gap-1">
-                                                <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm p-4 relative shadow-sm">
-                                                    <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-50 mb-3 flex items-center gap-3">
-                                                        <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                                                            <Tag className="h-5 w-5" />
+                            {activeConvo.type === "negotiation" && activeNeg && (() => {
+                                // Derive the buyer's LATEST proposed price — this updates when buyer sends counter-counter
+                                const buyerLatestPrice = activeNeg.proposed_price;
+                                // The seller's own counter offer (only valid if counter_status is still "pending")
+                                const sellerCounterPrice = activeNeg.counter_price;
+                                const sellerCounterPending = activeNeg.counter_status === "pending" && sellerCounterPrice && sellerCounterPrice > 0;
+
+                                return (
+                                    <>
+                                        {/* Offer Request Bubble Injection if we don't naturally have it at index 0 */}
+                                        {activeConvo.chat_messages.length === 0 && (
+                                            <div className="flex items-end gap-2 max-w-[85%]">
+                                                <div className="h-8 w-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0 text-xs shadow-inner mb-5">
+                                                    {activeConvo.customer_name.charAt(0)}
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm p-4 relative shadow-sm">
+                                                        <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-50 mb-3 flex items-center gap-3">
+                                                            <div className="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                                                                <Tag className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Proposed Price</p>
+                                                                <p className="text-xl font-black text-indigo-700 leading-none">{formatPrice(buyerLatestPrice)}</p>
+                                                            </div>
                                                         </div>
-                                                        <div>
-                                                            <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-0.5">Proposed Price</p>
-                                                            <p className="text-xl font-black text-indigo-700 leading-none">{formatPrice(activeNeg.proposed_price)}</p>
-                                                        </div>
+                                                        {activeNeg.message ? (
+                                                            <p className="text-[13px] text-gray-700">{activeNeg.message}</p>
+                                                        ) : (
+                                                            <p className="text-[13px] text-gray-400 italic">No additional message provided.</p>
+                                                        )}
                                                     </div>
-                                                    {activeNeg.message ? (
-                                                        <p className="text-[13px] text-gray-700">{activeNeg.message}</p>
-                                                    ) : (
-                                                        <p className="text-[13px] text-gray-400 italic">No additional message provided.</p>
-                                                    )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
+                                        )}
 
-                                    {/* Accept/Reject Badges */}
-                                    {activeNeg.status === "rejected" && !activeNeg.counter_status && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
-                                                <XCircle className="h-3.5 w-3.5" /> You rejected this offer.
-                                            </span>
-                                        </div>
-                                    )}
+                                        {/* Accept/Reject Badges */}
+                                        {activeNeg.status === "rejected" && !activeNeg.counter_status && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
+                                                    <XCircle className="h-3.5 w-3.5" /> You rejected this offer.
+                                                </span>
+                                            </div>
+                                        )}
 
-                                    {activeNeg.status === "accepted" && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                                                <CheckCircle className="h-3.5 w-3.5" /> You accepted this offer!
-                                            </span>
-                                        </div>
-                                    )}
+                                        {activeNeg.status === "accepted" && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                                                    <CheckCircle className="h-3.5 w-3.5" /> You accepted this offer!
+                                                </span>
+                                            </div>
+                                        )}
 
-                                    {/* Counter Offer Bubble Inline */}
-                                    {activeNeg.counter_price && (
-                                        <div className="flex items-end gap-2 max-w-[85%] ml-auto justify-end">
-                                            <div className="flex flex-col gap-1 text-right">
-                                                <div className="bg-indigo-600 border-indigo-700 text-white rounded-2xl rounded-br-sm p-4 relative shadow-md">
-                                                    <div className="bg-white/10 rounded-xl p-3 mb-2 flex items-center gap-3">
-                                                        <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm">
-                                                            <Tag className="h-5 w-5" />
+                                        {/* Counter Offer Bubble Inline — only show if seller has an active counter with a real price */}
+                                        {sellerCounterPrice && sellerCounterPrice > 0 && (
+                                            <div className="flex items-end gap-2 max-w-[85%] ml-auto justify-end">
+                                                <div className="flex flex-col gap-1 text-right">
+                                                    <div className="bg-indigo-600 border-indigo-700 text-white rounded-2xl rounded-br-sm p-4 relative shadow-md">
+                                                        <div className="bg-white/10 rounded-xl p-3 mb-2 flex items-center gap-3">
+                                                            <div className="h-10 w-10 bg-white/20 rounded-full flex items-center justify-center text-white backdrop-blur-sm">
+                                                                <Tag className="h-5 w-5" />
+                                                            </div>
+                                                            <div className="text-left">
+                                                                <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-0.5">Your Counter Offer</p>
+                                                                <p className="text-xl font-black text-white leading-none">{formatPrice(sellerCounterPrice)}</p>
+                                                            </div>
                                                         </div>
-                                                        <div className="text-left">
-                                                            <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest mb-0.5">Your Counter Offer</p>
-                                                            <p className="text-xl font-black text-white leading-none">{formatPrice(activeNeg.counter_price)}</p>
-                                                        </div>
+                                                        {activeNeg.counter_message && (
+                                                            <p className="text-[13px] text-indigo-50 text-left">{activeNeg.counter_message}</p>
+                                                        )}
                                                     </div>
-                                                    {activeNeg.counter_message && (
-                                                        <p className="text-[13px] text-indigo-50 text-left">{activeNeg.counter_message}</p>
-                                                    )}
                                                 </div>
                                             </div>
-                                        </div>
-                                    )}
-                                    {/* Buyer responses to counter */}
-                                    {activeNeg.counter_status === "accepted" && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
-                                                <CheckCircle className="h-3.5 w-3.5" /> Buyer accepted your counter offer! Checkout pending.
-                                            </span>
-                                        </div>
-                                    )}
+                                        )}
+                                        {/* Buyer responses to counter */}
+                                        {activeNeg.counter_status === "accepted" && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm">
+                                                    <CheckCircle className="h-3.5 w-3.5" /> Buyer accepted your counter offer! Checkout pending.
+                                                </span>
+                                            </div>
+                                        )}
 
-                                    {activeNeg.counter_status === "rejected" && (
-                                        <div className="flex justify-center">
-                                            <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
-                                                <XCircle className="h-3.5 w-3.5" /> Buyer rejected your counter offer.
-                                            </span>
-                                        </div>
-                                    )}
-                                </>
-                            )}
+                                        {activeNeg.counter_status === "rejected" && (
+                                            <div className="flex justify-center">
+                                                <span className="bg-red-50 text-red-600 border border-red-100 text-[11px] font-bold px-4 py-1.5 rounded-full flex items-center gap-1.5">
+                                                    <XCircle className="h-3.5 w-3.5" /> Buyer rejected your counter offer.
+                                                </span>
+                                            </div>
+                                        )}
+                                    </>
+                                );
+                            })()}
 
                             {/* Scroll spacer */}
                             <div className="h-4" />
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20">
+                        <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-8px_30px_-15px_rgba(0,0,0,0.05)] z-20 shrink-0">
 
-                            {selectedImagePreview && (
-                                <div className="mb-3 relative inline-block">
-                                    <div className="relative group">
-                                        <img src={selectedImagePreview} alt="upload preview" className="h-20 w-20 object-cover rounded-xl border-2 border-indigo-100 shadow-sm" />
-                                        <button onClick={() => setSelectedImagePreview(null)} className="absolute -top-2 -right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md scale-95 hover:scale-105 transition-transform border-2 border-white">
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {activeConvo.type === "negotiation" && activeNeg && activeNeg.status === "pending" && !activeNeg.counter_status && (
-                                <div className="mb-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 shadow-inner">
-                                    <div className="flex gap-2 justify-center sm:justify-start mb-4">
-                                        <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
-                                            <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {formatPrice(activeNeg.proposed_price)}
-                                        </Button>
-                                        <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
-                                            Reject
-                                        </Button>
-                                    </div>
-                                    <div className="relative flex items-center mb-4 opacity-70">
-                                        <div className="absolute inset-x-0 h-px bg-gray-200"></div>
-                                        <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR NEGOTIATE</span>
-                                    </div>
-                                    <form onSubmit={handleCounterOffer} className="p-1">
-                                        <div className="flex flex-col sm:flex-row gap-2">
-                                            <div className="w-full sm:w-[150px] relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
-                                                <Input
-                                                    type="number"
-                                                    value={counterPrice}
-                                                    onChange={(e) => setCounterPrice(e.target.value)}
-                                                    className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
-                                                    placeholder="Price"
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="flex-1 flex gap-2">
-                                                <Input
-                                                    value={counterMessage}
-                                                    onChange={(e) => setCounterMessage(e.target.value)}
-                                                    className="flex-1 bg-white border-gray-200 rounded-xl h-11 text-[13px] shadow-sm font-medium focus-visible:ring-indigo-500"
-                                                    placeholder="Add a message to your counter offer..."
-                                                />
-                                                <Button type="submit" className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
-                                                    Send Offer
-                                                </Button>
-                                            </div>
+                            {replyingTo && (
+                                <div className="mb-3 px-3 py-2 bg-indigo-50/50 border border-indigo-100 rounded-lg flex items-center justify-between">
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5 font-bold text-[11px] text-indigo-600 uppercase tracking-wider mb-0.5">
+                                            <Undo2 className="h-3 w-3" /> Replying to {replyingTo.sender}
                                         </div>
-                                    </form>
+                                        <p className="text-xs text-gray-600 truncate pr-4">{replyingTo.text}</p>
+                                    </div>
+                                    <button onClick={() => setReplyingTo(null)} className="h-6 w-6 shrink-0 bg-white border border-gray-200 text-gray-500 rounded-full flex items-center justify-center hover:bg-gray-50 transition-colors">
+                                        <X className="h-3 w-3" />
+                                    </button>
                                 </div>
                             )}
+
+                            {/* Removed redundant seller structured blocks per user feedback */}
+
+                            {selectedImagePreviews.length > 0 && (
+                                <div className="mb-3 flex flex-wrap gap-2">
+                                    {selectedImagePreviews.map((preview, idx) => (
+                                        <div key={idx} className="relative group">
+                                            <img src={preview} alt="upload preview" className="h-20 w-20 object-cover rounded-xl border-2 border-indigo-100 shadow-sm" />
+                                            <button 
+                                                onClick={() => removeImage(idx)} 
+                                                className="absolute -top-2 -right-2 h-6 w-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md scale-95 hover:scale-105 transition-transform border-2 border-white"
+                                            >
+                                                <X className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button 
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="h-20 w-20 rounded-xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 transition-all text-[10px] font-bold"
+                                    >
+                                        <ImageIcon className="h-5 w-5 mb-1" />
+                                        Add More
+                                    </button>
+                                </div>
+                            )}
+
+                            {activeConvo.type === "negotiation" && activeNeg && activeNeg.status !== "accepted" && activeNeg.status !== "rejected" && (() => {
+                                // Derive correct prices for the action panel
+                                const buyerCurrentOffer = activeNeg.proposed_price;
+                                const sellerHasPendingCounter = activeNeg.counter_status === "pending" && activeNeg.counter_price && activeNeg.counter_price > 0;
+
+                                return (
+                                    <div className="mb-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 shadow-inner">
+                                        <div className="flex flex-col gap-2 justify-center sm:justify-start mb-4 bg-white p-3 rounded-xl border border-indigo-50 shadow-sm">
+                                            {sellerHasPendingCounter ? (
+                                                <>
+                                                    <p className="text-xs font-bold text-gray-500 mb-1">Waiting for buyer to respond to your counter offer of {formatPrice(activeNeg.counter_price!)}.</p>
+                                                    <p className="text-[11px] text-gray-400 mb-2">You can still accept their last proposed price to close the deal now.</p>
+                                                    <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm">
+                                                        <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept {formatPrice(buyerCurrentOffer)}
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <div className="flex gap-2 w-full">
+                                                    <Button onClick={() => handleAction(activeNeg.id, "accepted")} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black px-6 shadow-sm flex-1 sm:flex-none">
+                                                        <CheckCircle className="h-4 w-4 mr-1.5 text-emerald-200" /> Accept Offer {formatPrice(buyerCurrentOffer)}
+                                                    </Button>
+                                                    <Button onClick={() => handleAction(activeNeg.id, "rejected")} variant="outline" className="text-red-600 hover:bg-red-50 border-red-100 rounded-xl font-black px-6 bg-white transition-colors flex-1 sm:flex-none">
+                                                        Reject
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="relative flex items-center mb-4 opacity-70">
+                                            <div className="absolute inset-x-0 h-px bg-gray-200"></div>
+                                            <span className="relative bg-gray-50 px-3 text-[10px] font-black text-gray-500 tracking-widest uppercase mx-auto">OR {sellerHasPendingCounter ? "UPDATE COUNTER" : "COUNTER OFFER"}</span>
+                                        </div>
+                                        <form onSubmit={handleCounterOffer} className="p-1">
+                                            <div className="flex flex-col sm:flex-row gap-2">
+                                                <div className="w-full sm:w-[150px] relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
+                                                    <Input
+                                                        type="number"
+                                                        value={counterPrice}
+                                                        onChange={(e) => setCounterPrice(e.target.value)}
+                                                        className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
+                                                        placeholder="Price"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="flex-1 flex gap-2">
+                                                    <Input
+                                                        value={counterMessage}
+                                                        onChange={(e) => setCounterMessage(e.target.value)}
+                                                        className="flex-1 bg-white border-gray-200 rounded-xl h-11 text-[13px] shadow-sm font-medium focus-visible:ring-indigo-500"
+                                                        placeholder="Add a message to your counter offer..."
+                                                    />
+                                                    <Button type="submit" className="h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 font-black text-white shadow-md shadow-indigo-500/20 shrink-0">
+                                                        {sellerHasPendingCounter ? "Update Offer" : "Send Offer"}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                );
+                            })()}
 
                             <form onSubmit={handleSendMessage} className="flex gap-2 items-center">
                                 <Button
@@ -661,6 +1130,7 @@ export default function UniversalMessagesPage() {
                                 <input
                                     type="file"
                                     accept="image/*"
+                                    multiple
                                     className="hidden"
                                     ref={fileInputRef}
                                     onChange={handleImageUpload}
@@ -668,14 +1138,16 @@ export default function UniversalMessagesPage() {
                                 <Input
                                     value={chatMessage}
                                     onChange={(e) => setChatMessage(e.target.value)}
-                                    className="flex-1 bg-gray-50 border-gray-100 rounded-full h-12 px-6 text-[13.px] font-medium shadow-inner focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-all placeholder:text-gray-400"
+                                    onFocus={() => { chatInputFocusedRef.current = true; }}
+                                    onBlur={() => { chatInputFocusedRef.current = false; }}
+                                    className="flex-1 bg-gray-50 border-gray-100 rounded-full h-12 px-6 text-[13px] font-medium shadow-inner focus-visible:ring-indigo-500 focus-visible:border-indigo-500 transition-all placeholder:text-gray-400"
                                     placeholder="Type your message..."
                                 />
                                 <Button
                                     type="submit"
                                     size="icon"
                                     className="h-12 w-12 rounded-full bg-indigo-600 hover:bg-indigo-700 shrink-0 shadow-md shadow-indigo-600/30 transition-transform active:scale-95 disabled:opacity-50"
-                                    disabled={!chatMessage.trim() && !selectedImagePreview}
+                                    disabled={!chatMessage.trim() && selectedImagePreviews.length === 0}
                                 >
                                     <Send className="h-5 w-5 text-white ml-0.5" />
                                 </Button>

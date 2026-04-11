@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
-import { DemoStore } from "@/lib/demo-store";
-import { DEMO_PRODUCTS, DEMO_SELLERS } from "@/lib/data";
+import { DataSyncService } from "@/lib/sync-store";
+import { SEED_PRODUCTS, SEED_SELLERS } from "@/lib/data";
 import { Product, Seller } from "@/lib/types";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, cn, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -24,7 +25,8 @@ import {
     Camera,
     Upload,
     AlertTriangle,
-    ShoppingCart
+    ShoppingCart,
+    HelpCircle
 } from "lucide-react";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -34,6 +36,7 @@ import { useCart } from "@/context/CartContext";
 import { Input } from "@/components/ui/input";
 import { ContactSellerModal } from "@/components/modals/ContactSellerModal";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
+import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 
 export default function StoreProfile() {
     const params = useParams();
@@ -49,14 +52,16 @@ export default function StoreProfile() {
     const [showContactModal, setShowContactModal] = useState(false);
     const { isFavoriteStore, toggleFavoriteStore } = useFavorites();
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [activeTab, setActiveTab] = useState<"products" | "about" | "reviews" | "shipping">("products");
+    const [sortBy, setSortBy] = useState<"newest" | "price-low" | "price-high">("newest");
 
     useEffect(() => {
         const slug = params.slug as string;
         if (!slug) return;
 
         const loadStore = () => {
-            const allSellers = [...DemoStore.getSellers(), ...DEMO_SELLERS];
-            // Deduplicate by id, preferring DemoStore version
+            const allSellers = [...DataSyncService.getSellers(), ...SEED_SELLERS];
+            // Deduplicate by id, preferring DataSyncService version
             const uniqueSellers = allSellers.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i);
             // find by store_url OR by ID OR by slugified business name
             const foundSeller = uniqueSellers.find(s =>
@@ -65,7 +70,7 @@ export default function StoreProfile() {
 
             if (foundSeller) {
                 setSeller(foundSeller);
-                const allProducts = [...DemoStore.getProducts(), ...DEMO_PRODUCTS];
+                const allProducts = [...DataSyncService.getProducts(), ...SEED_PRODUCTS];
                 // Deduplicate by id
                 const uniqueProducts = allProducts.filter((p, i, arr) => arr.findIndex(x => x.id === p.id) === i);
                 setProducts(uniqueProducts.filter(p => p.seller_id === foundSeller.id));
@@ -98,7 +103,7 @@ export default function StoreProfile() {
             const currentImages = seller.cover_image_urls || (seller.cover_image_url ? [seller.cover_image_url] : []);
             const newImages = [...currentImages, newUrl].slice(-3); // Keep only the latest 3
 
-            DemoStore.updateSeller(seller.id, { cover_image_urls: newImages, cover_image_url: newImages[0] });
+            DataSyncService.updateSeller(seller.id, { cover_image_urls: newImages, cover_image_url: newImages[0] });
             setSeller(prev => prev ? { ...prev, cover_image_urls: newImages, cover_image_url: newImages[0] } : null);
             setIsUpdatingCover(false);
         }, 1000);
@@ -108,15 +113,21 @@ export default function StoreProfile() {
         if (!seller || !e.target.files?.[0]) return;
         const file = e.target.files[0];
         const newUrl = URL.createObjectURL(file);
-        DemoStore.updateSeller(seller.id, { logo_url: newUrl });
+        DataSyncService.updateSeller(seller.id, { logo_url: newUrl });
         setSeller(prev => prev ? { ...prev, logo_url: newUrl } : null);
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        p.price >= priceRange.min &&
-        p.price <= priceRange.max
-    );
+    const filteredProducts = products
+        .filter(p =>
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
+            p.price >= priceRange.min &&
+            p.price <= priceRange.max
+        )
+        .sort((a, b) => {
+            if (sortBy === "price-low") return a.price - b.price;
+            if (sortBy === "price-high") return b.price - a.price;
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
 
     if (loading) {
         return (
@@ -155,8 +166,42 @@ export default function StoreProfile() {
     }
 
     return (
-        <div className="min-h-screen bg-white font-sans pb-20">
+        <div className="min-h-screen bg-white font-sans pb-10">
+            {seller && (
+                <Script
+                    id="store-breadcrumb-jsonld"
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify({
+                        '@context': 'https://schema.org',
+                        '@type': 'BreadcrumbList',
+                        itemListElement: [
+                            {
+                                '@type': 'ListItem',
+                                position: 1,
+                                name: 'All Stores',
+                                item: 'https://fairprice.ng/stores'
+                            },
+                            {
+                                '@type': 'ListItem',
+                                position: 2,
+                                name: seller.business_name,
+                                item: `https://fairprice.ng/store/${params.slug}`
+                            }
+                        ]
+                    }) }}
+                />
+            )}
             <Navbar />
+
+            {/* Breadcrumbs Section */}
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-4">
+                <Breadcrumbs 
+                    items={[
+                        { label: "All Stores", href: "/stores" },
+                        { label: seller.business_name, active: true }
+                    ]}
+                />
+            </div>
 
             {/* Header / Cover */}
             <div className="bg-white shadow-sm border-b border-gray-100 relative z-10">
@@ -197,10 +242,10 @@ export default function StoreProfile() {
                 </div>
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-                    <div className="-mt-16 md:-mt-20 flex flex-col md:flex-row md:items-end gap-6 pb-6">
+                    <div className="-mt-12 md:-mt-16 flex flex-col md:flex-row md:items-end gap-4 pb-4">
                         {/* Avatar */}
                         <div
-                            className={`h-32 w-32 md:h-40 md:w-40 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar z-30 ${isOwner ? 'cursor-pointer' : ''}`}
+                            className={`h-28 w-28 md:h-36 md:w-36 rounded-3xl bg-white p-1.5 shadow-2xl relative shrink-0 group/avatar z-30 ${isOwner ? 'cursor-pointer' : ''}`}
                             onClick={() => isOwner && document.getElementById("logo-upload")?.click()}
                         >
                             {isOwner && <input type="file" id="logo-upload" accept="image/*" className="hidden" onChange={handleUpdateLogo} />}
@@ -269,19 +314,27 @@ export default function StoreProfile() {
 
                     {/* Navigation Tabs */}
                     <div className="flex items-center gap-8 border-t border-gray-100 text-sm font-bold tracking-wide mt-2">
-                        <button className="py-4 border-b-2 border-brand-green-500 text-brand-green-600">Products</button>
-                        <button className="py-4 border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors">About</button>
-                        <button className="py-4 border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors">Reviews</button>
-                        <button className="py-4 border-b-2 border-transparent text-gray-400 hover:text-gray-600 transition-colors">Policies</button>
+                        {(["products", "about", "reviews", "shipping"] as const).map((tab) => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={cn(
+                                    "py-4 border-b-2 transition-all capitalize",
+                                    activeTab === tab ? "border-brand-green-500 text-brand-green-600" : "border-transparent text-gray-400 hover:text-gray-600"
+                                )}
+                            >
+                                {tab === "shipping" ? "Shipping & Returns" : tab}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-                <div className="flex flex-col md:flex-row gap-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
+                <div className="flex flex-col md:flex-row gap-6">
                     {/* Sidebar Filters */}
-                    <aside className="w-full md:w-64 space-y-8 hidden md:block">
+                    <aside className="w-full md:w-60 space-y-6 hidden md:block">
                         <div>
                             <h3 className="font-bold text-gray-900 mb-4">Categories</h3>
                             <div className="space-y-2">
@@ -334,8 +387,8 @@ export default function StoreProfile() {
                     {/* Product Grid */}
                     <div className="flex-1">
                         {/* Mobile Search & Filter */}
-                        <div className="flex gap-4 mb-6 sticky top-[72px] z-20 md:static">
-                            <div className="relative flex-1">
+                        <div className="flex flex-wrap md:flex-nowrap gap-3 mb-6 sticky top-[72px] z-20 md:static">
+                            <div className="relative flex-1 min-w-[200px]">
                                 <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-400" />
                                 <Input
                                     placeholder={`Search in ${seller.business_name}...`}
@@ -344,87 +397,233 @@ export default function StoreProfile() {
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
-                            <Button size="icon" variant="outline" className="h-12 w-12 rounded-full bg-white border-none shadow-lg md:hidden">
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value as any)}
+                                className="h-12 px-4 rounded-full bg-white border-none shadow-lg text-sm font-bold text-gray-600 outline-none min-w-[140px]"
+                            >
+                                <option value="newest">Newest First</option>
+                                <option value="price-low">Price: Low to High</option>
+                                <option value="price-high">Price: High to Low</option>
+                            </select>
+                            <Button size="icon" variant="outline" className="h-12 w-12 rounded-full bg-white border-none shadow-lg md:hidden shrink-0">
                                 <Filter className="h-5 w-5" />
                             </Button>
                         </div>
 
-                        {filteredProducts.length === 0 ? (
-                            <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100">
-                                <Package className="h-16 w-16 mx-auto text-gray-200 mb-4" />
-                                <h3 className="text-lg font-bold text-gray-900">No products found</h3>
-                                <p className="text-gray-500">Try adjusting your search criteria.</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredProducts.map((product) => (
-                                    <Link key={product.id} href={`/product/${product.id}`} className="group block">
-                                        <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 h-full flex flex-col">
-                                            {/* Image */}
-                                            <div className="aspect-square relative bg-[#F5F5F7] p-6 flex items-center justify-center overflow-hidden">
-                                                <img
-                                                    src={product.image_url || "/assets/images/placeholder.png"}
-                                                    alt={product.name}
-                                                    className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
-                                                />
-                                                {product.price_flag === "fair" && (
-                                                    <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl font-bold text-[10px] text-emerald-600 uppercase tracking-widest">
-                                                        <ShieldCheck className="h-3.5 w-3.5" />
-                                                        Fair Price
-                                                    </div>
-                                                )}
-                                                {product.price_flag === "overpriced" && (
-                                                    <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-red-500/20 shadow-xl font-bold text-[10px] text-red-500 uppercase tracking-widest">
-                                                        <AlertTriangle className="h-3.5 w-3.5" />
-                                                        Pricing Alert
-                                                    </div>
-                                                )}
-                                                <button className="absolute bottom-3 right-3 h-10 w-10 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 duration-300">
-                                                    <Heart className="h-5 w-5" />
-                                                </button>
-                                            </div>
-
-                                            {/* Details */}
-                                            <div className="p-5 flex-1 flex flex-col">
-                                                <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 min-h-[2.5rem] group-hover:text-brand-green-600 transition-colors">
-                                                    {product.name}
-                                                </h3>
-                                                <div className="mt-auto pt-4 space-y-3">
-                                                    <div className="flex items-end justify-between">
-                                                        <div>
-                                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Price</p>
-                                                            <p className="text-xl font-black text-gray-900">
-                                                                {formatPrice(product.price)}
-                                                            </p>
-                                                        </div>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                e.stopPropagation();
-                                                                addToCart(product);
-                                                            }}
-                                                            className="h-9 w-9 rounded-full bg-brand-green-50 flex items-center justify-center text-brand-green-600 hover:bg-brand-green-600 hover:text-white transition-all hover:scale-110"
-                                                            title="Add to Cart"
-                                                        >
-                                                            <ShoppingCart className="h-4 w-4" />
+                        {activeTab === "products" && (
+                            <>
+                                {filteredProducts.length === 0 ? (
+                                    <div className="text-center py-20 bg-white rounded-3xl shadow-sm border border-gray-100">
+                                        <Package className="h-16 w-16 mx-auto text-gray-200 mb-4" />
+                                        <h3 className="text-lg font-bold text-gray-900">No products found</h3>
+                                        <p className="text-gray-500">Try adjusting your search criteria.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                                        {filteredProducts.map((product) => (
+                                            <Link key={product.id} href={getProductUrl(product.id, product.name)} className="group block">
+                                                <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 h-full flex flex-col">
+                                                    {/* Image */}
+                                                    <div className="aspect-square relative bg-[#F5F5F7] p-4 flex items-center justify-center overflow-hidden">
+                                                        <img
+                                                            src={product.image_url || "/assets/images/placeholder.png"}
+                                                            alt={product.name}
+                                                            className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-110"
+                                                        />
+                                                        {product.price_flag === "fair" && (
+                                                            <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/10 shadow-sm font-bold text-[8px] text-emerald-600 uppercase tracking-widest leading-none">
+                                                                <ShieldCheck className="h-2.5 w-2.5" />
+                                                                Fair Price
+                                                            </div>
+                                                        )}
+                                                        <button className="absolute bottom-2 right-2 h-8 w-8 bg-white rounded-full shadow-lg flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 duration-300">
+                                                            <Heart className="h-4 w-4" />
                                                         </button>
                                                     </div>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            addToCart(product);
-                                                            router.push('/cart');
-                                                        }}
-                                                        className="w-full h-9 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-1.5"
-                                                    >
-                                                        Buy Now
-                                                    </button>
+
+                                                    {/* Details */}
+                                                    <div className="p-3 md:p-5 flex-1 flex flex-col">
+                                                        <h3 className="font-bold text-gray-900 mb-1 line-clamp-2 min-h-[2.2rem] text-xs md:text-sm group-hover:text-brand-green-600 transition-colors">
+                                                            {product.name}
+                                                        </h3>
+                                                        <div className="mt-auto pt-2 md:pt-4 space-y-2 md:space-y-3">
+                                                            <div className="flex items-end justify-between">
+                                                                <div>
+                                                                    <p className="text-sm md:text-xl font-black text-gray-900">
+                                                                        {formatPrice(product.price)}
+                                                                    </p>
+                                                                </div>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        e.stopPropagation();
+                                                                        addToCart(product);
+                                                                    }}
+                                                                    className="h-7 w-7 md:h-9 md:w-9 rounded-full bg-brand-green-50 flex items-center justify-center text-brand-green-600 hover:bg-brand-green-600 hover:text-white transition-all"
+                                                                >
+                                                                    <ShoppingCart className="h-3.5 w-3.5 md:h-4 w-4" />
+                                                                </button>
+                                                            </div>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    addToCart(product);
+                                                                    router.push('/cart');
+                                                                }}
+                                                                className="w-full h-8 md:h-9 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white text-[10px] md:text-xs font-bold tracking-wide transition-all"
+                                                            >
+                                                                Buy Now
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {activeTab === "about" && (
+                            <div className="bg-white rounded-[32px] p-8 md:p-12 border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <h2 className="text-2xl font-black text-gray-900 mb-6">About {seller.business_name}</h2>
+                                <div className="prose prose-emerald max-w-none text-gray-600 font-medium leading-relaxed">
+                                    {seller.description ? seller.description.split('\n').map((para, i) => (
+                                        <p key={i} className="mb-4">{para}</p>
+                                    )) : (
+                                        <p>Learn more about our commitment to quality, fair pricing, and excellent service. We are dedicated to providing the best values for our customers.</p>
+                                    )}
+                                </div>
+                                <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Location</p>
+                                        <p className="font-bold text-gray-800 flex items-center gap-2"><MapPin className="h-4 w-4 text-brand-green-600" /> {seller.location || "Lagos, Nigeria"}</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Member Since</p>
+                                        <p className="font-bold text-gray-800 flex items-center gap-2"><Clock className="h-4 w-4 text-brand-green-600" /> {seller.joined_at ? new Date(seller.joined_at).toLocaleDateString() : "March 2026"}</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Verification</p>
+                                        <p className="font-bold text-emerald-600 flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> FairPrice Verified</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === "reviews" && (
+                            <div className="bg-white rounded-[32px] p-8 md:p-12 border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-gray-900">Customer Reviews</h2>
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <div className="flex items-center">
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <Star key={star} className={`h-4 w-4 ${star <= (seller.rating || 4.5) ? 'text-yellow-500 fill-yellow-500' : 'text-gray-200'}`} />
+                                                ))}
+                                            </div>
+                                            <span className="text-lg font-black text-gray-900">{seller.rating || "4.5"}</span>
+                                            <span className="text-sm text-gray-400 font-medium">based on 128 global reviews</span>
+                                        </div>
+                                    </div>
+                                    <Button className="h-12 px-8 rounded-2xl bg-gray-900 text-white font-black uppercase tracking-widest text-[10px]">Write a Review</Button>
+                                </div>
+
+                                <div className="space-y-8">
+                                    {[1, 2, 3].map((r) => (
+                                        <div key={r} className="pb-8 border-b border-gray-100 last:border-0 last:pb-0">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-brand-green-100 to-emerald-100 flex items-center justify-center font-bold text-brand-green-700 text-sm">
+                                                        {["A", "B", "C"][r - 1]}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-gray-900 text-sm">{["Adekunle O.", "Blessing E.", "Chimamanda N."][r - 1]}</p>
+                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Verified Purchase</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    {[1, 2, 3, 4, 5].map((star) => (
+                                                        <Star key={star} className={`h-3 w-3 ${star <= (5 - r + 1) ? 'text-yellow-500 fill-yellow-500' : 'text-gray-200'}`} />
+                                                    ))}
                                                 </div>
                                             </div>
+                                            <p className="text-gray-600 text-sm leading-relaxed mb-4">
+                                                {["Incredible experience shopping with this store. My order arrived exactly on time and the product quality far exceeded my expectations for the price.",
+                                                  "Good service, though shipping took an extra day. The communication from the seller side was excellent throughout the delivery process.",
+                                                  "Standard professional seller. Items are genuine and properly packaged. Will definitely be ordering from here again."][r - 1]}
+                                            </p>
+                                            <div className="flex items-center gap-4 text-xs font-bold text-gray-400">
+                                                <span>Helpful?</span>
+                                                <button className="flex items-center gap-1 hover:text-brand-green-600 transition-colors">Yes (12)</button>
+                                                <button className="flex items-center gap-1 hover:text-red-500 transition-colors">No (2)</button>
+                                            </div>
                                         </div>
-                                    </Link>
-                                ))}
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === "shipping" && (
+                            <div className="bg-white rounded-[32px] p-8 md:p-12 border border-gray-100 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <h2 className="text-2xl font-black text-gray-900 mb-8">Shipping & Returns</h2>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                    <div className="space-y-6">
+                                        <div className="flex items-start gap-4">
+                                            <div className="h-10 w-10 rounded-xl bg-brand-green-50 flex items-center justify-center shrink-0">
+                                                <Package className="h-5 w-5 text-brand-green-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-sm text-gray-900 tracking-tight mb-1">Standard Delivery</h4>
+                                                <p className="text-xs text-gray-500 leading-relaxed">Orders are processed within 24 hours. Lagos delivery takes 1-2 working days. Nationwide delivery takes 3-5 working days.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-4">
+                                            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
+                                                <MapPin className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-sm text-gray-900 tracking-tight mb-1">Pickup Information</h4>
+                                                <p className="text-xs text-gray-500 leading-relaxed">Direct pickup available at our Lagos coordinates. Please verify your order confirmation before arrival.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <div className="flex items-start gap-4">
+                                            <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
+                                                <ShieldCheck className="h-5 w-5 text-amber-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-sm text-gray-900 tracking-tight mb-1">Return Policy</h4>
+                                                <p className="text-xs text-gray-500 leading-relaxed">3-day return window for items not as described. Product must be in original packaging with all security seals intact.</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-start gap-4">
+                                            <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center shrink-0">
+                                                <AlertTriangle className="h-5 w-5 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-sm text-gray-900 tracking-tight mb-1">Escrow Guarantee</h4>
+                                                <p className="text-xs text-gray-500 leading-relaxed">Your payment is held securely in escrow until you confirm satisfaction or 3 days after delivery confirmation.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-10 p-6 bg-gray-50 rounded-[24px] border border-gray-100 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <HelpCircle className="h-6 w-6 text-gray-400" />
+                                        <div>
+                                            <p className="font-bold text-gray-900 text-sm">Need more information?</p>
+                                            <p className="text-xs text-gray-500">Our customer support is available 24/7 to help with shipping queries.</p>
+                                        </div>
+                                    </div>
+                                    <Button variant="outline" className="h-10 rounded-xl border-gray-200 font-bold text-xs uppercase tracking-widest text-gray-600">Contact Help</Button>
+                                </div>
                             </div>
                         )}
                     </div>
