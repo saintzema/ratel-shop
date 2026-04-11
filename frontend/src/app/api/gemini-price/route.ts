@@ -91,6 +91,7 @@ export async function POST(req: Request) {
             ANONYMIZATION & LINKS (CRITICAL): 
             - NEVER mention any real store name in the product *name*.
             - YOU HAVE GOOGLE SEARCH ENABLED. You MUST utilize it to find REAL products that match the query, preferably from global wholesale/retail platforms like Alibaba, AliExpress, Amazon, Jiji, or official manufacturer sites.
+            - Search aggressively for high-resolution images for EVERY product. If you invoke Google Search, explicitly hunt for image URLs.
             - For the \`sourceUrl\`, provide the REAL product link you found during your search (e.g., https://www.alibaba.com/product-detail/...).
             - For the \`image_url\`, provide the REAL direct image link from the product page (e.g., https://s.alicdn.com/@sc04/kf/...jpg or https://m.media-amazon.com/...jpg). DO NOT hallucinate image URLs. If you cannot extract a real valid image URL, leave it as an empty string "".
             
@@ -268,6 +269,24 @@ export async function POST(req: Request) {
 
                     return true;
                 });
+
+                // ─── IMAGE SHARING FALLBACK (Zero-latency) ───
+                // If some results have valid HD images and others don't, share the valid image among them
+                // since they are all highly related variants of the same core search query.
+                const validImages = parsedData.suggestions
+                    .map((item: any) => item.image_url)
+                    .filter((url: any) => url && typeof url === 'string' && url.trim() !== '' && !url.toLowerCase().includes('no photo') && !url.toLowerCase().includes('n/a'));
+
+                if (validImages.length > 0) {
+                    const fallbackImage = validImages[0];
+                    parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                        const currentImg = (item.image_url || "").toLowerCase();
+                        if (!currentImg || currentImg === "" || currentImg.includes('no photo') || currentImg.includes('n/a')) {
+                            item.image_url = fallbackImage;
+                        }
+                        return item;
+                    });
+                }
             }
 
             // Post-processing: Clamp prices to anchor if provided (prevents hallucination)

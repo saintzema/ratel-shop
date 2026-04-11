@@ -1897,7 +1897,7 @@ function CheckoutContent() {
                                 <div className="flex justify-between text-gray-600 animate-in fade-in slide-in-from-top-1">
                                     <span className="flex items-center gap-1.5">
                                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                                        Escrow Fee:
+                                        Charges:
                                     </span>
                                     <span className="font-medium text-emerald-700">{formatPrice(escrowFee)}</span>
                                 </div>
