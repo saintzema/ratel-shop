@@ -8,14 +8,22 @@ if (typeof window === 'undefined') {
     neonConfig.webSocketConstructor = ws;
 }
 
+// ─── TOTAL SILENCE SHIELD (BUILD-TIME) ───
+// Prisma's engine validates the existence of DATABASE_URL on import.
+// In Vercel builds, we inject a dummy URL to prevent the 'host: localhost' error log.
+if (process.env.NEXT_PHASE === 'phase-production-build' && !process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = "postgresql://dummy:dummy@localhost:5432/dummy";
+}
+
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 /**
- * Creates a real instance of the PrismaClient.
- * This should only be called by the Proxy on first access.
+ * THE LOOP-BREAKER: 
+ * Explicitly injects the connection string into the PrismaClient constructor.
+ * This prevents the engine from searching the environment and defaulting to localhost.
  */
 function createPrismaClient(): PrismaClient {
-    // Standard Neon/Vercel connection resolution
+    // Definitive production fallback (Hardcoded to break the environment dependency loop)
     const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
     // Add statement timeout for serverless reliability
@@ -31,8 +39,10 @@ function createPrismaClient(): PrismaClient {
     const adapter = new PrismaNeon(pool as any);
     
     // Standard Prisma Client initialization for stable v6.x
+    // WE EXPLICITLY PASS datasourceUrl TO BREAK THE LOOP
     return new PrismaClient({ 
         adapter,
+        datasourceUrl: dbUrl,
         log: ["error", "warn"] 
     });
 }
