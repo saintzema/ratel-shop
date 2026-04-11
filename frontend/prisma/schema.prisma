@@ -181,9 +181,9 @@ model Order {
   zivaActive        Boolean?       @default(false)
   financing         Json?
   disputes          Dispute[]
-  customer          User           @relation(fields: [customerId], references: [id])
-  product           Product        @relation(fields: [productId], references: [id])
-  seller            Seller         @relation("SellerOrders", fields: [sellerId], references: [id])
+  customer          User           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller            Seller         @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model Payout {
@@ -197,7 +197,7 @@ model Payout {
   orderIds      String[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  seller        Seller   @relation(fields: [sellerId], references: [id])
+  seller        Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model NegotiationRequest {
@@ -215,9 +215,9 @@ model NegotiationRequest {
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   chatMessages   Json?
-  customer       User               @relation(fields: [customerId], references: [id])
-  product        Product            @relation(fields: [productId], references: [id])
-  seller         Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id])
+  customer       User               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  product        Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller         Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model Review {
@@ -230,8 +230,8 @@ model Review {
   body             String
   verifiedPurchase Boolean  @default(false)
   createdAt        DateTime @default(now())
-  product          Product  @relation(fields: [productId], references: [id])
-  user             User     @relation(fields: [userId], references: [id])
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Deal {
@@ -241,7 +241,7 @@ model Deal {
   startAt     DateTime
   endAt       DateTime
   isActive    Boolean  @default(true)
-  product     Product  @relation(fields: [productId], references: [id])
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model KYCSubmission {
@@ -256,7 +256,7 @@ model KYCSubmission {
   reviewNotes String?
   createdAt   DateTime  @default(now())
   reviewedAt  DateTime?
-  seller      Seller    @relation(fields: [sellerId], references: [id])
+  seller      Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model PriceAlert {
@@ -269,8 +269,8 @@ model PriceAlert {
   marketAvg   Float
   sellerPrice Float
   createdAt   DateTime       @default(now())
-  product     Product        @relation(fields: [productId], references: [id])
-  seller      Seller         @relation(fields: [sellerId], references: [id])
+  product     Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller      Seller         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model Complaint {
@@ -285,8 +285,8 @@ model Complaint {
   status      ComplaintStatus @default(complaint_open)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
-  seller      Seller          @relation("SellerComplaints", fields: [sellerId], references: [id])
-  user        User            @relation("UserComplaints", fields: [userId], references: [id])
+  seller      Seller          @relation("SellerComplaints", fields: [sellerId], references: [id], onDelete: Cascade)
+  user        User            @relation("UserComplaints", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Dispute {
@@ -305,9 +305,9 @@ model Dispute {
   adminNotes  String?
   createdAt   DateTime      @default(now())
   resolvedAt  DateTime?
-  buyer       User          @relation("BuyerDisputes", fields: [buyerId], references: [id])
-  order       Order         @relation(fields: [orderId], references: [id])
-  seller      Seller        @relation("SellerDisputes", fields: [sellerId], references: [id])
+  buyer       User          @relation("BuyerDisputes", fields: [buyerId], references: [id], onDelete: Cascade)
+  order       Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller      Seller        @relation("SellerDisputes", fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model Notification {
@@ -318,7 +318,7 @@ model Notification {
   read      Boolean          @default(false)
   link      String?
   createdAt DateTime         @default(now())
-  user      User?            @relation(fields: [userId], references: [id])
+  user      User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SupportMessage {
@@ -336,7 +336,7 @@ model SupportMessage {
   targetUserEmail String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  user            User?         @relation(fields: [userId], references: [id])
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SystemSetting {
