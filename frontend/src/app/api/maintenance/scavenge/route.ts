@@ -32,7 +32,6 @@ export async function GET(request: Request) {
             }
         });
 
-        const categories = await prodClient.category.findMany();
         const products = await prodClient.product.findMany();
         const deals = await prodClient.deal.findMany();
         
@@ -43,14 +42,12 @@ export async function GET(request: Request) {
             timestamp: new Date().toISOString(),
             source: 'API Runtime',
             counts: {
-                categories: categories.length,
                 products: products.length,
                 deals: deals.length
             },
             data: {
-                categories,
                 deals,
-                products: products.map(p => ({
+                products: products.map((p: any) => ({
                     ...p,
                     sellerId: 'global_partner', // Re-map to our new identity
                     price: Number(p.price),

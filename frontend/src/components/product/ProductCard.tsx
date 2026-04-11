@@ -57,7 +57,8 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
     }, [dealEndTime]);
 
     // Mock savings calculation
-    const displayOriginalPrice = product.originalPrice ?? (product as any).original_price;
+    const p = product as any;
+    const displayOriginalPrice = p.originalPrice ?? p.original_price;
     const savings = displayOriginalPrice ? displayOriginalPrice - product.price : 0;
     const savingsPct = displayOriginalPrice ? Math.round((savings / displayOriginalPrice) * 100) : 0;
 
@@ -193,7 +194,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             {[...Array(5)].map((_, i) => (
                                 <Star
                                     key={i}
-                                    className={`h-[10px] w-[10px] sm:h-3 sm:w-3 ${i < Math.round(product.avgRating ?? (product as any).avg_rating ?? 0) ? "fill-current" : "text-gray-300"}`}
+                                    className={`h-[10px] w-[10px] sm:h-3 sm:w-3 ${i < Math.round(p.avgRating ?? p.avg_rating ?? 0) ? "fill-current" : "text-gray-300"}`}
                                 />
                             ))}
                         </div>
