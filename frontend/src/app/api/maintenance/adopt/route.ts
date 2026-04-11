@@ -57,7 +57,7 @@ export async function GET(request: Request) {
                     sellerId: newSellerId
                 }
             }));
-            totalRevenueAdopted += Number(order.totalAmount);
+            totalRevenueAdopted += Number(order.amount);
         }
 
         // 4. Adopt Negotiations
