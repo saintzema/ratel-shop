@@ -36,7 +36,7 @@ export async function GET(request: Request) {
         const orphanedNegotiations = await prisma.negotiationRequest.findMany({
             where: {
                 OR: [
-                    { buyerId: { notIn: Array.from(validUserIds) } },
+                    { customerId: { notIn: Array.from(validUserIds) } },
                     { sellerId: { notIn: Array.from(validUserIds) } }
                 ]
             }
@@ -62,13 +62,13 @@ export async function GET(request: Request) {
 
         // 4. Adopt Negotiations
         for (const neg of orphanedNegotiations) {
-            const newBuyerId = validUserIds.has(neg.buyerId) ? neg.buyerId : TARGET_BUYER_ID;
+            const newCustomerId = validUserIds.has(neg.customerId) ? neg.customerId : TARGET_BUYER_ID;
             const newSellerId = validUserIds.has(neg.sellerId) ? neg.sellerId : TARGET_SELLER_ID;
 
             tasks.push(prisma.negotiationRequest.update({
                 where: { id: neg.id },
                 data: {
-                    buyerId: newBuyerId,
+                    customerId: newCustomerId,
                     sellerId: newSellerId
                 }
             }));
