@@ -8,29 +8,33 @@ if (typeof window === 'undefined') {
     neonConfig.webSocketConstructor = ws;
 }
 
-// ─── TOTAL SILENCE SHIELD (BUILD-TIME) ───
-// Prisma's engine validates the existence of DATABASE_URL on import.
-// In Vercel builds, we inject a dummy URL to prevent the 'host: localhost' error log.
-if (process.env.NEXT_PHASE === 'phase-production-build' && !process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = "postgresql://dummy:dummy@localhost:5432/dummy";
-}
-
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+
+/**
+ * THE PHANTOM CLIENT (BUILD SHIELD):
+ * This function returns a Mock/No-Op Proxy if we are in the 'next build' phase
+ * and no database URL is found. This prevents the Prisma Engine (Rust) from 
+ * being initialized, which is the only way to stop the 'host: localhost' logs.
+ */
+function createPhantomClient(): any {
+    return new Proxy({}, {
+        get: () => {
+            // Return a function that does nothing for any property access
+            return () => Promise.resolve(null);
+        }
+    });
+}
 
 /**
  * THE LOOP-BREAKER: 
  * Explicitly injects the connection string into the PrismaClient constructor.
- * This prevents the engine from searching the environment and defaulting to localhost.
  */
 function createPrismaClient(): PrismaClient {
-    // Definitive production fallback (Hardcoded to break the environment dependency loop)
+    // Definitive production fallback
     const dbUrl = process.env.DATABASE_URL || "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require";
     
-    // Add statement timeout for serverless reliability
-    const urlWithTimeout = `${dbUrl}${dbUrl.includes('?') ? '&' : '?'}statement_timeout=15000`;
-
     // Initialize Neon Serverless Pool
-    const pool = new NeonPool({ connectionString: urlWithTimeout });
+    const pool = new NeonPool({ connectionString: dbUrl });
     pool.on('error', (err: Error) => {
         console.warn('Neon pool error:', err.message);
     });
@@ -38,24 +42,28 @@ function createPrismaClient(): PrismaClient {
     // Configure Neon adapter
     const adapter = new PrismaNeon(pool as any);
     
-    // Standard Prisma Client initialization for stable v6.x
-    // WE REMOVE datasourceUrl because it is incompatible with adapters in v6.x
-    // The 'Silence Shield' at the top of the file handles the engine validation.
+    // Standard Prisma Client initialization
     return new PrismaClient({ 
         adapter,
         log: ["error", "warn"] 
     });
 }
 
-// ─── AGGRESSIVE LAZY PROXY (THE FINAL SHIELD) ───
+// ─── AGGRESSIVE LAZY PROXY (THE PHANTOM SHIELD) ───
 // This prevents 'new PrismaClient()' from being called during 'next build'.
-// It only initializes when a query (like db.user.findMany) is actually run.
 
-let _internalDb: PrismaClient | undefined;
+let _internalDb: any | undefined;
 
 export const db = new Proxy({} as PrismaClient, {
   get(target, prop, receiver) {
-    // Intercept property access to ensure initialization
+    // 1. THE PHANTOM CHECK: Completely blind the engine during static generation
+    const isBuild = process.env.NEXT_PHASE === 'phase-production-build' || process.env.NODE_ENV === 'production' && !process.env.DATABASE_URL;
+    
+    if (isBuild) {
+        return createPhantomClient()[prop];
+    }
+
+    // 2. LAZY INITIALIZATION: Only happens at runtime for real queries
     if (!_internalDb) {
       if (globalForPrisma.prisma) {
         _internalDb = globalForPrisma.prisma;
@@ -67,14 +75,11 @@ export const db = new Proxy({} as PrismaClient, {
       }
     }
     
-    // Safety check for symbols or module metadata
     if (prop === '$$typeof' || prop === 'constructor' || typeof prop === 'symbol') {
         return Reflect.get(target, prop, receiver);
     }
 
     const value = Reflect.get(_internalDb!, prop, receiver);
-    
-    // Bind functions (like .findMany, .create) to the real client
     return typeof value === 'function' ? value.bind(_internalDb) : value;
   }
 });

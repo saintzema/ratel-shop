@@ -7,16 +7,16 @@ dotenv.config({ path: ".env.local" });
 dotenv.config();
 
 /**
- * THE PROTECTIVE SMART SEEDER:
- * This script is designed to run against a database that ALREADY has live data.
- * It uses namespaced IDs (seed_*) to ensure it never collides with real users.
+ * THE PROTECTIVE SMART SEEDER (RE-HOME VERSION):
+ * This version uses namespaced IDs for mock sellers, 
+ * but maps 'Global Stores' products directly to your REAL live account.
  */
 const prisma = new PrismaClient();
 
 async function main() {
     console.log("Starting Protective Smart Seed...");
     
-    // 0. Seed Admin Superuser (Hardcoded safety)
+    // 0. Seed Admin Superuser
     const adminPassword = await bcrypt.hash("admin123", 12);
     await prisma.user.upsert({
         where: { email: "techzema@gmail.com" },
@@ -30,11 +30,12 @@ async function main() {
         },
     });
 
-    // 1. Create Sellers with Namespaced IDs
+    // 1. Create Sellers with Namespaced IDs (except for your real one)
     for (const s of SEED_SELLERS) {
-        // We use 'seed_' prefix to avoid colliding with any REAL users on the live site
-        const namespacedSellerId = s.id.startsWith('seed_') ? s.id : `seed_${s.id}`;
-        const namespacedUserId = `user_${namespacedSellerId}`;
+        // DETECT YOUR REAL ACCOUNT: If it's global-partners, use the real ID
+        const isRealAccount = s.id === 'global-partners' || s.business_name.includes("Global Stores");
+        const namespacedSellerId = isRealAccount ? 'global-partners' : (s.id.startsWith('seed_') ? s.id : `seed_${s.id}`);
+        const namespacedUserId = isRealAccount ? 'global_partner' : `user_${namespacedSellerId}`;
 
         // Ensure user exists
         await prisma.user.upsert({
@@ -75,21 +76,21 @@ async function main() {
                 createdAt: s.created_at ? new Date(s.created_at) : new Date(),
             },
         });
-        console.log(`Synced seed seller: ${s.business_name}`);
+        console.log(`Synced seller: ${s.business_name} (ID: ${namespacedSellerId})`);
     }
 
-    // 2. Create Products associated with the Namespaced Sellers
-    console.log(`Injecting ${SEED_PRODUCTS.length} products associated with seed sellers...`);
+    // 2. Create Products
+    console.log(`Injecting ${SEED_PRODUCTS.length} products...`);
     for (const p of SEED_PRODUCTS) {
-        const namespacedSellerId = p.seller_id.startsWith('seed_') ? p.seller_id : `seed_${p.seller_id}`;
+        const isRealAccount = p.seller_id === 'global-partners' || p.seller_name.includes("Global Stores");
+        const namespacedSellerId = isRealAccount ? 'global-partners' : (p.seller_id.startsWith('seed_') ? p.seller_id : `seed_${p.seller_id}`);
         
-        // We use the original product ID because they are unique strings (hashes or slugs)
         await prisma.product.upsert({
             where: { id: p.id },
             update: {
                 isSponsored: p.is_sponsored || false,
                 isActive: p.is_active !== false,
-                sellerId: namespacedSellerId, // Update link to namespaced seller
+                sellerId: namespacedSellerId,
             },
             create: {
                 id: p.id,
@@ -117,7 +118,7 @@ async function main() {
         });
     }
 
-    console.log("Protective Smart Seed complete! 297 Products ready.");
+    console.log("Protective Smart Seed complete! Live and Seed data harmonized.");
 }
 
 main()
