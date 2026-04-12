@@ -297,25 +297,34 @@ class DataSyncServiceService {
                 else if (data.type === "negotiation_updated") collectionToSync = "negotiations";
                 else if (data.type === "notification") collectionToSync = "notifications";
 
-                // On any change, trigger a sync to refresh localStorage
-                this.syncWithDB(collectionToSync);
-
-                // If it's a specific user update, we could also trigger an auth update event 
-                // but AuthContext should ideally handle its own sync or listen to storage events.
+                // On any change, trigger a CRITICAL sync to refresh localStorage
+                this.syncWithDB(collectionToSync, true);
             } catch (e) {
                 console.warn("Failed to parse real-time event:", e);
             }
         };
 
         eventSource.onerror = (error) => {
-            // EventSource will automatically retry connecting. 
-            // Silencing this error as the realtime API is optional and may not be running in all environments.
             return;
         };
     }
 
-    public async syncWithDB(collection?: string) {
+    private _lastFullSync = 0;
+    
+    /**
+     * Sharded Sync Logic:
+     * - Critical: Orders, Notifications, Negotiations (Fast, frequent)
+     * - Lazy: Search Cache, Products, Sellers, Reviews (Heavy, throttled)
+     */
+    public async syncWithDB(collection?: string, isCritical: boolean = false) {
         if (typeof window === "undefined" || this.isSyncing) return;
+        
+        // Throttle heavy syncs to prevent UI hanging
+        const now = Date.now();
+        if (!collection && !isCritical && now - this._lastFullSync < 600000) { // 10 min throttle for full sync
+            return;
+        }
+
         this.isSyncing = true;
         try {
             const fetchWithTimeout = async (url: string, options: any = {}) => {
@@ -335,20 +344,21 @@ class DataSyncServiceService {
             const user = this.getCurrentUser();
             const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
 
-            const fetchProducts = !collection || collection === "products";
-            const fetchSellers = !collection || collection === "sellers";
-            const fetchSearchCache = !collection;
-            const fetchOrders = !collection || collection === "orders";
-            const fetchNegotiations = !collection || collection === "negotiations";
-            const fetchNotifications = !collection || collection === "notifications";
-            const fetchConversations = !collection || collection === "conversations";
-            const fetchDisputes = !collection || collection === "disputes";
-            const fetchComplaints = !collection || collection === "complaints";
-            const fetchKYC = !collection || collection === "kyc";
-            const fetchReviews = !collection || collection === "reviews";
+            const syncAll = !collection;
+            const fetchProducts = syncAll || collection === "products";
+            const fetchSellers = syncAll || collection === "sellers";
+            // Search Cache is HEAVY — ONLY fetch if it's a full sync OR specifically requested
+            const fetchSearchCache = (syncAll && !isCritical) || collection === "search_cache";
+            const fetchOrders = syncAll || collection === "orders" || isCritical;
+            const fetchNegotiations = syncAll || collection === "negotiations" || isCritical;
+            const fetchNotifications = syncAll || collection === "notifications" || isCritical;
+            const fetchConversations = syncAll || collection === "conversations";
+            const fetchDisputes = syncAll || collection === "disputes";
+            const fetchComplaints = syncAll || collection === "complaints";
+            const fetchKYC = syncAll || collection === "kyc";
+            const fetchReviews = syncAll || collection === "reviews";
 
             const lastSync = localStorage.getItem("fp_last_sync_time");
-            // Force full sync if localStorage has no products OR no sellers (fresh session or wiped)
             const hasLocalProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]').length > 0;
             const hasLocalSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]').length > 0;
             const updatedAfter = (lastSync && hasLocalProducts && hasLocalSellers) ? `&updated_after=${lastSync}` : "";
@@ -739,6 +749,9 @@ class DataSyncServiceService {
                 }
             }
 
+            if (!collection && !isCritical) {
+                this._lastFullSync = now;
+            }
         } catch (error) {
             console.warn("Database sync failed quietly:", error);
         } finally {
@@ -2038,14 +2051,12 @@ class DataSyncServiceService {
         const product = products.find(p => p.id === productId);
         let newStatus = false;
 
-        // Optimistic UI Update
         if (product) {
             product.is_trending = !product.is_trending;
             newStatus = product.is_trending;
             window.dispatchEvent(new Event("sync-store-update"));
         }
 
-        // DB Update
         try {
             const res = await fetch(`/api/products/${productId}/trending`, { method: "POST" });
             if (res.ok) {
@@ -2056,7 +2067,6 @@ class DataSyncServiceService {
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
             } else {
-                // Revert on failure
                 if (product) {
                     product.is_trending = !newStatus;
                     window.dispatchEvent(new Event("sync-store-update"));
@@ -2066,6 +2076,42 @@ class DataSyncServiceService {
             console.error("Failed to toggle trending", error);
             if (product) {
                 product.is_trending = !newStatus;
+                window.dispatchEvent(new Event("sync-store-update"));
+            }
+        }
+        return newStatus;
+    }
+
+    async toggleSponsored(productId: string): Promise<boolean> {
+        const products = this.getProducts();
+        const product = products.find(p => p.id === productId);
+        let newStatus = false;
+
+        if (product) {
+            product.is_sponsored = !product.is_sponsored;
+            newStatus = product.is_sponsored;
+            window.dispatchEvent(new Event("sync-store-update"));
+        }
+
+        try {
+            const res = await fetch(`/api/products/${productId}/sponsored`, { method: "POST" });
+            if (res.ok) {
+                const data = await res.json();
+                if (product) {
+                    product.is_sponsored = data.isSponsored;
+                    newStatus = data.isSponsored;
+                    window.dispatchEvent(new Event("sync-store-update"));
+                }
+            } else {
+                if (product) {
+                    product.is_sponsored = !newStatus;
+                    window.dispatchEvent(new Event("sync-store-update"));
+                }
+            }
+        } catch (error) {
+            console.error("Failed to toggle sponsored", error);
+            if (product) {
+                product.is_sponsored = !newStatus;
                 window.dispatchEvent(new Event("sync-store-update"));
             }
         }
@@ -2672,7 +2718,35 @@ class DataSyncServiceService {
 
         const existingIdx = products.findIndex(p => p.id === product.id);
         if (existingIdx >= 0) {
-            products[existingIdx] = { ...products[existingIdx], ...product };
+            const existing = products[existingIdx];
+            
+            // ─── DATA INTEGRITY LOCKING (ANTI-HALLUCINATION) ───
+            // If the product is a high-value car (price > 5M) or already has a valid image, 
+            // DO NOT allow an automated search-cache result to downgrade it with a hallucinated price or placeholder image.
+            const isIncomingFromSearch = product.id.startsWith('global-') || product.id.startsWith('__global_') || !persist;
+            
+            if (isIncomingFromSearch) {
+                // 1. Price Floor Lock: If existing is > 5M and incoming is < 1M, reject.
+                if (existing.price > 5_000_000 && product.price < 1_000_000) {
+                    console.warn(`🛡️ Resilience: Rejected price hallucination for ${product.id}. Existing: ${existing.price}, Incoming: ${product.price}`);
+                    return existing;
+                }
+                
+                // 2. Image Persistence: If existing has a real image and incoming has a placeholder, preserve existing image.
+                if (existing.image_url && !existing.image_url.includes('placeholder') && (product.image_url?.includes('placeholder') || !product.image_url)) {
+                     product.image_url = existing.image_url;
+                }
+                
+                // 3. Catalog Locking: For luxury brands, once a realistic price is set, automated drops > 50% are blocked.
+                const LUXURY_BRANDS = ["lexus", "toyota", "mercedes", "benz", "range", "land", "porsche"];
+                const nameLower = existing.name.toLowerCase();
+                if (LUXURY_BRANDS.some(b => nameLower.includes(b)) && product.price < existing.price * 0.4) {
+                     console.warn(`🛡️ Resilience: Blocked suspicious luxury price drop for ${product.id}.`);
+                     return existing;
+                }
+            }
+
+            products[existingIdx] = { ...existing, ...product };
         } else {
             products.unshift(product);
         }

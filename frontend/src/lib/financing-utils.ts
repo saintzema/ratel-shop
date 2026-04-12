@@ -16,13 +16,14 @@ export type VehicleCondition = 'new' | 'foreign_used' | 'nigerian_used';
 export type LoanType = 'bnpl' | 'lease';
 
 export const LOAN_CONSTANTS = {
-    BNPL_MARKUP_PA: 0.34, // 34% p.a. markup
-    LEASE_MARKUP_PA: 0.395, // 39.5% p.a. markup (includes insurance/reg)
-    BNPL_DEPOSIT_PERCENT: 0.15, // 15% deposit loan requirement (default, overridable by admin)
+    // Ijarah Baselne: 24.85% for 1yr, scaling to 27.32% for 5yr (includes insurance & reg)
+    BASE_MARKUP_PA: 0.2485,
+    MARKUP_STEP_PA: 0.00618, 
+    BNPL_DEPOSIT_PERCENT: 0.15,
     TENORS: {
-        new: 5, // 5 years
-        foreign_used: 4, // 4 years
-        nigerian_used: 3, // 3 years
+        new: 5,
+        foreign_used: 4,
+        nigerian_used: 3,
     }
 };
 
@@ -46,9 +47,7 @@ export function getVehicleDepositPercent(): number {
 }
 
 /**
- * Calculates monthly payment based on user-provided baseline profit rates.
- * Baseline: ₦30m vehicle -> ₦3,121,455.84 / month over 12 months.
- * Effective monthly rate from baseline: ~10.4% of total price.
+ * Calculates monthly payment based on Altdrive Ijarah logic.
  */
 export function calculateMonthlyPayment(
     price: number,
@@ -58,42 +57,30 @@ export function calculateMonthlyPayment(
 ): LoanResult {
     const years = requestedYears !== undefined ? requestedYears : (LOAN_CONSTANTS.TENORS[condition] || 4);
     const months = years * 12;
-    let annualMarkup = type === 'bnpl' ? LOAN_CONSTANTS.BNPL_MARKUP_PA : LOAN_CONSTANTS.LEASE_MARKUP_PA;
     
-    // Dynamic override from Admin Settings if available
+    // Altdrive dynamic markup logic
+    let annualMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA + (years - 1) * LOAN_CONSTANTS.MARKUP_STEP_PA;
+    
+    // Admin Override
     if (typeof window !== "undefined") {
         try {
             const dynamicMarkup = localStorage.getItem("fp_vehicle_markup");
             if (dynamicMarkup) {
-                // If admin sets 12%, we use that as a baseline annual markup override or addition
-                // Here we'll treat it as a % increase to the BASE annual markup for simplicity in this demo
                 const markupVal = parseFloat(dynamicMarkup) / 100;
                 if (!isNaN(markupVal)) {
-                    // We'll treat the admin setting as a minimum annual markup or a direct override if for vehicles
-                    annualMarkup = Math.max(annualMarkup, markupVal * 3); // Multiplying by 3 to reach realistic annual rates if 12% is set as 'transaction markup'
+                    annualMarkup = Math.max(annualMarkup, markupVal);
                 }
             }
         } catch (e) {}
     }
 
-    // Logic: Total = Price + (Price * AnnualMarkup * Years)
-    // Monthly = Total / Months
     const totalMarkup = price * annualMarkup * years;
     const totalAmount = price + totalMarkup;
     const monthlyPayment = totalAmount / months;
 
-    // Deposit Logic
-    let deposit = 0;
-    if (type === 'bnpl') {
-        deposit = price * getVehicleDepositPercent();
-    } else {
-        // Lease-to-Own: 3 months rental deposit
-        deposit = monthlyPayment * 3;
-    }
-
     return {
         monthlyPayment: Math.round(monthlyPayment),
-        deposit: Math.round(deposit),
+        deposit: Math.round(price * getVehicleDepositPercent()),
         tenorMonths: months,
         totalAmount: Math.round(totalAmount),
         markupAmount: Math.round(totalMarkup),
@@ -102,42 +89,21 @@ export function calculateMonthlyPayment(
 }
 
 /**
- * Calculates the min and max estimated monthly payments for a vehicle
+ * Calculates the min and max estimated monthly payments for a vehicle (1-5 year range)
  * Returns { min: number, max: number }
  */
 export function getVehiclePaymentRange(
     price: number,
-    type: LoanType = 'bnpl',
-    condition: VehicleCondition = 'foreign_used'
 ): { min: number; max: number } {
-    const minYears = 1;
-    const maxYears = LOAN_CONSTANTS.TENORS[condition] || 4;
+    const yearsMin = 5;
+    const yearsMax = 1;
     
-    let annualMarkup = type === 'bnpl' ? LOAN_CONSTANTS.BNPL_MARKUP_PA : LOAN_CONSTANTS.LEASE_MARKUP_PA;
-    
-    if (typeof window !== "undefined") {
-        try {
-            const dynamicMarkup = localStorage.getItem("fp_vehicle_markup");
-            if (dynamicMarkup) {
-                const markupVal = parseFloat(dynamicMarkup) / 100;
-                if (!isNaN(markupVal)) {
-                    annualMarkup = Math.max(annualMarkup, markupVal * 3);
-                }
-            }
-        } catch (e) {}
-    }
-
-    // Min years = highest monthly payment
-    const totalMarkup1 = price * annualMarkup * minYears;
-    const monthlyPaymentHighest = (price + totalMarkup1) / (minYears * 12);
-    
-    // Max years = lowest monthly payment
-    const totalMarkupMax = price * annualMarkup * maxYears;
-    const monthlyPaymentLowest = (price + totalMarkupMax) / (maxYears * 12);
+    const monthlyMin = calculateMonthlyPayment(price, 'bnpl', 'new', yearsMin).monthlyPayment;
+    const monthlyMax = calculateMonthlyPayment(price, 'bnpl', 'new', yearsMax).monthlyPayment;
 
     return {
-        min: Math.round(monthlyPaymentLowest),
-        max: Math.round(monthlyPaymentHighest)
+        min: monthlyMin,
+        max: monthlyMax
     };
 }
 

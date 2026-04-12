@@ -169,16 +169,33 @@ export default function EditProduct() {
         setFormData({ ...formData, images: newImages.length ? newImages : [""] });
     };
 
-    const handleBestPrice = () => {
+    const handleBestPrice = async () => {
+        if (!formData.name) return;
         setIsCalculatingBestPrice(true);
-        setTimeout(() => {
+        try {
             const currentPrice = parseInt(formData.price.replace(/,/g, "")) || 0;
-            const fairPrice = 1100000;
-            let suggested = fairPrice;
-            if (currentPrice > 0 && currentPrice < fairPrice * 0.8) suggested = Math.round(currentPrice * 1.1);
-            setFormData(prev => ({ ...prev, price: suggested.toLocaleString() }));
+            const res = await fetch("/api/gemini-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    productName: formData.name, 
+                    mode: "analyze",
+                    anchorPrice: currentPrice,
+                    category: formData.category
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.recommendedPrice) {
+                    setFormData(prev => ({ ...prev, price: data.recommendedPrice.toLocaleString() }));
+                }
+            }
+        } catch (error) {
+            console.error("Best price calculation failed", error);
+        } finally {
             setIsCalculatingBestPrice(false);
-        }, 800);
+        }
     };
 
     const handleSave = async () => {

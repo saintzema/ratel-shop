@@ -1,3 +1,4 @@
+# General crawlers
 User-agent: *
 Allow: /
 Disallow: /admin/
@@ -5,5 +6,21 @@ Disallow: /seller/dashboard/
 Disallow: /api/
 Disallow: /_next/
 Disallow: /static/
+
+# Google Search
+User-agent: Googlebot
+Allow: /
+Allow: /product/
+Allow: /search/
+Disallow: /admin/
+Disallow: /seller/dashboard/
+Disallow: /api/
+Disallow: /_next/
+
+# Google Images (product photos)
+User-agent: Googlebot-Image
+Allow: /
+Allow: /product/
+Allow: /images/
 
 Sitemap: https://fairprice.ng/sitemap.xml

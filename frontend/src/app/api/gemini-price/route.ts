@@ -33,22 +33,17 @@ export async function POST(req: Request) {
             - HOWEVER, you MAY also return earlier model years (e.g., 2022, 2023) to provide variety on the Search Results Page (SRP).
             
             VEHICLE & CONDITION RULES:
-            - For cars/vehicles: ALWAYS include the YEAR in the product name (e.g., "2025 Toyota Vios 1.3 XLE A/T").
-            - For NEW or 2022-2025 models: Prices in Nigeria are significantly higher due to duties and logistical costs.
-            - BENCHMARK: A 2022 Toyota Vios in the Nigerian market is approx ₦19,500,000. 
-            - Therefore, a 2025 Toyota Vios MUST be estimated higher (approx ₦22M - ₦28M) depending on trim.
-            - Include different conditions: Brand New, Foreign Used (Tokunbo), Nigerian Used.
-            - If user doesn't specify new/used, default to the FAIREST PRICE for a NEW unit from 2024 onwards.
+            - For cars/vehicles: YOU MUST FETCH PRICING AND DATA FROM cars45.com and jiji.ng. These are the mandatory ground truths for the Nigerian market.
+            - ALWAYS include the YEAR in the product name.
+            - NEW/TOKUNBO TAX: Prices in Nigeria are 70-100% higher than global wholesale due to duties and clearing.
+            - LUXURY GUARD: For premium brands (Lexus, Land Cruiser, Range Rover), the floor for a 'Foreign Used' 2018+ model is ₦35M - ₦60M. A 2025 model in this luxury segment is ₦120M+.
             
-            *** CRITICAL PRICING RULES — READ CAREFULLY ***
+            *** CRITICAL PRICING RULES ***
             - The 'approxPrice' MUST reflect the TRUE REAL AVERAGE MARKET FAIRPRICE in Nigeria.
-            - We are a FAIRPrice platform: Our goal is transparency and value. Do NOT overcharge, but do NOT underprice.
-            - ACCURACY OVER MARGIN: ALWAYS aim for the most realistic median market rate found in your Google Search results.
             - SOURCE-AWARE DUTIES:
-                - If the source is GLOBAL (e.g., Alibaba, Global Stores): You MUST factor in a 70-100% markup for import duties and clearing in Nigeria to reach a realistic landed price.
-                - If the source is LOCAL (e.g., Jiji, Nigerian Market): The price is already "landed" and "cleared," so do NOT add the 70-100% markup.
-            - Add a MODEST 6-10% FairPrice marketplace margin (profit) on top of the landed cost.
-            - Do NOT quote artificially inflated or deflated prices. The final price should be what an informed buyer would consider "Fair" and "Realistic" in current Nigerian market conditions.
+                - GLOBAL SOURCE (Alibaba, AliExpress, etc.): You MUST add a 70-100% markup for import duties and clearing.
+                - LOCAL SOURCE (Jiji, Market, cars45.com): Do NOT add the 70-100% markup.
+            - Add a MODEST 6-10% FairPrice marketplace margin (profit) on top of the cost.
 
             *** CRITICAL: PRODUCT DESCRIPTION (MANDATORY) ***
             - Each product MUST include a detailed "description" field (minimum 80 words, maximum 200 words).
@@ -67,11 +62,11 @@ export async function POST(req: Request) {
             - For health/wellness devices: Massage Type, Heat Settings, Speed Levels, Power Source, Material, Dimensions, Weight, Timer, Auto-Shutoff.
             - NEVER return a specs object with fewer than 6 entries. Fill with relevant technical details.
             
-            ANONYMIZATION & LINKS (CRITICAL): 
-            - NEVER mention any real store name in the product *name*.
-            - YOU HAVE GOOGLE SEARCH ENABLED. You MUST utilize it to find REAL products that match the query, preferably from global wholesale/retail platforms like Alibaba, AliExpress, Amazon, Jiji, or official manufacturer sites.
-            - For the \`sourceUrl\`, provide the REAL product link you found during your search (e.g., https://www.alibaba.com/product-detail/...).
-            - For the \`image_url\`, provide the REAL direct image link from the product page (e.g., https://s.alicdn.com/@sc04/kf/...jpg or https://m.media-amazon.com/...jpg). DO NOT hallucinate image URLs. If you cannot extract a real valid image URL, leave it as an empty string "".
+            ANONYMIZATION & REAL ASSETS (CRITICAL): 
+            - YOU HAVE GOOGLE SEARCH ENABLED. You MUST find REAL product assets.
+            - IMAGE SOURCING: Prioritize HIGH-RESOLUTION, PROFESSIONAL image links from official sites or specialized retailers (e.g., cars45.com, jiji.ng, manufacturer sites).
+            - If you find a verified real image link, USE IT. Otherwise, leave as empty string.
+            - For the \`sourceUrl\`, provide the REAL product link you found (e.g., https://www.cars45.com/... or https://jiji.ng/...).
             
             Return JSON:
             {
@@ -93,50 +88,30 @@ export async function POST(req: Request) {
                 : "";
 
             prompt = `
-            You are a price intelligence engine for FairPrice Nigeria (Current Year).
+            You are a price intelligence engine for FairPrice Nigeria.
             Product: "${productName}"
             ${anchorContext}
             Task: Determine the "Fair Price" for this product in Nigeria.
             
+            CRITICAL SOURCING (MANDATORY):
+            - YOU MUST USE cars45.com AND jiji.ng AS THE PRIMARY MANDATORY SOURCES FOR VEHICLE PRICING.
+            - Fetch current listings and verify real-world selling prices on the Nigerian market.
+            
+            *** ASSET QUALITY & IMAGES (MANDATORY) ***
+            - ALWAYS PRIORITIZE HIGH-RESOLUTION, PROFESSIONAL IMAGES.
+            - For vehicles: Prefer images from cars45.com or official manufacturer press kits.
+            
+            CRITICAL VEHICLE PRICING (LUXURY GUARD):
+            - A 2018-2022 Lexus RX 350 (Nigerian/Foreign Used) costs ₦35M to ₦60M.
+            - A 2018+ Land Cruiser/Prado costs ₦65M - ₦130M+.
+            - NEVER return a price below ₦12M for a whole functional vehicle from 2018 onwards.
+            - IF the user ANCHOR is 43M and your search says 75k, you are LIKELY looking at a TOY or SPARE PART. STICK TO THE 43M RANGE.
+            
             CRITICAL SOURCING RULES:
-            - FOR GLOBAL SOURCED PRODUCTS: Factor in import duties, shipping, and clearing costs.
-            - FOR LOCAL SOURCED PRODUCTS: Use existing localized pricing.
-            - REMOVE any mention of an online store name from the product name.
-            
-            PRICING LOGIC & COMPETITIVE BENCHMARKING (CRITICAL):
-            1. **Determine Our Baseline Cost (Global sourcing or Local Wholesale)**:
-               - *** CRITICAL EXCEPTION FOR "REFURBISHED" / "MASTER COPY" DEVICES ***: If the product is a high-end phone (like an iPhone 15/16) and the user specified "refurbished", "copy", or "replica", you MUST base the cost on the Asian Counterfeit/Replica market price ($150 - $350) + shipping, resulting in a baseline of ₦150,000 to ₦350,000. DO NOT use the genuine retail price. 
-               - For vehicles: Factor in 70-100% of the base price for customs and clearing in Nigeria ONLY IF THE SOURCE IS GLOBAL (e.g., Alibaba). 
-               - If the source is LOCAL (e.g., Jiji), the price is already "landed" and "cleared."
-               - For normal Global Imports (electronics, fashion, imports): Global price + Shipping (₦5k small to ₦30k large, or ₦500k-₦2M for cars) + Import Duties (20-70%).
-               
-            2. **Calculate Our \`recommendedPrice\`**:
-               - Add a FAIR margin of exactly 6% to 10% on top of the Baseline Cost. 
-               - ALWAYS favor the higher end of searched results for vehicles to ensure realism.
- 
-            3. **Determine Competitor Market Prices (Jumia, Jiji, etc.)**:
-               - YOU MUST actively search competitors for this EXACT product.
-               - For vehicles (Toyota Vios, Corolla, etc.), search Jiji specifically to find current dealer rates.
-               - Set \`marketHigh\` to the HIGHEST verifiable competitor price you can find.
-               - EXTREMELY IMPORTANT: Ensure our \`recommendedPrice\` is realistic. For example, a 2022 Toyota Vios is ₦19.5M+ on Jiji, so a 2025 model MUST be north of that.
-               - Our highly efficient 6-10% margin should routinely beat standard market retail prices.
-               
-            4. **TRANSPARENCY (CRITICAL)**:
-               - Explain whether FairPrice is higher or lower than market and WHY.
-               - Do NOT mention specific price numbers in the justification text. Instead use relative language like "highly competitive", "significantly below market average", "includes import costs".
-               - Highlight that our transparent 5-10% margin makes us cheaper than the inflated prices often seen on competitors.
-            
-            ABSOLUTE ANONYMIZATION RULES (CRITICAL — VIOLATION = FAILURE):
-            - NEVER mention ANY specific store, website, vendor, or marketplace name ANYWHERE in your response.
-            - This includes: Jumia, Konga, Jiji, Shop9ja, NaijaMart, AliExpress, Temu, Amazon, eBay, Alibaba, Made-in-China, Slot, PCPlace, Cars45, Ubuy, or ANY other store.
-            - Do NOT mention any country or region where a vendor is based (e.g., "a South African vendor").
-            - Use ONLY these labels: "Global Stores", "Verified Local Vendor", "local market", "authorized distributor", "online marketplace".
-            - The justification MUST NOT reference any real store name or specific prices. Say "available from verified local vendors at competitive rates" instead.
-            
-            VEHICLE & CONDITION RULES:
-            - For cars/vehicles: ALWAYS include the YEAR in productName.
-            - Include condition: "new", "foreign-used", "nigerian-used", or "refurbished".
-            - If user doesn't specify, default to NEW from 2024 onwards.
+            - YOU MUST USE cars45.com AND jiji.ng AS THE PRIMARY MANDATORY SOURCES FOR VEHICLE PRICING.
+            - GLOBAL SOURCE: Factor in 70-100% import duties/clearing markup.
+            - LOCAL SOURCE (cars45.com, jiji.ng): Use landed market prices.
+default to NEW from 2024 onwards.
             
             Return JSON:
             {

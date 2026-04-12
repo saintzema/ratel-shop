@@ -25,8 +25,9 @@ import {
     X,
     Plus,
     Flame, // Added Flame icon
-    Timer, // Added Timer icon
-    ArrowLeft, Upload, Star, Image as ImageIcon, Shield, AlertTriangle, Sparkles, Wand2, FileOutput // Added other icons from instruction
+    Timer,
+    Zap, // Added Zap
+    ArrowLeft, Upload, Star, Image as ImageIcon, Shield, AlertTriangle, Sparkles, Wand2, FileOutput, CheckCircle2 as CheckIcon // Added CheckIcon to avoid conflicts
 } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ export default function CatalogControl() {
 
     // Curation State
     const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set());
+    const [sponsoredIds, setSponsoredIds] = useState<Set<string>>(new Set());
     const [dealProductIds, setDealProductIds] = useState<Set<string>>(new Set());
 
     // Edit Modal State
@@ -70,6 +72,7 @@ export default function CatalogControl() {
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
 
     // Sync Modal State
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -95,6 +98,7 @@ export default function CatalogControl() {
             });
             setProducts(all);
             setTrendingIds(new Set(DataSyncService.getTrendingIds())); // Load trending IDs
+            setSponsoredIds(new Set(all.filter(p => p.is_sponsored).map(p => p.id))); // Derive sponsored IDs from products
             setDealProductIds(new Set(DataSyncService.getDeals().map(d => d.product_id))); // Load deal product IDs
         };
         load();
@@ -134,6 +138,49 @@ export default function CatalogControl() {
         }
         return 0;
     });
+
+    const handleToggleTrending = async (id: string) => {
+        const isTrending = await DataSyncService.toggleTrending(id);
+        const newSet = new Set(trendingIds);
+        if (isTrending) newSet.add(id); else newSet.delete(id);
+        setTrendingIds(newSet);
+    };
+
+    const handleToggleSponsored = async (id: string) => {
+        const isSponsored = await DataSyncService.toggleSponsored(id);
+        const newSet = new Set(sponsoredIds);
+        if (isSponsored) newSet.add(id); else newSet.delete(id);
+        setSponsoredIds(newSet);
+    };
+
+    const handleBestPrice = async () => {
+        if (!editName) return;
+        setIsCalculatingBestPrice(true);
+        try {
+            const currentPrice = parseInt(editPrice.replace(/,/g, "")) || 0;
+            const res = await fetch("/api/gemini-price", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    productName: editName, 
+                    mode: "analyze",
+                    anchorPrice: currentPrice,
+                    category: editCategory
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.recommendedPrice) {
+                    setEditPrice(data.recommendedPrice.toLocaleString());
+                }
+            }
+        } catch (error) {
+            console.error("Best price calculation failed", error);
+        } finally {
+            setIsCalculatingBestPrice(false);
+        }
+    };
 
     const handleDelete = (id: string) => {
         if (confirm("Are you sure you want to remove this product from the platform? This action cannot be undone.")) {
@@ -614,14 +661,20 @@ export default function CatalogControl() {
                                                 <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                                     <Button
                                                         variant="ghost" size="icon"
-                                                        onClick={async () => {
-                                                            await DataSyncService.toggleTrending(p.id);
-                                                            setTrendingIds(new Set(DataSyncService.getTrendingIds()));
-                                                        }}
+                                                        onClick={() => handleToggleTrending(p.id)}
                                                         className={cn("h-8 w-8 rounded-xl transition-all duration-300", trendingIds.has(p.id) ? "text-orange-500 bg-orange-50 hover:bg-orange-100 shadow-sm" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50")}
                                                         title={trendingIds.has(p.id) ? "Remove from Trending" : "Pin to Trending"}
                                                     >
                                                         <Flame className={cn("h-4 w-4", trendingIds.has(p.id) && "fill-orange-500 animate-pulse")} />
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="ghost" size="icon"
+                                                        onClick={() => handleToggleSponsored(p.id)}
+                                                        className={cn("h-8 w-8 rounded-xl transition-all duration-300", sponsoredIds.has(p.id) ? "text-yellow-500 bg-yellow-50 hover:bg-yellow-100 shadow-sm" : "text-gray-400 hover:text-yellow-500 hover:bg-yellow-50")}
+                                                        title={sponsoredIds.has(p.id) ? "Remove Sponsored Status" : "Promote as Sponsored"}
+                                                    >
+                                                        <Zap className={cn("h-4 w-4", sponsoredIds.has(p.id) && "fill-yellow-500 animate-bounce-slow")} />
                                                     </Button>
 
                                                     <Button
@@ -647,6 +700,7 @@ export default function CatalogControl() {
                                                     >
                                                         <Timer className={cn("h-4 w-4", dealProductIds.has(p.id) && "animate-spin-slow")} />
                                                     </Button>
+
                                                     <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
                                                         <Link href={`/product/${p.id}`} target="_blank">
                                                             <Eye className="h-4 w-4" />
@@ -973,7 +1027,19 @@ export default function CatalogControl() {
                                 <div className="space-y-2 pt-4 border-t border-gray-100">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Our FairPrice (₦)</label>
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Our FairPrice (₦)</label>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-6 text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg px-2 gap-1"
+                                                    onClick={handleBestPrice}
+                                                    disabled={isCalculatingBestPrice}
+                                                >
+                                                    <Sparkles className={cn("h-2.5 w-2.5", isCalculatingBestPrice && "animate-spin")} />
+                                                    {isCalculatingBestPrice ? "Checking..." : "Best Price"}
+                                                </Button>
+                                            </div>
                                             <Input
                                                 type="text"
                                                 value={editPrice}

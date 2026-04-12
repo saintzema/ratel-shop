@@ -115,21 +115,33 @@ export default function NewProduct() {
         setIsCalculatingBestPrice(true);
         setIsAnalyzing(true);
         try {
+            const currentPrice = parseInt(formData.price.replace(/,/g, "")) || 0;
             const res = await fetch("/api/gemini-price", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ productName: formData.name, region: "Nigeria", mode: "analyze" })
+                body: JSON.stringify({ 
+                    productName: formData.name, 
+                    region: "Nigeria", 
+                    mode: "analyze",
+                    anchorPrice: currentPrice,
+                    category: formData.category
+                })
             });
             if (res.ok) {
                 const data = await res.json();
                 const marketAvg = data.marketAverage || 50000;
                 const fairRangeLow = data.recommendedPrice || Math.round(marketAvg * 0.9);
-                setPriceAnalysis({ marketAvg, fairRangeLow, status: "fair", demand: "High", salesProbability: "85%" });
+                setPriceAnalysis({ 
+                    marketAvg, 
+                    fairRangeLow, 
+                    status: "fair", 
+                    demand: "High", 
+                    salesProbability: "85%" 
+                });
                 setFormData(prev => ({ ...prev, price: fairRangeLow.toLocaleString() }));
             }
         } catch (error) {
             console.error("Price intelligence failed", error);
-            // Fallback
             const mockAvg = 50000;
             setPriceAnalysis({ marketAvg: mockAvg, fairRangeLow: Math.round(mockAvg * 0.9), status: "fair", demand: "High", salesProbability: "85%" });
         } finally {
