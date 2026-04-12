@@ -142,6 +142,37 @@ export default function BillingPage() {
                         }
                     })
                 }).catch(() => {});
+
+                // Notify Admin for Custom Subdomain Provisioning (Pro/Growth/Scale include subdomain)
+                if (['Pro', 'Growth', 'Scale'].includes(paystackPlan)) {
+                    const requestedSubdomain = (seller.business_name || 'store').toLowerCase().replace(/[^a-z0-9]/g, '');
+                    
+                    // Admin notification
+                    DataSyncService.addNotification({
+                        userId: 'admin',
+                        type: 'order',
+                        message: `🌐 Subdomain Request: "${seller.business_name}" upgraded to ${paystackPlan}. Provision ${requestedSubdomain}.fairprice.ng`,
+                        link: `/admin/users/${seller.id}`
+                    });
+
+                    // Admin email(s)
+                    const adminEmails = ['techzema@gmail.com', 'fairprice2026@gmail.com'];
+                    adminEmails.forEach((adminEmail) => {
+                        fetch('/api/send-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: adminEmail,
+                                subject: `[ACTION REQUIRED] Custom Subdomain Request: ${requestedSubdomain}.fairprice.ng`,
+                                type: 'security_alert',
+                                data: {
+                                    storeName: seller.business_name,
+                                    message: `Seller "${seller.business_name}" (${seller.owner_email}) has upgraded to the ${paystackPlan} plan and is requesting subdomain: ${requestedSubdomain}.fairprice.ng\n\nPayment Ref: ${reference}\n\nPlease add the subdomain to Vercel and configure the DNS records.`
+                                }
+                            })
+                        }).catch(() => {});
+                    });
+                }
             }
         }
         setShowPaystack(false);

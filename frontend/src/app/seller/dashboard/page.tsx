@@ -24,7 +24,11 @@ import {
     DollarSign,
     ShoppingBag,
     Package,
-    Star
+    Star,
+    Copy,
+    Globe,
+    ExternalLink,
+    Crown
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
@@ -38,6 +42,7 @@ export default function SellerDashboard() {
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
     const [cashoutSuccess, setCashoutSuccess] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [copiedStoreLink, setCopiedStoreLink] = useState(false);
     const hasAttemptedCreation = useRef(false);
 
     // Dynamic stats calculations
@@ -281,6 +286,70 @@ export default function SellerDashboard() {
                     </div>
                 </div>
             )}
+
+            {/* ── Store Link Card ── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                    <Globe className="h-4 w-4 text-indigo-600" />
+                    <span className="text-xs font-black text-gray-500 uppercase tracking-wider">Your Store Link</span>
+                </div>
+
+                {/* Current Store Link */}
+                <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Live Store URL</p>
+                        <p className="text-sm font-bold text-indigo-700 truncate">
+                            fairprice.ng/store/{safeSeller.store_url || safeSeller.id}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${
+                                copiedStoreLink
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                    : 'border-gray-200 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
+                            }`}
+                            onClick={() => {
+                                const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
+                                navigator.clipboard.writeText(url);
+                                setCopiedStoreLink(true);
+                                setTimeout(() => setCopiedStoreLink(false), 2000);
+                            }}
+                        >
+                            <Copy className="h-3.5 w-3.5 mr-1" />
+                            {copiedStoreLink ? 'Copied!' : 'Copy'}
+                        </Button>
+                        <Link href={`/store/${safeSeller.store_url || safeSeller.id}`} target="_blank">
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                            </Button>
+                        </Link>
+                    </div>
+                </div>
+
+                {/* Custom Subdomain CTA */}
+                <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50/80 to-orange-50/60 rounded-xl p-3 border border-amber-100/60">
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                            <Crown className="h-3 w-3 text-amber-500" />
+                            <p className="text-[10px] font-black text-amber-600 uppercase tracking-wider">Custom Subdomain</p>
+                        </div>
+                        <p className="text-sm font-bold text-gray-700 truncate">
+                            {(safeSeller.business_name || 'yourstore').toLowerCase().replace(/[^a-z0-9]/g, '')}.fairprice.ng
+                        </p>
+                    </div>
+                    <Link href="/seller/settings/billing">
+                        <Button
+                            size="sm"
+                            className="h-8 px-4 rounded-lg text-xs font-black bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-sm transition-all hover:scale-105 active:scale-95"
+                        >
+                            <Crown className="h-3 w-3 mr-1" /> Upgrade
+                        </Button>
+                    </Link>
+                </div>
+            </div>
             {/* Welcome header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
