@@ -643,7 +643,7 @@ export function Navbar() {
                     </div>
 
                     {/* Search Bar Container */}
-                    <div className="flex flex-1 items-center w-full md:max-w-4xl lg:max-w-[72%] xl:max-w-6xl mx-1 md:mx-2 lg:mx-4 relative" ref={searchRef}>
+                    <div className="flex flex-1 items-center w-full md:max-w-full lg:max-w-[85%] xl:max-w-7xl mx-1 md:mx-2 lg:mx-4 relative" ref={searchRef}>
                         <div className="flex h-[44px] md:h-12 w-full rounded-2xl bg-white overflow-visible transition-all shadow-lg relative group border border-gray-200 focus-within:border-emerald-400 focus-within:shadow-[0_0_0_3px_rgba(16,185,129,0.2),0_0_16px_4px_rgba(16,185,129,0.08)]">
                             {/* Category Dropdown */}
                             <div className="relative h-full" ref={categoryRef}>

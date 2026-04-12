@@ -82,8 +82,8 @@ export default function AdminLayout({
                 >
                     {/* Admin identity */}
                     <div className="p-6 border-b border-gray-100">
-                        <div className="flex items-center gap-2 mb-6 cursor-pointer" onClick={() => router.push("/")}>
-                            <Logo variant="dark" />
+                        <div className="flex items-center gap-2 mb-6 cursor-pointer">
+                            <Logo variant="dark" isAdmin={true} />
                         </div>
                         <div className="flex items-center gap-3 p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
                             <div className="h-10 w-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">

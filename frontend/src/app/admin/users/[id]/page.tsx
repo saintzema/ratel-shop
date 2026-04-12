@@ -30,7 +30,9 @@ import {
     Globe,
     Landmark,
     Hash,
-    Eye
+    Eye,
+    Gavel,
+    AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,9 +78,16 @@ export default function AdminUserDetailPage() {
         if (dsSeller) {
             const dsOrders = DataSyncService.getOrders().filter((o: any) => o.seller_id === dsSeller.id || o.customer_id === id || o.customer_email === id);
             
-            // Check for KYC submissions
+            // Check for KYC submissions (robust matching)
             const kycList = DataSyncService.getKYCSubmissions();
-            const kyc = kycList.find((k: any) => k.seller_id === dsSeller.id || k.seller_id === id);
+            const kyc = kycList.find((k: any) => 
+                k.seller_id === dsSeller.id || 
+                k.seller_id === id || 
+                k.user_id === id || 
+                k.email === dsSeller.owner_email ||
+                k.email === id ||
+                k.business_name === dsSeller.business_name
+            );
             if (kyc) {
                 setKycSubmission(kyc);
             }
@@ -546,53 +555,79 @@ export default function AdminUserDetailPage() {
                         </div>
                     )}
 
-                    {/* ── Uploaded Documents ── */}
-                    {isSeller && (userEntity.cac_document_url || userEntity.id_document_url || userEntity.document_url || kycSubmission?.document_url) && (
+                    {/* ── Compliance & Documents ── */}
+                    {isSeller && (
+                        (userEntity.cac_document_url || userEntity.id_document_url || userEntity.document_url || userEntity.cac_url || userEntity.id_url) ||
+                        (kycSubmission && (kycSubmission.document_url || kycSubmission.cac_url || kycSubmission.id_url || kycSubmission.cac_document_url || kycSubmission.id_document_url))
+                    ) ? (
                         <div className="bg-white/70 backdrop-blur-2xl rounded-[32px] border border-white/60 shadow-xl p-8">
-                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                                <div className="h-2 w-2 rounded-full bg-rose-500" />
-                                Uploaded Documents
-                            </h3>
-                            <div className="space-y-4">
-                                {userEntity.cac_document_url && (
-                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">CAC Certificate</p>
-                                        {userEntity.cac_document_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
-                                            <img src={userEntity.cac_document_url} alt="CAC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
-                                        ) : (
-                                            <a href={userEntity.cac_document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
-                                                <FileText className="h-4 w-4" /> View CAC Document <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        )}
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                    <div className="h-2 w-2 rounded-full bg-rose-500" />
+                                    Compliance Documents
+                                </h3>
+                                <Badge className="bg-rose-50 text-rose-600 border-rose-100 font-bold">Verification Assets</Badge>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* CAC Certificate */}
+                                {(userEntity.cac_document_url || userEntity.cac_url || kycSubmission?.cac_url || kycSubmission?.cac_document_url) && (
+                                    <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">CAC Certificate</p>
+                                            <Gavel className="h-3 w-3 text-gray-300" />
+                                        </div>
+                                        {(() => {
+                                            const url = userEntity.cac_document_url || userEntity.cac_url || kycSubmission?.cac_url || kycSubmission?.cac_document_url;
+                                            return url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                                <div className="relative group rounded-xl overflow-hidden border border-gray-200">
+                                                    <img src={url} alt="CAC Document" className="w-full h-48 object-cover bg-white group-hover:scale-105 transition-transform duration-500" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <a href={url} target="_blank" rel="noopener noreferrer" className="bg-white text-gray-900 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl">Expand</a>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center h-48 bg-white rounded-xl border border-dashed border-gray-200 gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:border-indigo-200 transition-all">
+                                                    <FileText className="h-5 w-5" /> View CAC (PDF)
+                                                </a>
+                                            );
+                                        })()}
                                     </div>
                                 )}
-                                {(userEntity.id_document_url || userEntity.document_url) && (
-                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Government ID ({userEntity.id_type || 'Document'})</p>
-                                        {(userEntity.id_document_url || userEntity.document_url || '').match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
-                                            <img src={userEntity.id_document_url || userEntity.document_url} alt="ID Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
-                                        ) : (
-                                            <a href={userEntity.id_document_url || userEntity.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
-                                                <FileText className="h-4 w-4" /> View ID Document <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        )}
-                                    </div>
-                                )}
-                                {kycSubmission && kycSubmission.document_url && !userEntity.document_url && !userEntity.id_document_url && (
-                                    <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-100">
-                                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Submitted KYC Document ({kycSubmission.document_type || 'Document'})</p>
-                                        {kycSubmission.document_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
-                                            <img src={kycSubmission.document_url} alt="KYC Document" className="w-full rounded-xl border border-gray-200 max-h-64 object-contain bg-white" />
-                                        ) : (
-                                            <a href={kycSubmission.document_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:underline">
-                                                <FileText className="h-4 w-4" /> View KYC Document <ExternalLink className="h-3 w-3" />
-                                            </a>
-                                        )}
+
+                                {/* Government ID */}
+                                {(userEntity.id_document_url || userEntity.document_url || userEntity.id_url || kycSubmission?.document_url || kycSubmission?.id_url || kycSubmission?.id_document_url) && (
+                                    <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Government ID / KYC</p>
+                                            <ShieldCheck className="h-3 w-3 text-gray-300" />
+                                        </div>
+                                        {(() => {
+                                            const url = userEntity.id_document_url || userEntity.document_url || userEntity.id_url || kycSubmission?.document_url || kycSubmission?.id_url || kycSubmission?.id_document_url;
+                                            return url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+                                                <div className="relative group rounded-xl overflow-hidden border border-gray-200">
+                                                    <img src={url} alt="ID Document" className="w-full h-48 object-cover bg-white group-hover:scale-105 transition-transform duration-500" />
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <a href={url} target="_blank" rel="noopener noreferrer" className="bg-white text-gray-900 px-4 py-2 rounded-full text-xs font-black uppercase tracking-widest shadow-xl">Expand</a>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center h-48 bg-white rounded-xl border border-dashed border-gray-200 gap-2 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:border-indigo-200 transition-all">
+                                                    <Shield className="h-5 w-5" /> View ID (PDF)
+                                                </a>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>
                         </div>
-                    )}
+                    ) : (isSeller && (
+                        <div className="bg-amber-50 rounded-[32px] border border-amber-100 p-8 text-center">
+                            <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
+                            <h3 className="text-sm font-black text-amber-900 uppercase tracking-widest">No Documents Found</h3>
+                            <p className="text-xs text-amber-700/70 mt-1">This seller has not uploaded CAC or ID documents for manual verification.</p>
+                            <Button variant="outline" size="sm" className="mt-4 rounded-full border-amber-200 text-amber-900 hover:bg-amber-100 font-bold text-[10px] uppercase h-9">Contact Seller for KYC</Button>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Right Col: Stats & Orders */}

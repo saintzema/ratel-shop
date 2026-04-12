@@ -52,6 +52,7 @@ export default function CatalogControl() {
 
     // Curation State
     const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set());
+    const [dealProductIds, setDealProductIds] = useState<Set<string>>(new Set());
 
     // Edit Modal State
     const [editingProduct, setEditingProduct] = useState<any | null>(null);
@@ -94,6 +95,7 @@ export default function CatalogControl() {
             });
             setProducts(all);
             setTrendingIds(new Set(DataSyncService.getTrendingIds())); // Load trending IDs
+            setDealProductIds(new Set(DataSyncService.getDeals().map(d => d.product_id))); // Load deal product IDs
         };
         load();
         const loadCache = () => setCachedProducts(DataSyncService.getAllCachedProducts());
@@ -616,21 +618,34 @@ export default function CatalogControl() {
                                                             await DataSyncService.toggleTrending(p.id);
                                                             setTrendingIds(new Set(DataSyncService.getTrendingIds()));
                                                         }}
-                                                        className={cn("h-8 w-8 rounded-xl", trendingIds.has(p.id) ? "text-orange-500 bg-orange-50 hover:bg-orange-100" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50")}
+                                                        className={cn("h-8 w-8 rounded-xl transition-all duration-300", trendingIds.has(p.id) ? "text-orange-500 bg-orange-50 hover:bg-orange-100 shadow-sm" : "text-gray-400 hover:text-orange-500 hover:bg-orange-50")}
                                                         title={trendingIds.has(p.id) ? "Remove from Trending" : "Pin to Trending"}
                                                     >
-                                                        <Flame className="h-4 w-4" />
+                                                        <Flame className={cn("h-4 w-4", trendingIds.has(p.id) && "fill-orange-500 animate-pulse")} />
                                                     </Button>
+
                                                     <Button
                                                         variant="ghost" size="icon"
                                                         onClick={() => {
-                                                            setDealProduct(p);
-                                                            setIsDealModalOpen(true);
+                                                            if (dealProductIds.has(p.id)) {
+                                                                if (confirm(`Remove "${p.name}" from Daily Deals?`)) {
+                                                                    DataSyncService.removeDealByProductId(p.id);
+                                                                    setDealProductIds(new Set(DataSyncService.getDeals().map(d => d.product_id)));
+                                                                }
+                                                            } else {
+                                                                setDealProduct(p);
+                                                                setIsDealModalOpen(true);
+                                                            }
                                                         }}
-                                                        className="h-8 w-8 rounded-xl text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
-                                                        title="Promote to Daily Deals"
+                                                        className={cn(
+                                                            "h-8 w-8 rounded-xl transition-all duration-300",
+                                                            dealProductIds.has(p.id) 
+                                                                ? "text-purple-600 bg-purple-50 hover:bg-purple-100 shadow-sm" 
+                                                                : "text-gray-400 hover:text-purple-600 hover:bg-purple-50"
+                                                        )}
+                                                        title={dealProductIds.has(p.id) ? "Remove from Daily Deals" : "Promote to Daily Deals"}
                                                     >
-                                                        <Timer className="h-4 w-4" />
+                                                        <Timer className={cn("h-4 w-4", dealProductIds.has(p.id) && "animate-spin-slow")} />
                                                     </Button>
                                                     <Button asChild size="icon" variant="ghost" className="h-8 w-8 rounded-xl hover:bg-indigo-50 hover:text-indigo-600 transition-colors" title="View details">
                                                         <Link href={`/product/${p.id}`} target="_blank">
@@ -907,17 +922,29 @@ export default function CatalogControl() {
                                         <Input
                                             value={editSubcategory}
                                             onChange={(e) => setEditSubcategory(e.target.value)}
+                                            list="admin-subcategory-suggestions"
                                             className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
                                         />
+                                        <datalist id="admin-subcategory-suggestions">
+                                            {DataSyncService.getUniqueSubcategories(editCategory).map(sub => (
+                                                <option key={sub} value={sub} />
+                                            ))}
+                                        </datalist>
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Colors</label>
                                         <Input
                                             value={editColors}
                                             onChange={(e) => setEditColors(e.target.value)}
+                                            list="admin-color-suggestions"
                                             className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
                                             placeholder="Comma separated"
                                         />
+                                        <datalist id="admin-color-suggestions">
+                                            {DataSyncService.getUniqueColors().map(color => (
+                                                <option key={color} value={color} />
+                                            ))}
+                                        </datalist>
                                     </div>
                                 </div>
                                 <div className="space-y-2">

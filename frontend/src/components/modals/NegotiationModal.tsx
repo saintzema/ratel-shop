@@ -41,13 +41,13 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     // Default: 5% means users cannot offer less than 95% of the listing price.
     const maxDiscountPct = (typeof window !== "undefined" && localStorage.getItem("fp_max_negotiation_discount"))
         ? Number(localStorage.getItem("fp_max_negotiation_discount")) : 5;
-    const minAllowedPrice = Math.round(product.price * (1 - maxDiscountPct / 100));
+    const minAllowedPrice = product ? Math.round(product.price * (1 - maxDiscountPct / 100)) : 0;
 
     // Get 3 similar products to suggest
-    const similarProducts = DataSyncService.getProducts()
+    const similarProducts = product ? DataSyncService.getProducts()
         .filter(p => p.category === product.category && p.id !== product.id && p.price < product.price)
         .sort((a, b) => b.sold_count - a.sold_count)
-        .slice(0, 3);
+        .slice(0, 3) : [];
 
     const handleAnalyze = async () => {
         setIsAnalyzing(true);
@@ -190,6 +190,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         setError(null);
         onClose();
     };
+
+    if (!product) return null;
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleReset()}>

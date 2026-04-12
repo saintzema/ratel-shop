@@ -167,7 +167,7 @@ export function RecommendedProducts({
                             {/* Discount Badge */}
                             {product.original_price && product.original_price > product.price && (
                                 <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-md shadow-sm z-10">
-                                    -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+                                    -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}% Off
                                 </div>
                             )}
 

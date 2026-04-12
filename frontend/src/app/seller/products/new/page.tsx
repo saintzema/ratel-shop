@@ -408,19 +408,31 @@ export default function NewProduct() {
                                     <label className="text-sm font-medium text-gray-700">Subcategory</label>
                                     <Input
                                         placeholder="e.g. Smartphones, Laptops"
+                                        list="subcategory-suggestions"
                                         className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
                                         value={formData.subcategory}
                                         onChange={(e) => handleChange("subcategory", e.target.value)}
                                     />
+                                    <datalist id="subcategory-suggestions">
+                                        {DataSyncService.getUniqueSubcategories(formData.category).map(sub => (
+                                            <option key={sub} value={sub} />
+                                        ))}
+                                    </datalist>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium text-gray-700">Colors (comma separated)</label>
                                     <Input
                                         placeholder="e.g. Space Black, Silver, Gold"
+                                        list="color-suggestions"
                                         className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
                                         value={formData.colors}
                                         onChange={(e) => handleChange("colors", e.target.value)}
                                     />
+                                    <datalist id="color-suggestions">
+                                        {DataSyncService.getUniqueColors().map(color => (
+                                            <option key={color} value={color} />
+                                        ))}
+                                    </datalist>
                                 </div>
                             </div>
                             <div className="space-y-2">

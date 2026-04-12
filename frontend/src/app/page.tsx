@@ -242,9 +242,10 @@ function HomeContent() {
     const usedIds = new Set<string>();
     const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
 
-    const takeUnique = (pool: Product[], count: number): Product[] => {
+    const takeUnique = (pool: Product[], count: number, shuffle: boolean = false): Product[] => {
       const result: Product[] = [];
-      for (const p of pool) {
+      const shuffledPool = shuffle ? [...pool].sort(() => 0.5 - Math.random()) : pool;
+      for (const p of shuffledPool) {
         if (result.length >= count) break;
         if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
         result.push(p);
@@ -309,8 +310,8 @@ function HomeContent() {
     const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
     const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
 
-    // 5. Verified Fair Prices
-    const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30);
+    // 5. Verified Fair Prices (Shuffled for Equal Visibility)
+    const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30, true);
 
     // 6. From Stores You Follow
     let followedStoreProducts: Product[] = [];
@@ -437,7 +438,7 @@ function HomeContent() {
                 )}
 
                 {/* ══ Lazy Hydrated Category Sections ══ */}
-                <section className="container mx-auto px-1 md:px-2 space-y-6 mb-1">
+                <section className="container mx-auto px-1 md:px-2 space-y-3 mb-1">
                   <LazySection height={340} skeletonTitle="Verified Fair Prices">
                     <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                   </LazySection>
@@ -484,7 +485,7 @@ function HomeContent() {
                 </section>
 
                 <LazySection height={400} skeletonTitle="Explore Categories">
-                  <section className="container mx-auto px-1 md:px-2 my-12 pt-4 border-t border-gray-100">
+                  <section className="container mx-auto px-1 md:px-2 my-6 pt-2 border-t border-gray-100">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                       {categoryGrids.map((card, i) => (
                         <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
@@ -498,7 +499,7 @@ function HomeContent() {
                 </LazySection>
 
                 <LazySection height={800} skeletonTitle="Recommended For You">
-                  <section className="w-full px-1 md:px-2 mb-20">
+                  <section className="w-full px-1 md:px-2 mb-8">
                     <RecommendedProducts products={allProducts} title="Recommended For You" />
                   </section>
                 </LazySection>
@@ -843,7 +844,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
         <div
           ref={scrollRef}
           onScroll={!autoScroll ? checkScroll : undefined}
-          className="flex gap-2 md:gap-2 overflow-x-auto pb-8 scrollbar-hide snap-none items-stretch"
+          className="flex gap-2 md:gap-2 overflow-x-auto pb-2 md:pb-4 scrollbar-hide snap-none items-stretch"
           style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
         >
           {displayProducts.map((product, idx) => (

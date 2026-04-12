@@ -1904,14 +1904,26 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
     }
 
-    removeDeal(dealId: string) {
+     removeDeal(dealId: string) {
         if (typeof window === "undefined") return;
         const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
         if (!stored) return;
-        const current: Deal[] = JSON.parse(stored);
+        const current: any[] = JSON.parse(stored);
         const updated = current.filter(d => d.id !== dealId);
         localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    removeDealByProductId(productId: string) {
+        if (typeof window === "undefined") return;
+        const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
+        if (!stored) return;
+        const current: any[] = JSON.parse(stored);
+        const updated = current.filter(d => d.productId !== productId);
+        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
     
     updateDeal(dealId: string, updates: Partial<Deal>) {
@@ -3942,9 +3954,16 @@ class DataSyncServiceService {
         const totalRevenue = orders.reduce((sum, o) => sum + (o.amount || 0), 0);
         const escrowBalance = orders.filter(o => !o.escrow_status || o.escrow_status === "held" || o.escrow_status === "seller_confirmed" || o.escrow_status === "buyer_confirmed").reduce((sum, o) => sum + (o.amount || 0), 0);
         const processedRevenue = orders.filter(o => o.escrow_status === "released").reduce((sum, o) => sum + (o.amount || 0), 0);
+        
+        // Dynamic calculations for real insights
+        const uniqueCustomers = new Set(orders.map(o => o.customer_id)).size;
+        const activeUsersCount = uniqueCustomers + sellers.length;
+        const disputeRate = orders.length > 0 ? (disputes.length / orders.length) * 100 : 0;
 
         return {
-            total_sales: orders.length, active_users: 0, dispute_rate: 0,
+            total_sales: orders.length, 
+            active_users: activeUsersCount, 
+            dispute_rate: Math.round(disputeRate * 10) / 10,
             total_revenue: totalRevenue,
             escrow_balance: escrowBalance,
             processed_revenue: processedRevenue,
@@ -3954,6 +3973,35 @@ class DataSyncServiceService {
             open_disputes: disputes.filter(d => d.status !== "resolved_refund" && d.status !== "resolved_release").length,
             total_orders: orders.length,
         };
+    }
+
+    // --- Catalog Suggestions ---
+    getUniqueSubcategories(category?: string): string[] {
+        if (typeof window === "undefined") return [];
+        const products = this.getProducts();
+        const filtered = category ? products.filter(p => p.category === category) : products;
+        const subs = filtered
+            .map(p => p.subcategory || (p as any).sub_category)
+            .filter((s): s is string => !!s && s.trim().length > 0);
+        return Array.from(new Set(subs)).sort();
+    }
+
+    getUniqueColors(): string[] {
+        if (typeof window === "undefined") return ["Multicolor", "Black", "White", "Silver", "Gold", "Red", "Blue", "Green"];
+        const products = this.getProducts();
+        const colorsSet = new Set<string>(["Multicolor", "Black", "White", "Silver", "Gold", "Red", "Blue", "Green"]);
+        
+        products.forEach(p => {
+            const firstColor = (p.colors && p.colors.length > 0) ? p.colors[0] : null;
+            const color = firstColor || (p as any).color || (p.specs && p.specs.Color) || (p.specs && p.specs.color);
+            if (color && typeof color === 'string') {
+                color.split(/,|\/|\s+/).forEach(c => {
+                    const clean = c.trim();
+                    if (clean) colorsSet.add(clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase());
+                });
+            }
+        });
+        return Array.from(colorsSet).sort();
     }
 
     getComplaints(): Complaint[] {

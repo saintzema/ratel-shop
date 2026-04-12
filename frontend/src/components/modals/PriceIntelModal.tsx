@@ -766,6 +766,25 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                             ))}
                                                         </div>
                                                     </div>
+
+                                                    {/* Recent Economic Trends (Always Visible) */}
+                                                    <div className="w-full p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 text-left mb-6">
+                                                        <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                                                            <History className="h-3.5 w-3.5" /> Recent Economic Trends
+                                                        </p>
+                                                        <ul className="space-y-2">
+                                                            {[
+                                                                'Exchange rate stable at approx ₦1,580/$ influencing import costs.', 
+                                                                'Import duties on solar items reduced to 5% to encourage renewable energy.',
+                                                                'Logistics costs adjusted for recent fuel price changes nationwide.'
+                                                            ].map((txt, i) => (
+                                                                <li key={i} className="text-[11px] text-emerald-800 font-medium flex items-start gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
+                                                                    <span className="leading-snug">{txt}</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
                                                 </div>
                                             ) : (
                                                 <div className="flex-1 flex flex-col items-center justify-center text-center px-8 pb-12">
@@ -778,13 +797,17 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                     </p>
                                                     <div className="w-full max-w-md p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-left">
                                                         <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                                            <History className="h-3.5 w-3.5" /> Recent Trends
+                                                            <History className="h-3.5 w-3.5" /> Recent Economic Trends
                                                         </p>
-                                                        <ul className="space-y-2">
-                                                            {['Electricity tariffs recently increased by 23%', 'Exchange rate stable at ₦1,580/$', 'Import duties on solar items reduced to 5%'].map((txt, i) => (
-                                                                <li key={i} className="text-xs text-emerald-800 font-medium flex items-center gap-2">
-                                                                    <div className="w-1 h-1 rounded-full bg-emerald-400" />
-                                                                    {txt}
+                                                        <ul className="space-y-2.5">
+                                                            {[
+                                                                'Exchange rate stable at approx ₦1,580/$ influencing import costs.', 
+                                                                'Import duties on solar items reduced to 5% to encourage renewable energy.',
+                                                                'Logistics costs adjusted for recent fuel price changes nationwide.'
+                                                            ].map((txt, i) => (
+                                                                <li key={i} className="text-xs text-emerald-800 font-medium flex items-start gap-2">
+                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
+                                                                    <span className="leading-snug">{txt}</span>
                                                                 </li>
                                                             ))}
                                                         </ul>
@@ -1025,7 +1048,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                         </div>
 
                                         {/* Tier 5: Trending in Market */}
-                                        <div className="-mx-2">
+                                        <div className="-mx-2 flex flex-col items-center">
                                             <RecommendedProducts
                                                 products={SEED_PRODUCTS.filter(p => p.is_trending).sort((a,b) => b.avg_rating - a.avg_rating).slice(0, 8)}
                                                 title="Trending in Market"
@@ -1033,6 +1056,9 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                 icon={<Sparkles className="h-4 w-4 text-amber-500" />}
                                                 onItemClick={onClose}
                                             />
+                                            <Link href={`/category/${result.category || "electronics"}`} onClick={onClose} className="mt-4 mb-2 inline-flex items-center gap-2 px-6 py-3 bg-white hover:bg-emerald-50 border border-gray-200 hover:border-emerald-200 text-gray-700 hover:text-emerald-700 text-sm font-bold rounded-xl transition-colors shadow-sm w-full md:w-auto justify-center">
+                                                View all recommendations <ArrowRight className="h-4 w-4" />
+                                            </Link>
                                         </div>
 
                                         <div className="flex items-center justify-between text-[10px] text-gray-500 font-bold pt-3" style={{ borderTop: "1px solid rgba(0,0,0,0.05)" }}>
@@ -1453,7 +1479,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
     const { isFavorite, toggleFavorite } = useFavorites();
     const [liked, setLiked] = useState(false);
     const [showHeartAnim, setShowHeartAnim] = useState(false);
-    const [showDetails, setShowDetails] = useState(false);
+    const [showDetails, setShowDetails] = useState(true);
 
     const isFav = result.matchedProduct ? isFavorite(result.matchedProduct.id) : liked;
 

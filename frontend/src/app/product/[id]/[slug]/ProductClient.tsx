@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, getProxiedImageUrl } from "@/lib/utils";
+import { formatPrice, getProxiedImageUrl, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -69,7 +69,8 @@ import {
     Minus,
     Banknote,
     CreditCard,
-    TrendingUp
+    TrendingUp,
+    X
 } from "lucide-react";
 import { LocationModal } from "@/components/modals/LocationModal";
 import React, { useState, useRef, useEffect, useMemo } from "react";
@@ -1032,7 +1033,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         <div className="min-h-screen bg-white">
             <StructuredProductData product={product} fallbackPrice={priceComparison?.market_avg} />
             <Navbar />
-            <main className="container mx-auto px-4 py-8 pt-24 pb-32 md:pb-8 font-sans">
+            <main className="container mx-auto px-4 py-8 pt-28 pb-32 md:pb-8 font-sans">
 
                 {/* Desktop & Mobile Breadcrumbs */}
                 <div className="mb-6 md:mb-8">
@@ -1045,9 +1046,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     />
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-12 lg:grid-cols-12 gap-8 lg:gap-12 relative z-10">
                     {/* Left Column (Images, Reviews) */}
-                    <div className="lg:col-span-4 flex flex-col gap-8 min-w-0">
+                    <div className="md:col-span-5 lg:col-span-4 flex flex-col gap-8 min-w-0">
                         {/* Left: Images */}
                         <div className="flex flex-col md:flex-row gap-4 lg:h-[500px]">
                             {/* Thumbnail Strip */}
@@ -1230,7 +1231,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                     </div>
                     {/* Center Column (Details, Specs, Seller) */}
-                    <div className="lg:col-span-5 flex flex-col space-y-8 min-w-0">
+                    <div className="md:col-span-7 lg:col-span-5 flex flex-col space-y-8 min-w-0">
                         <div className="mb-2">
                             <Link href={`/store/${seller.store_url || seller.id}`} className="text-sm font-bold text-ratel-green-600 hover:underline mb-1 inline-block">
                                 {seller.business_name}
@@ -1478,7 +1479,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     </div>
                     {/* Right Column (Cart side drawer placeholder) */}
 
-                    <div className="lg:col-span-3 space-y-4 min-w-0">
+                    <div className="md:col-span-12 lg:col-span-3 space-y-4 min-w-0">
                         <div className="sticky top-24 border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
                             {/* Temu-style Buy Box */}
                             <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -1606,7 +1607,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                             initial={{ opacity: 0, y: -10 }}
                                                             animate={{ opacity: 1, y: 0 }}
                                                             exit={{ opacity: 0, y: -10 }}
-                                                            className="absolute top-full mt-2 w-full bg-white rounded-xl border border-blue-100 shadow-xl z-50 overflow-hidden"
+                                                            className="absolute bottom-full mb-2 w-full bg-white rounded-xl border border-blue-100 shadow-2xl z-[100] overflow-hidden"
                                                         >
                                                             {[1, 2, 3, 4, 5].map((year) => (
                                                                 <div 
@@ -2165,10 +2166,13 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             {/* Lightbox Modal */}
             {isLightboxOpen && (
                 <div className="fixed inset-0 z-[200] bg-black text-white flex flex-col items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/90 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
-                    <button className="absolute top-6 right-6 p-2 rounded-full bg-white/10 hover:bg-white/20 transition z-50" onClick={() => setIsLightboxOpen(false)}>
+                    <div className="absolute inset-0 bg-black/95 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
+                    <button 
+                        className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-[210] group" 
+                        onClick={() => setIsLightboxOpen(false)}
+                    >
                         <span className="sr-only">Close</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        <X className="h-8 w-8 text-white group-hover:scale-110 transition-transform" />
                     </button>
                     {allImages.length > 1 && (
                         <>
@@ -2187,8 +2191,27 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     >
                         <img src={allImages[currentImageIndex] as string} alt={product.name} className="w-full max-h-[85vh] object-contain transition-transform duration-300 pointer-events-none" />
                     </div>
-                    <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-sm font-medium tracking-wide z-50 text-white/70 bg-black/50 px-4 py-1.5 rounded-full backdrop-blur-sm">
-                        {currentImageIndex + 1} / {allImages.length}
+                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-50 w-full max-w-md px-4">
+                        {/* Thumbnail Navigator in Zoom Mode */}
+                        {allImages.length > 1 && (
+                            <div className="flex gap-2 p-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-full">
+                                {allImages.map((img, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setCurrentImageIndex(idx)}
+                                        className={cn(
+                                            "h-12 w-12 rounded-lg overflow-hidden border-2 transition-all shrink-0",
+                                            currentImageIndex === idx ? "border-emerald-500 scale-110" : "border-transparent opacity-50 hover:opacity-100"
+                                        )}
+                                    >
+                                        <img src={img} alt="" className="h-full w-full object-cover" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <div className="text-sm font-black tracking-widest text-white/90 bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10">
+                            {currentImageIndex + 1} / {allImages.length}
+                        </div>
                     </div>
                 </div>
             )}

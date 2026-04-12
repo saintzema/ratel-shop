@@ -27,49 +27,28 @@ export async function POST(req: Request) {
             Task: Find 8-10 distinct, real products that match this query.
             CRITICAL CATEGORY RULE: You MUST strictly adhere to the Category Context. If Category Context is 'cars' or 'vehicles', you MUST ONLY return real cars/vehicles. Do NOT return blenders, massagers, or random electronics just because they are 'electric'.
             
-            CRITICAL — QUERY INTERPRETATION:
+            CRITICAL — QUERY INTERPRETATION & YEAR VARIETY:
             - ALWAYS treat the FULL query as a single concept/product. Do NOT split it into individual words.
-            - Example: "bone straight human hair" → This is a type of HAIR EXTENSION/WIG, NOT anything related to bones or fertilizer.
-            - Example: "red bottom shoes" → Christian Louboutin-style shoes, NOT red-colored shoe soles.
-            - Example: "Brazilian body wave" → Hair weave/extension style, NOT anything about Brazil or ocean waves.
-            - Example: "magic bullet" → Blender/food processor, NOT ammunition.
-            - ALWAYS prioritize the most common consumer shopping intent for the phrase.
-            - When in doubt, consider: what would a Nigerian shopper MOST LIKELY be looking for with this exact phrase?
-            
-            CRITICAL PRODUCT ORDERING:
-            - The FIRST result MUST be the EXACT main product the user is looking for.
-            - Results 2-4: Closely related variants, trims, or conditions of the same product.
-            - Results 5-10: Related products, alternatives, or complementary items.
-            - Do NOT fill results with unrelated products that only match individual words from the query.
+            - If the User Query contains a specific YEAR (e.g., "2025"), PRIORITIZE that year in the top results.
+            - HOWEVER, you MAY also return earlier model years (e.g., 2022, 2023) to provide variety on the Search Results Page (SRP).
             
             VEHICLE & CONDITION RULES:
-            - For cars/vehicles: ALWAYS include the YEAR in the product name (e.g., "2024 JETOUR Dasheng 1.6 TGDI").
+            - For cars/vehicles: ALWAYS include the YEAR in the product name (e.g., "2025 Toyota Vios 1.3 XLE A/T").
+            - For NEW or 2022-2025 models: Prices in Nigeria are significantly higher due to duties and logistical costs.
+            - BENCHMARK: A 2022 Toyota Vios in the Nigerian market is approx ₦19,500,000. 
+            - Therefore, a 2025 Toyota Vios MUST be estimated higher (approx ₦22M - ₦28M) depending on trim.
             - Include different conditions: Brand New, Foreign Used (Tokunbo), Nigerian Used.
             - If user doesn't specify new/used, default to the FAIREST PRICE for a NEW unit from 2024 onwards.
-            - For phones/electronics: Include variants like "New", "Refurbished", "Open Box" when applicable.
-            
-            *** CRITICAL: 'REFURBISHED' / 'COPY' ELECTRONICS IN NIGERIA ***
-            - In the Nigerian market, when users search for a "refurbished", "master copy", "clone", or "replica" of a high-end device (e.g., iPhone 15 Pro Max, Samsung S24 Ultra), they are almost always looking for the COUNTERFEIT/ASIAN CLONE version sourced from wholesale hubs like Alibaba or Shenzhen.
-            - These clones cost roughly $150 to $350 USD globally.
-            - Therefore, the landed price in Nigeria for a "Refurbished/Copy iPhone 15 Pro Max" should be roughly ₦150,000 to ₦350,000 NGN.
-            - DO NOT return the genuine Apple/Samsung refurbished price (which would be ₦1,000,000+). ALWAYS use the counterfeit/clone price bracket for these specific query types.
             
             *** CRITICAL PRICING RULES — READ CAREFULLY ***
-            - The 'approxPrice' MUST reflect the ACTUAL landed/delivered price in Nigeria, as found on real marketplaces like Alibaba, Jiji, CarXus, Autochek, or Nigerian car dealers.
-            - Do NOT separately add import duties, shipping, or customs clearing on top of market prices. The price should be what a Nigerian buyer would ACTUALLY pay at a dealer or on a marketplace.
-            - Add a reasonable 6-10% FairPrice marketplace margin (profit).
-            
-            VEHICLE PRICE CALIBRATION (use as reference — these are LANDED prices in Nigeria):
-            - Chinese SUVs (Changan UNI-T, JETOUR, Geely, BYD, GWM) Brand New incl. delivery: ₦15,000,000 – ₦35,000,000
-            - Chinese SUVs Foreign Used: ₦10,000,000 – ₦20,000,000
-            - Toyota Camry 2024 Brand New: ₦28,000,000 – ₦38,000,000
-            - Toyota RAV4 2024 Brand New: ₦32,000,000 – ₦45,000,000
-            - Lexus RX 2024 Brand New: ₦45,000,000 – ₦65,000,000
-            - iPhone 16 Pro Max: ₦1,200,000 – ₦1,800,000
-            - Samsung Galaxy S25 Ultra: ₦900,000 – ₦1,400,000
-            
-            - For local Nigerian products (food, drinks, herbal): Use local market prices only.
-            - Do NOT quote artificially inflated prices. When in doubt, use the LOWER end of the price range.
+            - The 'approxPrice' MUST reflect the TRUE REAL AVERAGE MARKET FAIRPRICE in Nigeria.
+            - We are a FAIRPrice platform: Our goal is transparency and value. Do NOT overcharge, but do NOT underprice.
+            - ACCURACY OVER MARGIN: ALWAYS aim for the most realistic median market rate found in your Google Search results.
+            - SOURCE-AWARE DUTIES:
+                - If the source is GLOBAL (e.g., Alibaba, Global Stores): You MUST factor in a 70-100% markup for import duties and clearing in Nigeria to reach a realistic landed price.
+                - If the source is LOCAL (e.g., Jiji, Nigerian Market): The price is already "landed" and "cleared," so do NOT add the 70-100% markup.
+            - Add a MODEST 6-10% FairPrice marketplace margin (profit) on top of the landed cost.
+            - Do NOT quote artificially inflated or deflated prices. The final price should be what an informed buyer would consider "Fair" and "Realistic" in current Nigerian market conditions.
 
             *** CRITICAL: PRODUCT DESCRIPTION (MANDATORY) ***
             - Each product MUST include a detailed "description" field (minimum 80 words, maximum 200 words).
@@ -120,27 +99,27 @@ export async function POST(req: Request) {
             Task: Determine the "Fair Price" for this product in Nigeria.
             
             CRITICAL SOURCING RULES:
-            - For cars/vehicles: Factor in import duties, shipping, and clearing costs.
-            - For electronics/everyday: Check Nigerian e-commerce platforms.
-            - For LOCAL Nigerian products (food, herbal, traditional): These are NOT imported. Price them based on LOCAL MARKET prices only. Do NOT add international shipping or import duties.
+            - FOR GLOBAL SOURCED PRODUCTS: Factor in import duties, shipping, and clearing costs.
+            - FOR LOCAL SOURCED PRODUCTS: Use existing localized pricing.
             - REMOVE any mention of an online store name from the product name.
             
             PRICING LOGIC & COMPETITIVE BENCHMARKING (CRITICAL):
             1. **Determine Our Baseline Cost (Global sourcing or Local Wholesale)**:
                - *** CRITICAL EXCEPTION FOR "REFURBISHED" / "MASTER COPY" DEVICES ***: If the product is a high-end phone (like an iPhone 15/16) and the user specified "refurbished", "copy", or "replica", you MUST base the cost on the Asian Counterfeit/Replica market price ($150 - $350) + shipping, resulting in a baseline of ₦150,000 to ₦350,000. DO NOT use the genuine retail price. 
+               - For vehicles: Factor in 70-100% of the base price for customs and clearing in Nigeria ONLY IF THE SOURCE IS GLOBAL (e.g., Alibaba). 
+               - If the source is LOCAL (e.g., Jiji), the price is already "landed" and "cleared."
                - For normal Global Imports (electronics, fashion, imports): Global price + Shipping (₦5k small to ₦30k large, or ₦500k-₦2M for cars) + Import Duties (20-70%).
-               - For LOCALLY available products (food, drinks, cosmetics, standard retail items): Use local wholesale or base tracking cost. NEVER add international shipping/duties to items easily found in Nigerian markets.
                
             2. **Calculate Our \`recommendedPrice\`**:
                - Add a FAIR margin of exactly 6% to 10% on top of the Baseline Cost. 
-               - This is what our users will pay ("FairPrice").
-
-            3. **Determine Competitor Market Prices (Jumia, Ubuy, Konga, Jiji, etc.)**:
+               - ALWAYS favor the higher end of searched results for vehicles to ensure realism.
+ 
+            3. **Determine Competitor Market Prices (Jumia, Jiji, etc.)**:
                - YOU MUST actively search competitors for this EXACT product.
-               - To highlight our fair pricing, set \`marketHigh\` to the HIGHEST verifiable competitor price you can find (e.g., premium listings on Ubuy, Jumia, or established dealers).
-               - Set \`marketAverage\` strongly towards this high range (e.g., 80-90% of the marketHigh).
-               - Set \`marketLow\` to a standard competitor price. 
-               - EXTREMELY IMPORTANT: Ensure our \`recommendedPrice\` looks like an EXCELLENT DEAL compared to the \`marketAverage\` and \`marketHigh\`. Our highly efficient 6-10% margin should routinely beat standard market retail prices.
+               - For vehicles (Toyota Vios, Corolla, etc.), search Jiji specifically to find current dealer rates.
+               - Set \`marketHigh\` to the HIGHEST verifiable competitor price you can find.
+               - EXTREMELY IMPORTANT: Ensure our \`recommendedPrice\` is realistic. For example, a 2022 Toyota Vios is ₦19.5M+ on Jiji, so a 2025 model MUST be north of that.
+               - Our highly efficient 6-10% margin should routinely beat standard market retail prices.
                
             4. **TRANSPARENCY (CRITICAL)**:
                - Explain whether FairPrice is higher or lower than market and WHY.
@@ -236,34 +215,39 @@ export async function POST(req: Request) {
             const parsedData = JSON.parse(jsonString);
 
             // ─── INTELLIGENT VEHICLE PRICE HALLUCINATION DEFENSE (zero-latency) ───
-            // This runs pure in-memory string checks — adds <1ms to response time.
             if (mode === "search" && parsedData.suggestions && Array.isArray(parsedData.suggestions)) {
-                const VEHICLE_FLOOR = 5_000_000; // ₦5M — even cheapest Chinese EVs land above this in Nigeria
-
-                // Words that indicate this is a PART, ACCESSORY, or NON-VEHICLE product — NOT a whole car
-                const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
-
-                // Words that indicate this IS a whole vehicle (model names, body types)
-                const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|x[1-7]|[1-8]\s*series|a[1-8]|q[2-8]|tt|r8|e-?tron|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[369]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+                const queryYearMatch = productName.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
+                const queryYear = queryYearMatch ? parseInt(queryYearMatch[0], 10) : null;
 
                 parsedData.suggestions = parsedData.suggestions.filter((item: any) => {
                     const name = (item.name || "").toLowerCase();
                     const cat = (item.category || "").toLowerCase();
                     const price = item.approxPrice || 0;
+                    
+                    const itemYearMatch = name.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
+                    const itemYear = itemYearMatch ? parseInt(itemYearMatch[0], 10) : null;
 
-                    // Skip check if price is already above the floor — fast path
+                    // ─── YEAR FILTER ───
+                    // Prioritize queryYear, but allow variety on the SRP (Don't auto-block older models)
+                    // if (queryYear && itemYear && itemYear < queryYear) {
+                    //     console.warn(`🚫 YEAR MISMATCH BLOCKED: Query=${queryYear}, Result=${itemYear} for "${item.name}"`);
+                    //     return false;
+                    // }
+
+                    // ─── VEHICLE HALLUCINATION FLOOR ───
+                    const VEHICLE_FLOOR = (itemYear && itemYear >= 2020) ? 12_000_000 : 5_000_000;
+                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|x[1-7]|[1-8]\s*series|a[1-8]|q[2-8]|tt|r8|e-?tron|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[369]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+
                     if (price >= VEHICLE_FLOOR) return true;
-
-                    // Skip check if this contains part/accessory/phone keywords — it's NOT a whole car
                     if (PART_KEYWORDS.test(name)) return true;
 
-                    // Only apply floor if this looks like a WHOLE VEHICLE
                     const isVehicleCategory = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
                     const isWholeVehicle = WHOLE_VEHICLE.test(name);
 
                     if ((isVehicleCategory || isWholeVehicle) && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
                         console.warn(`🚫 PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${VEHICLE_FLOOR.toLocaleString()})`);
-                        return false; // Remove this hallucinated result
+                        return false;
                     }
 
                     return true;

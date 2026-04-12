@@ -202,7 +202,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         {/* Inline Discount Badge */}
                         {displayOriginalPrice && displayOriginalPrice > product.price && (
                             <div className="font-black px-1.5 py-0.5 rounded bg-red-100 text-[9px] sm:text-[10px] text-red-600 flex items-center justify-center leading-none">
-                                -{Math.round(((displayOriginalPrice - product.price) / displayOriginalPrice) * 100)}%
+                                -{Math.round(((displayOriginalPrice - product.price) / displayOriginalPrice) * 100)}% Off
                             </div>
                         )}
                     </div>
