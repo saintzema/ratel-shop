@@ -37,7 +37,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                         >
                             {/* Header */}
                             <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-white flex items-start justify-between shrink-0">
-                                <div className="flex gap-4 items-center">
+                                <div className="flex gap-4 items-center pt-4">
                                     <div className="h-12 w-12 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
                                         <Banknote className="h-6 w-6" />
                                     </div>
