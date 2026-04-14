@@ -187,6 +187,7 @@ export default function UnifiedAuthPage() {
                     }
 
                     setStep(fetched.password ? "password_existing" : "password_new");
+                    setIsLoading(false);
                     return;
                 }
             }
