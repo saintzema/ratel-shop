@@ -493,7 +493,7 @@ export function Navbar() {
         // Build combined results for session cache — global results FIRST so they appear
         // at the top of the SRP. We DO NOT pass all fuzzy suggestions to prevent irrelevant
         // results from polluting the SRP. We only pass the explicitly clicked local/cached item.
-        const combinedResults = [
+        const combinedResults: any[] = [
             ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
         ];
         
