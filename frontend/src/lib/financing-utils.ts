@@ -47,15 +47,32 @@ export function getVehicleDepositPercent(): number {
 }
 
 /**
- * Calculates monthly payment based on Altdrive Ijarah logic, accepting a product object.
+ * Calculates monthly payment based on Altdrive Ijarah logic.
+ * Supports both modern (product: Product, years?: number) and legacy (price: number, type?: string, condition?: string) signatures.
  */
 export function calculateProductMonthlyPayment(
-    product: any,
-    requestedYears?: number
+    productOrPrice: any,
+    yearsOrType?: number | string,
+    legacyCondition?: string
 ): LoanResult {
-    const isVeh = isVehicle(product);
-    const condition = product?.condition || 'foreign_used';
-    const price = product?.price || 0;
+    let price = 0;
+    let condition: string = 'foreign_used';
+    let productObj: any = {};
+    let requestedYears: number | undefined;
+
+    if (typeof productOrPrice === 'number') {
+        price = productOrPrice;
+        condition = legacyCondition || 'foreign_used';
+        productObj = { price, condition };
+        requestedYears = typeof yearsOrType === 'number' ? yearsOrType : undefined;
+    } else {
+        productObj = productOrPrice || {};
+        price = productObj.price || 0;
+        condition = productObj.condition || 'foreign_used';
+        requestedYears = typeof yearsOrType === 'number' ? yearsOrType : undefined;
+    }
+
+    const isVeh = isVehicle(productObj);
     
     // Base configuration
     let depositPct = getVehicleDepositPercent(); 
@@ -63,15 +80,15 @@ export function calculateProductMonthlyPayment(
     let baseMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA;
 
     // Apply product-specific overrides if configured
-    if (product?.financing_config?.enabled) {
-        if (product.financing_config.deposit_percent !== undefined) {
-             depositPct = product.financing_config.deposit_percent;
+    if (productObj?.financing_config?.enabled) {
+        if (productObj.financing_config.deposit_percent !== undefined) {
+             depositPct = productObj.financing_config.deposit_percent;
         }
-        if (product.financing_config.interest_rate_pa !== undefined) {
-             baseMarkup = product.financing_config.interest_rate_pa;
+        if (productObj.financing_config.interest_rate_pa !== undefined) {
+             baseMarkup = productObj.financing_config.interest_rate_pa;
         }
-        if (product.financing_config.max_tenor_months !== undefined) {
-             baseTenor = Math.max(1, Math.floor(product.financing_config.max_tenor_months / 12));
+        if (productObj.financing_config.max_tenor_months !== undefined) {
+             baseTenor = Math.max(1, Math.floor(productObj.financing_config.max_tenor_months / 12));
         }
     }
 
