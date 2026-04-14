@@ -97,6 +97,26 @@ export async function GET() {
         // Google Merchant Center has a strict 50-character limit for Product IDs.
         const safeId = product.id.length > 50 ? product.id.slice(0, 50) : product.id;
 
+        // ─── Unit Pricing Measure (Legally Required for Beauty/Cosmetics/Food) ───
+        let unitPricing = '';
+        if (googleCategory.includes('Health') || googleCategory.includes('Beauty') || googleCategory.includes('Personal Care') || googleCategory.includes('Food') || googleCategory.includes('Grocery') || catLabel.includes('skincare')) {
+            const match = productName.match(/(\d+(?:\.\d+)?)\s*(ml|l|g|kg|mg|cl|oz|fl\s*oz)/i);
+            if (match) {
+                const amount = match[1];
+                let unit = match[2].toLowerCase().replace(/\s/g, '');
+                
+                // Map imperial/unknown to acceptable GMC metrics where possible
+                if (unit === 'oz') unit = 'g';
+                if (unit === 'floz') unit = 'ml';
+                
+                const baseUnit = (unit === 'g' || unit === 'kg' || unit === 'mg') ? '100 g' : '100 ml';
+
+                unitPricing = `
+            <g:unit_pricing_measure>${amount} ${unit}</g:unit_pricing_measure>
+            <g:unit_pricing_base_measure>${baseUnit}</g:unit_pricing_base_measure>`;
+            }
+        }
+
         return `
         <item>
             <g:id>${safeId}</g:id>
@@ -114,7 +134,7 @@ export async function GET() {
             ${size ? `<g:size>${escapeXml(size)}</g:size>` : ''}
             ${gender ? `<g:gender>${escapeXml(gender)}</g:gender>` : ''}
             <g:age_group>${ageGroup}</g:age_group>
-            
+            ${unitPricing}
             <g:mpn>${safeId}</g:mpn>
             
             <!-- Default Shipping (Nigeria) — Free shipping resolves GMC "Shipping cost value too high" -->

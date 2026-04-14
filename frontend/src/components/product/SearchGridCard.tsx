@@ -38,7 +38,7 @@ export const SearchGridCard = ({
 
     const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
 
-    if (product._source === "global" && hasNoRealImage && !hydratedImage) {
+    if (product._source === "global" && !hydratedImage) {
       // Async fetch real image in the background
       fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
         .then(res => res.json())
@@ -158,18 +158,9 @@ export const SearchGridCard = ({
         <div className="absolute inset-0 z-10" onClick={handleDoubleTap}></div>
         <img
           src={(() => {
-            if (hydratedImage) return hydratedImage;
-            const isValid = (url: string | undefined | null) =>
-              url && url.trim().length > 4 &&
-              !url.toLowerCase().includes('no photo') &&
-              !url.toLowerCase().includes('no image') &&
-              !url.toLowerCase().includes('n/a') &&
-              !url.toLowerCase().includes('undefined') &&
-              !url.includes('vertexaisearch.cloud.google.com') &&
-              !url.includes('grounding-api-redirect');
-            if (isValid(product.image_url)) return product.image_url;
-            if (isValid(product.images?.[0])) return product.images[0];
-            return "/assets/images/placeholder.png";
+            if (hydratedImage) return getProxiedImageUrl(hydratedImage);
+            const rawUrl = product.image_url || product.images?.[0];
+            return getProxiedImageUrl(rawUrl);
           })()}
           alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"

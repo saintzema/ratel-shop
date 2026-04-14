@@ -909,7 +909,7 @@ export function Navbar() {
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
                                                             <img
-                                                                src={result.image_url || result.images?.[0] || '/assets/images/placeholder.png'}
+                                                                src={getProxiedImageUrl(result.image_url || result.images?.[0])}
                                                                 alt={result.name}
                                                                 className="w-full h-full object-contain"
                                                                 onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
@@ -970,7 +970,7 @@ export function Navbar() {
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
                                                             <img
-                                                                src={(!result.image_url || result.image_url.toLowerCase().includes('no photo') || result.image_url.toLowerCase().includes('n/a')) ? '/assets/images/placeholder.png' : result.image_url}
+                                                                src={getProxiedImageUrl(result.image_url)}
                                                                 alt={result.name}
                                                                 className="w-full h-full object-contain"
                                                                 onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
