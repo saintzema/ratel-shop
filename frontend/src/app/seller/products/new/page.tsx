@@ -232,6 +232,19 @@ export default function NewProduct() {
         };
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
+
+        const wrapCDN = (url: string) => {
+            if (!url) return url;
+            const lower = url.toLowerCase();
+            if (lower.startsWith('http') && !lower.includes('/api/image-cdn')) {
+                return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+            }
+            return url;
+        };
+
+        const finalImageUrl = wrapCDN(formData.image_url) || "/placeholder.png";
+        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapCDN);
+
         const newProduct = {
             id: generateSlug(formData.name),
             seller_id: sellerId,
@@ -244,8 +257,8 @@ export default function NewProduct() {
             subcategory: formData.subcategory,
             colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
             specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
-            image_url: formData.image_url || "/placeholder.png",
-            images: formData.images.filter(url => url.trim() !== ""),
+            image_url: finalImageUrl,
+            images: finalImages,
             stock: parseInt(formData.stock) || 1,
             price_flag: "fair" as const,
             is_active: true,

@@ -51,6 +51,10 @@ export default function CatalogControl() {
     const [isScraping, setIsScraping] = useState(false);
     const [scrapeUrl, setScrapeUrl] = useState("");
 
+    // Bulk Actions & Images State
+    const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+    const [isHandlingImages, setIsHandlingImages] = useState(false);
+
     // Curation State
     const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set());
     const [sponsoredIds, setSponsoredIds] = useState<Set<string>>(new Set());
@@ -138,6 +142,48 @@ export default function CatalogControl() {
         }
         return 0;
     });
+
+    const handleUpdateImages = async () => {
+        setIsHandlingImages(true);
+        // We scan everything currently present globally (local & cache)
+        const allItems = [...products, ...cachedProducts];
+        
+        for (const item of allItems) {
+            const currentImg = item.image_url || "";
+            const isBroken = currentImg.toLowerCase().includes('no photo') || 
+                             currentImg.toLowerCase().includes('placeholder') || 
+                             currentImg === "" ||
+                             currentImg.startsWith('/assets/images');
+            
+            if (isBroken) {
+                try {
+                    const res = await fetch("/api/product-image", {
+                         method: "POST",
+                         headers: { "Content-Type": "application/json" },
+                         body: JSON.stringify({ productTitle: item.name }) // Product Image uses productTitle or query based on its internal setup
+                    });
+                    if (res.ok) {
+                         const data = await res.json();
+                         if (data.imageUrl) {
+                             const cdnUrl = `/api/image-cdn?url=${encodeURIComponent(data.imageUrl)}`;
+                             if (item.cached_at) {
+                                 DataSyncService.updateSearchCacheProduct(item.id, { image_url: cdnUrl });
+                             } else {
+                                 DataSyncService.updateProduct(item.id, { image_url: cdnUrl, images: [cdnUrl] });
+                             }
+                         }
+                    }
+                } catch(e) {
+                    console.error("Failed to update image for", item.name);
+                }
+            }
+        }
+        
+        setProducts(DataSyncService.getProducts());
+        setCachedProducts(DataSyncService.getAllCachedProducts());
+        setIsHandlingImages(false);
+        alert("Completed Global Image Scan and Corrections.");
+    };
 
     const handleToggleTrending = async (id: string) => {
         const isTrending = await DataSyncService.toggleTrending(id);
@@ -394,6 +440,10 @@ export default function CatalogControl() {
                 <Button onClick={handleInitiateSync} className="h-10 px-4 md:px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-indigo-500/20 w-full md:w-auto shrink-0 whitespace-nowrap" title="Syncs prices for Global Stores items against live 3rd party APIs (e.g. Amazon, BestBuy)">
                     <Globe className="mr-2 h-4 w-4" /> Sync Global Prices
                 </Button>
+                <Button onClick={handleUpdateImages} disabled={isHandlingImages} className="h-10 px-4 md:px-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-emerald-500/20 w-full md:w-auto shrink-0 whitespace-nowrap" title="Scans DB to securely fetch proxy URLs for placeholder images">
+                    {isHandlingImages ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />} 
+                    {isHandlingImages ? "Scanning..." : "Update Images"}
+                </Button>
             </div>
 
             {/* ════════ SEARCH CACHE TAB ════════ */}
@@ -559,11 +609,44 @@ export default function CatalogControl() {
                     </div>
                 );
             })() : (
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
+                    {selectedProductIds.length > 0 && (
+                        <div className="px-6 py-4 border-b border-gray-100 bg-indigo-50/50 flex items-center justify-between">
+                            <h3 className="text-sm font-black text-indigo-900">{selectedProductIds.length} Products Selected</h3>
+                            <div className="flex gap-2">
+                                <Button
+                                    onClick={() => {
+                                        if (confirm(`Delete ${selectedProductIds.length} selected products?`)) {
+                                            for (let id of selectedProductIds) DataSyncService.deleteProduct(id);
+                                            setProducts(DataSyncService.getProducts());
+                                            setSelectedProductIds([]);
+                                        }
+                                    }}
+                                    className="h-8 px-4 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg"
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Selected
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b border-gray-100 bg-gray-50/50">
+                                    <th className="px-6 py-4 w-12 text-center">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                                            checked={filtered.length > 0 && selectedProductIds.length === filtered.length}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedProductIds(filtered.map(p => p.id));
+                                                } else {
+                                                    setSelectedProductIds([]);
+                                                }
+                                            }}
+                                        />
+                                    </th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product Reference</th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Pricing Model</th>
                                     <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Origin / Seller</th>
@@ -576,6 +659,17 @@ export default function CatalogControl() {
                                     const isGlobal = p.seller_name.toLowerCase().includes("global store");
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                                            <td className="px-6 py-4 align-middle text-center">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer h-4 w-4"
+                                                    checked={selectedProductIds.includes(p.id)}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) setSelectedProductIds([...selectedProductIds, p.id]);
+                                                        else setSelectedProductIds(selectedProductIds.filter(id => id !== p.id));
+                                                    }}
+                                                />
+                                            </td>
                                             <td className="px-6 py-4 align-middle">
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-16 w-16 rounded-2xl border border-gray-100 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1 relative">

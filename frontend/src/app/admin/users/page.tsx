@@ -45,6 +45,9 @@ export default function UserDirectory() {
 
     const [loading, setLoading] = useState(true);
 
+    // Bulk Action State
+    const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
     useEffect(() => {
         const load = async () => {
             setLoading(true);
@@ -268,12 +271,64 @@ export default function UserDirectory() {
                 />
             </div>
 
-            <div className="bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden relative">
+            <div className="bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden relative flex flex-col">
                 <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+                {selectedUserIds.length > 0 && (
+                    <div className="px-6 py-4 border-b border-white/40 bg-emerald-50/70 z-20 flex items-center justify-between">
+                        <h3 className="text-sm font-black text-emerald-900">{selectedUserIds.length} Users Selected</h3>
+                        <div className="flex gap-2">
+                            <Button
+                                onClick={async () => {
+                                    if (confirm(`Suspend ${selectedUserIds.length} selected users?`)) {
+                                        for (let id of selectedUserIds) {
+                                            const p = participants.find(part => part.id === id);
+                                            if (p) {
+                                                const newStatus = p.status === "suspended" ? "active" : "suspended";
+                                                if (p.role === "seller") DataSyncService.updateSeller(p.id, { status: newStatus as any });
+                                                setParticipants(prev => prev.map(participant => participant.id === p.id ? { ...participant, status: newStatus } : participant));
+                                            }
+                                        }
+                                        setSelectedUserIds([]);
+                                        window.dispatchEvent(new Event("sync-store-update"));
+                                    }
+                                }}
+                                className="h-8 px-4 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg"
+                            >
+                                <ShieldOff className="mr-2 h-3.5 w-3.5" /> Toggle Suspend
+                            </Button>
+                            <Button
+                                onClick={async () => {
+                                    if (confirm(`Permanently Delete ${selectedUserIds.length} selected users and all their data? This is irreversible.`)) {
+                                        for (let id of selectedUserIds) {
+                                            try { await fetch(`/api/users/${id}`, { method: "DELETE" }); } catch(e) {}
+                                            setParticipants(prev => prev.filter(p => p.id !== id));
+                                        }
+                                        setSelectedUserIds([]);
+                                        window.dispatchEvent(new Event("sync-store-update"));
+                                    }
+                                }}
+                                className="h-8 px-4 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg"
+                            >
+                                <Ban className="mr-2 h-3.5 w-3.5" /> Delete Selected
+                            </Button>
+                        </div>
+                    </div>
+                )}
                 <div className="overflow-x-auto -webkit-overflow-scrolling-touch relative z-10">
                     <table className="w-full min-w-[700px] text-left border-collapse">
                         <thead>
                             <tr className="bg-white/20 text-[10px] font-black uppercase tracking-widest text-emerald-800 border-b border-white/30 backdrop-blur-md">
+                                <th className="px-6 py-4 w-12 text-center">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-4 w-4"
+                                        checked={filtered.length > 0 && selectedUserIds.length === filtered.length}
+                                        onChange={(e) => {
+                                            if (e.target.checked) setSelectedUserIds(filtered.map(p => p.id));
+                                            else setSelectedUserIds([]);
+                                        }}
+                                    />
+                                </th>
                                 <th className="px-6 py-4">User</th>
                                 <th className="px-6 py-4">Role & Status</th>
                                 <th className="px-6 py-4">Activity</th>
@@ -284,6 +339,17 @@ export default function UserDirectory() {
                         <tbody className="divide-y divide-white/20">
                             {filtered.map((p) => (
                                 <tr key={p.id} className="group hover:bg-white/40 transition-all">
+                                    <td className="px-6 py-4 align-middle text-center">
+                                        <input
+                                            type="checkbox"
+                                            className="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer h-4 w-4"
+                                            checked={selectedUserIds.includes(p.id)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedUserIds([...selectedUserIds, p.id]);
+                                                else setSelectedUserIds(selectedUserIds.filter(id => id !== p.id));
+                                            }}
+                                        />
+                                    </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className={cn(

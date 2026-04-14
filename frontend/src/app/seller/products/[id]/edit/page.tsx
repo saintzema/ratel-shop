@@ -204,6 +204,18 @@ export default function EditProduct() {
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
 
+        const wrapCDN = (url: string) => {
+            if (!url) return url;
+            const lower = url.toLowerCase();
+            if (lower.startsWith('http') && !lower.includes('/api/image-cdn')) {
+                return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+            }
+            return url;
+        };
+
+        const finalImageUrl = wrapCDN(formData.image_url);
+        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapCDN);
+
         await DataSyncService.updateProduct(product.id, {
             name: formData.name,
             category: (formData.category || "electronics") as any,
@@ -212,8 +224,8 @@ export default function EditProduct() {
             subcategory: formData.subcategory,
             colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
             specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
-            image_url: formData.image_url,
-            images: formData.images.filter(url => url.trim() !== ""),
+            image_url: finalImageUrl,
+            images: finalImages,
             stock: parseInt(formData.stock) || 0,
             highlights: formData.highlights
         });
