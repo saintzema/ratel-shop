@@ -238,6 +238,8 @@ export default function CatalogControl() {
         }
     };
 
+    const handleEditSave = async () => {
+        if (editingProduct) {
             await DataSyncService.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
                 category: editCategory || editingProduct.category,
