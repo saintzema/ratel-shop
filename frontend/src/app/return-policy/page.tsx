@@ -6,10 +6,10 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
     title: 'Return Policy | FairPrice.ng',
-    description: 'FairPrice.ng return and exchange policy for Nigeria. We accept returns for defective products within 14 days. Read our full policy here.',
+    description: 'FairPrice.ng return and exchange policy for Nigeria. We accept returns for both defective and non-defective products within 14 days. Read our full policy here.',
     openGraph: {
         title: 'Return Policy | FairPrice.ng',
-        description: 'FairPrice.ng return and exchange policy. Defective product returns accepted within 14 days of delivery.',
+        description: 'FairPrice.ng return and exchange policy. We accept returns for both defective and non-defective products within 14 days of delivery.',
     }
 };
 
@@ -45,7 +45,7 @@ export default function ReturnPolicyPage() {
                             </div>
                             <h3 className="font-black text-gray-900 text-sm mb-1">Returns Accepted</h3>
                             <p className="text-xs text-gray-500 font-medium">
-                                We accept returns for defective products delivered in damaged or non-functional condition.
+                                We accept returns for both defective and non-defective products (including change of mind/buyer&apos;s remorse).
                             </p>
                         </div>
                         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm relative overflow-hidden group">
@@ -132,9 +132,9 @@ export default function ReturnPolicyPage() {
                         <div className="space-y-6">
                             {[
                                 { step: "1", title: "Contact Us", desc: "Send a message through your Order page or email hello@fairprice.ng with your Order ID and photos of the item." },
-                                { step: "2", title: "Verification", desc: "Our team reviews eligibility. For domestic orders, we arrange pick-up. International customers (Canada/US/UK) are responsible for return shipping unless defective." },
-                                { step: "3", title: "Shipment", desc: "Once the item is shipped back and received, we inspection for 'New Only' condition (unopened, tags attached, no wear)." },
-                                { step: "4", title: "Refund Processing", desc: "Refunds are processed within 7 business days of receipt to your original payment method. Restocking fee is $0." },
+                                { step: "2", title: "Download & Print Return Label", desc: "Our team will review eligibility and email you a free return label. You must download and print the label." },
+                                { step: "3", title: "Shipping Method", desc: "You may return the item by mail or at a designated local drop-off location." },
+                                { step: "4", title: "Refund Processing", desc: "Refunds are processed within 7 business days of receipt to your original payment method. We charge $0 restocking fees." },
                             ].map((item, i) => (
                                 <div key={i} className="flex gap-4">
                                     <div className="w-8 h-8 bg-gray-900 text-white rounded-full flex items-center justify-center font-black text-xs shrink-0">
@@ -182,8 +182,8 @@ export default function ReturnPolicyPage() {
                                 <p className="text-sm text-gray-700 font-medium"><span className="font-bold">Restocking Fee:</span> $0 (No cost for returns).</p>
                             </div>
                             <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl">
-                                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                                <p className="text-sm text-gray-700 font-medium"><span className="font-bold">International Return Shipping:</span> Customers in Canada, US, and UK are responsible for return shipping costs unless the item is defective.</p>
+                                <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 shrink-0" />
+                                <p className="text-sm text-gray-700 font-medium"><span className="font-bold">Return Label Cost:</span> Free for all eligible items. Labels are provided to you as Download and Print.</p>
                             </div>
                         </div>
                     </div>
