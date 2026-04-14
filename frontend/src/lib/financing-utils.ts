@@ -108,6 +108,12 @@ export function calculateProductMonthlyPayment(
 }
 
 /**
+ * Legacy alias for backward compatibility with existing imports.
+ */
+export const calculateMonthlyPayment = calculateProductMonthlyPayment;
+
+
+/**
  * Calculates the min and max estimated monthly payments for a product
  * Returns { min: number, max: number }
  */
