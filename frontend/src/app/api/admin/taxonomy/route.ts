@@ -1,12 +1,8 @@
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { ProductCategory } from "@/lib/types";
-
-const prisma = new PrismaClient();
+import { db as prisma } from "@/lib/db";
 
 export async function GET() {
   try {
-    const categories = await prisma.marketplaceCategory.findMany({
+    const categories = await (prisma as any).marketplaceCategory.findMany({
       include: {
         subcategories: true,
       },
@@ -27,7 +23,7 @@ export async function POST(req: Request) {
     const { type, name, categoryId, slug } = await req.json();
 
     if (type === "category") {
-      const category = await prisma.marketplaceCategory.create({
+      const category = await (prisma as any).marketplaceCategory.create({
         data: {
           name,
           slug: slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
@@ -35,7 +31,7 @@ export async function POST(req: Request) {
       });
       return NextResponse.json({ success: true, category });
     } else if (type === "subcategory") {
-      const subcategory = await prisma.marketplaceSubcategory.create({
+      const subcategory = await (prisma as any).marketplaceSubcategory.create({
         data: {
           name,
           slug: slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),

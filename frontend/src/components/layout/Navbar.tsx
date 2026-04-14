@@ -498,10 +498,10 @@ export function Navbar() {
         ];
         
         const clickedLocal = suggestions.find(s => s.id === resolvedClickedId);
-        if (clickedLocal) combinedResults.push({ ...clickedLocal, _source: 'local' });
+        if (clickedLocal) combinedResults.push({ ...clickedLocal, _source: 'local', source_url: '' });
         
         const clickedCached = cachedResults.find(s => s.id === resolvedClickedId);
-        if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached' });
+        if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
 
         try {
             sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));

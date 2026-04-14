@@ -87,6 +87,7 @@ export default function EditProduct() {
                 body: JSON.stringify({ productName: formData.name, category: formData.category })
             });
             if (res.ok) {
+                const content = await res.json();
                 // Infer category from AI response or product name
                 const currentTaxonomy = DataSyncService.getTaxonomy();
                 let inferredCategory = formData.category;

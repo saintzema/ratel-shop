@@ -258,6 +258,7 @@ export default function NewProduct() {
                 stock: parseInt(formData.stock) || 0,
                 highlights: formData.highlights,
                 price_flag: "fair" as const,
+                avg_rating: 0,
                 is_active: true,
                 review_count: 0,
                 sold_count: 0,

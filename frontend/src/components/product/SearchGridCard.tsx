@@ -7,7 +7,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
-import { cn, getProductUrl } from "@/lib/utils";
+import { cn, getProxiedImageUrl, getProductUrl } from "@/lib/utils";
 import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 export const SearchGridCard = ({
