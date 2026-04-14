@@ -428,6 +428,8 @@ class DataSyncServiceService {
                         is_sponsored: p.isSponsored || p.is_sponsored || false,
                         original_price: p.originalPrice || p.original_price,
                         seller_name: p.sellerName || p.seller_name || "Global Store",
+                        tags: p.tags || [],
+                        subcategory: p.subcategory || "",
                     }));
                     
                     // START from existing local products, then overlay DB updates on top.

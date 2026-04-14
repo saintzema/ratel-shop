@@ -27,9 +27,12 @@ import {
     Flame, // Added Flame icon
     Timer,
     Zap, // Added Zap
-    ArrowLeft, Upload, Star, Image as ImageIcon, Shield, AlertTriangle, Sparkles, Wand2, FileOutput, CheckCircle2 as CheckIcon // Added CheckIcon to avoid conflicts
+    CheckCircle2 as CheckIcon, // Added CheckIcon to avoid conflicts
+    Settings
 } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
+import { ProductCategory, CATEGORIES } from "@/lib/types";
+import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -74,7 +77,8 @@ export default function CatalogControl() {
     const [editOriginalPrice, setEditOriginalPrice] = useState("");
     const [editImage, setEditImage] = useState("");
     const [editExternalUrl, setEditExternalUrl] = useState("");
-    const [editImages, setEditImages] = useState("");
+    const [editImages, setEditImages] = useState<string[]>([]);
+    const [editTags, setEditTags] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
 
@@ -218,7 +222,7 @@ export default function CatalogControl() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.recommendedPrice) {
-                    setEditPrice(data.recommendedPrice.toLocaleString());
+                    setEditPrice(formatPriceWithCommas(data.recommendedPrice));
                 }
             }
         } catch (error) {
@@ -234,12 +238,11 @@ export default function CatalogControl() {
         }
     };
 
-    const handleEditSave = async () => {
-        if (editingProduct) {
             await DataSyncService.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
                 category: editCategory || editingProduct.category,
                 subcategory: editSubcategory,
+                tags: editTags,
                 colors: editColors.split(",").map(c => c.trim()).filter(Boolean),
                 description: editDescription || editingProduct.description,
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
@@ -247,7 +250,7 @@ export default function CatalogControl() {
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
-                images: editImages ? editImages.split(",").map(s => s.trim()).filter(Boolean) : editingProduct.images || []
+                images: editImages.filter(Boolean)
             });
             setEditingProduct(null);
         }
@@ -813,11 +816,12 @@ export default function CatalogControl() {
                                                             setEditColors(p.colors ? p.colors.join(", ") : "");
                                                             setEditDescription(p.description || "");
                                                             setEditSpecs(p.specs ? Object.entries(p.specs).map(([key, value]) => ({ key, value: String(value) })) : []);
-                                                            setEditPrice(p.price.toString());
-                                                            setEditOriginalPrice(p.original_price?.toString() || "");
+                                                            setEditPrice(formatPriceWithCommas(p.price));
+                                                            setEditOriginalPrice(p.original_price ? formatPriceWithCommas(p.original_price) : "");
                                                             setEditImage(p.image_url);
                                                             setEditExternalUrl(p.external_url || "");
-                                                            setEditImages(p.images?.join(", ") || "");
+                                                            setEditImages(p.images?.length ? [...p.images] : [""]);
+                                                            setEditTags(p.tags || []);
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
@@ -1019,18 +1023,67 @@ export default function CatalogControl() {
                         </DialogHeader>
 
                         <div className="space-y-6">
-                            <div className="flex gap-6 items-center">
-                                <div className="h-20 w-20 border border-gray-100 rounded-2xl overflow-hidden p-2 flex-shrink-0 bg-white shadow-sm">
-                                    <img src={editImage || editingProduct?.image_url || undefined} alt="Preview" className="w-full h-full object-contain" onError={(e) => (e.currentTarget.src = "https://via.placeholder.com/150")} />
-                                </div>
-                                <div className="space-y-2 flex-1">
-                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Image Source URL</label>
-                                    <Input
-                                        value={editImage}
-                                        onChange={(e) => setEditImage(e.target.value)}
-                                        className="bg-gray-50 border-gray-100 h-12 rounded-xl text-sm font-medium"
-                                        placeholder="https://..."
-                                    />
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Main Product Image</label>
+                                <ProductImageSlot 
+                                    url={editImage} 
+                                    onUrlChange={setEditImage}
+                                    onFileSelect={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (ev) => setEditImage(ev.target?.result as string);
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                    label="Main Image"
+                                />
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Gallery Images (Up to 8)</label>
+                                <div className="grid grid-cols-4 gap-3">
+                                    {editImages.map((url, i) => (
+                                        <div key={i} className="relative group">
+                                            <ProductImageSlot 
+                                                url={url}
+                                                onUrlChange={(newUrl) => {
+                                                    const next = [...editImages];
+                                                    next[i] = newUrl;
+                                                    setEditImages(next);
+                                                }}
+                                                onFileSelect={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (ev) => {
+                                                            const next = [...editImages];
+                                                            next[i] = ev.target?.result as string;
+                                                            setEditImages(next);
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }}
+                                                className="mb-0"
+                                            />
+                                            {editImages.length > 1 && (
+                                                <button 
+                                                    onClick={() => setEditImages(editImages.filter((_, idx) => idx !== i))}
+                                                    className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                >
+                                                    <X className="h-2.5 w-2.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {editImages.length < 8 && (
+                                        <button 
+                                            onClick={() => setEditImages([...editImages, ""])}
+                                            className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                        </button>
+                                    )}
                                 </div>
                             </div>
 
@@ -1045,54 +1098,67 @@ export default function CatalogControl() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Category</label>
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center justify-between">
+                                            Category
+                                            <button 
+                                                onClick={() => {
+                                                    const newCat = prompt("Enter new category name:");
+                                                    if (newCat) setEditCategory(newCat.toLowerCase());
+                                                }}
+                                                className="text-indigo-500 hover:text-indigo-700"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </button>
+                                        </label>
                                         <select
                                             className="w-full bg-gray-50 border border-gray-100 h-10 rounded-xl text-sm font-bold px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             value={editCategory}
                                             onChange={(e) => setEditCategory(e.target.value)}
                                         >
                                             <option value="">Select Category</option>
-                                            <option value="phones">Phones & Tablets</option>
-                                            <option value="electronics">Electronics</option>
-                                            <option value="vehicles">Vehicles</option>
-                                            <option value="energy">Green Energy</option>
-                                            <option value="fashion">Fashion</option>
-                                            <option value="health">Health & Beauty</option>
-                                            <option value="home">Home & Living</option>
-                                            <option value="baby">Baby & Kids</option>
-                                            <option value="fitness">Sports & Fitness</option>
+                                            {CATEGORIES.map(cat => (
+                                                <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                            ))}
+                                            {editCategory && !CATEGORIES.some(c => c.value === editCategory) && (
+                                                <option value={editCategory}>{editCategory.toUpperCase()}</option>
+                                            )}
                                         </select>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Subcategory</label>
-                                        <Input
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center justify-between">
+                                            Subcategory
+                                            <button 
+                                                onClick={() => {
+                                                    const newSub = prompt("Enter new subcategory name:");
+                                                    if (newSub) setEditSubcategory(newSub);
+                                                }}
+                                                className="text-indigo-500 hover:text-indigo-700"
+                                            >
+                                                <Plus className="h-3 w-3" />
+                                            </button>
+                                        </label>
+                                        <select
+                                            className="w-full bg-gray-50 border border-gray-100 h-10 rounded-xl text-sm font-bold px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             value={editSubcategory}
                                             onChange={(e) => setEditSubcategory(e.target.value)}
-                                            list="admin-subcategory-suggestions"
-                                            className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
-                                        />
-                                        <datalist id="admin-subcategory-suggestions">
-                                            {DataSyncService.getUniqueSubcategories(editCategory).map(sub => (
-                                                <option key={sub} value={sub} />
+                                        >
+                                            <option value="">Select Subcategory</option>
+                                            {CATEGORIES.find(c => c.value === editCategory)?.subcategories.map(sub => (
+                                                <option key={sub} value={sub}>{sub}</option>
                                             ))}
-                                        </datalist>
+                                            {editSubcategory && !CATEGORIES.find(c => c.value === editCategory)?.subcategories.includes(editSubcategory) && (
+                                                <option value={editSubcategory}>{editSubcategory}</option>
+                                            )}
+                                        </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Colors</label>
-                                        <Input
-                                            value={editColors}
-                                            onChange={(e) => setEditColors(e.target.value)}
-                                            list="admin-color-suggestions"
-                                            className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-bold"
-                                            placeholder="Comma separated"
+                                        <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">SEO Tags</label>
+                                        <TagsInput 
+                                            tags={editTags}
+                                            onChange={setEditTags}
                                         />
-                                        <datalist id="admin-color-suggestions">
-                                            {DataSyncService.getUniqueColors().map(color => (
-                                                <option key={color} value={color} />
-                                            ))}
-                                        </datalist>
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -1137,7 +1203,7 @@ export default function CatalogControl() {
                                             <Input
                                                 type="text"
                                                 value={editPrice}
-                                                onChange={(e) => setEditPrice(e.target.value)}
+                                                onChange={(e) => setEditPrice(formatPriceWithCommas(e.target.value))}
                                                 className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-black"
                                                 placeholder="FairPrice"
                                             />
@@ -1147,7 +1213,7 @@ export default function CatalogControl() {
                                             <Input
                                                 type="text"
                                                 value={editOriginalPrice}
-                                                onChange={(e) => setEditOriginalPrice(e.target.value)}
+                                                onChange={(e) => setEditOriginalPrice(formatPriceWithCommas(e.target.value))}
                                                 className="bg-gray-50 border-gray-100 h-10 rounded-xl text-lg font-medium text-gray-400 line-through"
                                                 placeholder="Competitor price"
                                             />
@@ -1168,14 +1234,6 @@ export default function CatalogControl() {
                                         </a>
                                     )}
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Gallery Images (Comma separated URLs)</label>
-                                    <textarea
-                                        value={editImages}
-                                        onChange={(e) => setEditImages(e.target.value)}
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="https://img1.com, https://img2.com..."
-                                    />
                                 </div>
                             </div>
                         </div>

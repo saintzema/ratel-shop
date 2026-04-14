@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Product } from "@/lib/types";
+import { Product, CATEGORIES } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice } from "@/lib/utils";
+import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -34,6 +35,7 @@ export default function EditProduct() {
         name: "",
         category: "",
         subcategory: "",
+        tags: [] as string[],
         colors: "",
         price: "",
         description: "",
@@ -58,11 +60,12 @@ export default function EditProduct() {
                 name: found.name,
                 category: found.category || "",
                 subcategory: found.subcategory || "",
+                tags: found.tags || [],
                 colors: found.colors ? found.colors.join(", ") : "",
-                price: found.price.toLocaleString(),
+                price: found.price ? parseInt(String(found.price)).toLocaleString() : "",
                 description: found.description,
                 highlights: found.highlights || [],
-                specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value })) : [],
+                specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value: String(value) })) : [],
                 image_url: found.image_url,
                 images: found.images?.length ? [...found.images] : [""],
                 stock: found.stock.toString()
@@ -87,6 +90,7 @@ export default function EditProduct() {
                     highlights: content.highlights || prev.highlights,
                     specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
                     subcategory: content.subcategory || prev.subcategory,
+                    tags: content.tags || prev.tags,
                     colors: content.colors ? content.colors.join(", ") : prev.colors
                 }));
             }
@@ -110,13 +114,7 @@ export default function EditProduct() {
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const rawValue = e.target.value.replace(/\D/g, "");
-        if (!rawValue) {
-            setFormData({ ...formData, price: "" });
-            return;
-        }
-        const formatted = parseInt(rawValue).toLocaleString();
-        setFormData({ ...formData, price: formatted });
+        setFormData({ ...formData, price: formatPriceWithCommas(e.target.value) });
     };
 
     const compressImage = (file: File, callback: (url: string) => void) => {
@@ -222,6 +220,7 @@ export default function EditProduct() {
             price: isNaN(numericPrice) ? 0 : numericPrice,
             description: formData.description,
             subcategory: formData.subcategory,
+            tags: formData.tags,
             colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
             specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
             image_url: finalImageUrl,
@@ -294,47 +293,20 @@ export default function EditProduct() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-1">Product Image</h2>
                 <p className="text-sm text-gray-500 mb-6">Upload a main image or paste a URL. Supported formats: PNG, JPG, WebP.</p>
 
-                <div className="flex flex-col sm:flex-row gap-8">
-                    {/* Preview */}
-                    <div className="w-full sm:w-48 h-48 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex items-center justify-center relative group cursor-pointer hover:border-gray-300 transition-colors"
-                        onClick={() => fileInputRef.current?.click()}
-                    >
-                        {formData.image_url ? (
-                            <img src={formData.image_url} alt="Preview" className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" />
-                        ) : (
-                            <div className="text-center text-gray-400">
-                                <Upload className="h-8 w-8 mx-auto mb-2" />
-                                <p className="text-xs font-medium">Click to upload</p>
-                            </div>
-                        )}
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleMainImageUpload}
-                        />
-                    </div>
-
-                    {/* URL Input */}
-                    <div className="flex-1 space-y-3">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Or paste image URL</label>
-                        <Input
-                            value={formData.image_url}
-                            onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                            placeholder="https://example.com/image.jpg"
-                        />
-                        {formData.image_url && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setFormData({ ...formData, image_url: "" })}
-                                className="text-xs text-red-500 hover:bg-red-50 h-8 rounded-lg"
-                            >
-                                <Trash2 className="h-3 w-3 mr-1.5" /> Remove Image
-                            </Button>
-                        )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
+                    <ProductImageSlot 
+                        url={formData.image_url} 
+                        onUrlChange={(url) => setFormData({ ...formData, image_url: url })}
+                        onFileSelect={handleMainImageUpload}
+                        label="Main Image"
+                    />
+                    <div className="pt-2">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Photo Guidelines</p>
+                        <ul className="text-[11px] text-gray-500 space-y-2">
+                            <li className="flex gap-2"><span>•</span> White background preferred for SEO</li>
+                            <li className="flex gap-2"><span>•</span> Show the product from the front</li>
+                            <li className="flex gap-2"><span>•</span> High resolution leads to 2x more sales</li>
+                        </ul>
                     </div>
                 </div>
             </motion.section>
@@ -349,74 +321,39 @@ export default function EditProduct() {
                 <div className="flex items-center justify-between mb-6">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900">Gallery Images</h2>
-                        <p className="text-sm text-gray-500 mt-1">Add multiple images for your product gallery.</p>
+                        <p className="text-sm text-gray-500 mt-1">Add up to 8 images for your product gallery.</p>
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addGallerySlot}
-                        className="rounded-full text-xs font-semibold gap-1.5 border-gray-200 hover:bg-gray-50 h-9 px-4"
-                    >
-                        <Plus className="h-3.5 w-3.5" /> Add Image
-                    </Button>
                 </div>
 
-                <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     {formData.images.map((url, i) => (
-                        <div key={`gallery-${i}`} className="flex items-start gap-4 group">
-                            {/* Thumbnail Preview */}
-                            <div
-                                className="w-16 h-16 bg-gray-50 border border-gray-200 rounded-xl overflow-hidden flex items-center justify-center shrink-0 cursor-pointer hover:border-gray-300 transition-colors relative"
-                                onClick={() => {
-                                    const ref = galleryFileRefs.current.get(i);
-                                    ref?.click();
-                                }}
-                            >
-                                {url ? (
-                                    <img
-                                        src={url}
-                                        alt={`Gallery ${i + 1}`}
-                                        className="h-full w-full object-contain p-1"
-                                        onError={(e) => {
-                                            e.currentTarget.onerror = null; // prevents looping
-                                            e.currentTarget.src = 'https://placehold.co/400x400/f3f4f6/9ca3af?text=Image+Error';
-                                        }}
-                                    />
-                                ) : (
-                                    <ImagePlus className="h-5 w-5 text-gray-300" />
-                                )}
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    ref={(el) => {
-                                        if (el) galleryFileRefs.current.set(i, el);
-                                    }}
-                                    onChange={(e) => handleGalleryImageUpload(i, e)}
-                                />
-                            </div>
-
-                            {/* URL Input */}
-                            <div className="flex-1">
-                                <Input
-                                    value={url}
-                                    onChange={(e) => handleGalleryUrlChange(i, e.target.value)}
-                                    className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                    placeholder={`Image URL ${i + 1} or click thumbnail to upload...`}
-                                />
-                            </div>
-
-                            {/* Remove */}
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeGallerySlot(i)}
-                                className="h-11 w-11 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl shrink-0"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
+                        <div key={`gallery-${i}`} className="relative group">
+                            <ProductImageSlot 
+                                url={url}
+                                onUrlChange={(newUrl) => handleGalleryUrlChange(i, newUrl)}
+                                onFileSelect={(e) => handleGalleryImageUpload(i, e)}
+                                label={`Image ${i + 1}`}
+                                className="mb-0"
+                            />
+                            {formData.images.length > 1 && (
+                                <button 
+                                    onClick={() => removeGallerySlot(i)}
+                                    className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            )}
                         </div>
                     ))}
+                    {formData.images.length < 8 && (
+                        <button 
+                            onClick={addGallerySlot}
+                            className="aspect-square w-full border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all gap-2"
+                        >
+                            <Plus className="h-6 w-6" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">Add More</span>
+                        </button>
+                    )}
                 </div>
             </motion.section>
 
@@ -445,27 +382,42 @@ export default function EditProduct() {
                             <select
                                 className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
                                 value={formData.category}
-                                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: "" })}
                             >
                                 <option value="">Select Category</option>
-                                <option value="phones">Phones & Tablets</option>
-                                <option value="electronics">Electronics</option>
-                                <option value="vehicles">Vehicles</option>
-                                <option value="energy">Green Energy</option>
-                                <option value="fashion">Fashion</option>
-                                <option value="health">Health & Beauty</option>
-                                <option value="home">Home & Living</option>
-                                <option value="baby">Baby & Kids</option>
-                                <option value="fitness">Sports & Fitness</option>
+                                {CATEGORIES.map(cat => (
+                                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                ))}
                             </select>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Subcategory</label>
-                            <Input
-                                placeholder="e.g. Smartphones, Laptops"
-                                className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                value={formData.subcategory}
-                                onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                            <div className="relative">
+                                <select 
+                                    className="flex h-12 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none cursor-pointer text-gray-900"
+                                    value={formData.subcategory}
+                                    onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                                >
+                                    <option value="">Select Subcategory</option>
+                                    {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
+                                        <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                    <option value="other_custom">Custom Subcategory...</option>
+                                </select>
+                                {formData.subcategory === "other_custom" && (
+                                    <Input
+                                        placeholder="Enter custom subcategory..."
+                                        className="rounded-xl mt-3 h-11 bg-white border-blue-200"
+                                        onBlur={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                        <div className="space-y-2 col-span-1 md:col-span-2">
+                            <label className="text-sm font-medium text-gray-700">Product Tags (SEO)</label>
+                            <TagsInput 
+                                tags={formData.tags}
+                                onChange={(tags) => setFormData({ ...formData, tags })}
                             />
                         </div>
                         <div className="space-y-2">

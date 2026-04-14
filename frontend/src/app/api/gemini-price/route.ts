@@ -71,7 +71,18 @@ export async function POST(req: Request) {
             Return JSON:
             {
                 "suggestions": [
-                    { "name": "Full Descriptive Product Name (including year for vehicles)", "category": "Category", "approxPrice": number (Naira), "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished", "sourceUrl": "https://www.alibaba.com/product-detail/...", "image_url": "https://s.alicdn.com/.../image.jpg", "description": "Detailed 80-200 word product description covering features, benefits, use cases, materials, and ideal buyer profile.", "specs": { "Key1": "Value1", "Key2": "Value2", "...": "Minimum 8 key-value pairs" } }
+                    { 
+                        "name": "Full Descriptive Product Name (including year for vehicles)", 
+                        "category": "Category", 
+                        "subcategory": "Precise Subcategory",
+                        "tags": ["Tag1", "Tag2", "Tag3", "Tag4", "Tag5"],
+                        "approxPrice": number (Naira), 
+                        "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished", 
+                        "sourceUrl": "https://www.alibaba.com/product-detail/...", 
+                        "image_url": "https://s.alicdn.com/.../image.jpg", 
+                        "description": "Detailed 80-200 word product description covering features, benefits, use cases, materials, and ideal buyer profile.", 
+                        "specs": { "Key1": "Value1", "Key2": "Value2", "...": "Minimum 8 key-value pairs" } 
+                    }
                 ]
             }
 

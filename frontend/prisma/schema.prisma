@@ -142,6 +142,8 @@ model Product {
   externalUrl      String?
   highlights       String[]
   specs            Json?
+  tags             String[]             @default([])
+  subcategory      String?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   isTrending       Boolean              @default(false)
@@ -151,6 +153,27 @@ model Product {
   priceAlerts      PriceAlert[]
   seller           Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   reviews          Review[]
+}
+
+model MarketplaceCategory {
+  id            String                   @id @default(cuid())
+  name          String                   @unique
+  slug          String                   @unique
+  description   String?
+  icon          String?
+  subcategories MarketplaceSubcategory[]
+  createdAt     DateTime                 @default(now())
+}
+
+model MarketplaceSubcategory {
+  id          String              @id @default(cuid())
+  categoryId  String
+  name        String
+  slug        String
+  category    MarketplaceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+
+  @@unique([categoryId, name])
 }
 
 model Order {
