@@ -113,7 +113,13 @@ export default function CatalogControl() {
             all.forEach(p => {
                 if (p.is_trending) trending.add(p.id);
                 if (p.is_sponsored) sponsored.add(p.id);
-                if (p.dealProductIds) deals.add(p.id); // Assuming this is how it's stored
+            });
+
+            const activeDeals = DataSyncService.getDeals();
+            activeDeals.forEach(d => {
+                if (d.is_active && d.product_id) {
+                    deals.add(d.product_id);
+                }
             });
 
             setTrendingIds(trending);

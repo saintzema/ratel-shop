@@ -2005,7 +2005,7 @@ class DataSyncServiceService {
         const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
         if (!stored) return;
         const current: any[] = JSON.parse(stored);
-        const updated = current.filter(d => d.productId !== productId);
+        const updated = current.filter(d => (d.product_id || d.productId) !== productId);
         localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
