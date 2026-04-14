@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Upload, X, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { cn, wrapInCDN } from "@/lib/utils";
 
 /**
  * Smart Price Formatter
@@ -69,6 +69,7 @@ export function ProductImageSlot({
             <Input
                 value={url}
                 onChange={(e) => onUrlChange(e.target.value)}
+                onBlur={(e) => onUrlChange(wrapInCDN(e.target.value))}
                 className="rounded-xl text-xs bg-gray-50 border-gray-100 h-10 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                 placeholder="Or paste URL..."
             />

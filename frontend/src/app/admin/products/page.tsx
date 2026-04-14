@@ -28,14 +28,15 @@ import {
     Timer,
     Zap, // Added Zap
     CheckCircle2 as CheckIcon, // Added CheckIcon to avoid conflicts
-    Settings
+    Settings,
+    Sparkles
 } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCategory, CATEGORIES } from "@/lib/types";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { cn, wrapInCDN } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -99,26 +100,34 @@ export default function CatalogControl() {
         const load = () => {
             const all = DataSyncService.getProducts();
             console.log("Admin Catalog detected update. Items:", all.length);
-            all.sort((a, b) => {
-                const da = a.created_at ? new Date(a.created_at).getTime() : 0;
-                const db = b.created_at ? new Date(b.created_at).getTime() : 0;
-                return db - da;
-            });
             setProducts(all);
-            setTrendingIds(new Set(DataSyncService.getTrendingIds())); // Load trending IDs
-            setSponsoredIds(new Set(all.filter(p => p.is_sponsored).map(p => p.id))); // Derive sponsored IDs from products
-            setDealProductIds(new Set(DataSyncService.getDeals().map(d => d.product_id))); // Load deal product IDs
+            
+            setCachedProducts(DataSyncService.getAllCachedProducts());
+
+            const trending = new Set<string>();
+            const sponsored = new Set<string>();
+            const deals = new Set<string>();
+            
+            all.forEach(p => {
+                if (p.is_trending) trending.add(p.id);
+                if (p.is_sponsored) sponsored.add(p.id);
+                if (p.dealProductIds) deals.add(p.id); // Assuming this is how it's stored
+            });
+
+            setTrendingIds(trending);
+            setSponsoredIds(sponsored);
+            setDealProductIds(deals);
+            
+            // Sync Taxonomy and migrate if needed
+            DataSyncService.syncTaxonomy();
+            DataSyncService.migrateTaxonomyIfNeeded(CATEGORIES);
         };
         load();
-        const loadCache = () => setCachedProducts(DataSyncService.getAllCachedProducts());
-        loadCache();
         window.addEventListener("storage", load);
         window.addEventListener("sync-store-update", load);
-        window.addEventListener("sync-store-update", loadCache);
         return () => {
             window.removeEventListener("storage", load);
             window.removeEventListener("sync-store-update", load);
-            window.removeEventListener("sync-store-update", loadCache);
         };
     }, []);
 
@@ -168,8 +177,8 @@ export default function CatalogControl() {
                     });
                     if (res.ok) {
                          const data = await res.json();
-                         if (data.imageUrl) {
-                             const cdnUrl = `/api/image-cdn?url=${encodeURIComponent(data.imageUrl)}`;
+                            if (data.imageUrl) {
+                                const cdnUrl = wrapInCDN(data.imageUrl);
                              if (item.cached_at) {
                                  DataSyncService.updateSearchCacheProduct(item.id, { image_url: cdnUrl });
                              } else {
@@ -446,7 +455,7 @@ export default function CatalogControl() {
                     <Globe className="mr-2 h-4 w-4" /> Sync Global Prices
                 </Button>
                 <Button onClick={handleUpdateImages} disabled={isHandlingImages} className="h-10 px-4 md:px-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-[20px] font-black uppercase tracking-widest text-xs shadow-lg shadow-emerald-500/20 w-full md:w-auto shrink-0 whitespace-nowrap" title="Scans DB to securely fetch proxy URLs for placeholder images">
-                    {isHandlingImages ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImageIcon className="mr-2 h-4 w-4" />} 
+                    {isHandlingImages ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit2 className="mr-2 h-4 w-4" />} 
                     {isHandlingImages ? "Scanning..." : "Update Images"}
                 </Button>
             </div>
@@ -1103,9 +1112,12 @@ export default function CatalogControl() {
                                         <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center justify-between">
                                             Category
                                             <button 
-                                                onClick={() => {
-                                                    const newCat = prompt("Enter new category name:");
-                                                    if (newCat) setEditCategory(newCat.toLowerCase());
+                                                onClick={async () => {
+                                                    const newCat = prompt("Enter new global category name:");
+                                                    if (newCat) {
+                                                        await DataSyncService.createPersistentCategory(newCat);
+                                                        setEditCategory(newCat.toLowerCase());
+                                                    }
                                                 }}
                                                 className="text-indigo-500 hover:text-indigo-700"
                                             >
@@ -1115,15 +1127,19 @@ export default function CatalogControl() {
                                         <select
                                             className="w-full bg-gray-50 border border-gray-100 h-10 rounded-xl text-sm font-bold px-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                                             value={editCategory}
-                                            onChange={(e) => setEditCategory(e.target.value)}
+                                            onChange={(e) => {
+                                                setEditCategory(e.target.value);
+                                                setEditSubcategory("");
+                                            }}
                                         >
                                             <option value="">Select Category</option>
-                                            {CATEGORIES.map(cat => (
+                                            {DataSyncService.getTaxonomy().map(cat => (
+                                                <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
+                                            ))}
+                                            {/* Legacy Fallback */}
+                                            {CATEGORIES.filter(c => !DataSyncService.getTaxonomy().some(db => db.name.toLowerCase() === c.value)).map(cat => (
                                                 <option key={cat.value} value={cat.value}>{cat.label}</option>
                                             ))}
-                                            {editCategory && !CATEGORIES.some(c => c.value === editCategory) && (
-                                                <option value={editCategory}>{editCategory.toUpperCase()}</option>
-                                            )}
                                         </select>
                                     </div>
                                 </div>
@@ -1132,9 +1148,18 @@ export default function CatalogControl() {
                                         <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest flex items-center justify-between">
                                             Subcategory
                                             <button 
-                                                onClick={() => {
-                                                    const newSub = prompt("Enter new subcategory name:");
-                                                    if (newSub) setEditSubcategory(newSub);
+                                                onClick={async () => {
+                                                    const currentTax = DataSyncService.getTaxonomy();
+                                                    const dbCat = currentTax.find(c => c.name.toLowerCase() === editCategory.toLowerCase());
+                                                    if (!dbCat) {
+                                                        alert("Please select or create a valid Category first.");
+                                                        return;
+                                                    }
+                                                    const newSub = prompt(`Enter new subcategory for ${dbCat.name}:`);
+                                                    if (newSub) {
+                                                        await DataSyncService.createPersistentSubcategory(dbCat.id, newSub);
+                                                        setEditSubcategory(newSub);
+                                                    }
                                                 }}
                                                 className="text-indigo-500 hover:text-indigo-700"
                                             >
@@ -1147,12 +1172,13 @@ export default function CatalogControl() {
                                             onChange={(e) => setEditSubcategory(e.target.value)}
                                         >
                                             <option value="">Select Subcategory</option>
+                                            {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === editCategory.toLowerCase())?.subcategories.map((sub: any) => (
+                                                <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                            ))}
+                                            {/* Legacy Fallback */}
                                             {CATEGORIES.find(c => c.value === editCategory)?.subcategories.map(sub => (
                                                 <option key={sub} value={sub}>{sub}</option>
                                             ))}
-                                            {editSubcategory && !CATEGORIES.find(c => c.value === editCategory)?.subcategories.includes(editSubcategory) && (
-                                                <option value={editSubcategory}>{editSubcategory}</option>
-                                            )}
                                         </select>
                                     </div>
                                     <div className="space-y-2">

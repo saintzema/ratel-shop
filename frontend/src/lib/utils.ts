@@ -136,7 +136,26 @@ export function generateCompliantId(name: string, prefix = 'global'): string {
     
     const id = `${prefix}-${slug}`;
     if (id.length <= 50) return id;
-    
     // If too long, trim to 50 and ensure it doesn't end with a hyphen
     return id.substring(0, 50).replace(/-+$/, "");
+}
+
+export function wrapInCDN(url: string | null | undefined): string {
+    if (!url) return "/assets/images/placeholder.png";
+    if (typeof url !== 'string') return url;
+    
+    // If it's already a relative path or proxied, return as is
+    if (url.startsWith('/') || url.includes('/api/image-cdn')) {
+        return url;
+    }
+
+    // If it's a data URL, return as is (usually base64)
+    if (url.startsWith('data:')) return url;
+
+    // Proxy external URLs
+    if (url.startsWith('http')) {
+        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+    }
+
+    return url;
 }

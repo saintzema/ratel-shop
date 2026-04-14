@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2 } from "lucide-react";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, wrapInCDN } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
@@ -30,7 +30,9 @@ export default function NewProduct() {
         specs: [] as { key: string; value: string }[],
         colors: "",
         image_url: "",
-        images: [""]
+        images: [""],
+        original_price: "",
+        external_url: ""
     });
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -66,28 +68,19 @@ export default function NewProduct() {
                 const content = await res.json();
 
                 // Infer category from AI response or product name
-                const validCategories = ["phones", "electronics", "vehicles", "energy", "fashion", "health", "home", "baby", "fitness"];
-                let inferredCategory = formData.category; // keep current if already set
+                const currentTaxonomy = DataSyncService.getTaxonomy();
+                let inferredCategory = formData.category;
 
-                if (content.category && validCategories.includes(content.category.toLowerCase())) {
-                    inferredCategory = content.category.toLowerCase();
-                } else if (!inferredCategory) {
-                    // Keyword-based inference from product name
+                if (content.category) {
+                    const match = currentTaxonomy.find(c => c.name.toLowerCase() === content.category.toLowerCase());
+                    if (match) inferredCategory = match.name.toLowerCase();
+                } 
+                
+                if (!inferredCategory) {
                     const nameLower = formData.name.toLowerCase();
-                    const categoryMap: Record<string, string[]> = {
-                        phones: ["phone", "iphone", "samsung galaxy", "tablet", "ipad", "pixel", "android", "smartphone"],
-                        electronics: ["tv", "laptop", "macbook", "airpods", "speaker", "camera", "projector", "earbuds", "headphones", "charger", "power bank", "watch"],
-                        vehicles: ["car", "vehicle", "tire", "bumper", "dash cam", "auto", "motor"],
-                        energy: ["solar", "inverter", "battery", "power station", "generator"],
-                        fashion: ["shoe", "dress", "shirt", "bag", "earring", "sunglasses", "watch", "sneaker", "jacket", "sandal", "slider"],
-                        health: ["cream", "serum", "makeup", "brush", "nail", "hair", "beauty", "skincare", "perfume", "lipstick"],
-                        home: ["kitchen", "cooker", "blender", "cabinet", "humidifier", "chopper", "cleaner", "storage", "shower"],
-                        baby: ["baby", "toddler", "diaper", "stroller", "crib"],
-                        fitness: ["gym", "dumbbell", "yoga", "resistance band", "jump rope", "push up", "fitness"],
-                    };
-                    for (const [cat, keywords] of Object.entries(categoryMap)) {
-                        if (keywords.some(kw => nameLower.includes(kw))) {
-                            inferredCategory = cat;
+                    for (const cat of currentTaxonomy) {
+                        if (nameLower.includes(cat.name.toLowerCase())) {
+                            inferredCategory = cat.name.toLowerCase();
                             break;
                         }
                     }
@@ -156,6 +149,10 @@ export default function NewProduct() {
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData(prev => ({ ...prev, price: formatPriceWithCommas(e.target.value) }));
+    };
+
+    const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData(prev => ({ ...prev, original_price: formatPriceWithCommas(e.target.value) }));
     };
 
     // --- Form Handlers ---
@@ -234,17 +231,8 @@ export default function NewProduct() {
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
 
-        const wrapCDN = (url: string) => {
-            if (!url) return url;
-            const lower = url.toLowerCase();
-            if (lower.startsWith('http') && !lower.includes('/api/image-cdn')) {
-                return `/api/image-cdn?url=${encodeURIComponent(url)}`;
-            }
-            return url;
-        };
-
-        const finalImageUrl = wrapCDN(formData.image_url) || "/placeholder.png";
-        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapCDN);
+        const finalImageUrl = wrapInCDN(formData.image_url) || "/placeholder.png";
+        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
 
         const newProduct = {
             id: generateSlug(formData.name),
@@ -253,7 +241,9 @@ export default function NewProduct() {
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,
-            original_price: undefined,
+            original_price: formData.original_price ? parseInt(formData.original_price.replace(/,/g, "")) : undefined,
+            external_url: formData.external_url,
+            original_price_flag: formData.original_price ? true : false,
             description: formData.description,
             subcategory: formData.subcategory,
             tags: formData.tags,
@@ -406,7 +396,11 @@ export default function NewProduct() {
                                         onChange={(e) => handleChange("category", e.target.value)}
                                     >
                                         <option value="">Select Category</option>
-                                        {CATEGORIES.map(cat => (
+                                        {DataSyncService.getTaxonomy().map(cat => (
+                                            <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
+                                        ))}
+                                        {/* Fallback */}
+                                        {CATEGORIES.filter(c => !DataSyncService.getTaxonomy().some(db => db.name.toLowerCase() === c.value)).map(cat => (
                                             <option key={cat.value} value={cat.value}>{cat.label}</option>
                                         ))}
                                     </select>
@@ -419,10 +413,13 @@ export default function NewProduct() {
                                         onChange={(e) => handleChange("subcategory", e.target.value)}
                                     >
                                         <option value="">Select Subcategory</option>
+                                        {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.subcategories.map((sub: any) => (
+                                            <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                        ))}
+                                        {/* Legacy fallback */}
                                         {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
                                             <option key={sub} value={sub}>{sub}</option>
                                         ))}
-                                        <option value="other_custom">Custom Subcategory...</option>
                                     </select>
                                     {formData.subcategory === "other_custom" && (
                                         <Input
@@ -539,17 +536,42 @@ export default function NewProduct() {
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700">Initial Stock</label>
-                                <Input
-                                    type="number"
-                                    placeholder="1"
-                                    className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                    value={formData.stock}
-                                    onChange={(e) => handleChange("stock", e.target.value)}
-                                />
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700 font-bold uppercase tracking-tight text-[10px] text-gray-400">Others' Price (₦) <span className="normal-case font-medium">— strikethrough</span></label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">₦</span>
+                                        <Input
+                                            type="text"
+                                            placeholder="Competitor price"
+                                            className="rounded-xl pl-9 font-medium h-12 text-base bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-gray-400 line-through"
+                                            value={formData.original_price}
+                                            onChange={handleOriginalPriceChange}
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700">Initial Stock</label>
+                                    <Input
+                                        type="number"
+                                        placeholder="1"
+                                        className="rounded-xl h-12 text-base font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.stock}
+                                        onChange={(e) => handleChange("stock", e.target.value)}
+                                    />
+                                </div>
                             </div>
-                        </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-700 font-bold uppercase tracking-tight text-[10px] text-gray-400">Source Product Link <span className="normal-case font-medium">— cheapest competing store</span></label>
+                                <Input
+                                    placeholder="https://... (Alibaba, Jumia, Amazon, etc.)"
+                                    className="rounded-xl h-12 text-sm font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                    value={formData.external_url}
+                                    onChange={(e) => handleChange("external_url", e.target.value)}
+                                />
+                                {formData.external_url && (
+                                    <p className="text-[10px] text-blue-500 mt-1 truncate px-1">Source: {formData.external_url}</p>
+                                )}
+                            </div>
                     </motion.section>
 
                     {/* Sticky Publish Bar */}

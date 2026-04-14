@@ -114,6 +114,7 @@ class DataSyncServiceService {
         DELETED_STUBS: "fp_deleted_stubs",
         PENDING_NEGOTIATIONS: "fp_pending_negotiations",
         PLATFORM_SETTINGS: "fp_platform_settings",
+        TAXONOMY: "fp_marketplace_taxonomy"
     };
 
     private selfHeal() {
@@ -265,6 +266,9 @@ class DataSyncServiceService {
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.CATEGORIES)) {
             localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.TAXONOMY)) {
+            localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
             localStorage.setItem(this.STORAGE_KEYS.DEALS, "[]");
@@ -910,6 +914,72 @@ class DataSyncServiceService {
         localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
         window.dispatchEvent(new Event("sync-store-update"));
         window.dispatchEvent(new Event("storage"));
+    }
+
+    async syncTaxonomy() {
+        try {
+            const res = await fetch("/api/admin/taxonomy");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(data.categories));
+                    window.dispatchEvent(new Event("sync-store-update"));
+                }
+            }
+        } catch (e) {
+            console.error("Taxonomy sync failed:", e);
+        }
+    }
+
+    getTaxonomy(): any[] {
+        if (typeof window === "undefined") return [];
+        const stored = localStorage.getItem(this.STORAGE_KEYS.TAXONOMY);
+        return stored ? JSON.parse(stored) : [];
+    }
+
+    async createPersistentCategory(name: string) {
+        try {
+            const res = await fetch("/api/admin/taxonomy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "category", name })
+            });
+            if (res.ok) await this.syncTaxonomy();
+        } catch (e) {
+            console.error("Failed to create category:", e);
+        }
+    }
+
+    async createPersistentSubcategory(categoryId: string, name: string) {
+        try {
+            const res = await fetch("/api/admin/taxonomy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "subcategory", categoryId, name })
+            });
+            if (res.ok) await this.syncTaxonomy();
+        } catch (e) {
+            console.error("Failed to create subcategory:", e);
+        }
+    }
+
+    // Helper to migrate hardcoded categories to DB if DB is empty
+    async migrateTaxonomyIfNeeded(hardcodedCategories: any[]) {
+        const current = this.getTaxonomy();
+        if (current.length === 0) {
+            console.log("🛠️ Migrating hardcoded categories to database...");
+            for (const cat of hardcodedCategories) {
+                await this.createPersistentCategory(cat.label);
+                // After creating category, find its ID in the newly synced list
+                const refreshed = this.getTaxonomy();
+                const dbCat = refreshed.find(c => c.name === cat.label);
+                if (dbCat && cat.subcategories) {
+                    for (const sub of cat.subcategories) {
+                        await this.createPersistentSubcategory(dbCat.id, sub);
+                    }
+                }
+            }
+        }
     }
 
     ensureCategoryExists(categoryName: string, subCategoryName?: string) {

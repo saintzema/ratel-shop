@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, wrapInCDN } from "@/lib/utils";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,9 @@ export default function EditProduct() {
         specs: [] as { key: string; value: string }[],
         image_url: "",
         images: [""],
-        stock: ""
+        stock: "",
+        original_price: "",
+        external_url: ""
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -68,7 +70,9 @@ export default function EditProduct() {
                 specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value: String(value) })) : [],
                 image_url: found.image_url,
                 images: found.images?.length ? [...found.images] : [""],
-                stock: found.stock.toString()
+                stock: found.stock.toString(),
+                original_price: found.original_price ? found.original_price.toLocaleString() : "",
+                external_url: found.external_url || ""
             });
         }
     }, [productId]);
@@ -83,9 +87,18 @@ export default function EditProduct() {
                 body: JSON.stringify({ productName: formData.name, category: formData.category })
             });
             if (res.ok) {
-                const content = await res.json();
+                // Infer category from AI response or product name
+                const currentTaxonomy = DataSyncService.getTaxonomy();
+                let inferredCategory = formData.category;
+
+                if (content.category) {
+                    const match = currentTaxonomy.find(c => c.name.toLowerCase() === content.category.toLowerCase());
+                    if (match) inferredCategory = match.name.toLowerCase();
+                }
+
                 setFormData(prev => ({
                     ...prev,
+                    category: inferredCategory || prev.category,
                     description: content.description || prev.description,
                     highlights: content.highlights || prev.highlights,
                     specs: content.specs ? Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })) : prev.specs,
@@ -115,6 +128,10 @@ export default function EditProduct() {
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData({ ...formData, price: formatPriceWithCommas(e.target.value) });
+    };
+
+    const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData({ ...formData, original_price: formatPriceWithCommas(e.target.value) });
     };
 
     const compressImage = (file: File, callback: (url: string) => void) => {
@@ -202,22 +219,15 @@ export default function EditProduct() {
 
         const numericPrice = parseInt(formData.price.replace(/,/g, ""));
 
-        const wrapCDN = (url: string) => {
-            if (!url) return url;
-            const lower = url.toLowerCase();
-            if (lower.startsWith('http') && !lower.includes('/api/image-cdn')) {
-                return `/api/image-cdn?url=${encodeURIComponent(url)}`;
-            }
-            return url;
-        };
-
-        const finalImageUrl = wrapCDN(formData.image_url);
-        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapCDN);
+        const finalImageUrl = wrapInCDN(formData.image_url);
+        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
 
         await DataSyncService.updateProduct(product.id, {
             name: formData.name,
             category: (formData.category || "electronics") as any,
             price: isNaN(numericPrice) ? 0 : numericPrice,
+            original_price: formData.original_price ? parseInt(formData.original_price.replace(/,/g, "")) : undefined,
+            external_url: formData.external_url,
             description: formData.description,
             subcategory: formData.subcategory,
             tags: formData.tags,
@@ -385,7 +395,11 @@ export default function EditProduct() {
                                 onChange={(e) => setFormData({ ...formData, category: e.target.value, subcategory: "" })}
                             >
                                 <option value="">Select Category</option>
-                                {CATEGORIES.map(cat => (
+                                {DataSyncService.getTaxonomy().map(cat => (
+                                    <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
+                                ))}
+                                {/* Fallback */}
+                                {CATEGORIES.filter(c => !DataSyncService.getTaxonomy().some(db => db.name.toLowerCase() === c.value)).map(cat => (
                                     <option key={cat.value} value={cat.value}>{cat.label}</option>
                                 ))}
                             </select>
@@ -399,10 +413,13 @@ export default function EditProduct() {
                                     onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
                                 >
                                     <option value="">Select Subcategory</option>
+                                    {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.subcategories.map((sub: any) => (
+                                        <option key={sub.id} value={sub.name}>{sub.name}</option>
+                                    ))}
+                                    {/* Legacy fallback */}
                                     {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
                                         <option key={sub} value={sub}>{sub}</option>
                                     ))}
-                                    <option value="other_custom">Custom Subcategory...</option>
                                 </select>
                                 {formData.subcategory === "other_custom" && (
                                     <Input
@@ -457,6 +474,19 @@ export default function EditProduct() {
                             </div>
                         </div>
                         <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700 font-bold uppercase tracking-tight text-[10px] text-gray-400">Others' Price (₦) <span className="normal-case font-medium">— strikethrough</span></label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">₦</span>
+                                <Input
+                                    type="text"
+                                    value={formData.original_price}
+                                    onChange={handleOriginalPriceChange}
+                                    className="rounded-xl pl-9 font-medium h-12 text-base bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-gray-400 line-through"
+                                    placeholder="Competitor price"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Stock Quantity</label>
                             <Input
                                 type="number"
@@ -466,6 +496,19 @@ export default function EditProduct() {
                                 placeholder="0"
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-2 mb-6">
+                        <label className="text-sm font-medium text-gray-700 font-bold uppercase tracking-tight text-[10px] text-gray-400">Source Product Link <span className="normal-case font-medium">— cheapest competing store</span></label>
+                        <Input
+                            placeholder="https://... (Alibaba, Jumia, Amazon, etc.)"
+                            className="rounded-xl h-12 text-sm font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                            value={formData.external_url}
+                            onChange={(e) => setFormData({ ...formData, external_url: e.target.value })}
+                        />
+                        {formData.external_url && (
+                            <p className="text-[10px] text-blue-500 mt-1 truncate px-1">Source: {formData.external_url}</p>
+                        )}
                     </div>
 
                     {/* Description */}
