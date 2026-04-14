@@ -377,7 +377,7 @@ function HomeContent() {
                 <Button
                   size="lg"
                   variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/10 text-white hover:bg-brand-green-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 ring-2 ring-brand-green-400/60 ring-offset-1 ring-offset-transparent group"
+                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-500/30 text-white hover:bg-brand-green-500/50 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.45)] transition-all duration-300 ring-2 ring-brand-green-400 ring-offset-1 ring-offset-transparent group animate-pulse-grow"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
                   <span className="font-extrabold tracking-wide cursor-pointer">Price Checker AI</span>

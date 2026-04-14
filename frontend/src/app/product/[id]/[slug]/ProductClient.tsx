@@ -1231,7 +1231,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                     </div>
                     {/* Center Column (Details, Specs, Seller) */}
-                    <div className="md:col-span-7 lg:col-span-5 flex flex-col space-y-8 min-w-0">
+                    <div className="md:col-span-7 lg:col-span-4 flex flex-col space-y-8 min-w-0">
                         <div className="mb-2">
                             <Link href={`/store/${seller.store_url || seller.id}`} className="text-sm font-bold text-ratel-green-600 hover:underline mb-1 inline-block">
                                 {seller.business_name}
@@ -1478,8 +1478,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                     </div>
                     {/* Right Column (Cart side drawer placeholder) */}
-
-                    <div className="md:col-span-12 lg:col-span-3 space-y-4 min-w-0">
+                    <div className="md:col-span-12 lg:col-span-4 space-y-4 min-w-0">
                         <div className="sticky top-24 border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
                             {/* Temu-style Buy Box */}
                             <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -1597,7 +1596,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                         </div>
                                                         <ChevronDown className={`h-3 w-3 text-blue-500 transition-transform ${showDurationSelector ? 'rotate-180' : ''}`} />
                                                     </div>
-                                                    <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
+                                                    <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} {loanAnalysis.tenorMonths / 12 === 1 ? 'Year' : 'Years'} <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
                                                 </motion.div>
 
                                                 {/* Dropdown for Duration */}

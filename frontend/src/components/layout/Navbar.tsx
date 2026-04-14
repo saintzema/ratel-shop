@@ -513,11 +513,13 @@ export function Navbar() {
         saveRecentSearch(searchQuery);
 
         // 3. Navigation happens AFTER session state is saved so search/page.tsx hydrates reliably
-        router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+        setTimeout(() => {
+            router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+        }, 10);
 
         // ─── ELITE REVIEW GENERATION ───
         // Trigger review generation in background for the promoted global product
-        if (resolvedClickedId.startsWith('global-')) {
+        if (resolvedClickedId && (resolvedClickedId.startsWith('global-') || resolvedClickedId.startsWith('idx-'))) {
             setTimeout(() => {
                 fetch('/api/gemini-reviews', {
                     method: 'POST',
@@ -547,39 +549,51 @@ export function Navbar() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    // Background Image Hydration for Global Results
+    // ─── Elite Background Image Hydration ───
     useEffect(() => {
-        if (globalResults.length > 0) {
-            const isValidImg = (url: string | undefined | null) =>
-                url && url.trim().length > 4 &&
-                !url.toLowerCase().includes('no photo') &&
-                !url.toLowerCase().includes('no image') &&
-                !url.toLowerCase().includes('not found') &&
-                !url.toLowerCase().includes('sample') &&
-                !url.toLowerCase().includes('logo') &&
-                !url.toLowerCase().includes('avatar') &&
-                !url.toLowerCase().includes('n/a') &&
-                !url.toLowerCase().includes('undefined') &&
-                !url.includes('vertexaisearch.cloud.google.com') &&
-                !url.includes('grounding-api-redirect');
+        const resultsToHydrate = [
+            ...globalResults.map(p => ({ ...p, _kind: 'global' })),
+            ...suggestions.map(p => ({ ...p, _kind: 'local' })),
+            ...cachedResults.map(p => ({ ...p, _kind: 'cached' }))
+        ];
 
-            globalResults.forEach((product: any, index: number) => {
-                const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
-                if (hasNoRealImage && !product._imageHydrated) {
-                    fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.imageUrl) {
-                                setGlobalResults(prev => prev.map((p, i) => i === index ? { ...p, image_url: data.imageUrl, _imageHydrated: true } : p));
-                            } else {
-                                setGlobalResults(prev => prev.map((p, i) => i === index ? { ...p, _imageHydrated: true } : p));
-                            }
-                        })
-                        .catch(() => {});
-                }
-            });
-        }
-    }, [globalResults]);
+        if (resultsToHydrate.length === 0) return;
+
+        const isValidImg = (url: string | undefined | null) =>
+            url && url.trim().length > 4 &&
+            !url.toLowerCase().includes('placeholder') &&
+            !url.toLowerCase().includes('no photo') &&
+            !url.toLowerCase().includes('no image') &&
+            !url.toLowerCase().includes('sample') &&
+            !url.toLowerCase().includes('n/a');
+
+        resultsToHydrate.forEach((product: any) => {
+            // Only hydrate if we haven't already hydrated this item in THIS session
+            // OR if it currently has a placeholder
+            const needsHydration = (!product._imageHydrated) || (!isValidImg(product.image_url));
+            
+            if (needsHydration) {
+                // Throttling: only fire if not currently searching and not already hydrated
+                fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.imageUrls && data.imageUrls.length > 0) {
+                            const newImages = data.imageUrls;
+                            const updateFn = (prev: any[]) => prev.map(p => 
+                                (p.id === product.id || p.name === product.name) 
+                                    ? { ...p, image_url: newImages[0], images: newImages, _imageHydrated: true } 
+                                    : p
+                            );
+
+                            if (product._kind === 'global') setGlobalResults(updateFn);
+                            else if (product._kind === 'local') setSuggestions(updateFn);
+                            else if (product._kind === 'cached') setCachedResults(updateFn);
+                        }
+                    })
+                    .catch(() => {});
+            }
+        });
+    }, [globalResults.length, suggestions.length, cachedResults.length]);
 
     const handleSearch = () => {
         if (searchQuery.trim()) {

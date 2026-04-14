@@ -3,7 +3,7 @@ import { X, Banknote, ShieldCheck, ChevronRight, Calculator, Info } from "lucide
 import { Button } from "@/components/ui/button";
 import { formatNumber } from "@/lib/utils";
 import { Product } from "@/lib/types";
-import { calculateProductMonthlyPayment } from "@/lib/financing-utils";
+import { calculateProductMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 
 interface FinancingDetailsModalProps {
     isOpen: boolean;
@@ -15,6 +15,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
     if (!product) return null;
 
     const basePrice = product.price;
+    const depositPct = Math.round(getVehicleDepositPercent() * 100);
 
     return (
         <AnimatePresence>
@@ -54,7 +55,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                             </div>
 
                             {/* Content */}
-                            <div className="p-6 overflow-y-auto w-full">
+                            <div className="px-6 pt-8 pb-10 overflow-y-auto w-full">
                                 <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 mb-6">
                                     <div className="grid grid-cols-2 gap-4 text-center">
                                         <div>
@@ -80,7 +81,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                         <thead className="bg-gray-50 border-b border-gray-200">
                                             <tr>
                                                 <th className="px-4 py-3 font-bold text-gray-600 w-1/4">Tenor</th>
-                                                <th className="px-4 py-3 font-bold text-gray-600">Initial Deposit</th>
+                                                <th className="px-4 py-3 font-bold text-gray-600 text-center">Initial Deposit ({depositPct}%)</th>
                                                 <th className="px-4 py-3 font-bold text-gray-600 text-right">Monthly Pay</th>
                                             </tr>
                                         </thead>
@@ -90,7 +91,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                                 return (
                                                     <tr key={years} className={idx === 0 ? "bg-emerald-50/30" : ""}>
                                                         <td className="px-4 py-3.5 font-bold text-gray-900">{years} Year{years > 1 ? 's' : ''}</td>
-                                                        <td className="px-4 py-3.5 text-gray-600">₦{formatNumber(analysis.deposit)}</td>
+                                                        <td className="px-4 py-3.5 text-gray-600 text-center">₦{formatNumber(analysis.deposit)}</td>
                                                         <td className="px-4 py-3.5 text-right font-black text-emerald-600">₦{formatNumber(analysis.monthlyPayment)}<span className="text-[10px] text-gray-400 font-normal ml-1">/mo</span></td>
                                                     </tr>
                                                 );
