@@ -12,7 +12,7 @@ export default function ContactPage() {
     const [config, setConfig] = useState({
         email: "hello@fairprice.ng",
         whatsapp: "2348162816305",
-        office: "Victoria Island, Lagos, Nigeria",
+        office: "12 New Market Road, Onitsha, Anambra State, Nigeria",
         hours: "Mon - Sat: 8am - 10pm WAT",
         serviceCenters: [] as {name: string, address: string, phone: string}[]
     });

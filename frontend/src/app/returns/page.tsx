@@ -32,8 +32,8 @@ export default function ReturnsPage() {
                                 "Choose a reason: 'Defective/Damaged' or 'Change of Mind'", 
                                 "Ensure item is NEW: Unopened, tags attached, no signs of wear",
                                 "Our team reviews and approves within 24-48 hours", 
-                                "Ship the item back. International return shipping is customer-paid unless defective", 
-                                "Refund is processed within 7 business days after receipt"
+                                "Ship the item back. You (the customer) pay for return shipping for 'Change of mind'. If defective, we pay for return shipping.", 
+                                "Refund is processed to your original payment method (bank or card) within 3-5 business days after inspection."
                             ].map((s, i) => (
                                 <li key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-xl"><span className="bg-emerald-100 text-emerald-700 font-bold text-xs w-6 h-6 rounded-full flex items-center justify-center shrink-0">{i + 1}</span><span className="text-gray-700 text-sm">{s}</span></li>
                             ))}
@@ -51,8 +51,9 @@ export default function ReturnsPage() {
                     <section>
                         <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2"><Package className="h-5 w-5 text-blue-600" /> Fees & Refunds</h2>
                         <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200 text-sm text-gray-700 leading-relaxed space-y-3">
-                            <p><strong>Restocking Fee:</strong> $0 (No cost to you).</p>
-                            <p><strong>Refund Processing:</strong> Once received, we process refunds within 7 business days to your original payment method.</p>
+                            <p><strong>Restocking Fee:</strong> We do not charge any restocking fees.</p>
+                            <p><strong>Shipping Liability:</strong> Customers are responsible for all return shipping costs for 'Change of mind' or mistakenly ordered items. For items proven defective within the 14-day window, FairPrice.ng fully covers the return shipping cost.</p>
+                            <p><strong>Refund Completion:</strong> Once your return is received and inspected (typically 24 hours), we process the refund directly to your original payment method. The credit will reflect in your bank account or card balance within 3-5 business days depending on your bank issuer.</p>
                         </div>
                     </section>
                 </div>

@@ -339,7 +339,13 @@ export function Footer() {
             >
               Zema AI Labs
             </a>
-          </p>
+            </p>
+            <p className="mt-2 text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+              FairPrice.ng is an escrow-based marketplace operated by Zema AI Labs. <br />
+              Registration Address: 12 New Market Road, Onitsha, Anambra State, Nigeria. <br />
+              For support, contact hello@fairprice.ng or +234 816 281 6305.
+            </p>
+          </div>
         </div>
       </div>
     </footer>
