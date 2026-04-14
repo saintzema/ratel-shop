@@ -379,7 +379,7 @@ function HomeContent() {
                   className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-600/90 text-white hover:bg-brand-green-500 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all duration-300 animate-pulse-grow group"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  <span className="font-extrabold tracking-wide cursor:pointer">AI Price Checker</span>
+                  <span className="font-extrabold tracking-wide cursor:pointer">Price Checker AI</span>
                 </Button>
 
                 <Button
@@ -795,7 +795,9 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
 
   if (products.length === 0 && !isLoading) return null;
 
-  const displayProducts = isLoading ? Array(6).fill(null) : (autoScroll ? [...products, ...products, ...products] : products);
+  // Unique Identity Guard: Ensure no duplicate IDs enter the slider before expansion
+  const uniqueProducts = Array.from(new Map(products.filter(Boolean).map(p => [p.id, p])).values());
+  const displayProducts = isLoading ? Array(6).fill(null) : (autoScroll ? [...uniqueProducts, ...uniqueProducts, ...uniqueProducts] : uniqueProducts);
 
   return (
     <div

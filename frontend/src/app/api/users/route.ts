@@ -88,15 +88,25 @@ export async function GET(req: Request) {
             if (!user && id.includes("@")) {
                 user = await db.user.findUnique({ where: { email: id } });
             }
+            if (!user) {
+                return NextResponse.json({ error: "User not found" }, { status: 404 });
+            }
             return NextResponse.json(user);
         }
         if (email) {
             const user = await db.user.findUnique({ where: { email } });
+            if (!user) {
+                return NextResponse.json({ error: "User not found" }, { status: 404 });
+            }
             return NextResponse.json(user);
         }
         const users = await db.user.findMany();
         return NextResponse.json(users);
     } catch (error) {
-        return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+        console.error("Users API error:", error);
+        return NextResponse.json(
+            { error: "Database temporarily unavailable", offline: true },
+            { status: 503, headers: { "X-DB-Status": "offline" } }
+        );
     }
 }

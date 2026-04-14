@@ -80,8 +80,12 @@ export async function GET(req: Request) {
         });
     } catch (error: any) {
         console.error("Database fetch error:", error);
-        return NextResponse.json([], {
-            status: 200,
+        return NextResponse.json({ 
+            error: "Service Temporarily Unavailable",
+            message: "The database is currently offline or misconfigured.",
+            code: "DB_OFFLINE"
+        }, {
+            status: 503,
             headers: { 
                 "X-DB-Status": "offline",
                 "Cache-Control": "no-store" 

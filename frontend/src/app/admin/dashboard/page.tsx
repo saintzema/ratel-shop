@@ -25,6 +25,7 @@ import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn, formatDateExact } from "@/lib/utils";
+import { AdminProfitTable } from "@/components/admin/AdminProfitTable";
 
 export default function AdminDashboard() {
     const router = useRouter();
@@ -522,6 +523,9 @@ export default function AdminDashboard() {
                     </Button>
                 </div>
             </div>
+
+            {/* Admin Profit Ledger */}
+            <AdminProfitTable />
 
             {/* Broadcast Modal */}
             {showBroadcastModal && (

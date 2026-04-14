@@ -101,13 +101,20 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
     }
 
     const lower = url.toLowerCase();
+    
+    // Whitelist Google Grounding Redirects for Search Parity
+    const isGroundingRedirect = lower.includes('googleusercontent.com/grounding') || 
+                               lower.includes('vertexaisearch.cloud.google.com') ||
+                               lower.includes('grounding-api-redirect');
+
+    if (isGroundingRedirect) {
+        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+    }
+
     const isBroken = lower.includes('no photo') || 
                     lower.includes('no image') || 
                     lower.includes('n/a') ||
                     lower.includes('placeholder') ||
-                    lower.includes('vertexaisearch.cloud.google.com') || 
-                    lower.includes('grounding-api-redirect') ||
-                    lower.includes('googleusercontent.com/grounding') ||
                     url.startsWith('data:image');
 
     if (isBroken) {

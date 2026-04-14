@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
+
+export const dynamic = "force-dynamic";
 import { SEED_PRODUCTS } from '@/lib/data';
 import { getProductUrl } from '@/lib/utils';
 

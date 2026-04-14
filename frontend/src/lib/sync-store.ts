@@ -4,6 +4,7 @@ import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, N
 export type { NegotiationRequest };
 import { formatPrice, getProxiedImageUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
+import { TEMU_PRODUCTS } from "./demo-data-temu";
 
 export interface Category {
     id: string;
@@ -57,7 +58,27 @@ class DataSyncServiceService {
     private _pendingEdits: Set<string> = new Set();
     private readonly _PENDING_KEY = "fp_pending_product_edits";
     // Track seller IDs with local edits (KYC approve/reject) not yet confirmed by DB
-    private _pendingSellerEdits: Set<string> = new Set();
+    private _pendingSellerEdits: string[] = [];
+    
+    /**
+     * seedDemoData: Safety net that populates the marketplace with 
+     * existing TEMU_PRODUCTS if the database is offline and the store is empty.
+     */
+    public seedDemoData() {
+        if (typeof window === "undefined") return;
+        
+        const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
+        if (currentProducts.length === 0) {
+            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding TEMU_PRODUCTS fallback.");
+            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(TEMU_PRODUCTS));
+            
+            // Trigger UI update
+            window.dispatchEvent(new Event("storage"));
+            window.dispatchEvent(new Event("sync-store-update"));
+        }
+    }
+
+    public isSyncing = false;
     private readonly _PENDING_SELLER_KEY = "fp_pending_seller_edits";
     // Track negotiation IDs with local edits not confirmed by DB
     private _pendingNegotiationEdits: Set<string> = new Set();
@@ -151,7 +172,7 @@ class DataSyncServiceService {
                 const saved = localStorage.getItem(this._PENDING_KEY);
                 if (saved) this._pendingEdits = new Set(JSON.parse(saved));
                 const savedSellers = localStorage.getItem(this._PENDING_SELLER_KEY);
-                if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
+                if (savedSellers) this._pendingSellerEdits = JSON.parse(savedSellers);
                 const savedNegs = localStorage.getItem(this._PENDING_NEGOTIATION_KEY);
                 if (savedNegs) this._pendingNegotiationEdits = new Set(JSON.parse(savedNegs));
             } catch { /* ignore */ }
@@ -209,7 +230,8 @@ class DataSyncServiceService {
         // to force re-seeding localStorage with the latest data
         // v17: Reset all stats, purge orphaned products/sellers/orders
         // v18: EXTREMELY IMPORTANT - Marketplace consolidation. Reassigned all products to Global Stores and purged demo stores/users.
-        const DATA_VERSION = "18";
+        // v19: Clean Sweep Synchronization. Forced cache flush after database reset and cascading rules update.
+        const DATA_VERSION = "19";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -292,11 +314,24 @@ class DataSyncServiceService {
         };
     }
 
-    public isSyncing = false;
     public async syncWithDB(collection?: string) {
         if (typeof window === "undefined" || this.isSyncing) return;
         this.isSyncing = true;
         try {
+            const fetchWithTimeout = async (url: string, options: any = {}) => {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s hard timeout
+                try {
+                    const response = await fetch(url, { ...options, signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    return response;
+                } catch (err: any) {
+                    clearTimeout(timeoutId);
+                    if (err.name === 'AbortError') throw new Error(`Timeout: ${url}`);
+                    throw err;
+                }
+            };
+
             const user = this.getCurrentUser();
             const notificationUrl = user?.email ? `/api/notifications?user_email=${encodeURIComponent(user.email)}` : null;
 
@@ -328,18 +363,31 @@ class DataSyncServiceService {
                 negotiationsResult, notificationsResult, conversationsResult,
                 disputesResult, complaintsResult, kycResult, reviewsResult
             ] = await Promise.allSettled([
-                fetchProducts ? fetch(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
-                fetchSellers ? fetch(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
-                fetchSearchCache ? fetch("/api/search-cache") : mockUnfetched,
-                fetchOrders ? fetch(ordersUrl) : mockUnfetched,
-                fetchNegotiations ? fetch(`/api/negotiations?all=true`) : mockUnfetched,
-                fetchNotifications && notificationUrl ? fetch(notificationUrl) : mockUnfetched,
-                fetchConversations && user?.email ? fetch(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
-                fetchDisputes ? fetch("/api/disputes?all=true") : mockUnfetched,
-                fetchComplaints ? fetch("/api/complaints?all=true") : mockUnfetched,
-                fetchKYC ? fetch("/api/kyc?all=true") : mockUnfetched,
-                fetchReviews ? fetch("/api/reviews?all=true") : mockUnfetched
+                fetchProducts ? fetchWithTimeout(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
+                fetchSellers ? fetchWithTimeout(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
+                fetchSearchCache ? fetchWithTimeout("/api/search-cache") : mockUnfetched,
+                fetchOrders ? fetchWithTimeout(ordersUrl) : mockUnfetched,
+                fetchNegotiations ? fetchWithTimeout(`/api/negotiations?all=true`) : mockUnfetched,
+                fetchNotifications && notificationUrl ? fetchWithTimeout(notificationUrl) : mockUnfetched,
+                fetchConversations && user?.email ? fetchWithTimeout(`/api/conversations?user_email=${encodeURIComponent(user.email)}`) : mockUnfetched,
+                fetchDisputes ? fetchWithTimeout("/api/disputes?all=true") : mockUnfetched,
+                fetchComplaints ? fetchWithTimeout("/api/complaints?all=true") : mockUnfetched,
+                fetchKYC ? fetchWithTimeout("/api/kyc?all=true") : mockUnfetched,
+                fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched
             ]);
+
+            // Resilience Check: If any critical results are 503 (offline), 
+            // handle gracefully instead of clearing data.
+            const isDbOffline = [productsResult, sellersResult].some(r => 
+                r.status === "fulfilled" && r.value.status === 503
+            );
+
+            if (isDbOffline) {
+                console.warn("📢 Resilience: Database reported offline (503). Preserving local cache.");
+                this.seedDemoData(); // Last resort: seed if totally empty
+                this.isSyncing = false;
+                return;
+            }
 
             if (!collection) {
                 localStorage.setItem("fp_last_sync_time", new Date().toISOString());
@@ -350,6 +398,13 @@ class DataSyncServiceService {
                 const dbProducts = await productsResult.value.json();
                 if (Array.isArray(dbProducts)) {
                     const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
+                    
+                    // SAFETY NET: If the API returned 0 products but we have local data,
+                    // this is almost certainly a silent DB failure (Prisma returned empty
+                    // instead of throwing). Preserve local cache and abort.
+                    if (dbProducts.length === 0 && localProducts.length > 0 && !collection) {
+                        console.warn("🛡️ Resilience: API returned 0 products but local cache has", localProducts.length, "— preserving cache.");
+                    } else if (dbProducts.length > 0 || localProducts.length === 0) {
                     // MAP CamelCase to snake_case for senior tech lead consistency
                     const mappedDbProducts = dbProducts.map((p: any) => ({
                         ...p,
@@ -388,6 +443,7 @@ class DataSyncServiceService {
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
+                    }
                 }
             }
 
@@ -396,6 +452,12 @@ class DataSyncServiceService {
                 const dbSellers = await sellersResult.value.json();
                 if (Array.isArray(dbSellers)) {
                     const localSellers: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
+                    
+                    // SAFETY NET: Same as products — if API returns 0 sellers but we have local sellers,
+                    // treat as silent DB failure and preserve cache.
+                    if (dbSellers.length === 0 && localSellers.length > 0 && !collection) {
+                        console.warn("🛡️ Resilience: API returned 0 sellers but local cache has", localSellers.length, "— preserving cache.");
+                    } else {
                     const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'payout_history'];
                     
                     // START from existing local sellers, then overlay DB updates on top.
@@ -432,6 +494,7 @@ class DataSyncServiceService {
                         localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
+                    }
                     }
                 }
             }
@@ -699,7 +762,10 @@ class DataSyncServiceService {
         // Circuit breaker: skip for 30s after a failure to avoid hammering a dead DB
         if (this._syncFailedAt && Date.now() - this._syncFailedAt < 30000) return;
         try {
-            const res = await fetch("/api/negotiations?all=true", { signal: AbortSignal.timeout(4000) });
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const res = await fetch("/api/negotiations?all=true", { signal: controller.signal });
+            clearTimeout(timeoutId);
             if (!res.ok) return;
             const negData = await res.json();
             const dbNegotiations: any[] = negData.negotiations || [];
@@ -1662,8 +1728,10 @@ class DataSyncServiceService {
         const updated = sellers.map(s => s.id === id ? mergedSeller : s);
 
         // Mark as pending BEFORE writing — protects from syncWithDB overwrite
-        this._pendingSellerEdits.add(id);
-        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+        if (!this._pendingSellerEdits.includes(id)) {
+            this._pendingSellerEdits.push(id);
+        }
+        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify(this._pendingSellerEdits)); } catch { /* quota */ }
 
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         
@@ -1678,8 +1746,8 @@ class DataSyncServiceService {
             body: JSON.stringify(mergedSeller),
         }).then(res => {
             if (res.ok) {
-                this._pendingSellerEdits.delete(id);
-                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+                this._pendingSellerEdits = this._pendingSellerEdits.filter(pid => pid !== id);
+                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify(this._pendingSellerEdits)); } catch { /* quota */ }
             }
         }).catch(() => {
             // Keep in pendingSellerEdits so syncWithDB doesn't overwrite

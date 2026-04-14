@@ -60,7 +60,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("Negotiations GET Error:", error);
         return NextResponse.json({ success: true, negotiations: [] }, {
-            status: 200,
+            status: 503,
             headers: { 
                 "X-DB-Status": "offline",
                 "Cache-Control": "no-store"

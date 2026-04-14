@@ -70,6 +70,25 @@ function DiscountSection({
 
         setMsg("Validating...");
 
+        // Intercept Cart Abandonment Coupon (SAVE2000)
+        if (targetCode.toUpperCase() === "SAVE2000") {
+            const mappedCoupon: Coupon = {
+                id: "exit-intent-save2000",
+                userId: "all",
+                code: "SAVE2000",
+                amount: 2000,
+                reason: "Cart Abandonment Recovery",
+                isUsed: false,
+                issuedBy: "system",
+                createdAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 86400000).toISOString()
+            };
+            onApplyCoupon(mappedCoupon);
+            setMsg(`Discount Applied: ₦2,000 OFF`);
+            setShowDropdown(false);
+            return;
+        }
+
         // First check DataSyncService defined coupons
         const validCoupon = availableCoupons.find(c => c.code.toUpperCase() === targetCode.toUpperCase());
 
@@ -1852,7 +1871,7 @@ function CheckoutContent() {
                                         <span>{formatPrice(carDeposit)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-[11px] leading-tight">
-                                        <span>Pay {vehicleDepositPctDisplay}% now to secure your vehicle. Our concierge will contact you for physical inspection and financing.</span>
+                                        <span>Pay {vehicleDepositPctDisplay}% now to secure your vehicle. Our agent will contact you for physical inspection and financing.</span>
                                     </div>
                                     {nonCarSubtotal > 0 && (
                                         <div className="flex justify-between text-gray-600 text-xs mt-1">
@@ -1878,7 +1897,7 @@ function CheckoutContent() {
                                 <div className="flex justify-between text-gray-600 animate-in fade-in slide-in-from-top-1">
                                     <span className="flex items-center gap-1.5">
                                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                                        Escrow Fee:
+                                        Charges & Tax:
                                     </span>
                                     <span className="font-medium text-emerald-700">{formatPrice(escrowFee)}</span>
                                 </div>

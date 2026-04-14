@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("Orders API Error:", error);
         return NextResponse.json({ success: true, orders: [] }, {
-            status: 200,
+            status: 503,
             headers: { 
                 "X-DB-Status": "offline",
                 "Cache-Control": "no-store"

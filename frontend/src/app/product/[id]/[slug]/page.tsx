@@ -1,6 +1,8 @@
 import { Metadata, ResolvingMetadata } from 'next';
 import ProductClient from './ProductClient';
 import { db } from '@/lib/db';
+
+export const dynamic = "force-dynamic";
 import { SEED_PRODUCTS, DEMO_REVIEWS } from '@/lib/data';
 import Script from 'next/script';
 

@@ -1,5 +1,7 @@
 import { Metadata } from 'next';
 import { db } from '@/lib/db';
+
+export const dynamic = "force-dynamic";
 import { SEED_PRODUCTS } from '@/lib/data';
 import { formatPrice, cn } from '@/lib/utils';
 import { Navbar } from '@/components/layout/Navbar';

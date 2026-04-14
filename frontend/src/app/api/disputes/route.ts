@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("Disputes API Error:", error);
         return NextResponse.json({ success: true, disputes: [] }, {
-            status: 200,
+            status: 503,
             headers: { "X-DB-Status": "offline" }
         });
     }

@@ -1549,18 +1549,21 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         <div className="flex items-start gap-4 mt-4">
                                             <motion.div 
                                                 whileHover={{ scale: 1.1, rotate: 5 }}
-                                                className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0"
+                                                className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0 hidden sm:flex"
                                             >
                                                 <Banknote className="h-6 w-6" />
                                             </motion.div>
-                                            <div className="pt-1">
-                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1.5">Unlock ownership with a deposit of</p>
-                                                <div className="flex items-baseline gap-1">
-                                                    <span className="text-3xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</span>
+                                            <div className="pt-1 flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1.5">
+                                                    <Banknote className="h-4 w-4 text-emerald-600 sm:hidden shrink-0" />
+                                                    <p className="text-[10px] sm:text-xs font-black text-emerald-800 uppercase tracking-widest leading-normal md:leading-none truncate sm:whitespace-normal">Secure ownership with a deposit of</p>
+                                                </div>
+                                                <div className="flex flex-wrap items-baseline gap-1.5 md:gap-2">
+                                                    <span className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight truncate">{formatPrice(loanAnalysis.deposit)}</span>
                                                     <motion.span 
                                                         initial={{ opacity: 0, scale: 0.8 }}
                                                         animate={{ opacity: 1, scale: 1 }}
-                                                        className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50"
+                                                        className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50 shrink-0 mb-1"
                                                     >
                                                         {vehicleDepositPctDisplay}% Deposit
                                                     </motion.span>

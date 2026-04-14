@@ -79,12 +79,16 @@ export default function UserDirectory() {
                     }
                 }
 
+                const dsProducts = DataSyncService.getProducts();
+
                 const mappedSellers = sellers.map((s: any) => {
                     const sellerOrders = dsOrders.filter((o: any) => o.seller_id === s.id);
                     const revenue = sellerOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
 
                     const buyerOrders = dsOrders.filter((o: any) => o.customer_id === s.user_id || o.customer_id === s.id || o.customer_email === s.owner_email || o.customer_email === s.email);
                     const isBuyerAsWell = buyerOrders.length > 0;
+                    
+                    const catalogueCount = dsProducts.filter((p: any) => p.seller_id === s.id).length;
 
                     return {
                         ...s,
@@ -94,6 +98,7 @@ export default function UserDirectory() {
                         avatar_url: s.logo_url || s.avatar_url || null,
                         order_count: sellerOrders.length,
                         purchase_count: buyerOrders.length,
+                        catalogue_count: catalogueCount,
                         revenue,
                     };
                 });
@@ -188,28 +193,30 @@ export default function UserDirectory() {
 
     const handleDeleteUser = async () => {
         if (!deletingUser) return;
-        const targetEmail = deletingUser.owner_email || deletingUser.email || "";
-        if (deleteConfirmEmail.trim().toLowerCase() !== targetEmail.trim().toLowerCase()) {
-            alert("Email does not match. Deletion cancelled.");
+        const target = (deletingUser.owner_email || deletingUser.email || deletingUser.id || "").trim().toLowerCase();
+        if (deleteConfirmEmail.trim().toLowerCase() !== target) {
+            alert("Confirmation text does not match. Deletion cancelled.");
             return;
         }
         setDeleteLoading(true);
         try {
             // Try API cascade delete first
             const res = await fetch(`/api/users/${deletingUser.id}`, { method: "DELETE" });
+            const data = await res.json();
+
             if (!res.ok) {
-                // Fallback: remove from DataSyncService
-                if (deletingUser.role === "seller") {
-                    DataSyncService.updateSeller(deletingUser.id, { status: "banned" as any });
-                }
+                alert(`Delete failed: ${data.error || "Server error"}`);
+                setDeleteLoading(false);
+                return;
             }
+
             // Remove from local UI
             setParticipants(prev => prev.filter(p => p.id !== deletingUser.id));
             window.dispatchEvent(new Event("sync-store-update"));
-            alert(`User ${deletingUser.display_name} has been removed.`);
-        } catch (e) {
+            alert(`SUCCESS: ${deletingUser.display_name} and all linked data have been permanently removed.`);
+        } catch (e: any) {
             console.error("Delete failed:", e);
-            alert("Failed to delete user. They may have linked orders — try suspending instead.");
+            alert(`Failed to delete user: ${e.message}`);
         } finally {
             setDeleteLoading(false);
             setDeletingUser(null);
@@ -325,10 +332,23 @@ export default function UserDirectory() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="text-sm">
-                                            <span className="font-bold text-gray-900">{p.order_count || 0}</span>
-                                            <span className="text-gray-400 text-xs ml-1">orders</span>
+                                            <div className="flex gap-2">
+                                                <span>
+                                                    <span className="font-bold text-gray-900">{p.order_count || 0}</span>
+                                                    <span className="text-gray-400 text-xs ml-1">orders</span>
+                                                </span>
+                                                {p.role === "seller" && p.catalogue_count !== undefined && (
+                                                    <span className="text-gray-300">|</span>
+                                                )}
+                                                {p.role === "seller" && p.catalogue_count !== undefined && (
+                                                    <span>
+                                                        <span className="font-bold text-gray-900">{p.catalogue_count}</span>
+                                                        <span className="text-gray-400 text-xs ml-1">catalog</span>
+                                                    </span>
+                                                )}
+                                            </div>
                                             {p.revenue > 0 && (
-                                                <p className="text-xs text-emerald-600 font-bold">₦{p.revenue.toLocaleString()}</p>
+                                                <p className="text-xs text-emerald-600 font-bold mt-0.5">₦{p.revenue.toLocaleString()}</p>
                                             )}
                                         </div>
                                     </td>
@@ -483,19 +503,26 @@ export default function UserDirectory() {
                         </div>
                         <div className="space-y-2">
                             <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-                                Type the user's email to confirm:
+                                Type the following to confirm:
                             </Label>
-                            <p className="text-sm font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
-                                {deletingUser?.owner_email || deletingUser?.email || deletingUser?.id}
-                            </p>
-                            <Input
-                                type="email"
-                                placeholder="Type email here to confirm..."
-                                value={deleteConfirmEmail}
-                                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                                className="h-12 border-gray-200 rounded-xl font-medium"
-                                autoFocus
-                            />
+                            {(() => {
+                                const target = (deletingUser?.owner_email || deletingUser?.email || deletingUser?.id || "").trim();
+                                return (
+                                    <>
+                                        <p className="text-sm font-mono text-gray-500 bg-gray-50 px-3 py-2 rounded-lg border">
+                                            {target}
+                                        </p>
+                                        <Input
+                                            type="text"
+                                            placeholder={`Type "${target}" here...`}
+                                            value={deleteConfirmEmail}
+                                            onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                                            className="h-12 border-gray-200 rounded-xl font-medium"
+                                            autoFocus
+                                        />
+                                    </>
+                                );
+                            })()}
                         </div>
                     </div>
                     <div className="flex justify-end gap-3 mt-2">
@@ -503,7 +530,7 @@ export default function UserDirectory() {
                         <Button
                             className="h-12 px-6 rounded-xl font-bold bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
                             onClick={handleDeleteUser}
-                            disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== (deletingUser?.owner_email || deletingUser?.email || "").trim().toLowerCase()}
+                            disabled={deleteLoading || deleteConfirmEmail.trim().toLowerCase() !== (deletingUser?.owner_email || deletingUser?.email || deletingUser?.id || "").trim().toLowerCase()}
                         >
                             {deleteLoading ? "Deleting..." : "Permanently Delete"}
                         </Button>

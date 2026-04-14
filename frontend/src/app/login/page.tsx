@@ -164,9 +164,17 @@ export default function UnifiedAuthPage() {
         setIsLoading(true);
         const normalizedId = identifier.toLowerCase().trim();
 
+        // 12 second timeout for DB lookup (accommodates Neon Postgres cold starts)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        let dbError = false;
         try {
-            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`);
+            const res = await fetch(`/api/users?email=${encodeURIComponent(normalizedId)}`, { signal: controller.signal });
+            clearTimeout(timeoutId);
+            
             if (res.ok) {
+                // DB returned a real user — use it
                 const fetched = await res.json();
                 if (fetched && fetched.email) {
                     setIsExistingUser(true);
@@ -179,26 +187,63 @@ export default function UnifiedAuthPage() {
                     }
 
                     setStep(fetched.password ? "password_existing" : "password_new");
-                    setIsLoading(false);
                     return;
                 }
             }
-        } catch (err) {
-            console.error("Failed to lookup user:", err);
+            
+            if (res.status === 503) {
+                // DB confirmed offline — set flag for fallback logic
+                dbError = true;
+            }
+            // 404 = DB is online but user genuinely doesn't exist → new user flow
+            // Other errors → also fall through to local check
+        } catch (err: any) {
+            clearTimeout(timeoutId);
+            dbError = true;
+            console.warn("DB lookup failed or timed out. Falling back to local cache.", err.name === 'AbortError' ? 'Timeout' : err);
+        } finally {
+            // Check if we already transitioned or if we need the fallback delay
+            if (!isExistingUser && step === "identifier") {
+                // Handled in the fallback timeout below
+            } else {
+                setIsLoading(false);
+            }
         }
 
+        // --- FALLBACK LOGIC ---
+        // If DB lookup fails or user not found in DB, check local registry before assuming NEW user
         setTimeout(() => {
-            // Check registered users first, then known demo accounts
-            const isExisting =
-                checkRegisteredUser(normalizedId) ||
+            const isRegisteredLocally = checkRegisteredUser(normalizedId);
+            const isKnownDemo = 
                 normalizedId === "techzema@gmail.com" ||
                 normalizedId === "seller@example.com" ||
                 normalizedId === "apple-review@fairprice.app";
 
+            const isExisting = isRegisteredLocally || isKnownDemo;
+
+            if (dbError && !isExisting) {
+                // If DB failed AND we don't know them locally, we can't be sure they are NEW.
+                // Warn them instead of funneling them into "Create Password" which might fail later.
+                setError("Database is connecting... Please try again in a few seconds.");
+                setIsLoading(false);
+                return;
+            }
+
+            if (dbError && isExisting) {
+                // DB offline but they are a KNOWN user — allow them to proceed to password step.
+                // The password step will validate against hardcoded demo passwords or local passwords.
+                // This is safe because: (1) they must still enter the correct password,
+                // (2) known demo accounts have hardcoded IDs (admin_1, seller_1) not random ones.
+                setIsExistingUser(true);
+                setStep("password_existing");
+                setIsLoading(false);
+                return;
+            }
+
             setIsExistingUser(isExisting);
             setStep(isExisting ? "password_existing" : "password_new");
             setIsLoading(false);
-        }, 600);
+        }, 300);
     };
 
     const handleExistingLogin = async (e: React.FormEvent) => {
@@ -206,13 +251,18 @@ export default function UnifiedAuthPage() {
         setError("");
         setIsLoading(true);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for full verify + bcrypt + cold start
+
         try {
             // 1. Try server-side password verification first (bcrypt against DB)
             const res = await fetch("/api/auth/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier.trim(), password })
+                body: JSON.stringify({ email: identifier.trim(), password }),
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
             const data = await res.json();
 
             if (data.success && data.user) {
@@ -239,7 +289,6 @@ export default function UnifiedAuthPage() {
             if (data.error && !data.offline) {
                 // DB responded but password wrong or user not found
                 setError(data.error === "Incorrect password" ? "Incorrect password." : data.error);
-                setIsLoading(false);
                 return;
             }
 
@@ -263,25 +312,30 @@ export default function UnifiedAuthPage() {
             // They cannot bypass just because `localUser.password` is undefined.
             if (determinedRole === "admin" && password !== "admin123" && (!localUser?.password || localUser.password !== password)) {
                  setError("Incorrect password.");
-                 setIsLoading(false);
                  return;
             }
 
             if (determinedRole === "seller" && password !== "seller123" && (!localUser?.password || localUser.password !== password)) {
                  setError("Incorrect password.");
-                 setIsLoading(false);
                  return;
             }
 
             // For regular customers, if they have a local password, it must match.
             if (localUser && localUser.password && localUser.password !== password) {
                 setError("Incorrect password.");
-                setIsLoading(false);
                 return;
             }
 
             const userEmail = identifier.includes("@") ? identifier : `${identifier}@example.com`;
             const userName = existingUser?.name || displayName.replace(/[._-]/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+            
+            // CRITICAL FIX: If DB is offline, we check if this is a known privileged account.
+            // If so, and we don't have a stable ID for them, we MUST block.
+            if (!existingUser?.id && (determinedRole === "admin" || determinedRole === "seller")) {
+                setError("Critical: Database connection required for seller access. Please try again.");
+                return;
+            }
+
             const finalUser = existingUser || {
                 id: "user_" + Math.random().toString(36).substr(2, 9),
                 name: userName,
@@ -308,6 +362,7 @@ export default function UnifiedAuthPage() {
         } catch (err) {
             console.error("Login error:", err);
             setError("Login failed. Please try again.");
+        } finally {
             setIsLoading(false);
         }
     };
@@ -491,44 +546,49 @@ export default function UnifiedAuthPage() {
     };
 
     const handleSocialLogin = async (provider: "google" | "apple" | "x") => {
-        setIsLoading(true);
-        // Request the OAuth URL instead of redirecting the whole PWA/App
-        const res = await signIn(provider, { redirect: false, callbackUrl: redirectPath });
-        
-        if (res?.url) {
-            if (Capacitor.isNativePlatform()) {
-                // Using Capacitor Browser (Safari View Controller / Chrome Custom Tabs) keeps users "in-app" natively
-                await Browser.open({ url: res.url, presentationStyle: 'popover' });
-                
-                // Add a listener to detect when they return to the app to fetch the updated session
-                const listener = await Browser.addListener('browserFinished', async () => {
-                    await listener.remove();
-                    window.location.href = redirectPath;
-                });
-            } else {
-                // Web fallback: Open the OAuth provider in a popup window
-                const width = 500;
-                const height = 600;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
-                
-                const popup = window.open(
-                    res.url,
-                    "OAuthLogin",
-                    `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
-                );
-
-                // Poll the popup to see when it closes (user finished login)
-                const popupTimer = setInterval(() => {
-                    if (popup?.closed) {
-                        clearInterval(popupTimer);
+        try {
+            // Request the OAuth URL instead of redirecting the whole PWA/App
+            const res = await signIn(provider, { redirect: false, callbackUrl: redirectPath });
+            
+            if (res?.url) {
+                if (Capacitor.isNativePlatform()) {
+                    // Using Capacitor Browser (Safari View Controller / Chrome Custom Tabs) keeps users "in-app" natively
+                    await Browser.open({ url: res.url, presentationStyle: 'popover' });
+                    
+                    // Add a listener to detect when they return to the app to fetch the updated session
+                    const listener = await Browser.addListener('browserFinished', async () => {
+                        await listener.remove();
                         window.location.href = redirectPath;
-                    }
-                }, 1000);
+                    });
+                } else {
+                    // Web fallback: Open the OAuth provider in a popup window
+                    const width = 500;
+                    const height = 600;
+                    const left = window.screen.width / 2 - width / 2;
+                    const top = window.screen.height / 2 - height / 2;
+                    
+                    const popup = window.open(
+                        res.url,
+                        "OAuthLogin",
+                        `width=${width},height=${height},top=${top},left=${left},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes`
+                    );
+
+                    // Poll the popup to see when it closes (user finished login)
+                    const popupTimer = setInterval(() => {
+                        if (popup?.closed) {
+                            clearInterval(popupTimer);
+                            window.location.href = redirectPath;
+                        }
+                    }, 1000);
+                }
+            } else {
+                setError("Could not initiate social login.");
             }
-        } else {
+        } catch (err) {
+            console.error("Social login error:", err);
+            setError("Authentication failed.");
+        } finally {
             setIsLoading(false);
-            setError("Could not initiate social login.");
         }
     };
 

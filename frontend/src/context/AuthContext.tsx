@@ -77,16 +77,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Initialize from localStorage
         const storedUser = localStorage.getItem("fp_user");
         
-        // --- Unique Guest Identity Fingerprinting ---
-        // If not logged in, ensure we have a stable guest ID for this browser
+        // --- Stable Guest Identity Persistence ---
+        // We ensure a consistent 'guest' ID is maintained for the browser session.
+        // This prevents 'identity jitter' where data might get orphaned across refreshes.
         if (!storedUser) {
             let guestId = localStorage.getItem("fp_guest_id");
             if (!guestId) {
-                // Generate a robust unique ID: gst_ + timestamp + random chars
-                guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+                // Return to a simple, stable identifier with a unique fingerprint
+                // This balances the user's need for isolation with the system's need for stability.
+                guestId = `guest_${Math.random().toString(36).substring(2, 7)}`;
                 localStorage.setItem("fp_guest_id", guestId);
                 localStorage.setItem("fp_guest_name", "Guest Buyer");
-                console.log(`👤 Auth: Generated new unique guest identity: ${guestId}`);
+                console.log(`👤 Auth: Initialized stable guest session: ${guestId}`);
             }
         }
 
@@ -105,7 +107,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         }
         setIsLoading(false);
+    }, []);
 
+    // --- Identity Self-Healing ---
+    // If a user is logged in with a temporary 'user_' ID (from DB offline fallback),
+    // we attempt to re-verify their identity if the DB is now available.
+    useEffect(() => {
+        if (!user || !user.id.startsWith("user_") || !user.email) return;
+
+        const recoverIdentity = async () => {
+            try {
+                const res = await fetch(`/api/users?email=${encodeURIComponent(user.email)}`);
+                if (res.ok) {
+                    const dbUser = await res.json();
+                    if (dbUser && dbUser.id && !dbUser.id.startsWith("user_")) {
+                        console.log(`🪄 Auth: Self-healing identity for ${user.email}. Migrating ${user.id} -> ${dbUser.id}`);
+                        
+                        // We use a simplified migration: just update the ID and Role
+                        const updatedUser = { ...user, id: dbUser.id, role: dbUser.role || user.role };
+                        
+                        // Sync local storage directly
+                        localStorage.setItem("fp_user", JSON.stringify(updatedUser));
+                        setUser(updatedUser);
+                        
+                        // Trigger a global sync to refresh lists with the new ID
+                        window.dispatchEvent(new Event("fp-auth-update"));
+                        DataSyncService.syncWithDB();
+                    }
+                }
+            } catch (e) {
+                // DB still offline or lookup failed, try again next time
+            }
+        };
+
+        // Delay slightly after mount to allow initial syncs to finish
+        const timer = setTimeout(recoverIdentity, 3000);
+        return () => clearTimeout(timer);
+    }, [user?.id, sessionStatus]);
+
+    useEffect(() => {
         // Synchronize across tabs and state updates
         const handleStorageChange = () => {
             const updatedUser = localStorage.getItem("fp_user");

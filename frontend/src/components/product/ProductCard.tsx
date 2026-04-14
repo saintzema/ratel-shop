@@ -57,8 +57,10 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
     }, [dealEndTime]);
 
     // Mock savings calculation
-    const savings = product.original_price ? product.original_price - product.price : 0;
-    const savingsPct = product.original_price ? Math.round((savings / product.original_price) * 100) : 0;
+    const p = product as any;
+    const displayOriginalPrice = p.originalPrice ?? p.original_price;
+    const savings = displayOriginalPrice ? displayOriginalPrice - product.price : 0;
+    const savingsPct = displayOriginalPrice ? Math.round((savings / displayOriginalPrice) * 100) : 0;
 
     const handleDoubleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         const now = Date.now();
@@ -192,15 +194,15 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             {[...Array(5)].map((_, i) => (
                                 <Star
                                     key={i}
-                                    className={`h-[10px] w-[10px] sm:h-3 sm:w-3 ${i < Math.round(product.avg_rating) ? "fill-current" : "text-gray-300"}`}
+                                    className={`h-[10px] w-[10px] sm:h-3 sm:w-3 ${i < Math.round(p.avgRating ?? p.avg_rating ?? 0) ? "fill-current" : "text-gray-300"}`}
                                 />
                             ))}
                         </div>
 
                         {/* Inline Discount Badge */}
-                        {product.original_price && product.original_price > product.price && (
+                        {displayOriginalPrice && displayOriginalPrice > product.price && (
                             <div className="font-black px-1.5 py-0.5 rounded bg-red-100 text-[9px] sm:text-[10px] text-red-600 flex items-center justify-center leading-none">
-                                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+                                -{Math.round(((displayOriginalPrice - product.price) / displayOriginalPrice) * 100)}%
                             </div>
                         )}
                     </div>
@@ -210,9 +212,9 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         <span className="text-base sm:text-lg font-black text-foreground leading-none">
                             {formatPrice(product.price)}
                         </span>
-                        {product.original_price && product.original_price > product.price && (
+                        {displayOriginalPrice && displayOriginalPrice > product.price && (
                             <span className="text-[10px] text-muted-foreground line-through font-medium leading-none">
-                                {formatPrice(product.original_price)}
+                                {formatPrice(displayOriginalPrice)}
                             </span>
                         )}
                     </div>
