@@ -233,7 +233,8 @@ export default function SellerDashboard() {
         followers: 0,
         following: 0,
         sales_count: 0,
-        commission_rate: 5,
+        commission_rate: 0.05,
+        store_url: ""
     };
 
     // Computed financials
