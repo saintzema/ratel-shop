@@ -47,21 +47,40 @@ export function getVehicleDepositPercent(): number {
 }
 
 /**
- * Calculates monthly payment based on Altdrive Ijarah logic.
+ * Calculates monthly payment based on Altdrive Ijarah logic, accepting a product object.
  */
-export function calculateMonthlyPayment(
-    price: number,
-    type: LoanType = 'bnpl',
-    condition: VehicleCondition = 'foreign_used',
+export function calculateProductMonthlyPayment(
+    product: any,
     requestedYears?: number
 ): LoanResult {
-    const years = requestedYears !== undefined ? requestedYears : (LOAN_CONSTANTS.TENORS[condition] || 4);
+    const isVeh = isVehicle(product);
+    const condition = product?.condition || 'foreign_used';
+    const price = product?.price || 0;
+    
+    // Base configuration
+    let depositPct = getVehicleDepositPercent(); 
+    let baseTenor = isVeh ? (LOAN_CONSTANTS.TENORS[condition as VehicleCondition] || 4) : 1; 
+    let baseMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA;
+
+    // Apply product-specific overrides if configured
+    if (product?.financing_config?.enabled) {
+        if (product.financing_config.deposit_percent !== undefined) {
+             depositPct = product.financing_config.deposit_percent;
+        }
+        if (product.financing_config.interest_rate_pa !== undefined) {
+             baseMarkup = product.financing_config.interest_rate_pa;
+        }
+        if (product.financing_config.max_tenor_months !== undefined) {
+             baseTenor = Math.max(1, Math.floor(product.financing_config.max_tenor_months / 12));
+        }
+    }
+
+    const years = requestedYears !== undefined ? requestedYears : baseTenor;
     const months = years * 12;
-    
-    // Altdrive dynamic markup logic
-    let annualMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA + (years - 1) * LOAN_CONSTANTS.MARKUP_STEP_PA;
-    
-    // Admin Override
+
+    let annualMarkup = baseMarkup + (years - 1) * LOAN_CONSTANTS.MARKUP_STEP_PA;
+
+    // Admin Global Override
     if (typeof window !== "undefined") {
         try {
             const dynamicMarkup = localStorage.getItem("fp_vehicle_markup");
@@ -80,7 +99,7 @@ export function calculateMonthlyPayment(
 
     return {
         monthlyPayment: Math.round(monthlyPayment),
-        deposit: Math.round(price * getVehicleDepositPercent()),
+        deposit: Math.round(price * depositPct),
         tenorMonths: months,
         totalAmount: Math.round(totalAmount),
         markupAmount: Math.round(totalMarkup),
@@ -89,21 +108,29 @@ export function calculateMonthlyPayment(
 }
 
 /**
- * Calculates the min and max estimated monthly payments for a vehicle (1-5 year range)
+ * Calculates the min and max estimated monthly payments for a product
  * Returns { min: number, max: number }
  */
-export function getVehiclePaymentRange(
-    price: number,
+export function getProductPaymentRange(
+    product: any
 ): { min: number; max: number } {
-    const yearsMin = 5;
-    const yearsMax = 1;
+    let maxYears = 1;
+    let minYears = 1;
     
-    const monthlyMin = calculateMonthlyPayment(price, 'bnpl', 'new', yearsMin).monthlyPayment;
-    const monthlyMax = calculateMonthlyPayment(price, 'bnpl', 'new', yearsMax).monthlyPayment;
+    if (isVehicle(product)) {
+         maxYears = 5;
+    } else {
+         maxYears = product?.financing_config?.max_tenor_months ? Math.floor(product.financing_config.max_tenor_months / 12) : 2; 
+    }
+    
+    maxYears = Math.max(1, maxYears);
+
+    const monthlyMinPayment = calculateProductMonthlyPayment(product, maxYears).monthlyPayment;
+    const monthlyMaxPayment = calculateProductMonthlyPayment(product, minYears).monthlyPayment;
 
     return {
-        min: monthlyMin,
-        max: monthlyMax
+        min: monthlyMinPayment,
+        max: monthlyMaxPayment
     };
 }
 
@@ -115,7 +142,7 @@ export function formatNaira(amount: number): string {
 }
 
 /**
- * Helper to check if a product is a vehicle based on category or metadata
+ * Helper to check if a product is a vehicle explicitly
  */
 export function isVehicle(product: any): boolean {
     const category = product?.category?.toLowerCase() || '';
@@ -132,4 +159,14 @@ export function isVehicle(product: any): boolean {
         name.includes('ford') ||
         name.includes('hyundai')
     );
+}
+
+/**
+ * Checks if a product qualifies for financing display
+ */
+export function hasFinancing(product: any): boolean {
+    if (!product) return false;
+    if (product.financing_config?.enabled) return true;
+    if (product.financing_available === true) return true;
+    return isVehicle(product);
 }

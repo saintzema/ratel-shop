@@ -690,8 +690,8 @@ function SearchContent() {
 
             if (queryWords.length === 0) return false; // only short/numeric words, can't meaningfully match
 
-            // Require at least one significant query word to appear in the product name
-            const nameHasMatch = queryWords.some(w => pName.includes(w));
+            // Require ALL significant query words to appear in the product name or description
+            const nameHasMatch = queryWords.every(w => pName.includes(w) || pDesc.includes(w));
             if (!nameHasMatch) return false;
           }
         }

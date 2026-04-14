@@ -391,134 +391,141 @@ export function Navbar() {
 
     // Helper: Save results to search cache and navigate. Only promote the clicked product to catalog.
     const navigateWithResults = (clickedProductId: string) => {
-        // 1. Navigate-First: Close UI and route immediately for zero-latency feel
+        // 1. Close UI immediately
         setShowSuggestions(false);
+
+        // 2. Synchronous mapping and hydration 
+        // Build product objects from global results with intelligent verification
+        const globalAsProducts = globalResults.map((r: any) => {
+            const productId = generateCompliantId(r.name);
+
+            // ─── Real Gemini Description & Specs ───
+            const catKey = (r.category || "").toLowerCase();
+            const fallbackDescriptions: Record<string, string> = {
+                electronics: "Experience next-generation technology with this premium device. Features include advanced processing and industry-leading reliability. Sourced via verified global distributors with FairPrice Escrow protection.",
+                phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display and professional-grade camera system. Secured via our global sourcing network with full Escrow protection.",
+                computing: "Boost your productivity with this high-performance machine. Powerful components to handle your most demanding tasks. Imported through our trusted global supply chain.",
+                cars: "This vehicle represents exceptional engineering and value. Sourced through our verified global network with full import documentation and FairPrice Escrow protection.",
+                default: "Discover exceptional quality and value with this premium product. Carefully selected from top-tier global suppliers. Fully secured by FairPrice Escrow."
+            };
+            
+            let descFallback = fallbackDescriptions.default;
+            if (catKey.includes("phone")) descFallback = fallbackDescriptions.phones;
+            else if (catKey.includes("laptop") || catKey.includes("comput")) descFallback = fallbackDescriptions.computing;
+            else if (catKey.includes("car") || catKey.includes("vehicle")) descFallback = fallbackDescriptions.cars;
+            
+            const description = (r.description && r.description.length > 30) ? r.description : descFallback;
+            const realSpecs = (r.specs && typeof r.specs === 'object' && Object.keys(r.specs).length > 0) 
+                ? { ...r.specs, "Condition": r.condition || "Brand New" }
+                : { "Sourcing": "Global Network", "Warranty": "1 Year International", "Condition": r.condition || "Brand New" };
+
+            let imageUrl = getProxiedImageUrl(r.image_url);
+
+            return {
+                id: productId,
+                name: r.name,
+                price: r.approxPrice || 0,
+                original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
+                category: (catKey.includes('car') || catKey.includes('vehicle') || catKey.includes('auto')) ? 'cars' : (r.category || 'electronics'),
+                description,
+                image_url: imageUrl,
+                images: [imageUrl],
+                seller_id: 'global-partners',
+                seller_name: 'Global Stores',
+                price_flag: 'fair' as const,
+                sold_count: Math.floor(Math.random() * 20) + 10,
+                review_count: Math.floor(Math.random() * 5) + 5,
+                avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
+                is_active: true,
+                created_at: new Date().toISOString(),
+                recommended_price: r.approxPrice,
+                specs: realSpecs,
+                condition: r.condition || 'good',
+                source_url: r.sourceUrl || '',
+            };
+        })
+        // ─── Vehicle Price Floor Logic (Zero Latency Sanity Check) ───
+        .filter((p: any) => {
+            const VEHICLE_FLOOR = 5_000_000;
+            if (p.price >= VEHICLE_FLOOR) return true;
+            
+            const name = p.name.toLowerCase();
+            const cat = (p.category || "").toLowerCase();
+            
+            // Allow parts/accessories/phones explicitly even if low priced
+            const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
+            const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+            
+            if (PART_KW.test(name)) return true;
+            
+            const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
+            const isWholeVeh = WHOLE_VEH.test(name);
+            
+            // Block if looks like a whole vehicle but price is suspiciously low
+            if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false;
+            return true;
+        });
+
+        // Save ALL results to search cache (for fast future retrieval)
+        if (globalAsProducts.length > 0) {
+            DataSyncService.addToSearchCache(searchQuery, globalAsProducts);
+        }
+
+        // Resolve __global_ prefix to actual product ID
+        let resolvedClickedId = clickedProductId;
+        if (clickedProductId.startsWith('__global_')) {
+            const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
+            if (globalAsProducts[idx]) {
+                resolvedClickedId = globalAsProducts[idx].id;
+                // ONLY promote the clicked product from cache to catalog (respecting admin toggle)
+                DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching) ||
+                    DataSyncService.addRawProduct(globalAsProducts[idx] as any, globalSearchCaching);
+            }
+        } else if (clickedProductId.startsWith('__cached_')) {
+            const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
+            if (cachedResults[idx]) {
+                resolvedClickedId = cachedResults[idx].id;
+                // Promote the cached result to catalog (respecting admin toggle)
+                DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching);
+            }
+        }
+
+        // Build combined results for session cache — global results FIRST so they appear
+        // at the top of the SRP. We DO NOT pass all fuzzy suggestions to prevent irrelevant
+        // results from polluting the SRP. We only pass the explicitly clicked local/cached item.
+        const combinedResults = [
+            ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
+        ];
+        
+        const clickedLocal = suggestions.find(s => s.id === resolvedClickedId);
+        if (clickedLocal) combinedResults.push({ ...clickedLocal, _source: 'local' });
+        
+        const clickedCached = cachedResults.find(s => s.id === resolvedClickedId);
+        if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached' });
+
+        try {
+            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
+            sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
+            sessionStorage.setItem('fp_nav_search_query', searchQuery);
+        } catch (e) { /* quota exceeded */ }
+
+        // Persist to recent searches
+        saveRecentSearch(searchQuery);
+
+        // 3. Navigation happens AFTER session state is saved so search/page.tsx hydrates reliably
         router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
 
-        // 2. Offload heavy mapping and hydration to background
-        setTimeout(() => {
-            // Build product objects from global results with intelligent verification
-            const globalAsProducts = globalResults.map((r: any) => {
-                const productId = generateCompliantId(r.name);
-
-                // ─── Real Gemini Description & Specs ───
-                const catKey = (r.category || "").toLowerCase();
-                const fallbackDescriptions: Record<string, string> = {
-                    electronics: "Experience next-generation technology with this premium device. Features include advanced processing and industry-leading reliability. Sourced via verified global distributors with FairPrice Escrow protection.",
-                    phones: "Stay connected with this cutting-edge smartphone. Boasting a stunning display and professional-grade camera system. Secured via our global sourcing network with full Escrow protection.",
-                    computing: "Boost your productivity with this high-performance machine. Powerful components to handle your most demanding tasks. Imported through our trusted global supply chain.",
-                    cars: "This vehicle represents exceptional engineering and value. Sourced through our verified global network with full import documentation and FairPrice Escrow protection.",
-                    default: "Discover exceptional quality and value with this premium product. Carefully selected from top-tier global suppliers. Fully secured by FairPrice Escrow."
-                };
-                
-                let descFallback = fallbackDescriptions.default;
-                if (catKey.includes("phone")) descFallback = fallbackDescriptions.phones;
-                else if (catKey.includes("laptop") || catKey.includes("comput")) descFallback = fallbackDescriptions.computing;
-                else if (catKey.includes("car") || catKey.includes("vehicle")) descFallback = fallbackDescriptions.cars;
-                
-                const description = (r.description && r.description.length > 30) ? r.description : descFallback;
-                const realSpecs = (r.specs && typeof r.specs === 'object' && Object.keys(r.specs).length > 0) 
-                    ? { ...r.specs, "Condition": r.condition || "Brand New" }
-                    : { "Sourcing": "Global Network", "Warranty": "1 Year International", "Condition": r.condition || "Brand New" };
-
-                let imageUrl = getProxiedImageUrl(r.image_url);
-
-                return {
-                    id: productId,
-                    name: r.name,
-                    price: r.approxPrice || 0,
-                    original_price: r.approxPrice ? Math.round(r.approxPrice * 1.15) : 0,
-                    category: (catKey.includes('car') || catKey.includes('vehicle') || catKey.includes('auto')) ? 'cars' : (r.category || 'electronics'),
-                    description,
-                    image_url: imageUrl,
-                    images: [imageUrl],
-                    seller_id: 'global-partners',
-                    seller_name: 'Global Stores',
-                    price_flag: 'fair' as const,
-                    sold_count: Math.floor(Math.random() * 20) + 10,
-                    review_count: Math.floor(Math.random() * 5) + 5,
-                    avg_rating: +(3.5 + Math.random() * 1.5).toFixed(1),
-                    is_active: true,
-                    created_at: new Date().toISOString(),
-                    recommended_price: r.approxPrice,
-                    specs: realSpecs,
-                    condition: r.condition || 'good',
-                    source_url: r.sourceUrl || '',
-                };
-            })
-            // ─── Vehicle Price Floor Logic (Zero Latency Sanity Check) ───
-            .filter((p: any) => {
-                const VEHICLE_FLOOR = 5_000_000;
-                if (p.price >= VEHICLE_FLOOR) return true;
-                
-                const name = p.name.toLowerCase();
-                const cat = (p.category || "").toLowerCase();
-                
-                // Allow parts/accessories/phones explicitly even if low priced
-                const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
-                const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
-                
-                if (PART_KW.test(name)) return true;
-                
-                const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
-                const isWholeVeh = WHOLE_VEH.test(name);
-                
-                // Block if looks like a whole vehicle but price is suspiciously low
-                if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false;
-                return true;
-            });
-
-            // Save ALL results to search cache (for fast future retrieval)
-            if (globalAsProducts.length > 0) {
-                DataSyncService.addToSearchCache(searchQuery, globalAsProducts);
-            }
-
-            // Resolve __global_ prefix to actual product ID
-            let resolvedClickedId = clickedProductId;
-            if (clickedProductId.startsWith('__global_')) {
-                const idx = parseInt(clickedProductId.replace('__global_', ''), 10);
-                if (globalAsProducts[idx]) {
-                    resolvedClickedId = globalAsProducts[idx].id;
-                    // ONLY promote the clicked product from cache to catalog (respecting admin toggle)
-                    DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching) ||
-                        DataSyncService.addRawProduct(globalAsProducts[idx] as any, globalSearchCaching);
-                }
-            } else if (clickedProductId.startsWith('__cached_')) {
-                const idx = parseInt(clickedProductId.replace('__cached_', ''), 10);
-                if (cachedResults[idx]) {
-                    resolvedClickedId = cachedResults[idx].id;
-                    // Promote the cached result to catalog (respecting admin toggle)
-                    DataSyncService.promoteFromCache(resolvedClickedId, globalSearchCaching);
-                }
-            }
-
-            // Build combined results for session cache — global results FIRST so they appear
-            // at the top of the SRP, then local/cached below them
-            const combinedResults = [
-                ...globalAsProducts.map(p => ({ ...p, _source: 'global' })),
-                ...suggestions.map(p => ({ ...p, _source: 'local' })),
-                ...cachedResults.map(p => ({ ...p, _source: 'cached' }))
-            ];
-
-            try {
-                sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
-                sessionStorage.setItem('fp_nav_search_clicked', resolvedClickedId);
-                sessionStorage.setItem('fp_nav_search_query', searchQuery);
-            } catch (e) { /* quota exceeded */ }
-
-            // Persist to recent searches
-            saveRecentSearch(searchQuery);
-
-            // ─── ELITE REVIEW GENERATION ───
-            // Trigger review generation in background for the promoted global product
-            if (resolvedClickedId.startsWith('global-')) {
+        // ─── ELITE REVIEW GENERATION ───
+        // Trigger review generation in background for the promoted global product
+        if (resolvedClickedId.startsWith('global-')) {
+            setTimeout(() => {
                 fetch('/api/gemini-reviews', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ productId: resolvedClickedId })
-                }).catch(() => {}); // Fire and forget
-            }
-        }, 50); // Small 50ms delay gives the browser time to paint the new URL and skeletons first
+                }).catch(() => {});
+            }, 100);
+        }
     };
 
     // Close suggestions when clicking outside (Apple-level smoothness)

@@ -80,6 +80,7 @@ export default function CatalogControl() {
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState<string[]>([]);
     const [editTags, setEditTags] = useState<string[]>([]);
+    const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
 
@@ -89,6 +90,7 @@ export default function CatalogControl() {
     const [syncReport, setSyncReport] = useState<any[]>([]);
     const [profitMargin, setProfitMargin] = useState("25");
     const [selectedSyncIds, setSelectedSyncIds] = useState<string[]>([]);
+    const [isPromoting, setIsPromoting] = useState(false);
     
     // Deal Modal State
     const [isDealModalOpen, setIsDealModalOpen] = useState(false);
@@ -261,7 +263,8 @@ export default function CatalogControl() {
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
-                images: editImages.filter(Boolean)
+                images: editImages.filter(Boolean),
+                financing_config: editFinancingConfig
             });
             setEditingProduct(null);
         }
@@ -488,19 +491,26 @@ export default function CatalogControl() {
                                 {selectedCacheIds.length > 0 && (
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => {
+                                            disabled={isPromoting}
+                                            onClick={async () => {
                                                 if (confirm(`Are you sure you want to add ${selectedCacheIds.length} items to your global platform catalog?`)) {
-                                                    for (let id of selectedCacheIds) {
-                                                        DataSyncService.promoteFromCache(id);
-                                                        DataSyncService.removeFromSearchCache(id);
+                                                    setIsPromoting(true);
+                                                    try {
+                                                        for (let id of selectedCacheIds) {
+                                                            await DataSyncService.promoteFromCache(id);
+                                                            DataSyncService.removeFromSearchCache(id);
+                                                        }
+                                                        setCachedProducts(DataSyncService.getAllCachedProducts());
+                                                        setSelectedCacheIds([]);
+                                                    } finally {
+                                                        setIsPromoting(false);
                                                     }
-                                                    setCachedProducts(DataSyncService.getAllCachedProducts());
-                                                    setSelectedCacheIds([]);
                                                 }
                                             }}
-                                            className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                            className="text-xs font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
                                         >
-                                            <Plus className="h-3.5 w-3.5" /> Add Selected to Catalog ({selectedCacheIds.length})
+                                            {isPromoting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} 
+                                            Add Selected to Catalog ({selectedCacheIds.length})
                                         </button>
                                         <button
                                             onClick={() => {
@@ -575,10 +585,21 @@ export default function CatalogControl() {
                                                     <Edit2 className="h-3 w-3 inline mr-1" />Edit
                                                 </button>
                                                 <button
-                                                    onClick={() => { DataSyncService.promoteFromCache(p.id); DataSyncService.removeFromSearchCache(p.id); setCachedProducts(DataSyncService.getAllCachedProducts()); }}
-                                                    className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                                                    disabled={isPromoting}
+                                                    onClick={async () => {
+                                                        setIsPromoting(true);
+                                                        try {
+                                                            await DataSyncService.promoteFromCache(p.id);
+                                                            DataSyncService.removeFromSearchCache(p.id);
+                                                            setCachedProducts(DataSyncService.getAllCachedProducts());
+                                                        } finally {
+                                                            setIsPromoting(false);
+                                                        }
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors flex items-center gap-1.5 disabled:opacity-50"
                                                 >
-                                                    <Plus className="h-3 w-3 inline mr-1" />Add to Catalog
+                                                    {isPromoting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                                                    Add to Catalog
                                                 </button>
                                                 <button
                                                     onClick={() => { if (confirm('Remove from cache?')) { DataSyncService.removeFromSearchCache(p.id); setCachedProducts(DataSyncService.getAllCachedProducts()); } }}
@@ -833,6 +854,7 @@ export default function CatalogControl() {
                                                             setEditExternalUrl(p.external_url || "");
                                                             setEditImages(p.images?.length ? [...p.images] : [""]);
                                                             setEditTags(p.tags || []);
+                                                            setEditFinancingConfig(p.financing_config || { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 });
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
@@ -1262,6 +1284,59 @@ export default function CatalogControl() {
                                         </a>
                                     )}
                                 </div>
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Enable Custom Financing</label>
+                                            <p className="text-[10px] text-gray-400 mt-0.5">Let buyers purchase via tailored BNPL / lease-to-own.</p>
+                                        </div>
+                                        <button 
+                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editFinancingConfig?.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}
+                                            onClick={() => setEditFinancingConfig((p: any) => ({ ...p, enabled: !p?.enabled }))}
+                                        >
+                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editFinancingConfig?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                        </button>
+                                    </div>
+                                    {editFinancingConfig?.enabled && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
+                                                <div className="relative">
+                                                    <Input 
+                                                        type="number" 
+                                                        min="5" max="95" 
+                                                        className="bg-white border-gray-200 h-9 text-sm rounded-lg" 
+                                                        value={Math.round(editFinancingConfig.deposit_percent * 100) || 15}
+                                                        onChange={(e) => setEditFinancingConfig((p: any) => ({ ...p, deposit_percent: parseFloat(e.target.value) / 100 }))}
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs bg-white">%</span>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
+                                                <div className="relative">
+                                                    <Input 
+                                                        type="number" 
+                                                        min="0" max="100" 
+                                                        className="bg-white border-gray-200 h-9 text-sm rounded-lg" 
+                                                        value={Math.round(editFinancingConfig.interest_rate_pa * 100) || 25}
+                                                        onChange={(e) => setEditFinancingConfig((p: any) => ({ ...p, interest_rate_pa: parseFloat(e.target.value) / 100 }))}
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs bg-white">%</span>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
+                                                <Input 
+                                                    type="number" 
+                                                    min="1" max="60" 
+                                                    className="bg-white border-gray-200 h-9 text-sm rounded-lg" 
+                                                    value={editFinancingConfig.max_tenor_months || 12}
+                                                    onChange={(e) => setEditFinancingConfig((p: any) => ({ ...p, max_tenor_months: parseInt(e.target.value) || 12 }))}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

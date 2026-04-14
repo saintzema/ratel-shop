@@ -22,7 +22,9 @@ import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
-import { isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
+import { FinancingDetailsModal } from "@/components/modals/FinancingDetailsModal";
+import { isVehicle, hasFinancing, calculateProductMonthlyPayment, formatNaira, getVehicleDepositPercent } from "@/lib/financing-utils";
+import { nativeBridge } from "@/lib/native-bridge";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Handshake,
@@ -620,14 +622,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const [selectedTenorYears, setSelectedTenorYears] = useState<number>(0);
     const [showDurationSelector, setShowDurationSelector] = useState(false);
 
-    // Calculate loan options if vehicle
+    // Calculate loan options if product has financing
     useEffect(() => {
-        if (product && isVehicle(product)) {
-            const conditionStr = (product.specs?.Condition || '').toLowerCase();
-            const condition = conditionStr.includes('new') && !conditionStr.includes('used') ? 'new' : 
-                             conditionStr.includes('nigerian') ? 'nigerian_used' : 'foreign_used';
+        if (product && hasFinancing(product)) {
+            const productWithQuantityPrice = { ...product, price: product.price * quantity };
             const defaultYears = selectedTenorYears > 0 ? selectedTenorYears : undefined;
-            const loan = calculateMonthlyPayment(product.price * quantity, 'bnpl', condition as any, defaultYears);
+            const loan = calculateProductMonthlyPayment(productWithQuantityPrice, defaultYears);
             setLoanAnalysis(loan);
         }
     }, [product, selectedTenorYears, quantity]);
@@ -1536,14 +1536,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 )}
 
-                                {/* Vehicle Loan Discovery & Breakdown */}
-                                {isVehicle(product) && loanAnalysis && (
+                                {/* Financing Discovery & Breakdown */}
+                                {hasFinancing(product) && loanAnalysis && (
                                     <motion.div 
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10 mt-1"
+                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative group/loan shadow-lg shadow-emerald-500/10 mt-1"
                                     >
-                                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
+                                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl rounded-tr-[22px] shadow-sm z-10 tracking-[0.1em]">
                                             FINANCING AVAILABLE
                                         </div>
                                         
@@ -1607,9 +1607,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                             initial={{ opacity: 0, y: -10 }}
                                                             animate={{ opacity: 1, y: 0 }}
                                                             exit={{ opacity: 0, y: -10 }}
-                                                            className="absolute bottom-full mb-2 w-full bg-white rounded-xl border border-blue-100 shadow-2xl z-[100] overflow-hidden"
+                                                            className="absolute top-full mt-2 w-full bg-white rounded-xl border border-blue-100 shadow-2xl z-[100] overflow-hidden"
                                                         >
-                                                            {[1, 2, 3, 4, 5].map((year) => (
+                                                            {[1, 2, 3, 4, 5].slice(0, product.financing_config?.max_tenor_months ? Math.floor(product.financing_config.max_tenor_months / 12) : 5).map((year) => (
                                                                 <div 
                                                                     key={year}
                                                                     onClick={() => {
@@ -1709,7 +1709,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             }
                                         }}
                                     >
-                                        {isVehicle(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
+                                        {hasFinancing(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
                                     </Button>
 
 
@@ -2219,6 +2219,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 isOpen={isPriceIntelOpen} 
                 onClose={() => setIsPriceIntelOpen(false)} 
                 initialQuery={product?.name || ""}
+            />
+            <FinancingDetailsModal
+                isOpen={isFinancingDetailsOpen}
+                onClose={() => setIsFinancingDetailsOpen(false)}
+                product={product}
             />
         </div>
     );

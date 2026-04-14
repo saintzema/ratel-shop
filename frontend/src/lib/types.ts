@@ -106,6 +106,12 @@ export interface Product {
     seller_trust_score?: number;
     negotiation_rate?: number;
     _source?: string;
+    financing_config?: {
+        enabled: boolean;
+        deposit_percent?: number; // Overrides the global/category default if specified (e.g. 0.10 for 10%)
+        interest_rate_pa?: number; // Overrides the global/category annual markup (e.g. 0.20 for 20%)
+        max_tenor_months?: number; // Shortened or extended tenor (e.g. 24 for 2 years max)
+    };
 }
 
 export interface Order {

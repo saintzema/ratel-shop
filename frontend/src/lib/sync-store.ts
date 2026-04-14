@@ -2788,6 +2788,23 @@ class DataSyncServiceService {
         }
         let products = this.getProducts();
 
+        // ─── LOGICAL DUPLICATE PREVENTION ───
+        // If this is a new product creation (not an update to existing ID), 
+        // reject if an identical product from the same seller was added within the last 30 seconds.
+        const isNewCreation = !products.some(p => p.id === product.id);
+        if (isNewCreation && persist) {
+            const logicalDuplicate = products.find(p => 
+                p.name === product.name && 
+                p.price === product.price && 
+                p.seller_id === product.seller_id &&
+                (new Date().getTime() - new Date(p.created_at).getTime() < 30000)
+            );
+            if (logicalDuplicate) {
+                console.warn(`🛡️ Resilience: Rejected logical duplicate for "${product.name}" from ${product.seller_id}`);
+                return logicalDuplicate;
+            }
+        }
+
         const existingIdx = products.findIndex(p => p.id === product.id);
         if (existingIdx >= 0) {
             const existing = products[existingIdx];

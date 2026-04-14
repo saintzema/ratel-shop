@@ -32,13 +32,15 @@ export default function NewProduct() {
         image_url: "",
         images: [""],
         original_price: "",
-        external_url: ""
+        external_url: "",
+        financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 }
     });
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [priceAnalysis, setPriceAnalysis] = useState<any>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Dynamic price status update
     useEffect(() => {
@@ -219,50 +221,56 @@ export default function NewProduct() {
         setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         const sellerId = DataSyncService.getCurrentSellerId();
-        if (!sellerId || !formData.name || !formData.price) return;
+        if (!sellerId || !formData.name || !formData.price || isSubmitting) return;
 
-        const generateSlug = (name: string) => {
-            const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
-            const randomSuffix = Math.random().toString(36).substring(2, 8);
-            return `${baseSlug}-${randomSuffix}`;
-        };
+        setIsSubmitting(true);
+        try {
+            const generateSlug = (name: string) => {
+                const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+                const randomSuffix = Math.random().toString(36).substring(2, 8);
+                return `${baseSlug}-${randomSuffix}`;
+            };
 
-        const numericPrice = parseInt(formData.price.replace(/,/g, ""));
+            const numericPrice = parseInt(formData.price.replace(/,/g, ""));
 
-        const finalImageUrl = wrapInCDN(formData.image_url) || "/placeholder.png";
-        const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
+            const finalImageUrl = wrapInCDN(formData.image_url) || "/placeholder.png";
+            const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
 
-        const newProduct = {
-            id: generateSlug(formData.name),
-            seller_id: sellerId,
-            seller_name: DataSyncService.getCurrentSeller()?.business_name || "New Store",
-            name: formData.name,
-            category: (formData.category || "electronics") as any,
-            price: isNaN(numericPrice) ? 0 : numericPrice,
-            original_price: formData.original_price ? parseInt(formData.original_price.replace(/,/g, "")) : undefined,
-            external_url: formData.external_url,
-            original_price_flag: formData.original_price ? true : false,
-            description: formData.description,
-            subcategory: formData.subcategory,
-            tags: formData.tags,
-            colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
-            specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
-            image_url: finalImageUrl,
-            images: finalImages,
-            stock: parseInt(formData.stock) || 0,
-            highlights: formData.highlights,
-            price_flag: "fair" as const,
-            is_active: true,
-            avg_rating: 0,
-            review_count: 0,
-            sold_count: 0,
-            created_at: new Date().toISOString(),
-        };
+            const newProduct = {
+                id: generateSlug(formData.name),
+                seller_id: sellerId,
+                seller_name: DataSyncService.getCurrentSeller()?.business_name || "New Store",
+                name: formData.name,
+                category: (formData.category || "electronics") as any,
+                price: isNaN(numericPrice) ? 0 : numericPrice,
+                original_price: formData.original_price ? parseInt(formData.original_price.replace(/,/g, "")) : undefined,
+                external_url: formData.external_url,
+                original_price_flag: formData.original_price ? true : false,
+                description: formData.description,
+                subcategory: formData.subcategory,
+                tags: formData.tags,
+                colors: formData.colors.split(",").map(c => c.trim()).filter(Boolean),
+                specs: formData.specs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
+                image_url: finalImageUrl,
+                images: finalImages,
+                stock: parseInt(formData.stock) || 0,
+                highlights: formData.highlights,
+                price_flag: "fair" as const,
+                is_active: true,
+                review_count: 0,
+                sold_count: 0,
+                created_at: new Date().toISOString(),
+                financing_config: formData.financing_config,
+            };
 
-        DataSyncService.addRawProduct(newProduct);
-        router.push("/seller/products");
+            await DataSyncService.addRawProduct(newProduct);
+            router.push("/seller/products");
+        } catch (error) {
+            console.error("Submission failed:", error);
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -572,6 +580,74 @@ export default function NewProduct() {
                                     <p className="text-[10px] text-blue-500 mt-1 truncate px-1">Source: {formData.external_url}</p>
                                 )}
                             </div>
+                            
+                            {/* Financing Configuration */}
+                            <div className="space-y-4 pt-4 border-t border-gray-100 col-span-1 md:col-span-2">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className="text-sm font-semibold text-gray-900">Enable Custom Financing</label>
+                                        <p className="text-[10px] text-gray-400 mt-0.5 max-w-sm">Allow buyers to purchase this product using tailored BNPL or lease-to-own plans.</p>
+                                    </div>
+                                    <button 
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.financing_config.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}
+                                        onClick={() => setFormData(p => ({
+                                            ...p,
+                                            financing_config: { ...p.financing_config, enabled: !p.financing_config.enabled }
+                                        }))}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.financing_config.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
+                                {formData.financing_config.enabled && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl">
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
+                                            <div className="relative">
+                                                <Input 
+                                                    type="number" 
+                                                    min="5" max="95" 
+                                                    className="rounded-lg h-9 text-sm" 
+                                                    value={Math.round(formData.financing_config.deposit_percent * 100)}
+                                                    onChange={(e) => setFormData(p => ({
+                                                        ...p,
+                                                        financing_config: { ...p.financing_config, deposit_percent: parseFloat(e.target.value) / 100 }
+                                                    }))}
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
+                                            <div className="relative">
+                                                <Input 
+                                                    type="number" 
+                                                    min="0" max="100" 
+                                                    className="rounded-lg h-9 text-sm" 
+                                                    value={Math.round(formData.financing_config.interest_rate_pa * 100)}
+                                                    onChange={(e) => setFormData(p => ({
+                                                        ...p,
+                                                        financing_config: { ...p.financing_config, interest_rate_pa: parseFloat(e.target.value) / 100 }
+                                                    }))}
+                                                />
+                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
+                                            <Input 
+                                                type="number" 
+                                                min="1" max="60" 
+                                                className="rounded-lg h-9 text-sm" 
+                                                value={formData.financing_config.max_tenor_months}
+                                                onChange={(e) => setFormData(p => ({
+                                                    ...p,
+                                                    financing_config: { ...p.financing_config, max_tenor_months: parseInt(e.target.value) || 12 }
+                                                }))}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                     </motion.section>
 
                     {/* Sticky Publish Bar */}
@@ -588,11 +664,20 @@ export default function NewProduct() {
                         </Link>
                         <Button
                             onClick={handleSubmit}
-                            disabled={!formData.name || !formData.price}
+                            disabled={!formData.name || !formData.price || isSubmitting}
                             className="bg-gray-900 hover:bg-gray-800 text-white rounded-xl font-semibold shadow-sm h-11 px-7 text-sm transition-all hover:shadow-md disabled:opacity-40"
                         >
-                            <Save className="h-4 w-4 mr-2" />
-                            Publish Listing
+                            {isSubmitting ? (
+                                <span className="flex items-center gap-2">
+                                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    Publishing...
+                                </span>
+                            ) : (
+                                <span className="flex items-center gap-2">
+                                    <Save className="h-4 w-4" />
+                                    Publish Listing
+                                </span>
+                            )}
                         </Button>
                     </motion.div>
                 </div>
