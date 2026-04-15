@@ -23,6 +23,7 @@ import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
+import { FinancingDetailsModal } from "@/components/modals/FinancingDetailsModal";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Handshake,
@@ -135,6 +136,7 @@ export default function ProductDetailPage() {
     const [quantity, setQuantity] = useState(1);
     const [addedToCart, setAddedToCart] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
+    const [isFinancingModalOpen, setIsFinancingModalOpen] = useState(false);
     const [loadedMore, setLoadedMore] = useState(false);
 
     // Pagination states
@@ -1230,7 +1232,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                     </div>
                     {/* Center Column (Details, Specs, Seller) */}
-                    <div className="lg:col-span-5 flex flex-col space-y-8 min-w-0">
+                    <div className="md:col-span-7 lg:col-span-4 flex flex-col space-y-8 min-w-0">
                         <div className="mb-2">
                             <Link href={`/store/${seller.store_url || seller.id}`} className="text-sm font-bold text-ratel-green-600 hover:underline mb-1 inline-block">
                                 {seller.business_name}
@@ -1478,7 +1480,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     </div>
                     {/* Right Column (Cart side drawer placeholder) */}
 
-                    <div className="lg:col-span-3 space-y-4 min-w-0">
+                    <div className="md:col-span-12 lg:col-span-4 space-y-4 min-w-0">
                         <div className="sticky top-24 border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
                             {/* Temu-style Buy Box */}
                             <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
@@ -1535,15 +1537,16 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 )}
 
-                                {/* Vehicle Loan Discovery & Breakdown */}
-                                {isVehicle(product) && loanAnalysis && (
+                                {/* Buy Now, Pay Later Discovery & Breakdown */}
+                                {hasFinancing(product) && loanAnalysis && (
                                     <motion.div 
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10 mt-1"
+                                        onClick={() => setIsFinancingModalOpen(true)}
+                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10 mt-1 cursor-pointer hover:shadow-xl transition-all"
                                     >
                                         <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
-                                            FINANCING AVAILABLE
+                                            BUY NOW, PAY LATER
                                         </div>
                                         
                                         <div className="flex items-start gap-4 mt-4">
@@ -1565,7 +1568,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                         animate={{ opacity: 1, scale: 1 }}
                                                         className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50 shrink-0 mb-1"
                                                     >
-                                                        {vehicleDepositPctDisplay}% Deposit
+                                                        {calculateMonthlyPayment(product.price).deposit / product.price >= 0.1 ? Math.round((calculateMonthlyPayment(product.price).deposit / product.price) * 100) : 15}% Deposit
                                                     </motion.span>
                                                 </div>
                                             </div>
@@ -1587,7 +1590,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             <div className="relative">
                                                 <motion.div 
                                                     whileHover={{ y: -2 }}
-                                                    onClick={() => setShowDurationSelector(!showDurationSelector)}
+                                                    onClick={(e) => { e.stopPropagation(); setShowDurationSelector(!showDurationSelector); }}
                                                     className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-blue-200 shadow-sm flex flex-col justify-center cursor-pointer hover:border-blue-400 transition-colors"
                                                 >
                                                     <div className="flex items-center justify-between mb-1.5">
@@ -1599,7 +1602,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                         </div>
                                                         <ChevronDown className={`h-3 w-3 text-blue-500 transition-transform ${showDurationSelector ? 'rotate-180' : ''}`} />
                                                     </div>
-                                                    <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} Years <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
+                                                    <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} {loanAnalysis.tenorMonths / 12 === 1 ? 'Year' : 'Years'} <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
                                                 </motion.div>
 
                                                 {/* Dropdown for Duration */}
@@ -2199,6 +2202,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 isOpen={isPriceIntelOpen} 
                 onClose={() => setIsPriceIntelOpen(false)} 
                 initialQuery={product?.name || ""}
+            />
+            <FinancingDetailsModal
+                isOpen={isFinancingModalOpen}
+                onClose={() => setIsFinancingModalOpen(false)}
+                product={product}
             />
         </div>
     );

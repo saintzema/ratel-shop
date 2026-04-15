@@ -178,3 +178,18 @@ export function isVehicle(product: any): boolean {
         name.includes('xpeng')
     );
 }
+
+/**
+ * Checks if a product qualifies for financing display (BNPL/Lease)
+ */
+export function hasFinancing(product: any): boolean {
+    if (!product) return false;
+    
+    // Explicit toggle from JSON/DB
+    if (product.financing_available === true) return true;
+    
+    // Auto-enable for vehicles (per current requirement)
+    if (isVehicle(product)) return true;
+    
+    return false;
+}

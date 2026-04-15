@@ -41,7 +41,8 @@ export default function EditProduct() {
         specs: [] as { key: string; value: string }[],
         image_url: "",
         images: [""],
-        stock: ""
+        stock: "",
+        financing_available: false
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -65,7 +66,8 @@ export default function EditProduct() {
                 specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value })) : [],
                 image_url: found.image_url,
                 images: found.images?.length ? [...found.images] : [""],
-                stock: found.stock.toString()
+                stock: found.stock.toString(),
+                financing_available: found.financing_available || false
             });
         }
     }, [productId]);
@@ -198,7 +200,8 @@ export default function EditProduct() {
             image_url: formData.image_url,
             images: formData.images.filter(url => url.trim() !== ""),
             stock: parseInt(formData.stock) || 0,
-            highlights: formData.highlights
+            highlights: formData.highlights,
+            financing_available: formData.financing_available
         });
 
         setIsSaving(false);
@@ -532,6 +535,56 @@ export default function EditProduct() {
                     >
                         <Plus className="h-3 w-3 mr-2" /> Add Specification
                     </Button>
+                </div>
+            </motion.section>
+            
+            {/* ─── Section 5: Financing & Ownership ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.19 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6 overflow-hidden relative"
+            >
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                    <ShieldCheck className="h-24 w-24 text-blue-600" />
+                </div>
+                
+                <div className="flex items-center gap-3 mb-1">
+                    <div className="bg-blue-50 p-2 rounded-lg">
+                        <ShieldCheck className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-gray-900">Financing & Ownership</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-8 ml-10">Control how customers pay for this product. High-value items benefit from flexible payment plans.</p>
+
+                <div className="ml-10 space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer group"
+                        onClick={() => setFormData(prev => ({ ...prev, financing_available: !prev.financing_available }))}
+                    >
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Enable Buy Now, Pay Later (BNPL)</h3>
+                            <p className="text-xs text-gray-500">Allow customers to pay in monthly installments (3, 6, 12, or 24 months).</p>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full transition-colors relative ${formData.financing_available ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.financing_available ? 'left-7' : 'left-1 shadow-sm'}`} />
+                        </div>
+                    </div>
+                    
+                    {formData.financing_available && (
+                        <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="p-4 bg-blue-50/30 rounded-2xl border border-blue-100/50 space-y-3"
+                        >
+                            <div className="flex items-center gap-2 text-blue-700">
+                                <Check className="h-4 w-4" />
+                                <span className="text-xs font-bold uppercase tracking-wider">Premium Visibility Active</span>
+                            </div>
+                            <p className="text-xs text-blue-600/80 leading-relaxed font-medium">
+                                Enabling financing helps increase conversion on premium items. This product will now display monthly payment breakdowns and the official "BUY NOW, PAY LATER" badge.
+                            </p>
+                        </motion.div>
+                    )}
                 </div>
             </motion.section>
 

@@ -25,13 +25,14 @@ export async function GET(req: Request) {
                     "X-API-KEY": SERPER_API_KEY,
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ q: query + " official product image high resolution", num: 1 }), // Get highest quality product image
+                body: JSON.stringify({ q: query + " official product image high resolution", num: 5 }), // Get multiple high quality results
             });
 
             if (response.ok) {
                 const data = await response.json();
                 if (data && data.images && data.images.length > 0) {
-                    return NextResponse.json({ imageUrl: data.images[0].imageUrl });
+                    const images = data.images.map((img: any) => img.imageUrl).filter(Boolean);
+                    return NextResponse.json({ imageUrl: images[0], imageUrls: images });
                 }
             }
         }
@@ -39,12 +40,13 @@ export async function GET(req: Request) {
         // Method 2: Google Custom Search API
         else if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_CX) {
             const response = await fetch(
-                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query + " product official white background high res")}&searchType=image&num=1`
+                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query + " product official white background high res")}&searchType=image&num=5`
             );
             if (response.ok) {
                 const data = await response.json();
                 if (data.items && data.items.length > 0) {
-                    return NextResponse.json({ imageUrl: data.items[0].link });
+                    const images = data.items.map((item: any) => item.link).filter(Boolean);
+                    return NextResponse.json({ imageUrl: images[0], imageUrls: images });
                 }
             }
         }
