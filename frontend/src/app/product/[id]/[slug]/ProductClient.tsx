@@ -22,7 +22,7 @@ import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
-import { isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
+import { hasFinancing, isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 import { FinancingDetailsModal } from "@/components/modals/FinancingDetailsModal";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -621,9 +621,9 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const [selectedTenorYears, setSelectedTenorYears] = useState<number>(0);
     const [showDurationSelector, setShowDurationSelector] = useState(false);
 
-    // Calculate loan options if vehicle
+    // Calculate loan options if financing is enabled
     useEffect(() => {
-        if (product && isVehicle(product)) {
+        if (product && hasFinancing(product)) {
             const conditionStr = (product.specs?.Condition || '').toLowerCase();
             const condition = conditionStr.includes('new') && !conditionStr.includes('used') ? 'new' : 
                              conditionStr.includes('nigerian') ? 'nigerian_used' : 'foreign_used';
@@ -1639,7 +1639,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50 flex gap-3 items-start">
                                             <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                                             <p className="text-[10px] text-emerald-700 font-medium leading-normal">
-                                                Funds are held in <span className="font-bold">Escrow Protection</span>. Payment is only released to the seller after the vehicle is delivered and inspected.
+                                                Funds are held in <span className="font-bold">Escrow Protection</span>. Payment is only released to the seller after the item is delivered and inspected.
                                             </p>
                                         </div>
                                         

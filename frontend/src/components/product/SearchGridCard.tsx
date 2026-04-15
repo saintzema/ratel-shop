@@ -8,7 +8,7 @@ import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-rea
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
 import { cn, getProductUrl } from "@/lib/utils";
-import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
+import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 export const SearchGridCard = ({
   product,
@@ -106,7 +106,7 @@ export const SearchGridCard = ({
   };
 
   const productPrice = product.price || product.approxPrice || 0;
-  const showFinancing = isVehicle(product) && (product._source === "global" || product.financing_available || product.seller_id === 'global-partners');
+  const showFinancing = hasFinancing(product);
   const financingResult = showFinancing ? calculateMonthlyPayment(productPrice) : null;
 
   return (

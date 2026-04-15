@@ -21,44 +21,23 @@ export function Footer() {
           </h3>
           <ul className="flex flex-col gap-3 text-[13px] text-gray-300">
             <li>
-              <Link
-                href="/about"
-                className="hover:underline hover:text-white transition-colors"
-              >
-                About FairPrice
-              </Link>
+              <Link href="/about" className="hover:underline hover:text-white transition-colors">About FairPrice</Link>
             </li>
             <li>
-              <Link
-                href="/affiliate"
-                className="hover:underline hover:text-white transition-colors"
-              >
-                Affiliate & Influencer Program
-              </Link>
+              <Link href="/affiliate" className="hover:underline hover:text-white transition-colors">Affiliate & Influencer Program</Link>
             </li>
             <li>
-              <Link
-                href="/contact"
-                className="hover:underline hover:text-white transition-colors"
-              >
-                Contact us
-              </Link>
+              <Link href="/contact" className="hover:underline hover:text-white transition-colors">Contact us</Link>
             </li>
             <li>
-              <Link
-                href="/careers"
-                className="hover:underline hover:text-white transition-colors"
-              >
-                Careers
-              </Link>
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <p className="text-white font-bold text-xs uppercase tracking-widest mb-2">Our Office</p>
+                <p className="leading-relaxed text-[11px]">12 New Market Road,<br />Onitsha, Anambra State,<br />Nigeria</p>
+              </div>
             </li>
-            <li>
-              <Link
-                href="/about"
-                className="hover:underline hover:text-white transition-colors"
-              >
-                Press
-              </Link>
+            <li className="mt-2">
+              <p className="text-white font-bold text-xs uppercase tracking-widest mb-1 text-[10px]">WhatsApp Support</p>
+              <a href="https://wa.me/2348162816305" className="text-emerald-400 hover:text-emerald-300 transition-colors font-mono text-[12px]">+234 816 281 6305</a>
             </li>
           </ul>
         </div>

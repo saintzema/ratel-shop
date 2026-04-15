@@ -110,6 +110,18 @@ export function getVehiclePaymentRange(
     type: LoanType = 'bnpl',
     condition: VehicleCondition = 'foreign_used'
 ): { min: number; max: number } {
+    return getFinancingPaymentRange(price, type, condition);
+}
+
+/**
+ * Calculates the min and max estimated monthly payments for a product
+ * Returns { min: number, max: number }
+ */
+export function getFinancingPaymentRange(
+    price: number,
+    type: LoanType = 'bnpl',
+    condition: VehicleCondition = 'foreign_used'
+): { min: number; max: number } {
     const minYears = 1;
     const maxYears = LOAN_CONSTANTS.TENORS[condition] || 4;
     

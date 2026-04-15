@@ -27,7 +27,8 @@ export default function NewProduct() {
         subcategory: "",
         colors: "",
         image_url: "",
-        images: [""]
+        images: [""],
+        financing_available: false
     });
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -241,6 +242,7 @@ export default function NewProduct() {
             review_count: 0,
             sold_count: 0,
             created_at: new Date().toISOString(),
+            financing_available: formData.financing_available
         };
 
         DataSyncService.addRawProduct(newProduct);
@@ -545,6 +547,29 @@ export default function NewProduct() {
                                     value={formData.stock}
                                     onChange={(e) => handleChange("stock", e.target.value)}
                                 />
+                            </div>
+                        </div>
+
+                        {/* Financing & Ownership Toggle */}
+                        <div className="mt-8 pt-8 border-t border-gray-100">
+                            <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="flex gap-4">
+                                    <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                                        <TrendingUp className="h-6 w-6" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h3 className="font-bold text-gray-900 leading-tight">Financing & Ownership</h3>
+                                        <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans.</p>
+                                    </div>
+                                </div>
+                                <div 
+                                    onClick={() => handleChange("financing_available", !formData.financing_available)}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.financing_available ? 'bg-emerald-600' : 'bg-gray-200'}`}
+                                >
+                                    <span
+                                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.financing_available ? 'translate-x-5' : 'translate-x-0'}`}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </motion.section>

@@ -68,6 +68,8 @@ export default function CatalogControl() {
     const [editImage, setEditImage] = useState("");
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState("");
+    const [editFinancingAvailable, setEditFinancingAvailable] = useState(false);
+    const [editFinancingDownPayment, setEditFinancingDownPayment] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
 
     // Sync Modal State
@@ -152,7 +154,9 @@ export default function CatalogControl() {
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
-                images: editImages ? editImages.split(",").map(s => s.trim()).filter(Boolean) : editingProduct.images || []
+                images: editImages ? editImages.split(",").map(s => s.trim()).filter(Boolean) : editingProduct.images || [],
+                financing_available: editFinancingAvailable,
+                financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0
             });
             setEditingProduct(null);
         }
@@ -655,6 +659,8 @@ export default function CatalogControl() {
                                                             setEditImage(p.image_url);
                                                             setEditExternalUrl(p.external_url || "");
                                                             setEditImages(p.images?.join(", ") || "");
+                                                            setEditFinancingAvailable(p.financing_available ?? false);
+                                                            setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
@@ -979,6 +985,44 @@ export default function CatalogControl() {
                                         <a href={editExternalUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
                                             Open source link ↗
                                         </a>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="text-[12px] font-black uppercase text-gray-900 tracking-tight">Financing & Ownership</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Allow buyers to pay in installments</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setEditFinancingAvailable(!editFinancingAvailable)}
+                                            className={cn(
+                                                "w-12 h-6 rounded-full transition-all relative",
+                                                editFinancingAvailable ? "bg-emerald-500" : "bg-gray-200"
+                                            )}
+                                        >
+                                            <div className={cn(
+                                                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                                                editFinancingAvailable ? "right-1" : "left-1"
+                                            )} />
+                                        </button>
+                                    </div>
+
+                                    {editFinancingAvailable && (
+                                        <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <label className="text-[10px] font-black uppercase text-emerald-700 tracking-widest block mb-2">Required Downpayment (₦)</label>
+                                            <div className="relative">
+                                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-600" />
+                                                <Input
+                                                    type="text"
+                                                    value={editFinancingDownPayment}
+                                                    onChange={(e) => setEditFinancingDownPayment(e.target.value)}
+                                                    className="pl-10 bg-white border-emerald-200 h-10 rounded-xl text-sm font-black text-emerald-900"
+                                                    placeholder="e.g. 50,000"
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-emerald-600/70 font-bold mt-2 uppercase tracking-tight">The minimum amount a user must pay upfront to secure the item.</p>
+                                        </div>
                                     )}
                                 </div>
                                 <div className="space-y-2">

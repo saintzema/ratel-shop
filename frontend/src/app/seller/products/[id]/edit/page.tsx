@@ -42,7 +42,8 @@ export default function EditProduct() {
         image_url: "",
         images: [""],
         stock: "",
-        financing_available: false
+        financing_available: false,
+        financing_down_payment: ""
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -67,7 +68,8 @@ export default function EditProduct() {
                 image_url: found.image_url,
                 images: found.images?.length ? [...found.images] : [""],
                 stock: found.stock.toString(),
-                financing_available: found.financing_available || false
+                financing_available: found.financing_available || false,
+                financing_down_payment: found.financing_down_payment?.toString() || ""
             });
         }
     }, [productId]);
@@ -201,7 +203,8 @@ export default function EditProduct() {
             images: formData.images.filter(url => url.trim() !== ""),
             stock: parseInt(formData.stock) || 0,
             highlights: formData.highlights,
-            financing_available: formData.financing_available
+            financing_available: formData.financing_available,
+            financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0
         });
 
         setIsSaving(false);
@@ -574,15 +577,35 @@ export default function EditProduct() {
                         <motion.div 
                             initial={{ opacity: 0, height: 0 }}
                             animate={{ opacity: 1, height: 'auto' }}
-                            className="p-4 bg-blue-50/30 rounded-2xl border border-blue-100/50 space-y-3"
+                            className="bg-blue-50/30 rounded-2xl border border-blue-100/50 overflow-hidden"
                         >
-                            <div className="flex items-center gap-2 text-blue-700">
-                                <Check className="h-4 w-4" />
-                                <span className="text-xs font-bold uppercase tracking-wider">Premium Visibility Active</span>
+                            <div className="p-5 space-y-4">
+                                <div className="flex items-center gap-2 text-blue-700">
+                                    <Check className="h-4 w-4" />
+                                    <span className="text-xs font-bold uppercase tracking-wider">Granular Financing Terms</span>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest pl-1">Required Downpayment (₦)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">₦</span>
+                                        <Input
+                                            type="text"
+                                            value={formData.financing_down_payment}
+                                            onChange={(e) => {
+                                                const rawValue = e.target.value.replace(/\D/g, "");
+                                                const formatted = rawValue ? parseInt(rawValue).toLocaleString() : "";
+                                                setFormData({ ...formData, financing_down_payment: formatted });
+                                            }}
+                                            className="rounded-xl pl-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900"
+                                            placeholder="e.g. 50,000"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-blue-500/70 font-medium leading-relaxed mt-1.5">
+                                        The upfront cost a buyer pays to start the ownership plan. If set to ₦0, the platform will automatically estimate a standard 10% downpayment.
+                                    </p>
+                                </div>
                             </div>
-                            <p className="text-xs text-blue-600/80 leading-relaxed font-medium">
-                                Enabling financing helps increase conversion on premium items. This product will now display monthly payment breakdowns and the official "BUY NOW, PAY LATER" badge.
-                            </p>
                         </motion.div>
                     )}
                 </div>

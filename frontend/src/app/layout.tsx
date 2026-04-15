@@ -125,7 +125,7 @@ export default function RootLayout({
               'logo': 'https://fairprice.ng/logo.png',
               'contactPoint': {
                 '@type': 'ContactPoint',
-                'telephone': '+234-800-FAIR-PRICE',
+                'telephone': '+234-816-281-6305',
                 'contactType': 'customer service',
                 'areaServed': 'NG',
                 'availableLanguage': ['English', 'Hausa', 'Igbo', 'Yoruba']
@@ -149,12 +149,13 @@ export default function RootLayout({
               'image': 'https://fairprice.ng/logo.png',
               '@id': 'https://fairprice.ng',
               'url': 'https://fairprice.ng',
-              'telephone': '+234-800-FAIR-PRICE',
+              'telephone': '+234-816-281-6305',
               'address': {
                 '@type': 'PostalAddress',
-                'streetAddress': '12 Victoria Island',
-                'addressLocality': 'Lagos',
-                'postalCode': '101241',
+                'streetAddress': '12 New Market Road',
+                'addressLocality': 'Onitsha',
+                'addressRegion': 'Anambra State',
+                'postalCode': '430213',
                 'addressCountry': 'NG'
               },
               'geo': {
