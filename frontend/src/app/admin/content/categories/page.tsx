@@ -218,7 +218,7 @@ export default function CategoryManagement() {
                                             <Badge className="bg-gray-100 text-gray-500 hover:bg-gray-100 border-none text-[10px] font-bold">
                                                 <Package className="h-3 w-3 mr-1" /> {cat.product_count}
                                             </Badge>
-                                            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center gap-0.5 transition-opacity">
                                                 <button onClick={() => { setAddingChildTo(cat.id); setNewChildName(""); }} className="p-1.5 hover:bg-gray-100 rounded-lg" title="Add subcategory">
                                                     <Plus className="h-3.5 w-3.5 text-gray-400" />
                                                 </button>
@@ -261,7 +261,7 @@ export default function CategoryManagement() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <span className="text-[10px] text-gray-400 font-bold">{child.product_count} products</span>
-                                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center gap-0.5 transition-opacity">
                                                     <button onClick={() => startEditing(child)} className="p-1 hover:bg-gray-100 rounded" title="Edit">
                                                         <Edit2 className="h-3 w-3 text-gray-400" />
                                                     </button>

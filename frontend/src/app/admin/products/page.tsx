@@ -842,7 +842,7 @@ export default function CatalogControl() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 align-middle text-right">
-                                                <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-end gap-1 transition-opacity">
                                                     <Button
                                                         variant="ghost" size="icon"
                                                         onClick={() => handleToggleTrending(p.id)}

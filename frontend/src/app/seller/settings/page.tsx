@@ -290,7 +290,7 @@ export default function SellerSettingsPage() {
                                         {formData.logo_url ? (
                                             <>
                                                 <img src={formData.logo_url} alt="Logo" className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => logoInputRef.current?.click()}>
+                                                <div className="absolute inset-0 bg-black/40 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => logoInputRef.current?.click()}>
                                                     <Upload className="h-6 w-6 text-white" />
                                                 </div>
                                             </>
@@ -341,7 +341,7 @@ export default function SellerSettingsPage() {
                                             </Link>
                                         </div>
                                     ) : (
-                                        <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity ${formData.cover_image_url ? 'opacity-0 group-hover:opacity-100' : 'opacity-100'}`}>
+                                        <div className={`absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity ${formData.cover_image_url ? 'opacity-100' : 'opacity-100'}`}>
                                             <Button type="button" onClick={() => coverInputRef.current?.click()} variant="secondary" className="bg-white hover:bg-gray-100 text-gray-900 text-xs font-black uppercase tracking-widest h-10 px-6 rounded-xl shadow-xl transition-transform hover:scale-105">
                                                 <Upload className="h-4 w-4 mr-2" /> {formData.cover_image_url ? 'Change Banner' : 'Upload Banner'}
                                             </Button>

@@ -441,7 +441,7 @@ export default function UserDirectory() {
                                         )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <div className="flex items-center justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                        <div className="flex items-center justify-end gap-1 transition-opacity">
                                             <Link href={`/admin/users/${p.id}`}>
                                                 <Button size="sm" variant="ghost" className="h-8 rounded-xl text-xs font-bold text-emerald-700 bg-white/50 border-[0.5px] border-white/60 hover:bg-white hover:shadow-lg transition-all">
                                                     View

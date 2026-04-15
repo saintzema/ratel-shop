@@ -419,7 +419,7 @@ export default function EditProduct() {
                             <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
                                 <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
                                 
-                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                     <Button variant="ghost" size="icon" onClick={() => {
                                         const newImages = formData.images.filter(x => x.trim() !== "");
                                         newImages.splice(i, 1);

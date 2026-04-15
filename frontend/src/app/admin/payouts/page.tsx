@@ -128,7 +128,7 @@ export default function PayoutRequestsDirectory() {
                                 </td>
                                 <td className="px-8 py-6 text-right">
                                     {p.status === "processing" ? (
-                                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <div className="flex items-center justify-end gap-2 transition-opacity">
                                             <Button
                                                 size="sm"
                                                 className="h-8 rounded-xl bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-600 font-bold text-[10px] uppercase tracking-wider transition-all"
@@ -141,7 +141,7 @@ export default function PayoutRequestsDirectory() {
                                             </Button>
                                         </div>
                                     ) : (
-                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors opacity-0 group-hover:opacity-100">
+                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors">
                                             <MoreVertical className="h-4 w-4 text-gray-400" />
                                         </Button>
                                     )}

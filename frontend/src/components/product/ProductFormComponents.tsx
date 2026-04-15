@@ -39,7 +39,7 @@ export function ProductImageSlot({
     return (
         <div className={cn("space-y-3", className)}>
             <div 
-                className="aspect-square w-full bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative group cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
+                className="aspect-square w-full max-w-[240px] sm:max-w-none mx-auto bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden flex flex-col items-center justify-center relative group cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
                 onClick={() => fileInputRef.current?.click()}
             >
                 {url ? (

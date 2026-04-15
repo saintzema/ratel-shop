@@ -413,7 +413,7 @@ export default function EscrowManagement() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 align-middle text-right">
-                                                    <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex items-center justify-end gap-2 transition-opacity">
                                                         {order.escrow_status === "held" && (
                                                             <Button
                                                                 onClick={() => handleSellerConfirm(order.id)}

@@ -183,7 +183,7 @@ export default function GovernanceCenter() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-5 align-middle text-right">
-                                                <div className="flex items-center justify-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="flex items-center justify-end gap-2 transition-opacity">
                                                     <Button variant="outline" size="sm" className="h-8 px-3 rounded-lg border-gray-200 font-bold text-[10px] uppercase tracking-widest hover:bg-gray-50 flex items-center gap-1.5" onClick={() => window.open(kyc.document_url, '_blank')}>
                                                         <ExternalLink className="h-3 w-3" /> View Doc
                                                     </Button>
@@ -277,7 +277,7 @@ export default function GovernanceCenter() {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-5 align-middle text-right">
-                                                        <div className="flex flex-col items-end gap-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <div className="flex flex-col items-end gap-2 transition-opacity">
                                                             <div className="flex gap-1.5">
                                                                 <Link href="/admin/escrow?filter=disputed" className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors" title="View Escrow">
                                                                     <ExternalLink className="h-3.5 w-3.5 text-gray-500" />

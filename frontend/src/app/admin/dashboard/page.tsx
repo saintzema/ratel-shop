@@ -200,7 +200,7 @@ export default function AdminDashboard() {
                         <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest">{card.label}</h3>
                         <div className="flex items-end justify-between mt-1">
                             <p className="text-2xl font-black text-gray-900">{card.value}</p>
-                            <span className="text-[10px] font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
+                            <span className="text-[10px] font-bold text-emerald-600 transition-opacity flex items-center">
                                 View Details <ChevronRight className="h-3 w-3 ml-0.5" />
                             </span>
                         </div>
@@ -245,7 +245,7 @@ export default function AdminDashboard() {
                                                     <p className="text-[11px] text-gray-400 font-bold uppercase">{kyc.id_type} Submission • {new Date(kyc.created_at).toLocaleDateString()}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex items-center gap-2">
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
@@ -309,7 +309,7 @@ export default function AdminDashboard() {
                                                 <h4 className="font-bold text-gray-900 text-sm truncate">{c.description}</h4>
                                                 <p className="text-[11px] text-gray-400 font-bold uppercase mt-1">From: {c.user_name} • Target: {c.seller_name}</p>
                                             </div>
-                                            <div className="flex items-center gap-2 opacity-0 group-[&:hover]:opacity-100 transition-opacity">
+                                            <div className="flex items-center gap-2 transition-opacity">
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
@@ -386,7 +386,7 @@ export default function AdminDashboard() {
                                             <span>{new Date(review.created_at).toLocaleDateString()}</span>
                                         </div>
                                     </div>
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <div className="transition-opacity shrink-0">
                                         <Button
                                             size="sm"
                                             variant="ghost"

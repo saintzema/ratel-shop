@@ -861,7 +861,7 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
                 {href && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
                 
                 {tooltip && (
-                    <div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-2.5 rounded-xl opacity-0 translate-y-2 pointer-events-none group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 z-50 shadow-2xl leading-relaxed">
+                    <div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-2.5 rounded-xl translate-y-0 transition-all duration-300 z-50 shadow-2xl leading-relaxed">
                         <div className="flex items-center gap-1.5 mb-1 text-gray-400">
                             <span className="font-bold text-white uppercase tracking-wider text-[9px]">Insight</span>
                         </div>
