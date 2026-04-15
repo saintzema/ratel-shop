@@ -192,6 +192,23 @@ export default function AdminUserDetailPage() {
         setIsUpdating(false);
     };
 
+    const handleContactKYC = async () => {
+        if (!userEntity?.id) return;
+        setIsUpdating(true);
+        
+        const subject = "Urgent: KYC Documents Required";
+        const message = `Hello ${userEntity.business_name || userEntity.name},\n\nOur compliance team has noticed that your store is missing required KYC documents (CAC or Government ID). Please upload these documents to your seller dashboard to maintain your verified status and ensure uninterrupted payouts.\n\nThank you,\nFairPrice Admin Team`;
+        
+        DataSyncService.sendAdminMessageToUser(
+            userEntity.id,
+            subject,
+            message
+        );
+
+        alert("KYC Request Sent! The seller has been notified via their dashboard and email notification has been triggered.");
+        setIsUpdating(false);
+    };
+
     useEffect(() => {
         loadData();
     }, [id]);
@@ -312,23 +329,23 @@ export default function AdminUserDetailPage() {
                         </Button>
                     )}
 
-                    {/* Reactivate — for frozen/suspended users */}
-                    {(userEntity.status === "frozen" || userEntity.status === "suspended") && (
+                    {/* Reactivate — for frozen/suspended/banned users */}
+                    {(userEntity.status === "frozen" || userEntity.status === "suspended" || userEntity.status === "banned") && (
                         <Button onClick={async () => {
                             if (confirm("Are you sure you want to reactivate this account?")) {
                                 setIsUpdating(true);
                                 const newStatus = "active";
                                 if (userEntity.role === "seller") {
                                     DataSyncService.updateSeller(userEntity.id, { status: newStatus, verified: true, kyc_status: "approved" });
-                                    try { await fetch(`/api/sellers`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...userEntity, status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
+                                    try { await fetch(`/api/sellers/${userEntity.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: newStatus, verified: true, kyc_status: "approved" }) }); } catch { }
                                 } else {
                                     DataSyncService.updateUserStatus(userEntity.id, newStatus);
                                 }
                                 setUserEntity((prev: any) => ({ ...prev, status: newStatus, verified: true, kyc_status: "approved" }));
                                 setIsUpdating(false);
                             }
-                        }} variant="outline" className="h-11 px-5 rounded-2xl border-emerald-100 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-100 shadow-sm">
-                            <CheckCircle2 className="h-4 w-4 mr-2" /> Reactivate
+                        }} variant="outline" className="h-11 px-5 rounded-2xl border-emerald-100 bg-emerald-50 text-emerald-700 font-bold text-xs uppercase tracking-wider hover:bg-emerald-100 shadow-sm transition-all hover:scale-105">
+                            <CheckCircle2 className="h-4 w-4 mr-2" /> Reactivate Account
                         </Button>
                     )}
 
@@ -625,7 +642,10 @@ export default function AdminUserDetailPage() {
                             <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
                             <h3 className="text-sm font-black text-amber-900 uppercase tracking-widest">No Documents Found</h3>
                             <p className="text-xs text-amber-700/70 mt-1">This seller has not uploaded CAC or ID documents for manual verification.</p>
-                            <Button variant="outline" size="sm" className="mt-4 rounded-full border-amber-200 text-amber-900 hover:bg-amber-100 font-bold text-[10px] uppercase h-9">Contact Seller for KYC</Button>
+                            <Button variant="outline" size="sm" onClick={handleContactKYC} disabled={isUpdating} className="mt-4 rounded-full border-amber-200 text-amber-900 hover:bg-amber-100 font-bold text-[10px] uppercase h-9">
+                                {isUpdating ? <div className="h-3 w-3 border-2 border-amber-500/30 border-t-amber-500 animate-spin rounded-full mr-2" /> : null}
+                                Contact Seller for KYC
+                            </Button>
                         </div>
                     ))}
                 </div>

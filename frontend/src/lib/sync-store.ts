@@ -3639,7 +3639,7 @@ class DataSyncServiceService {
         return allUsers;
     }
 
-    updateUserStatus(userId: string, status: "active" | "suspended" | "frozen") {
+    updateUserStatus(userId: string, status: "active" | "suspended" | "frozen" | "banned") {
         if (typeof window === "undefined") return;
         const overridesStr = localStorage.getItem(this.STORAGE_KEYS.USER_OVERRIDES);
         let overrides: Record<string, Partial<any>> = {};
