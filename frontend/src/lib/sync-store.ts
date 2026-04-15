@@ -2,7 +2,7 @@
 
 import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
 export type { NegotiationRequest };
-import { formatPrice, getProxiedImageUrl } from "./utils";
+import { formatPrice, getProxiedImageUrl, getProductUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
 import { TEMU_PRODUCTS } from "./demo-data-temu";
 
@@ -2839,6 +2839,17 @@ class DataSyncServiceService {
             products[existingIdx] = { ...existing, ...product };
         } else {
             products.unshift(product);
+            
+            // 🔥 REAL-TIME GOOGLE INDEXING: Ping Google Indexing API whenever a 
+            // brand new product enters the platform (via Seller add or Admin promotion).
+            if (typeof window !== "undefined") {
+                const absoluteUrl = getProductUrl(product.id, product.name);
+                fetch("/api/google-index", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ urls: [absoluteUrl] }),
+                }).catch(e => console.error("Google Indexing Ping Failed:", e));
+            }
         }
         if (products.length > 500) products.length = 500; // soft limit
 

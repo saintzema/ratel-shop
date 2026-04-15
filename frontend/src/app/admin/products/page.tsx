@@ -171,42 +171,65 @@ export default function CatalogControl() {
         setIsHandlingImages(true);
         // We scan everything currently present globally (local & cache)
         const allItems = [...products, ...cachedProducts];
+        let updated = 0;
+        let scanned = 0;
+        let failed = 0;
         
         for (const item of allItems) {
             const currentImg = item.image_url || "";
-            const isBroken = currentImg.toLowerCase().includes('no photo') || 
-                             currentImg.toLowerCase().includes('placeholder') || 
-                             currentImg === "" ||
-                             currentImg.startsWith('/assets/images');
+            const lower = currentImg.toLowerCase();
+            
+            // Comprehensive broken-image detection
+            const isBroken = 
+                currentImg === "" ||
+                currentImg === "/placeholder.png" ||
+                lower.includes('placeholder') ||
+                lower.includes('no photo') ||
+                lower.includes('no-image') ||
+                lower.includes('no_image') ||
+                lower.includes('n/a') ||
+                currentImg.startsWith('/assets/images') ||
+                // Catch proxied placeholders like /api/image-cdn?url=...placeholder...
+                (currentImg.includes('/api/image-cdn') && lower.includes('placeholder'));
             
             if (isBroken) {
+                scanned++;
                 try {
-                    const res = await fetch("/api/product-image", {
-                         method: "POST",
-                         headers: { "Content-Type": "application/json" },
-                         body: JSON.stringify({ productTitle: item.name }) // Product Image uses productTitle or query based on its internal setup
-                    });
+                    // Use GET with query parameter (the original working method)
+                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(item.name + ' product official')}`);
                     if (res.ok) {
-                         const data = await res.json();
-                            if (data.imageUrl) {
-                                const cdnUrl = wrapInCDN(data.imageUrl);
-                             if (item.cached_at) {
-                                 DataSyncService.updateSearchCacheProduct(item.id, { image_url: cdnUrl });
-                             } else {
-                                 DataSyncService.updateProduct(item.id, { image_url: cdnUrl, images: [cdnUrl] });
-                             }
-                         }
+                        const data = await res.json();
+                        if (data.imageUrl) {
+                            const cdnUrl = wrapInCDN(data.imageUrl);
+                            if (item.cached_at) {
+                                DataSyncService.updateSearchCacheProduct(item.id, { image_url: cdnUrl });
+                            } else {
+                                DataSyncService.updateProduct(item.id, { 
+                                    image_url: cdnUrl, 
+                                    images: data.imageUrls ? data.imageUrls.slice(0, 5).map((u: string) => wrapInCDN(u)) : [cdnUrl]
+                                });
+                            }
+                            updated++;
+                        } else {
+                            failed++;
+                        }
+                    } else {
+                        failed++;
+                        console.warn(`Image search returned ${res.status} for "${item.name}"`);
                     }
                 } catch(e) {
-                    console.error("Failed to update image for", item.name);
+                    failed++;
+                    console.error("Failed to update image for", item.name, e);
                 }
+                // Small delay to avoid rate-limiting on Serper (100ms between requests)
+                await new Promise(r => setTimeout(r, 100));
             }
         }
         
         setProducts(DataSyncService.getProducts());
         setCachedProducts(DataSyncService.getAllCachedProducts());
         setIsHandlingImages(false);
-        alert("Completed Global Image Scan and Corrections.");
+        alert(`Global Image Scan Complete.\n\n✅ Updated: ${updated} products\n⚠️ Not found: ${failed}\n📦 Total scanned: ${scanned} of ${allItems.length}`);
     };
 
     const handleToggleTrending = async (id: string) => {
@@ -555,6 +578,7 @@ export default function CatalogControl() {
                                                             await DataSyncService.promoteFromCache(id);
                                                             DataSyncService.removeFromSearchCache(id);
                                                         }
+
                                                         setCachedProducts(DataSyncService.getAllCachedProducts());
                                                         setSelectedCacheIds([]);
                                                     } finally {
