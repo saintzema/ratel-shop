@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2 } from "lucide-react";
+import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2 } from "lucide-react";
 import { formatPrice, wrapInCDN } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -33,6 +33,7 @@ export default function NewProduct() {
         images: [""],
         original_price: "",
         external_url: "",
+        financing_available: false,
         financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 }
     });
 
@@ -41,6 +42,7 @@ export default function NewProduct() {
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [priceAnalysis, setPriceAnalysis] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isFetchingImage, setIsFetchingImage] = useState(false);
 
     // Dynamic price status update
     useEffect(() => {
@@ -137,7 +139,14 @@ export default function NewProduct() {
                     demand: "High", 
                     salesProbability: "85%" 
                 });
-                setFormData(prev => ({ ...prev, price: fairRangeLow.toLocaleString() }));
+                setFormData(prev => ({ 
+                    ...prev, 
+                    price: fairRangeLow.toLocaleString(),
+                    // Auto-fill subcategory, tags, and category from AI analysis
+                    ...(data.subcategory ? { subcategory: data.subcategory } : {}),
+                    ...(data.tags && Array.isArray(data.tags) ? { tags: data.tags } : {}),
+                    ...(data.category ? { category: data.category } : {}),
+                }));
             }
         } catch (error) {
             console.error("Price intelligence failed", error);
@@ -233,7 +242,8 @@ export default function NewProduct() {
                 return `${baseSlug}-${randomSuffix}`;
             };
 
-            const numericPrice = parseInt(formData.price.replace(/,/g, ""));
+        const numericPrice = parseInt(formData.price.replace(/,/g, ""));
+
 
             const finalImageUrl = wrapInCDN(formData.image_url) || "/placeholder.png";
             const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
@@ -263,7 +273,8 @@ export default function NewProduct() {
                 review_count: 0,
                 sold_count: 0,
                 created_at: new Date().toISOString(),
-                financing_config: formData.financing_config,
+                financing_available: formData.financing_available,
+                financing_config: { ...formData.financing_config, enabled: formData.financing_available },
             };
 
             await DataSyncService.addRawProduct(newProduct);
@@ -322,6 +333,44 @@ export default function NewProduct() {
                                 label="Main Image"
                             />
                             <div className="pt-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 px-4 text-[10px] font-black uppercase tracking-wider border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-xl gap-1.5 w-full mb-4"
+                                    onClick={async () => {
+                                        if (!formData.name) return;
+                                        setIsFetchingImage(true);
+                                        try {
+                                            const res = await fetch(`/api/product-image?q=${encodeURIComponent(formData.name + ' official product high resolution')}`);
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                if (data.imageUrl) {
+                                                    handleChange('image_url', data.imageUrl);
+                                                    if (data.imageUrls && Array.isArray(data.imageUrls)) {
+                                                        setFormData(prev => ({ ...prev, images: data.imageUrls.slice(0, 8) }));
+                                                    }
+                                                    return;
+                                                }
+                                            }
+                                            const geminiRes = await fetch('/api/gemini-price', {
+                                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ productName: formData.name, mode: 'analyze', category: formData.category })
+                                            });
+                                            if (geminiRes.ok) {
+                                                const geminiData = await geminiRes.json();
+                                                if (geminiData.image_url?.startsWith('http')) {
+                                                    handleChange('image_url', geminiData.image_url);
+                                                    return;
+                                                }
+                                            }
+                                            alert('Could not find an image. Try a more specific product name or upload manually.');
+                                        } catch { alert('Image search failed.'); }
+                                        finally { setIsFetchingImage(false); }
+                                    }}
+                                    disabled={isFetchingImage || !formData.name}
+                                >
+                                    {isFetchingImage ? (<><Loader2 className="h-3 w-3 animate-spin" /> Searching...</>) : (<><Globe className="h-3 w-3" /> Get Image from Web</>)}
+                                </Button>
                                 <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Photo Guidelines</p>
                                 <ul className="text-[11px] text-gray-500 space-y-2">
                                     <li className="flex gap-2"><span>•</span> White background preferred for SEO</li>
@@ -332,49 +381,78 @@ export default function NewProduct() {
                         </div>
                     </motion.section>
 
-                    {/* Section 2: Gallery Images */}
+                    {/* Section 2: Visual Gallery Images */}
                     <motion.section
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.1 }}
                         className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8"
                     >
-                        <div className="flex items-center justify-between mb-6">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                             <div>
-                                <h2 className="text-lg font-semibold text-gray-900">Gallery Images</h2>
-                                <p className="text-sm text-gray-500 mt-1">Add up to 8 images for your product gallery.</p>
+                                <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
+                                <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid.</p>
                             </div>
                         </div>
+                
+                        <div className="space-y-6">
+                    {/* Fast URL Add */}
+                    <div>
+                        <Input 
+                            placeholder="Paste image URLs (comma separated) & hit Enter to add"
+                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value;
+                                    if (!val) return;
+                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean);
+                                    setFormData(prev => {
+                                        const current = prev.images.filter(x => x.trim() !== "");
+                                        return { ...prev, images: [...current, ...newUrls] };
+                                    });
+                                    e.currentTarget.value = "";
+                                }
+                            }}
+                        />
+                    </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            {formData.images.map((url, i) => (
-                                <div key={`gallery-${i}`} className="relative group">
-                                    <ProductImageSlot 
-                                        url={url}
-                                        onUrlChange={(newUrl) => handleGalleryUrlChange(i, newUrl)}
-                                        onFileSelect={(e) => handleGalleryImageUpload(i, e)}
-                                        label={`Image ${i + 1}`}
-                                        className="mb-0"
-                                    />
-                                    {formData.images.length > 1 && (
-                                        <button 
-                                            onClick={() => removeGallerySlot(i)}
-                                            className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    )}
+                    {/* Visual Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {formData.images.filter(url => url.trim() !== "").map((url, i) => (
+                            <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
+                                <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
+                                
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Button variant="ghost" size="icon" onClick={() => {
+                                        const newImages = formData.images.filter(x => x.trim() !== "");
+                                        newImages.splice(i, 1);
+                                        setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
+                                    }} className="h-8 w-8 text-white hover:text-red-400 hover:bg-white/20 rounded-full">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
                                 </div>
-                            ))}
-                            {formData.images.length < 8 && (
-                                <button 
-                                    onClick={addGallerySlot}
-                                    className="aspect-square w-full border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all gap-2"
-                                >
-                                    <Plus className="h-6 w-6" />
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Add More</span>
-                                </button>
-                            )}
+                            </div>
+                        ))}
+
+                        {/* Add New Slot (Upload File) */}
+                        <div 
+                            className="aspect-square bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-500"
+                            onClick={() => galleryFileRefs.current.get(999)?.click()}
+                        >
+                            <ImagePlus className="h-6 w-6 mb-2" />
+                            <span className="text-xs font-semibold">Upload Photo</span>
+                            <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(999, el); }} onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    compressImage(file, (url) => {
+                                        setFormData(prev => ({ ...prev, images: [...prev.images.filter(x => x.trim() !== ""), url] }));
+                                    });
+                                }
+                                e.target.value = ''; // Reset
+                            }} />
+                        </div>
+                    </div>
                         </div>
                     </motion.section>
 
@@ -582,73 +660,78 @@ export default function NewProduct() {
                                 )}
                             </div>
                             
-                            {/* Financing Configuration */}
-                            <div className="space-y-4 pt-4 border-t border-gray-100 col-span-1 md:col-span-2">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <label className="text-sm font-semibold text-gray-900">Enable Custom Financing</label>
-                                        <p className="text-[10px] text-gray-400 mt-0.5 max-w-sm">Allow buyers to purchase this product using tailored BNPL or lease-to-own plans.</p>
+                        {/* Financing & Ownership Toggle */}
+                        <div className="mt-8 pt-8 border-t border-gray-100 col-span-1 md:col-span-2">
+                            <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div className="flex gap-4">
+                                    <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                                        <TrendingUp className="h-6 w-6" />
                                     </div>
-                                    <button 
-                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.financing_config.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}
-                                        onClick={() => setFormData(p => ({
-                                            ...p,
-                                            financing_config: { ...p.financing_config, enabled: !p.financing_config.enabled }
-                                        }))}
-                                    >
-                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.financing_config.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                                    </button>
+                                    <div className="space-y-1">
+                                        <h3 className="font-bold text-gray-900 leading-tight">Financing & Ownership</h3>
+                                        <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans.</p>
+                                    </div>
                                 </div>
-                                {formData.financing_config.enabled && (
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl">
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
-                                            <div className="relative">
-                                                <Input 
-                                                    type="number" 
-                                                    min="5" max="95" 
-                                                    className="rounded-lg h-9 text-sm" 
-                                                    value={Math.round(formData.financing_config.deposit_percent * 100)}
-                                                    onChange={(e) => setFormData(p => ({
-                                                        ...p,
-                                                        financing_config: { ...p.financing_config, deposit_percent: parseFloat(e.target.value) / 100 }
-                                                    }))}
-                                                />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
-                                            <div className="relative">
-                                                <Input 
-                                                    type="number" 
-                                                    min="0" max="100" 
-                                                    className="rounded-lg h-9 text-sm" 
-                                                    value={Math.round(formData.financing_config.interest_rate_pa * 100)}
-                                                    onChange={(e) => setFormData(p => ({
-                                                        ...p,
-                                                        financing_config: { ...p.financing_config, interest_rate_pa: parseFloat(e.target.value) / 100 }
-                                                    }))}
-                                                />
-                                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
+                                <div 
+                                    onClick={() => handleChange("financing_available", !formData.financing_available)}
+                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.financing_available ? 'bg-emerald-600' : 'bg-gray-200'}`}
+                                >
+                                    <span
+                                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.financing_available ? 'translate-x-5' : 'translate-x-0'}`}
+                                    />
+                                </div>
+                            </div>
+                            
+                            {formData.financing_available && (
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
+                                        <div className="relative">
                                             <Input 
                                                 type="number" 
-                                                min="1" max="60" 
-                                                className="rounded-lg h-9 text-sm" 
-                                                value={formData.financing_config.max_tenor_months}
+                                                min="5" max="95" 
+                                                className="rounded-lg h-9 text-sm border-gray-200" 
+                                                value={Math.round(formData.financing_config.deposit_percent * 100)}
                                                 onChange={(e) => setFormData(p => ({
                                                     ...p,
-                                                    financing_config: { ...p.financing_config, max_tenor_months: parseInt(e.target.value) || 12 }
+                                                    financing_config: { ...p.financing_config, deposit_percent: parseFloat(e.target.value) / 100 }
                                                 }))}
                                             />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
                                         </div>
                                     </div>
-                                )}
-                            </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
+                                        <div className="relative">
+                                            <Input 
+                                                type="number" 
+                                                min="0" max="100" 
+                                                className="rounded-lg h-9 text-sm border-gray-200" 
+                                                value={Math.round(formData.financing_config.interest_rate_pa * 100)}
+                                                onChange={(e) => setFormData(p => ({
+                                                    ...p,
+                                                    financing_config: { ...p.financing_config, interest_rate_pa: parseFloat(e.target.value) / 100 }
+                                                }))}
+                                            />
+                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
+                                        <Input 
+                                            type="number" 
+                                            min="1" max="60" 
+                                            className="rounded-lg h-9 text-sm border-gray-200" 
+                                            value={formData.financing_config.max_tenor_months}
+                                            onChange={(e) => setFormData(p => ({
+                                                ...p,
+                                                financing_config: { ...p.financing_config, max_tenor_months: parseInt(e.target.value) || 12 }
+                                            }))}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </motion.section>
 
                     {/* Sticky Publish Bar */}

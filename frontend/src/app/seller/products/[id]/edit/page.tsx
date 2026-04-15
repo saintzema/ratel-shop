@@ -20,7 +20,10 @@ import {
     Check,
     Upload,
     Trash2,
-    Eye
+    Eye,
+    Globe,
+    Loader2,
+    ShieldCheck
 } from "lucide-react";
 
 export default function EditProduct() {
@@ -45,12 +48,15 @@ export default function EditProduct() {
         images: [""],
         stock: "",
         original_price: "",
-        external_url: ""
+        external_url: "",
+        financing_available: false,
+        financing_down_payment: ""
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isFetchingImage, setIsFetchingImage] = useState(false);
 
     useEffect(() => {
         if (!productId) return;
@@ -72,7 +78,9 @@ export default function EditProduct() {
                 images: found.images?.length ? [...found.images] : [""],
                 stock: found.stock.toString(),
                 original_price: found.original_price ? found.original_price.toLocaleString() : "",
-                external_url: found.external_url || ""
+                external_url: found.external_url || "",
+                financing_available: found.financing_available || false,
+                financing_down_payment: found.financing_down_payment?.toString() || ""
             });
         }
     }, [productId]);
@@ -204,7 +212,14 @@ export default function EditProduct() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.recommendedPrice) {
-                    setFormData(prev => ({ ...prev, price: data.recommendedPrice.toLocaleString() }));
+                    setFormData(prev => ({ 
+                        ...prev, 
+                        price: data.recommendedPrice.toLocaleString(),
+                        // Auto-fill subcategory, tags, and category from AI analysis
+                        ...(data.subcategory ? { subcategory: data.subcategory } : {}),
+                        ...(data.tags && Array.isArray(data.tags) ? { tags: data.tags } : {}),
+                        ...(data.category ? { category: data.category } : {}),
+                    }));
                 }
             }
         } catch (error) {
@@ -237,7 +252,9 @@ export default function EditProduct() {
             image_url: finalImageUrl,
             images: finalImages,
             stock: parseInt(formData.stock) || 0,
-            highlights: formData.highlights
+            highlights: formData.highlights,
+            financing_available: formData.financing_available,
+            financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0
         });
 
         setIsSaving(false);
@@ -312,6 +329,44 @@ export default function EditProduct() {
                         label="Main Image"
                     />
                     <div className="pt-2">
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-4 text-[10px] font-black uppercase tracking-wider border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-xl gap-1.5 w-full mb-4"
+                            onClick={async () => {
+                                if (!formData.name) return;
+                                setIsFetchingImage(true);
+                                try {
+                                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(formData.name + ' official product high resolution')}`);
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        if (data.imageUrl) {
+                                            setFormData(prev => ({ ...prev, image_url: data.imageUrl }));
+                                            if (data.imageUrls && Array.isArray(data.imageUrls)) {
+                                                setFormData(prev => ({ ...prev, images: data.imageUrls.slice(0, 8) }));
+                                            }
+                                            return;
+                                        }
+                                    }
+                                    const geminiRes = await fetch('/api/gemini-price', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ productName: formData.name, mode: 'analyze', category: formData.category })
+                                    });
+                                    if (geminiRes.ok) {
+                                        const geminiData = await geminiRes.json();
+                                        if (geminiData.image_url?.startsWith('http')) {
+                                            setFormData(prev => ({ ...prev, image_url: geminiData.image_url }));
+                                            return;
+                                        }
+                                    }
+                                    alert('Could not find an image. Try a more specific product name or upload manually.');
+                                } catch { alert('Image search failed.'); }
+                                finally { setIsFetchingImage(false); }
+                            }}
+                            disabled={isFetchingImage || !formData.name}
+                        >
+                            {isFetchingImage ? (<><Loader2 className="h-3 w-3 animate-spin" /> Searching...</>) : (<><Globe className="h-3 w-3" /> Get Image from Web</>)}
+                        </Button>
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Photo Guidelines</p>
                         <ul className="text-[11px] text-gray-500 space-y-2">
                             <li className="flex gap-2"><span>•</span> White background preferred for SEO</li>
@@ -322,49 +377,78 @@ export default function EditProduct() {
                 </div>
             </motion.section>
 
-            {/* ─── Section 2: Gallery Images ─── */}
+            {/* ─── Section 2: Visual Gallery Images ─── */}
             <motion.section
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
                 className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
             >
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                     <div>
-                        <h2 className="text-lg font-semibold text-gray-900">Gallery Images</h2>
-                        <p className="text-sm text-gray-500 mt-1">Add up to 8 images for your product gallery.</p>
+                        <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
+                        <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid.</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {formData.images.map((url, i) => (
-                        <div key={`gallery-${i}`} className="relative group">
-                            <ProductImageSlot 
-                                url={url}
-                                onUrlChange={(newUrl) => handleGalleryUrlChange(i, newUrl)}
-                                onFileSelect={(e) => handleGalleryImageUpload(i, e)}
-                                label={`Image ${i + 1}`}
-                                className="mb-0"
-                            />
-                            {formData.images.length > 1 && (
-                                <button 
-                                    onClick={() => removeGallerySlot(i)}
-                                    className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-red-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            )}
-                        </div>
-                    ))}
-                    {formData.images.length < 8 && (
-                        <button 
-                            onClick={addGallerySlot}
-                            className="aspect-square w-full border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/30 transition-all gap-2"
+                <div className="space-y-6">
+                    {/* Fast URL Add */}
+                    <div>
+                        <Input 
+                            placeholder="Paste image URLs (comma separated) & hit Enter to add"
+                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value;
+                                    if (!val) return;
+                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean);
+                                    setFormData(prev => {
+                                        const current = prev.images.filter(x => x.trim() !== "");
+                                        return { ...prev, images: [...current, ...newUrls] };
+                                    });
+                                    e.currentTarget.value = "";
+                                }
+                            }}
+                        />
+                    </div>
+
+                    {/* Visual Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {formData.images.filter(url => url.trim() !== "").map((url, i) => (
+                            <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
+                                <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
+                                
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Button variant="ghost" size="icon" onClick={() => {
+                                        const newImages = formData.images.filter(x => x.trim() !== "");
+                                        newImages.splice(i, 1);
+                                        setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
+                                    }} className="h-8 w-8 text-white hover:text-red-400 hover:bg-white/20 rounded-full">
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Add New Slot (Upload File) */}
+                        <div 
+                            className="aspect-square bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-500"
+                            onClick={() => galleryFileRefs.current.get(999)?.click()}
                         >
-                            <Plus className="h-6 w-6" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">Add More</span>
-                        </button>
-                    )}
+                            <ImagePlus className="h-6 w-6 mb-2" />
+                            <span className="text-xs font-semibold">Upload Photo</span>
+                            <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(999, el); }} onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                    compressImage(file, (url) => {
+                                        setFormData(prev => ({ ...prev, images: [...prev.images.filter(x => x.trim() !== ""), url] }));
+                                    });
+                                }
+                                e.target.value = ''; // Reset
+                            }} />
+                        </div>
+                    </div>
                 </div>
             </motion.section>
 
@@ -563,6 +647,76 @@ export default function EditProduct() {
                     >
                         <Plus className="h-3 w-3 mr-2" /> Add Specification
                     </Button>
+                </div>
+            </motion.section>
+            
+            {/* ─── Section 5: Financing & Ownership ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.19 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6 overflow-hidden relative"
+            >
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                    <ShieldCheck className="h-24 w-24 text-blue-600" />
+                </div>
+                
+                <div className="flex items-center gap-3 mb-1">
+                    <div className="bg-blue-50 p-2 rounded-lg">
+                        <ShieldCheck className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <h2 className="text-lg font-semibold text-gray-900">Financing & Ownership</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-8 ml-10">Control how customers pay for this product. High-value items benefit from flexible payment plans.</p>
+
+                <div className="ml-10 space-y-6">
+                    <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer group"
+                        onClick={() => setFormData(prev => ({ ...prev, financing_available: !prev.financing_available }))}
+                    >
+                        <div className="space-y-1">
+                            <h3 className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Enable Buy Now, Pay Later (BNPL)</h3>
+                            <p className="text-xs text-gray-500">Allow customers to pay in monthly installments (3, 6, 12, or 24 months).</p>
+                        </div>
+                        <div className={`w-12 h-6 rounded-full transition-colors relative ${formData.financing_available ? 'bg-blue-600' : 'bg-gray-200'}`}>
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.financing_available ? 'left-7' : 'left-1 shadow-sm'}`} />
+                        </div>
+                    </div>
+                    
+                    {formData.financing_available && (
+                        <motion.div 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="bg-blue-50/30 rounded-2xl border border-blue-100/50 overflow-hidden"
+                        >
+                            <div className="p-5 space-y-4">
+                                <div className="flex items-center gap-2 text-blue-700">
+                                    <Check className="h-4 w-4" />
+                                    <span className="text-xs font-bold uppercase tracking-wider">Granular Financing Terms</span>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-blue-600 tracking-widest pl-1">Required Downpayment (₦)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400 font-bold text-sm">₦</span>
+                                        <Input
+                                            type="text"
+                                            value={formData.financing_down_payment}
+                                            onChange={(e) => {
+                                                const rawValue = e.target.value.replace(/\D/g, "");
+                                                const formatted = rawValue ? parseInt(rawValue).toLocaleString() : "";
+                                                setFormData({ ...formData, financing_down_payment: formatted });
+                                            }}
+                                            className="rounded-xl pl-9 font-bold h-11 text-sm bg-white border-blue-100 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 text-blue-900"
+                                            placeholder="e.g. 50,000"
+                                        />
+                                    </div>
+                                    <p className="text-[10px] text-blue-500/70 font-medium leading-relaxed mt-1.5">
+                                        The upfront cost a buyer pays to start the ownership plan. If set to ₦0, the platform will automatically estimate a standard 10% downpayment.
+                                    </p>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
             </motion.section>
 

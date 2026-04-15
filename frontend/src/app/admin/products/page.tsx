@@ -81,8 +81,11 @@ export default function CatalogControl() {
     const [editImages, setEditImages] = useState<string[]>([]);
     const [editTags, setEditTags] = useState<string[]>([]);
     const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
+    const [editFinancingAvailable, setEditFinancingAvailable] = useState(false);
+    const [editFinancingDownPayment, setEditFinancingDownPayment] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
+    const [isFetchingImage, setIsFetchingImage] = useState(false);
 
     // Sync Modal State
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -240,12 +243,56 @@ export default function CatalogControl() {
                 const data = await res.json();
                 if (data.recommendedPrice) {
                     setEditPrice(formatPriceWithCommas(data.recommendedPrice));
+                    if (data.subcategory) setEditSubcategory(data.subcategory);
+                    if (data.tags && Array.isArray(data.tags)) setEditTags(data.tags);
+                    if (data.category) setEditCategory(data.category);
                 }
             }
         } catch (error) {
             console.error("Best price calculation failed", error);
         } finally {
             setIsCalculatingBestPrice(false);
+        }
+    };
+
+    const handleGetImage = async () => {
+        if (!editName) return;
+        setIsFetchingImage(true);
+        try {
+            // Strategy 1: Use our product-image API (Serper / Google CSE / Wikipedia)
+            const res = await fetch(`/api/product-image?q=${encodeURIComponent(editName + ' official product high resolution')}`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.imageUrl) {
+                    setEditImage(data.imageUrl);
+                    // Also populate gallery with all found images
+                    if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
+                        setEditImages(data.imageUrls.slice(0, 8));
+                    }
+                    return;
+                }
+            }
+
+            // Strategy 2: Use Gemini to find image URLs through grounded search
+            const geminiRes = await fetch('/api/gemini-price', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productName: editName, mode: 'analyze', category: editCategory })
+            });
+            if (geminiRes.ok) {
+                const geminiData = await geminiRes.json();
+                if (geminiData.image_url && geminiData.image_url.startsWith('http')) {
+                    setEditImage(geminiData.image_url);
+                    return;
+                }
+            }
+
+            alert('Could not find an image for this product. Please try a more specific product name or upload manually.');
+        } catch (error) {
+            console.error('Image fetch failed:', error);
+            alert('Image search failed. Please try again or upload manually.');
+        } finally {
+            setIsFetchingImage(false);
         }
     };
 
@@ -270,6 +317,8 @@ export default function CatalogControl() {
                 image_url: editImage || editingProduct.image_url,
                 external_url: editExternalUrl || editingProduct.external_url,
                 images: editImages.filter(Boolean),
+                financing_available: editFinancingAvailable,
+                financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
                 financing_config: editFinancingConfig
             });
             setEditingProduct(null);
@@ -861,6 +910,8 @@ export default function CatalogControl() {
                                                             setEditImages(p.images?.length ? [...p.images] : [""]);
                                                             setEditTags(p.tags || []);
                                                             setEditFinancingConfig(p.financing_config || { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 });
+                                                            setEditFinancingAvailable(p.financing_available ?? false);
+                                                            setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
@@ -1063,7 +1114,28 @@ export default function CatalogControl() {
 
                         <div className="space-y-6">
                             <div className="space-y-3">
-                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Main Product Image</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest pl-1">Main Product Image</label>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-7 px-3 text-[10px] font-black uppercase tracking-wider border-blue-200 text-blue-600 hover:bg-blue-50 hover:text-blue-700 rounded-lg gap-1.5"
+                                        onClick={handleGetImage}
+                                        disabled={isFetchingImage || !editName}
+                                    >
+                                        {isFetchingImage ? (
+                                            <>
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                                Searching...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Globe className="h-3 w-3" />
+                                                Get Image
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
                                 <ProductImageSlot 
                                     url={editImage} 
                                     onUrlChange={setEditImage}
@@ -1290,59 +1362,52 @@ export default function CatalogControl() {
                                         </a>
                                     )}
                                 </div>
+
                                 <div className="space-y-4 pt-4 border-t border-gray-100">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Enable Custom Financing</label>
-                                            <p className="text-[10px] text-gray-400 mt-0.5">Let buyers purchase via tailored BNPL / lease-to-own.</p>
+                                            <p className="text-[12px] font-black uppercase text-gray-900 tracking-tight">Financing & Ownership</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Allow buyers to pay in installments</p>
                                         </div>
-                                        <button 
-                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${editFinancingConfig?.enabled ? 'bg-emerald-500' : 'bg-gray-200'}`}
-                                            onClick={() => setEditFinancingConfig((p: any) => ({ ...p, enabled: !p?.enabled }))}
+                                        <button
+                                            onClick={() => setEditFinancingAvailable(!editFinancingAvailable)}
+                                            className={cn(
+                                                "w-12 h-6 rounded-full transition-all relative",
+                                                editFinancingAvailable ? "bg-emerald-500" : "bg-gray-200"
+                                            )}
                                         >
-                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editFinancingConfig?.enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            <div className={cn(
+                                                "absolute top-1 w-4 h-4 rounded-full bg-white transition-all shadow-sm",
+                                                editFinancingAvailable ? "right-1" : "left-1"
+                                            )} />
                                         </button>
                                     </div>
-                                    {editFinancingConfig?.enabled && (
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl">
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
-                                                <div className="relative">
-                                                    <Input 
-                                                        type="number" 
-                                                        min="5" max="95" 
-                                                        className="bg-white border-gray-200 h-9 text-sm rounded-lg" 
-                                                        value={Math.round(editFinancingConfig.deposit_percent * 100) || 15}
-                                                        onChange={(e) => setEditFinancingConfig((p: any) => ({ ...p, deposit_percent: parseFloat(e.target.value) / 100 }))}
-                                                    />
-                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs bg-white">%</span>
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
-                                                <div className="relative">
-                                                    <Input 
-                                                        type="number" 
-                                                        min="0" max="100" 
-                                                        className="bg-white border-gray-200 h-9 text-sm rounded-lg" 
-                                                        value={Math.round(editFinancingConfig.interest_rate_pa * 100) || 25}
-                                                        onChange={(e) => setEditFinancingConfig((p: any) => ({ ...p, interest_rate_pa: parseFloat(e.target.value) / 100 }))}
-                                                    />
-                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs bg-white">%</span>
-                                                </div>
-                                            </div>
-                                            <div className="space-y-1.5">
-                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
-                                                <Input 
-                                                    type="number" 
-                                                    min="1" max="60" 
-                                                    className="bg-white border-gray-200 h-9 text-sm rounded-lg" 
-                                                    value={editFinancingConfig.max_tenor_months || 12}
-                                                    onChange={(e) => setEditFinancingConfig((p: any) => ({ ...p, max_tenor_months: parseInt(e.target.value) || 12 }))}
+
+                                    {editFinancingAvailable && (
+                                        <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <label className="text-[10px] font-black uppercase text-emerald-700 tracking-widest block mb-2">Required Downpayment (₦)</label>
+                                            <div className="relative">
+                                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-600" />
+                                                <Input
+                                                    type="text"
+                                                    value={editFinancingDownPayment}
+                                                    onChange={(e) => setEditFinancingDownPayment(e.target.value)}
+                                                    className="pl-10 bg-white border-emerald-200 h-10 rounded-xl text-sm font-black text-emerald-900"
+                                                    placeholder="e.g. 50,000"
                                                 />
                                             </div>
+                                            <p className="text-[10px] text-emerald-600/70 font-bold mt-2 uppercase tracking-tight">The minimum amount a user must pay upfront to secure the item.</p>
                                         </div>
                                     )}
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Gallery Images (Comma separated URLs)</label>
+                                    <textarea
+                                        value={editImages.join(", ")}
+                                        onChange={(e) => setEditImages(e.target.value.split(",").map(u => u.trim()))}
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="https://img1.com, https://img2.com..."
+                                    />
                                 </div>
                             </div>
                         </div>

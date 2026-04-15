@@ -2,76 +2,115 @@
 
 import { useState, useEffect } from "react";
 import { DataSyncService } from "@/lib/sync-store";
-import { calculateTieredEscrowFee } from "@/lib/escrow-utils";
-import { formatPrice } from "@/lib/utils";
-import { 
-    DollarSign, 
-    TrendingUp, 
-    ShieldCheck, 
-    ArrowUpRight, 
-    Calendar,
-    ArrowDownRight 
-} from "lucide-react";
+import { Wallet, ShieldCheck, Truck, TrendingUp, Award } from "lucide-react";
+import { calculateTieredEscrowFee } from "@/lib/escrow-utils"
 
-export function AdminProfitTable() {
-    const [stats, setStats] = useState<any>(null);
+export const AdminProfitTable = () => {
+    const [profitData, setProfitData] = useState<{
+        escrowRevenue: number;
+        deliveryRevenue: number;
+        subscriptionRevenue: number;
+        totalOrders: number;
+    }>({
+        escrowRevenue: 0,
+        deliveryRevenue: 0,
+        subscriptionRevenue: 0,
+        totalOrders: 0
+    });
 
     useEffect(() => {
         const load = () => {
-            const adminStats = DataSyncService.getAdminStats();
-            setStats(adminStats);
+            const allOrders = DataSyncService.getOrders().filter((o: any) => !String(o.id).includes("FP-DEMO"));
+            
+            let escrowSum = 0;
+            let deliverySum = 0;
+
+            allOrders.forEach(o => {
+                // Approximate escrow fee
+                escrowSum += calculateTieredEscrowFee(o.amount);
+                
+                // Approximate delivery revenue
+                if (o.delivery_method !== "pickup") {
+                    deliverySum += Number(localStorage.getItem("fp_doorstep_fee")) || 4000;
+                }
+            });
+
+            // Subscription Revenue approximation
+            const sellers = DataSyncService.getSellers();
+            let subsSum = 0;
+            sellers.forEach(s => {
+                const plan = (s.subscription_plan || "Starter").toLowerCase();
+                if (plan === "pro") subsSum += 12000;
+                else if (plan === "growth") subsSum += 35000;
+                else if (plan === "scale") subsSum += 100000;
+            });
+
+            setProfitData({
+                escrowRevenue: escrowSum,
+                deliveryRevenue: deliverySum,
+                subscriptionRevenue: subsSum,
+                totalOrders: allOrders.length
+            });
         };
         load();
         window.addEventListener("sync-store-update", load);
-        return () => window.removeEventListener("sync-store-update", load);
+        window.addEventListener("storage", load);
+        return () => {
+            window.removeEventListener("sync-store-update", load);
+            window.removeEventListener("storage", load);
+        };
     }, []);
 
-    if (!stats) return null;
+    const totalProfit = profitData.escrowRevenue + profitData.deliveryRevenue + profitData.subscriptionRevenue;
 
     return (
-        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div className="bg-white/40 backdrop-blur-xl rounded-3xl border border-white/50 shadow-xl shadow-green-900/10 overflow-hidden flex flex-col relative mt-6">
+            <div className="absolute inset-0 bg-gradient-to-b from-white/40 to-transparent pointer-events-none" />
+            <div className="relative z-10 p-6 border-b border-white/30 flex items-center justify-between bg-white/20">
                 <div>
-                    <h3 className="text-lg font-black text-gray-900">Profit Ledger</h3>
-                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Platform Revenue & Escrow Fees</p>
+                    <h3 className="text-lg font-black text-gray-900 tracking-tight">Admin Profit Ledger</h3>
+                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">Platform Revenue Breakdown</p>
                 </div>
-                <div className="h-10 w-10 bg-indigo-50 rounded-xl flex items-center justify-center">
-                    <TrendingUp className="h-5 w-5 text-indigo-600" />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-gray-100">
-                <div className="p-6">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Marketplace GMV</p>
-                    <div className="flex items-end gap-2">
-                        <span className="text-2xl font-black text-gray-900">{formatPrice(stats.totalRevenue)}</span>
-                        <span className="text-[10px] text-emerald-600 font-bold mb-1 flex items-center gap-0.5">
-                            <ArrowUpRight className="h-3 w-3" /> +12%
-                        </span>
-                    </div>
-                </div>
-                <div className="p-6">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Escrow Fee Revenue</p>
-                    <div className="flex items-end gap-2">
-                        <span className="text-2xl font-black text-indigo-600">{formatPrice(stats.escrowBalance)}</span>
-                        <span className="text-[10px] text-indigo-400 font-bold mb-1">Calculated Tiered Fees</span>
-                    </div>
-                </div>
-                <div className="p-6">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Net Platform Profit</p>
-                    <div className="flex items-end gap-2">
-                        <span className="text-2xl font-black text-emerald-600">{formatPrice(stats.escrowBalance)}</span>
-                        <span className="text-[10px] text-emerald-600 font-bold mb-1 uppercase tracking-tighter">Ready for Payout</span>
-                    </div>
+                <div className="text-right">
+                    <p className="text-sm font-bold text-gray-500">Total Profit</p>
+                    <p className="text-xl font-black text-emerald-600">₦{totalProfit.toLocaleString()}</p>
                 </div>
             </div>
+            
+            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
+                {/* Escrow Fee Revenue */}
+                <div className="bg-white/60 rounded-2xl p-4 border border-white/70 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="h-12 w-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
+                        <ShieldCheck className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Escrow Fees</p>
+                        <p className="text-lg font-black text-gray-900">₦{profitData.escrowRevenue.toLocaleString()}</p>
+                    </div>
+                </div>
 
-            <div className="px-6 py-4 bg-gray-50/50 border-t border-gray-100">
-                <p className="text-[9px] text-gray-400 font-bold leading-relaxed">
-                    * Net profit is calculated based on the 15% standard marketplace fee and tiered escrow fees.
-                    Tiered fees are calculated using the <code>calculateTieredEscrowFee</code> utility.
-                </p>
+                {/* Logistics Revenue */}
+                <div className="bg-white/60 rounded-2xl p-4 border border-white/70 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="h-12 w-12 rounded-xl bg-indigo-50 text-indigo-500 flex items-center justify-center shrink-0">
+                        <Truck className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Logistics Fees</p>
+                        <p className="text-lg font-black text-gray-900">₦{profitData.deliveryRevenue.toLocaleString()}</p>
+                    </div>
+                </div>
+
+                {/* Subscriptions Revenue */}
+                <div className="bg-white/60 rounded-2xl p-4 border border-white/70 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+                    <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Award className="h-6 w-6" />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-0.5">Subscriptions</p>
+                        <p className="text-lg font-black text-gray-900">₦{profitData.subscriptionRevenue.toLocaleString()}</p>
+                    </div>
+                </div>
             </div>
         </div>
     );
-}
+};

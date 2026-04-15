@@ -82,12 +82,16 @@ export default function UserDirectory() {
                     }
                 }
 
+                const dsProducts = DataSyncService.getProducts();
+
                 const mappedSellers = sellers.map((s: any) => {
                     const sellerOrders = dsOrders.filter((o: any) => o.seller_id === s.id);
                     const revenue = sellerOrders.reduce((sum: number, o: any) => sum + (o.amount || 0), 0);
 
                     const buyerOrders = dsOrders.filter((o: any) => o.customer_id === s.user_id || o.customer_id === s.id || o.customer_email === s.owner_email || o.customer_email === s.email);
                     const isBuyerAsWell = buyerOrders.length > 0;
+                    
+                    const catalogueCount = dsProducts.filter((p: any) => p.seller_id === s.id).length;
 
                     return {
                         ...s,
@@ -97,6 +101,7 @@ export default function UserDirectory() {
                         avatar_url: s.logo_url || s.avatar_url || null,
                         order_count: sellerOrders.length,
                         purchase_count: buyerOrders.length,
+                        catalogue_count: catalogueCount,
                         revenue,
                     };
                 });
@@ -393,10 +398,23 @@ export default function UserDirectory() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="text-sm">
-                                            <span className="font-bold text-gray-900">{p.order_count || 0}</span>
-                                            <span className="text-gray-400 text-xs ml-1">orders</span>
+                                            <div className="flex gap-2">
+                                                <span>
+                                                    <span className="font-bold text-gray-900">{p.order_count || 0}</span>
+                                                    <span className="text-gray-400 text-xs ml-1">orders</span>
+                                                </span>
+                                                {p.role === "seller" && p.catalogue_count !== undefined && (
+                                                    <span className="text-gray-300">|</span>
+                                                )}
+                                                {p.role === "seller" && p.catalogue_count !== undefined && (
+                                                    <span>
+                                                        <span className="font-bold text-gray-900">{p.catalogue_count}</span>
+                                                        <span className="text-gray-400 text-xs ml-1">catalog</span>
+                                                    </span>
+                                                )}
+                                            </div>
                                             {p.revenue > 0 && (
-                                                <p className="text-xs text-emerald-600 font-bold">₦{p.revenue.toLocaleString()}</p>
+                                                <p className="text-xs text-emerald-600 font-bold mt-0.5">₦{p.revenue.toLocaleString()}</p>
                                             )}
                                         </div>
                                     </td>

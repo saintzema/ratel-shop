@@ -9,7 +9,7 @@ import { useCart } from "@/context/CartContext";
 import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
-import { isVehicle, calculateMonthlyPayment } from "@/lib/financing-utils";
+import { hasFinancing, calculateMonthlyPayment } from "@/lib/financing-utils";
 
 interface YouMayAlsoLikeProps {
     cartCategories?: string[];
@@ -86,8 +86,8 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
                                             )}
                                         </div>
 
-                                        {/* Monthly Payment for Vehicles */}
-                                        {isVehicle(product) && (
+                                        {/* Monthly Payment for Financed Products */}
+                                        {hasFinancing(product) && (
                                             <div className="mt-1 flex items-center gap-1.5 translate-y-[-2px]">
                                                 <span className="text-[11px] font-black text-brand-orange">
                                                     {formatPrice(calculateMonthlyPayment(product.price).monthlyPayment)}

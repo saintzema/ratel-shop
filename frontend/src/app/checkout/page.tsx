@@ -70,6 +70,25 @@ function DiscountSection({
 
         setMsg("Validating...");
 
+        // Intercept Cart Abandonment Coupon (SAVE2000)
+        if (targetCode.toUpperCase() === "SAVE2000") {
+            const mappedCoupon: Coupon = {
+                id: "exit-intent-save2000",
+                userId: "all",
+                code: "SAVE2000",
+                amount: 2000,
+                reason: "Cart Abandonment Recovery",
+                isUsed: false,
+                issuedBy: "system",
+                createdAt: new Date().toISOString(),
+                expiresAt: new Date(Date.now() + 86400000).toISOString()
+            };
+            onApplyCoupon(mappedCoupon);
+            setMsg(`Discount Applied: ₦2,000 OFF`);
+            setShowDropdown(false);
+            return;
+        }
+
         // First check DataSyncService defined coupons
         const validCoupon = availableCoupons.find(c => c.code.toUpperCase() === targetCode.toUpperCase());
 

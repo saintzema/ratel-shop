@@ -49,6 +49,7 @@ export async function GET(req: Request) {
                 soldCount: true,
                 highlights: true,
                 specs: true,
+                financingAvailable: true,
                 createdAt: true,
             },
             orderBy: { createdAt: "desc" },
@@ -66,6 +67,7 @@ export async function GET(req: Request) {
             is_sponsored: p.isSponsored,
             is_trending: p.isTrending,
             is_active: p.isActive,
+            financing_available: p.financingAvailable,
             avg_rating: p.avgRating,
             review_count: p.reviewCount,
             sold_count: p.soldCount,
@@ -177,6 +179,7 @@ export async function POST(req: Request) {
             soldCount: body.sold_count || 0,
             highlights: body.highlights || [],
             specs: rawSpecs,
+            financingAvailable: body.financing_available || false,
             externalUrl: body.external_url,
         };
 

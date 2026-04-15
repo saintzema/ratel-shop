@@ -98,11 +98,12 @@ export interface Product {
     specs?: Record<string, string>;
     external_url?: string;
     highlights?: string[];
+    financing_available?: boolean;
+    financing_down_payment?: number;
     condition?: "brand_new" | "used" | "refurbished";
     colors?: string[];
     subcategory?: string;
     tags?: string[];
-    financing_available?: boolean;
     seller_trust_score?: number;
     negotiation_rate?: number;
     _source?: string;

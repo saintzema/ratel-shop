@@ -2136,6 +2136,7 @@ class DataSyncServiceService {
                 if (product) {
                     product.is_trending = data.isTrending;
                     newStatus = data.isTrending;
+                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
             } else {

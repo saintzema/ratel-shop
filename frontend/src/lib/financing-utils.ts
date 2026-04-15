@@ -170,9 +170,17 @@ export function formatNaira(amount: number): string {
 export function isVehicle(product: any): boolean {
     const category = product?.category?.toLowerCase() || '';
     const name = product?.name?.toLowerCase() || '';
+    
+    // Explicitly exclude car accessories
+    const isAccessory = name.match(/\b(vacuum|cushion|seat|camera|dash|care|kit|tool|tire|bumper|accessory|charger|mount|holder|light|led|cover|mat)\b/);
+    if (isAccessory) return false;
+
+    // Enforce a realistic minimum price for vehicle financing (e.g. > ₦500,000)
+    if (product?.price && typeof product.price === 'number' && product.price < 500000) return false;
+
     return (
         category.includes('car') ||
-        category.includes('vehicle') ||
+        category.includes('vehicles') ||
         category.includes('automotive') ||
         name.includes('toyota') ||
         name.includes('lexus') ||
@@ -180,12 +188,14 @@ export function isVehicle(product: any): boolean {
         name.includes('benz') ||
         name.includes('honda') ||
         name.includes('ford') ||
-        name.includes('hyundai')
+        name.includes('hyundai') ||
+        name.includes('baic') ||
+        name.includes('changan') ||
+        name.includes('xpeng')
     );
 }
 
 /**
- * Checks if a product qualifies for financing display
  */
 export function hasFinancing(product: any): boolean {
     if (!product) return false;

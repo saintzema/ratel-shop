@@ -4,8 +4,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
-  directUrl = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+  url       = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=60"
+  directUrl = "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp.eu-west-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=60"
 }
 
 model User {
@@ -146,6 +146,8 @@ model Product {
   subcategory      String?
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
+  financingAvailable Boolean            @default(false)
+  financingDownPayment Float?
   isTrending       Boolean              @default(false)
   deals            Deal[]
   negotiations     NegotiationRequest[]

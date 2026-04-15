@@ -22,9 +22,8 @@ import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
+import { hasFinancing, isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 import { FinancingDetailsModal } from "@/components/modals/FinancingDetailsModal";
-import { isVehicle, hasFinancing, calculateProductMonthlyPayment, formatNaira, getVehicleDepositPercent } from "@/lib/financing-utils";
-import { nativeBridge } from "@/lib/native-bridge";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Handshake,
@@ -138,6 +137,7 @@ export default function ProductDetailPage() {
     const [quantity, setQuantity] = useState(1);
     const [addedToCart, setAddedToCart] = useState(false);
     const [isAdding, setIsAdding] = useState(false);
+    const [isFinancingModalOpen, setIsFinancingModalOpen] = useState(false);
     const [loadedMore, setLoadedMore] = useState(false);
 
     // Pagination states
@@ -622,12 +622,15 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const [selectedTenorYears, setSelectedTenorYears] = useState<number>(0);
     const [showDurationSelector, setShowDurationSelector] = useState(false);
 
-    // Calculate loan options if product has financing
+    // Calculate loan options if financing is enabled
     useEffect(() => {
         if (product && hasFinancing(product)) {
-            const productWithQuantityPrice = { ...product, price: product.price * quantity };
+            const conditionStr = (product.specs?.Condition || '').toLowerCase();
+            const condition = conditionStr.includes('new') && !conditionStr.includes('used') ? 'new' : 
+                             conditionStr.includes('nigerian') ? 'nigerian_used' : 'foreign_used';
             const defaultYears = selectedTenorYears > 0 ? selectedTenorYears : undefined;
-            const loan = calculateProductMonthlyPayment(productWithQuantityPrice, defaultYears);
+            const inlineProductWithQuantityPrice = { ...product, price: product.price * quantity };
+            const loan = calculateMonthlyPayment(inlineProductWithQuantityPrice, defaultYears);
             setLoanAnalysis(loan);
         }
     }, [product, selectedTenorYears, quantity]);
@@ -1478,6 +1481,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                     </div>
                     {/* Right Column (Cart side drawer placeholder) */}
+
                     <div className="md:col-span-12 lg:col-span-4 space-y-4 min-w-0">
                         <div className="sticky top-24 border border-gray-200 rounded-xl bg-white shadow-sm overflow-hidden flex flex-col">
                             {/* Temu-style Buy Box */}
@@ -1535,34 +1539,38 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 )}
 
-                                {/* Financing Discovery & Breakdown */}
+                                {/* Buy Now, Pay Later Discovery & Breakdown */}
                                 {hasFinancing(product) && loanAnalysis && (
                                     <motion.div 
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative group/loan shadow-lg shadow-emerald-500/10 mt-1"
+                                        onClick={() => setIsFinancingModalOpen(true)}
+                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10 mt-1 cursor-pointer hover:shadow-xl transition-all"
                                     >
-                                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl rounded-tr-[22px] shadow-sm z-10 tracking-[0.1em]">
-                                            FINANCING AVAILABLE
+                                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
+                                            BUY NOW, PAY LATER
                                         </div>
                                         
                                         <div className="flex items-start gap-4 mt-4">
                                             <motion.div 
                                                 whileHover={{ scale: 1.1, rotate: 5 }}
-                                                className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0"
+                                                className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0 hidden sm:flex"
                                             >
                                                 <Banknote className="h-6 w-6" />
                                             </motion.div>
-                                            <div className="pt-1">
-                                                <p className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none mb-1.5">Unlock ownership with a deposit of</p>
-                                                <div className="flex items-baseline gap-1">
-                                                    <span className="text-3xl font-black text-gray-900 leading-tight">{formatPrice(loanAnalysis.deposit)}</span>
+                                            <div className="pt-1 flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1.5">
+                                                    <Banknote className="h-4 w-4 text-emerald-600 sm:hidden shrink-0" />
+                                                    <p className="text-[10px] sm:text-xs font-black text-emerald-800 uppercase tracking-widest leading-normal md:leading-none truncate sm:whitespace-normal">Secure ownership with a deposit of</p>
+                                                </div>
+                                                <div className="flex flex-wrap items-baseline gap-1.5 md:gap-2">
+                                                    <span className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight truncate">{formatPrice(loanAnalysis.deposit)}</span>
                                                     <motion.span 
                                                         initial={{ opacity: 0, scale: 0.8 }}
                                                         animate={{ opacity: 1, scale: 1 }}
-                                                        className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50"
+                                                        className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50 shrink-0 mb-1"
                                                     >
-                                                        {vehicleDepositPctDisplay}% Deposit
+                                                        {calculateMonthlyPayment(product.price).deposit / product.price >= 0.1 ? Math.round((calculateMonthlyPayment(product.price).deposit / product.price) * 100) : 15}% Deposit
                                                     </motion.span>
                                                 </div>
                                             </div>
@@ -1584,7 +1592,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             <div className="relative">
                                                 <motion.div 
                                                     whileHover={{ y: -2 }}
-                                                    onClick={() => setShowDurationSelector(!showDurationSelector)}
+                                                    onClick={(e) => { e.stopPropagation(); setShowDurationSelector(!showDurationSelector); }}
                                                     className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-blue-200 shadow-sm flex flex-col justify-center cursor-pointer hover:border-blue-400 transition-colors"
                                                 >
                                                     <div className="flex items-center justify-between mb-1.5">
@@ -1633,7 +1641,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50 flex gap-3 items-start">
                                             <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
                                             <p className="text-[10px] text-emerald-700 font-medium leading-normal">
-                                                Funds are held in <span className="font-bold">Escrow Protection</span>. Payment is only released to the seller after the vehicle is delivered and inspected.
+                                                Funds are held in <span className="font-bold">Escrow Protection</span>. Payment is only released to the seller after the item is delivered and inspected.
                                             </p>
                                         </div>
                                         
@@ -2220,8 +2228,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 initialQuery={product?.name || ""}
             />
             <FinancingDetailsModal
-                isOpen={isFinancingDetailsOpen}
-                onClose={() => setIsFinancingDetailsOpen(false)}
+                isOpen={isFinancingModalOpen}
+                onClose={() => setIsFinancingModalOpen(false)}
                 product={product}
             />
         </div>

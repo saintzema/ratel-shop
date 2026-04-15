@@ -46,6 +46,7 @@ export async function POST(req: Request) {
                 "Care Instructions": "..."
             },
             "subcategory": "A specific subcategory string (e.g. 'Smartphones', 'Men's Running Shoes', 'Wireless Earbuds')",
+            "tags": ["5-8 descriptive, high-intent search tags relevant to the product, e.g. 'wireless', 'noise-cancelling', 'bluetooth 5.3', 'long battery life'"],
             "colors": ["Color 1", "Color 2", "Color 3"]
         }
         

@@ -15,12 +15,21 @@ export function StructuredProductData({ product, fallbackPrice }: { product: Pro
     const high = Math.round((product?.original_price || basePrice) * 1.15);
     const count = 4; // Mock aggregation count representing multiple local markets/scrapers
 
+    // Mapping internal condition to Schema.org standard URLs
+    const conditionMap: Record<string, string> = {
+        'brand_new': 'https://schema.org/NewCondition',
+        'used': 'https://schema.org/UsedCondition',
+        'refurbished': 'https://schema.org/RefurbishedCondition'
+    };
+    const itemCondition = conditionMap[product?.condition || 'brand_new'] || 'https://schema.org/NewCondition';
+
     const schemaData = {
         "@context": "https://schema.org/",
         "@type": "Product",
         "name": product?.name || 'FairPrice Product',
         "description": product?.description || `Check real comparative pricing for ${product?.name} in Nigeria.`,
         "image": product?.image_url ? [product.image_url] : [],
+        "itemCondition": itemCondition,
         "offers": {
             "@type": "AggregateOffer",
             "lowPrice": low.toString(),

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataSyncService } from "@/lib/sync-store";
 import { nativeBridge } from "@/lib/native-bridge";
-import { isVehicle, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
+import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 // Category icon map for product image fallback
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -83,7 +83,7 @@ export function SearchResultCard({
     const listPrice = product.original_price || product.price * 1.2;
     const savingsPct = Math.round(((listPrice - product.price) / listPrice) * 100);
 
-    const showFinancing = isVehicle(product) && (product._source === "global" || product.financing_available || product.seller_id === 'global-partners');
+    const showFinancing = hasFinancing(product);
     const financingResult = showFinancing ? calculateMonthlyPayment(product.price) : null;
 
     return (

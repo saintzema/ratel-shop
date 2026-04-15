@@ -63,10 +63,11 @@ export async function POST(req: Request) {
             - NEVER return a specs object with fewer than 6 entries. Fill with relevant technical details.
             
             ANONYMIZATION & REAL ASSETS (CRITICAL): 
+            - NEVER mention any real store name in the product *name*.
             - YOU HAVE GOOGLE SEARCH ENABLED. You MUST find REAL product assets.
-            - IMAGE SOURCING: Prioritize HIGH-RESOLUTION, PROFESSIONAL image links from official sites or specialized retailers (e.g., cars45.com, jiji.ng, manufacturer sites).
-            - If you find a verified real image link, USE IT. Otherwise, leave as empty string.
-            - For the \`sourceUrl\`, provide the REAL product link you found (e.g., https://www.cars45.com/... or https://jiji.ng/...).
+            - SEARCH AGGRESSIVELY for high-resolution, professional image links from official sites, manufacturer press kits, or specialized retailers (e.g., cars45.com, jiji.ng, Alibaba, Amazon).
+            - For the sourceUrl, provide the REAL product link you found (e.g., https://www.cars45.com/... or https://www.alibaba.com/...).
+            - For the image_url, provide the REAL direct image link from the product page (e.g., https://s.alicdn.com/.../image.jpg). DO NOT hallucinate image URLs. If you cannot extract a real valid image URL, leave it as an empty string "".
             
             Return JSON:
             {
@@ -127,6 +128,9 @@ default to NEW from 2024 onwards.
             Return JSON:
             {
                 "productName": "The actual full specific name with year for vehicles, without store prefixes.",
+                "category": "phones" | "computers" | "fashion" | "cars" | "energy" | "other",
+                "subcategory": "A precise string (e.g., 'SUV', 'Gaming Laptop', 'Smart Watch')",
+                "tags": ["Tag1", "Tag2", "Tag3", "Tag4", "Tag5", "Tag6"],
                 "shortDescription": "A concise, 1-2 sentence overview focusing on the product's primary value proposition.",
                 "highlights": [
                     "A detailed bulleted list of 5-8 unique selling points.",
@@ -146,7 +150,6 @@ default to NEW from 2024 onwards.
                 "justification": "Transparency on FairPrice pricing compared to market.",
                 "condition": "new" | "foreign-used" | "nigerian-used" | "refurbished",
                 "confidence": "high",
-                "category": "phones" | "computers" | "fashion" | "cars" | "energy" | "other",
                 "specs": {
                     "Key": "Value"
                 }
@@ -238,6 +241,24 @@ default to NEW from 2024 onwards.
 
                     return true;
                 });
+
+                // ─── IMAGE SHARING FALLBACK (Zero-latency) ───
+                // If some results have valid HD images and others don't, share the valid image among them
+                // since they are all highly related variants of the same core search query.
+                const validImages = parsedData.suggestions
+                    .map((item: any) => item.image_url)
+                    .filter((url: any) => url && typeof url === 'string' && url.trim() !== '' && !url.toLowerCase().includes('no photo') && !url.toLowerCase().includes('n/a'));
+
+                if (validImages.length > 0) {
+                    const fallbackImage = validImages[0];
+                    parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                        const currentImg = (item.image_url || "").toLowerCase();
+                        if (!currentImg || currentImg === "" || currentImg.includes('no photo') || currentImg.includes('n/a')) {
+                            item.image_url = fallbackImage;
+                        }
+                        return item;
+                    });
+                }
             }
 
             // Post-processing: Clamp prices to anchor if provided (prevents hallucination)
