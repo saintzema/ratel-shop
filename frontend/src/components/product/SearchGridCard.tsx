@@ -24,6 +24,8 @@ export const SearchGridCard = ({
   const { toggleFavorite, isFavorite } = useFavorites();
   const favorited = isFavorite(product.id);
   const [hydratedImage, setHydratedImage] = useState<string | null>(null);
+  const [isImageLoading, setIsImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     // Check if the current product lacks a valid image
@@ -156,16 +158,28 @@ export const SearchGridCard = ({
           </div>
         )}
         <div className="absolute inset-0 z-10" onClick={handleDoubleTap}></div>
+        {isImageLoading && (
+          <div className="absolute inset-0 z-0 bg-gray-200 animate-pulse" />
+        )}
         <img
           src={(() => {
+            if (imageError) return "/assets/images/placeholder.png";
             if (hydratedImage) return getProxiedImageUrl(hydratedImage);
             const rawUrl = product.image_url || product.images?.[0];
             return getProxiedImageUrl(rawUrl);
           })()}
-          alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
-          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          alt={`${product.name} - Verified Market Price on FairPrice Shop`}
+          className={cn(
+            "absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-500",
+            isImageLoading ? "opacity-0" : "opacity-100 z-10"
+          )}
           loading="lazy"
+          onLoad={() => setIsImageLoading(false)}
           onError={(e) => {
+            setIsImageLoading(false);
+            if (!imageError) {
+              setImageError(true);
+            }
             e.currentTarget.src = "/assets/images/placeholder.png";
           }}
         />

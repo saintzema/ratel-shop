@@ -117,6 +117,7 @@ function getProductIcon(name: string, category?: string) {
     n.includes("toyota") ||
     n.includes("lexus") ||
     n.includes("benz") ||
+    n.includes("mercedes") ||
     n.includes("bmw") ||
     n.includes("honda") ||
     n.includes("ferrari") ||
@@ -125,7 +126,25 @@ function getProductIcon(name: string, category?: string) {
     n.includes("audi") ||
     n.includes("porsche") ||
     n.includes("range rover") ||
-    /\b(car|suv|sedan|truck|van|coupe)\b/.test(n)
+    n.includes("hyundai") ||
+    n.includes("kia") ||
+    n.includes("ford") ||
+    n.includes("chevrolet") ||
+    n.includes("tesla") ||
+    n.includes("byd") ||
+    n.includes("xpeng") ||
+    n.includes("changan") ||
+    n.includes("gac") ||
+    n.includes("innoson") ||
+    n.includes("nissan") ||
+    n.includes("volkswagen") ||
+    n.includes("peugeot") ||
+    n.includes("volvo") ||
+    n.includes("jaguar") ||
+    n.includes("jeep") ||
+    n.includes("subaru") ||
+    n.includes("mazda") ||
+    /\b(car|suv|sedan|truck|van|coupe|pickup)\b/.test(n)
   )
     return <Car className="h-8 w-8" />;
   if (

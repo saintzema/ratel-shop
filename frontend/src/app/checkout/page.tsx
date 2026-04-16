@@ -314,6 +314,7 @@ function CheckoutContent() {
     const [conciergeProduct, setConciergeProduct] = useState<Product | null>(null);
     const [conciergeOrderId, setConciergeOrderId] = useState<string | null>(null);
     const [showPushOptIn, setShowPushOptIn] = useState(false);
+    const [isReviewExpanded, setIsReviewExpanded] = useState(false);
 
     // Coupon System
     const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
@@ -1680,15 +1681,23 @@ function CheckoutContent() {
                     </section>
 
                     {/* Step 3: Review Items */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 3 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 3 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}>
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 3 ? 'text-gray-900' : 'text-gray-400'}`}>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 3 ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}`}>3</div>
-                                Review Items
+                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${isReviewExpanded || checkoutStep === 3 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
+                        <div 
+                            className={`p-6 border-b border-gray-100 flex justify-between items-center cursor-pointer transition-colors ${isReviewExpanded || checkoutStep === 3 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}
+                            onClick={() => setIsReviewExpanded(!isReviewExpanded)}
+                        >
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 3 || isReviewExpanded ? 'text-gray-900' : 'text-gray-400'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 3 ? 'bg-black text-white' : checkoutStep > 3 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                    {checkoutStep > 3 ? <Check className="h-4 w-4" /> : '3'}
+                                </div>
+                                Review Items ({checkoutItems.length})
                             </h2>
+                            <button className="text-gray-400 hover:text-gray-600">
+                                <ChevronDown className={cn("h-5 w-5 transition-transform duration-300", (isReviewExpanded || checkoutStep === 3) && "rotate-180")} />
+                            </button>
                         </div>
 
-                        {checkoutStep === 3 && (
+                        {(checkoutStep === 3 || isReviewExpanded) && (
                             <div className="p-6">
                                 {/* Group items by seller */}
                                 {(() => {

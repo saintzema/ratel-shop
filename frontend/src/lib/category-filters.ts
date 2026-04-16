@@ -602,7 +602,7 @@ export function getFiltersForCategory(category: string | null | undefined): Filt
 export function detectCategoryFromQuery(query: string): string | null {
     const q = query.toLowerCase();
     // Vehicle keywords
-    if (/\b(car|suv|sedan|truck|pickup|van|ev|evs|electric vehicle|coupe|tacoma|corolla|benz|bmw|toyota|honda|avatr|tesla|byd|range rover|porsche)\b/.test(q)) return "cars";
+    if (/\b(car|suv|sedan|truck|pickup|van|ev|evs|electric vehicle|coupe|tacoma|corolla|camry|highlander|rav4|benz|mercedes|bmw|toyota|honda|avatr|tesla|byd|range rover|land rover|porsche|lexus|hyundai|kia|ford|audi|chevrolet|innoson|xpeng|xiaomi su7|changan|gac|nissan|volkswagen|peugeot|mazda|subaru|jeep|volvo|maserati|ferrari|lamborghini|bentley|rolls royce|jaguar|mitsubishi|suzuki|geely|haval|chery|dongfeng|foton|sienna)\b/.test(q)) return "cars";
     // Phone keywords
     if (/\b(iphone|samsung galaxy|phone|smartphone|tablet|ipad|pixel|infinix|tecno|redmi)\b/.test(q)) return "phones";
     // Electronics keywords
