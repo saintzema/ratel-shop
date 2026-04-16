@@ -93,6 +93,7 @@ export default function SellerProducts() {
         }
     };
 
+    useEffect(() => {
         loadProducts();
         window.addEventListener("sync-store-update", loadProducts);
         return () => window.removeEventListener("sync-store-update", loadProducts);
