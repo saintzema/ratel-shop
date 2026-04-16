@@ -12,7 +12,21 @@ const GOOGLE_SEARCH_CX = process.env.GOOGLE_SEARCH_CX;
  * Core image search logic shared between GET and POST handlers.
  * Tries Serper → Google CSE → Wikipedia in priority order.
  */
-async function searchProductImage(query: string): Promise<{ imageUrl: string | null; imageUrls?: string[]; source?: string }> {
+async function searchProductImage(query: string, category?: string): Promise<{ imageUrl: string | null; imageUrls?: string[]; source?: string }> {
+    const cat = category?.toLowerCase() || "";
+    let searchModifier = " official product image high resolution";
+    
+    // ─── Category-Specific Source Prioritization ───
+    if (cat.includes("car") || cat.includes("vehicle") || cat.includes("automotive")) {
+        searchModifier = " professional clean exterior photo high res site:cars45.com OR site:jiji.ng OR site:autochek.africa";
+    } else if (cat.includes("machinery") || cat.includes("industrial") || cat.includes("tool")) {
+        searchModifier = " industrial high quality clean photo site:alibaba.com OR site:directindustry.com";
+    } else if (cat.includes("electronics") || cat.includes("computing") || cat.includes("phone")) {
+        searchModifier = " official white background high resolution product shot";
+    } else if (cat.includes("fashion") || cat.includes("clothing")) {
+        searchModifier = " high resolution studio fashion photography";
+    }
+
     // ─── Strategy 1: Serper.dev Google Image Search (best quality) ───
     if (SERPER_API_KEY) {
         try {
@@ -23,8 +37,8 @@ async function searchProductImage(query: string): Promise<{ imageUrl: string | n
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    q: query + " official product image high resolution",
-                    num: 8,
+                    q: query + searchModifier,
+                    num: 15, // Increase pool for better filtering
                 }),
             });
 
@@ -42,7 +56,8 @@ async function searchProductImage(query: string): Promise<{ imageUrl: string | n
                                    !lower.includes("no_image") &&
                                    !lower.includes("default.") &&
                                    !lower.includes("x-icon") &&
-                                   !lower.endsWith(".svg");
+                                   !lower.endsWith(".svg") &&
+                                   !lower.includes("avatar");
                         });
                     if (images.length > 0) {
                         return { imageUrl: images[0], imageUrls: images, source: "serper" };
@@ -58,7 +73,7 @@ async function searchProductImage(query: string): Promise<{ imageUrl: string | n
     if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_CX) {
         try {
             const response = await fetch(
-                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query + " product official white background high res")}&searchType=image&num=5`
+                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(query + searchModifier)}&searchType=image&num=5`
             );
             if (response.ok) {
                 const data = await response.json();
@@ -105,19 +120,20 @@ async function searchProductImage(query: string): Promise<{ imageUrl: string | n
 }
 
 /**
- * GET /api/product-image?q=<product name>
+ * GET /api/product-image?q=<product name>&category=<cat>
  * Used by the single-product "Get Image" button in the edit modal.
  */
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("q");
+    const category = searchParams.get("category") || searchParams.get("cat");
 
     if (!query) {
         return NextResponse.json({ error: "Query is required" }, { status: 400 });
     }
 
     try {
-        const result = await searchProductImage(query);
+        const result = await searchProductImage(query, category || undefined);
         if (result.imageUrl) {
             return NextResponse.json(result);
         }
@@ -134,18 +150,19 @@ export async function GET(req: Request) {
 /**
  * POST /api/product-image
  * Used by the bulk "Update Images" scan in Admin Catalog Control.
- * Accepts { productTitle: string } in the JSON body.
+ * Accepts { productTitle: string, category: string } in the JSON body.
  */
 export async function POST(req: Request) {
     try {
         const body = await req.json();
         const query = body.productTitle || body.query || body.q;
+        const category = body.category;
 
         if (!query) {
             return NextResponse.json({ error: "productTitle is required" }, { status: 400 });
         }
 
-        const result = await searchProductImage(query);
+        const result = await searchProductImage(query, category);
         if (result.imageUrl) {
             return NextResponse.json(result);
         }

@@ -356,6 +356,36 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
     const [searchQuery, setSearchQuery] = useState(initialQuery || "");
     const [selectedSourceUrl, setSelectedSourceUrl] = useState<string | null>(null);
     const [recentHistory, setRecentHistory] = useState<any[]>([]);
+    
+    // Economic Trends State
+    const [economicTrends, setEconomicTrends] = useState<string[]>([
+        "Exchange rate stable at approx ₦1,580/$ influencing import costs.", 
+        "Import duties on solar items reduced to 5% to encourage renewable energy.",
+        "Logistics costs adjusted for recent fuel price changes nationwide."
+    ]);
+    const [isTrendsLoading, setIsTrendsLoading] = useState(false);
+
+    // Fetch Trends on Mount
+    useEffect(() => {
+        const fetchTrends = async () => {
+            setIsTrendsLoading(true);
+            try {
+                const res = await fetch("/api/economic-trends");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.trends?.length > 0) {
+                        setEconomicTrends(data.trends);
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to fetch trends:", e);
+            } finally {
+                setIsTrendsLoading(false);
+            }
+        };
+        fetchTrends();
+    }, []);
+
     const initialQueryTriggeredRef = useRef<string | null>(null);
 
     // Load history
@@ -773,16 +803,21 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                             <History className="h-3.5 w-3.5" /> Recent Economic Trends
                                                         </p>
                                                         <ul className="space-y-2">
-                                                            {[
-                                                                'Exchange rate stable at approx ₦1,580/$ influencing import costs.', 
-                                                                'Import duties on solar items reduced to 5% to encourage renewable energy.',
-                                                                'Logistics costs adjusted for recent fuel price changes nationwide.'
-                                                            ].map((txt, i) => (
-                                                                <li key={i} className="text-[11px] text-emerald-800 font-medium flex items-start gap-2">
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
-                                                                    <span className="leading-snug">{txt}</span>
-                                                                </li>
-                                                            ))}
+                                                            {isTrendsLoading ? (
+                                                                [1, 2, 3].map(i => (
+                                                                    <li key={i} className="flex items-center gap-2 animate-pulse">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-200 shrink-0" />
+                                                                        <div className="h-2.5 w-full bg-emerald-100/50 rounded" />
+                                                                    </li>
+                                                                ))
+                                                            ) : (
+                                                                economicTrends.map((txt, i) => (
+                                                                    <li key={i} className="text-[11px] text-emerald-800 font-medium flex items-start gap-2">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
+                                                                        <span className="leading-snug">{txt}</span>
+                                                                    </li>
+                                                                ))
+                                                            )}
                                                         </ul>
                                                     </div>
                                                 </div>
@@ -800,16 +835,21 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                                                             <History className="h-3.5 w-3.5" /> Recent Economic Trends
                                                         </p>
                                                         <ul className="space-y-2.5">
-                                                            {[
-                                                                'Exchange rate stable at approx ₦1,580/$ influencing import costs.', 
-                                                                'Import duties on solar items reduced to 5% to encourage renewable energy.',
-                                                                'Logistics costs adjusted for recent fuel price changes nationwide.'
-                                                            ].map((txt, i) => (
-                                                                <li key={i} className="text-xs text-emerald-800 font-medium flex items-start gap-2">
-                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
-                                                                    <span className="leading-snug">{txt}</span>
-                                                                </li>
-                                                            ))}
+                                                            {isTrendsLoading ? (
+                                                                [1, 2, 3].map(i => (
+                                                                    <li key={i} className="flex items-center gap-2 animate-pulse">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-200 shrink-0" />
+                                                                        <div className="h-2.5 w-full bg-emerald-100/50 rounded" />
+                                                                    </li>
+                                                                ))
+                                                            ) : (
+                                                                economicTrends.map((txt, i) => (
+                                                                    <li key={i} className="text-xs text-emerald-800 font-medium flex items-start gap-2">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1 shrink-0" />
+                                                                        <span className="leading-snug">{txt}</span>
+                                                                    </li>
+                                                                ))
+                                                            )}
                                                         </ul>
                                                     </div>
                                                 </div>

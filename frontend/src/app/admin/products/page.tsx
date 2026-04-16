@@ -59,6 +59,12 @@ export default function CatalogControl() {
     const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
     const [isHandlingImages, setIsHandlingImages] = useState(false);
 
+    // Pagination State
+    const [itemsPerPage, setItemsPerPage] = useState(50);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [cacheItemsPerPage, setCacheItemsPerPage] = useState(50);
+    const [currentCachePage, setCurrentCachePage] = useState(1);
+
     // Curation State
     const [trendingIds, setTrendingIds] = useState<Set<string>>(new Set());
     const [sponsoredIds, setSponsoredIds] = useState<Set<string>>(new Set());
@@ -142,6 +148,15 @@ export default function CatalogControl() {
         };
     }, []);
 
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filter, sort]);
+
+    useEffect(() => {
+        setCurrentCachePage(1);
+    }, [searchTerm, sort]);
+
     let filtered = products.filter(p => {
         const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
         const isGlobal = p._source === "global" || p.seller_id === "global-partners" || p.seller_name.toLowerCase().includes("global store");
@@ -166,6 +181,10 @@ export default function CatalogControl() {
         }
         return 0;
     });
+    
+    // Main Catalog Pagination
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const paginatedProducts = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const handleUpdateImages = async () => {
         setIsHandlingImages(true);
@@ -195,8 +214,9 @@ export default function CatalogControl() {
             if (isBroken) {
                 scanned++;
                 try {
-                    // Use GET with query parameter (the original working method)
-                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(item.name + ' product official')}`);
+                    // Use category for smarter search results
+                    const catQuery = item.category ? `&cat=${encodeURIComponent(item.category)}` : "";
+                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(item.name + ' product official')}${catQuery}`);
                     if (res.ok) {
                         const data = await res.json();
                         if (data.imageUrl) {
@@ -282,8 +302,9 @@ export default function CatalogControl() {
         if (!editName) return;
         setIsFetchingImage(true);
         try {
-            // Strategy 1: Use our product-image API (Serper / Google CSE / Wikipedia)
-            const res = await fetch(`/api/product-image?q=${encodeURIComponent(editName + ' official product high resolution')}`);
+            // Strategy 1: Use our product-image API (Serper / Google CSE / Wikipedia) with category awareness
+            const catQuery = editCategory ? `&cat=${encodeURIComponent(editCategory)}` : "";
+            const res = await fetch(`/api/product-image?q=${encodeURIComponent(editName + ' official product high resolution')}${catQuery}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.imageUrl) {
@@ -554,6 +575,10 @@ export default function CatalogControl() {
                         return 0;
                     });
 
+                // Cache Pagination
+                const totalCachePages = Math.ceil(searchFilteredCache.length / cacheItemsPerPage);
+                const paginatedCacheProducts = searchFilteredCache.slice((currentCachePage - 1) * cacheItemsPerPage, currentCachePage * cacheItemsPerPage);
+
                 const allIds = searchFilteredCache.map((p: any) => p.id);
                 const isAllSelected = allIds.length > 0 && selectedCacheIds.length === allIds.length;
                 const isIndeterminate = selectedCacheIds.length > 0 && selectedCacheIds.length < allIds.length;
@@ -618,21 +643,35 @@ export default function CatalogControl() {
                             </div>
                         ) : (
                             <div className="divide-y divide-gray-100">
-                                <div className="px-6 py-3 bg-gray-50/80 flex items-center gap-4">
-                                    <input
-                                        type="checkbox"
-                                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
-                                        checked={isAllSelected}
-                                        ref={input => { if (input) input.indeterminate = isIndeterminate; }}
-                                        onChange={(e) => {
-                                            if (e.target.checked) setSelectedCacheIds(allIds);
-                                            else setSelectedCacheIds([]);
-                                        }}
-                                    />
-                                    <span className="text-[10px] font-black tracking-widest uppercase text-gray-500">Select All</span>
+                                <div className="px-6 py-3 bg-gray-50/80 flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-4">
+                                        <input
+                                            type="checkbox"
+                                            className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                                            checked={isAllSelected}
+                                            ref={input => { if (input) input.indeterminate = isIndeterminate; }}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedCacheIds(allIds);
+                                                else setSelectedCacheIds([]);
+                                            }}
+                                        />
+                                        <span className="text-[10px] font-black tracking-widest uppercase text-gray-500">Select All Items in Search</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-black uppercase text-gray-400">Items per page</span>
+                                        <select 
+                                            value={cacheItemsPerPage} 
+                                            onChange={(e) => { setCacheItemsPerPage(Number(e.target.value)); setCurrentCachePage(1); }}
+                                            className="bg-transparent text-[10px] font-black text-gray-700 outline-none"
+                                        >
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                            <option value={200}>200</option>
+                                        </select>
+                                    </div>
                                 </div>
 
-                                {searchFilteredCache
+                                {paginatedCacheProducts
                                     .map((p: any) => (
                                         <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition-colors group">
                                             <input
@@ -689,6 +728,48 @@ export default function CatalogControl() {
                                             </div>
                                         </div>
                                     ))}
+                            </div>
+                        )}
+
+                        {/* Search Cache Pagination UI */}
+                        {totalCachePages > 1 && (
+                            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    Page {currentCachePage} of {totalCachePages} · Showing {paginatedCacheProducts.length} of {searchFilteredCache.length}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        disabled={currentCachePage === 1}
+                                        onClick={() => setCurrentCachePage(p => Math.max(1, p - 1))}
+                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                                    >
+                                        <Eye className="h-4 w-4 rotate-180" />
+                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: Math.min(5, totalCachePages) }, (_, i) => {
+                                            const pageNum = totalCachePages <= 5 ? i + 1 : (currentCachePage <= 3 ? i + 1 : (currentCachePage >= totalCachePages - 2 ? totalCachePages - 4 + i : currentCachePage - 2 + i));
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setCurrentCachePage(pageNum)}
+                                                    className={cn(
+                                                        "w-8 h-8 rounded-lg text-xs font-black transition-all",
+                                                        currentCachePage === pageNum ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                                    )}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <button
+                                        disabled={currentCachePage === totalCachePages}
+                                        onClick={() => setCurrentCachePage(p => Math.min(totalCachePages, p + 1))}
+                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors"
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -769,7 +850,7 @@ export default function CatalogControl() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {filtered.map((p) => {
+                                {paginatedProducts.map((p) => {
                                     const isGlobal = p.seller_name.toLowerCase().includes("global store");
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
@@ -950,6 +1031,73 @@ export default function CatalogControl() {
                                 })}
                             </tbody>
                         </table>
+                    </div>
+
+                    {/* Main Catalog Pagination UI */}
+                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                                Showing {paginatedProducts.length} of {filtered.length} products
+                            </div>
+                            <div className="h-4 w-px bg-gray-200" />
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
+                                Rows:
+                                <select 
+                                    value={itemsPerPage} 
+                                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                                    className="bg-transparent text-indigo-600 font-black outline-none cursor-pointer"
+                                >
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                    <option value={200}>200</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-2">
+                                <button
+                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95"
+                                >
+                                    <Eye className="h-4 w-4 rotate-180" />
+                                </button>
+                                <div className="hidden md:flex items-center gap-1">
+                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        const pageNum = totalPages <= 5 ? i + 1 : (currentPage <= 3 ? i + 1 : (currentPage >= totalPages - 2 ? totalPages - 4 + i : currentPage - 2 + i));
+                                        return (
+                                            <button
+                                                key={pageNum}
+                                                onClick={() => setCurrentPage(pageNum)}
+                                                className={cn(
+                                                    "w-8 h-8 rounded-lg text-xs font-black transition-all",
+                                                    currentPage === pageNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-indigo-200"
+                                                )}
+                                            >
+                                                {pageNum}
+                                            </button>
+                                        );
+                                    })}
+                                    {totalPages > 5 && currentPage < totalPages - 2 && <span className="text-gray-400 px-1">...</span>}
+                                    {totalPages > 5 && currentPage < totalPages - 2 && (
+                                        <button
+                                            onClick={() => setCurrentPage(totalPages)}
+                                            className="w-8 h-8 rounded-lg text-xs font-black bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
+                                        >
+                                            {totalPages}
+                                        </button>
+                                    )}
+                                </div>
+                                <button
+                                    disabled={currentPage === totalPages}
+                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                    className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95"
+                                >
+                                    <Eye className="h-4 w-4" />
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {filtered.length === 0 && (
