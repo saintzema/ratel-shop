@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { SEED_PRODUCTS } from "@/lib/data";
 import { CATEGORIES } from "@/lib/types";
@@ -11,6 +11,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { DataSyncService } from "@/lib/sync-store";
 import { YouMayAlsoLike } from "@/components/product/YouMayAlsoLike";
 
 const MIN_PRICE = 0;
@@ -31,10 +32,18 @@ export default function CategoryPage() {
     const [sortBy, setSortBy] = useState("featured");
     const [priceMin, setPriceMin] = useState(MIN_PRICE);
     const [priceMax, setPriceMax] = useState(MAX_PRICE);
+    const [allProducts, setAllProducts] = useState<any[]>([]);
+
+    useEffect(() => {
+        setAllProducts(DataSyncService.getApprovedProducts().filter(p => p.is_active));
+    }, []);
 
     // Filter & Sort logic
-    const products = SEED_PRODUCTS.filter(p => {
-        const categoryMatch = slug === "all" || p.category === slug || (slug === "verified" && p.seller_name.includes("TechHub"));
+    const products = allProducts.filter(p => {
+        const categoryMatch = slug === "all" || 
+                             p.category === slug || 
+                             p.subcategory?.toLowerCase() === slug.toLowerCase() ||
+                             (slug === "verified" && p.seller_name.includes("TechHub"));
         const priceMatch = p.price >= priceMin && p.price <= priceMax;
         return categoryMatch && priceMatch;
     }).sort((a, b) => {

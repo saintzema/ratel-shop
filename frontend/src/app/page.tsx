@@ -42,10 +42,10 @@ export const CATEGORY_CARDS_ROW_1: CategoryCard[] = [
     link: "/search?category=phones",
     linkText: "See all phones",
     subs: [
-      { label: "Samsung", image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200&h=200&fit=crop", href: "/search?category=phones&q=samsung" },
+      { label: "Phones", image: "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200&h=200&fit=crop", href: "/category/phones" },
       { label: "iPhones", image: "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=200&h=200&fit=crop", href: "/search?category=phones&q=iphone" },
-      { label: "Tablets", image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200&h=200&fit=crop", href: "/search?category=computers&q=tablet" },
-      { label: "Accessories", image: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=200&h=200&fit=crop", href: "/search?category=electronics&q=airpods" },
+      { label: "Tablets", image: "https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200&h=200&fit=crop", href: "/category/tablets" },
+      { label: "Accessories", image: "https://images.unsplash.com/photo-1600294037681-c80b4cb5b434?w=200&h=200&fit=crop", href: "/search?category=phones&q=accessories" },
     ],
   },
   {
@@ -299,15 +299,17 @@ function HomeContent() {
     const dealProducts = [...activeDeals, ...priceDrop].slice(0, 30);
 
     // 4. Category sections
-    const phonesProducts = takeUnique(allProducts.filter(p => ["phones", "smartwatch"].includes(p.category || "")), 12);
+    const phonesProducts = takeUnique(allProducts.filter(p => ["phones"].includes(p.category || "")), 12);
     const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
-    const computerProducts = takeUnique(allProducts.filter(p => ["computers", "office"].includes(p.category || "")), 12);
-    const carProducts = takeUnique(allProducts.filter(p => ["cars", "automotive"].includes(p.category || "")), 12);
-    const fashionProducts = takeUnique(allProducts.filter(p => ["fashion", "textiles"].includes(p.category || "")), 12);
+    const computerProducts = takeUnique(allProducts.filter(p => ["computers"].includes(p.category || "")), 12);
+    const carProducts = takeUnique(allProducts.filter(p => ["cars", "vehicles"].includes(p.category || "")), 12);
+    const fashionProducts = takeUnique(allProducts.filter(p => ["fashion"].includes(p.category || "")), 12);
     const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
-    const homeProducts = takeUnique(allProducts.filter(p => ["home", "furniture"].includes(p.category || "")), 12);
+    const homeProducts = takeUnique(allProducts.filter(p => ["home"].includes(p.category || "")), 12);
     const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
+    const applianceProducts = takeUnique(allProducts.filter(p => ["appliances"].includes(p.category || "")), 12);
     const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
+    const healthProducts = takeUnique(allProducts.filter(p => ["health", "medical"].includes(p.category || "")), 12);
     const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
 
     // 5. Verified Fair Prices (Shuffled for Equal Visibility)
@@ -335,7 +337,9 @@ function HomeContent() {
       beautyProducts,
       homeProducts,
       electronicsProducts,
+      applianceProducts,
       fitnessProducts,
+      healthProducts,
       groceryProducts,
       fairPriceProducts,
       followedStoreProducts
@@ -473,15 +477,23 @@ function HomeContent() {
                   </LazySection>
 
                   <LazySection height={340} skeletonTitle="Home & Living">
-                    <ProductSlider title="Home & Living" link="/search?category=home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
+                    <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Appliances">
+                    <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
                   </LazySection>
 
                   <LazySection height={340} skeletonTitle="Gym & Fitness">
-                    <ProductSlider title="Gym & Fitness" link="/search?category=fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="right" />
+                    <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="left" />
+                  </LazySection>
+
+                  <LazySection height={340} skeletonTitle="Health & Medical">
+                    <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} autoScroll direction="right" />
                   </LazySection>
 
                   <LazySection height={340} skeletonTitle="Groceries & Baby Essentials">
-                    <ProductSlider title="Groceries & Baby Essentials" link="/search?category=grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
+                    <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
                   </LazySection>
                 </section>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,45 +27,23 @@ interface Category {
     expanded?: boolean;
 }
 
-const INITIAL_CATEGORIES: Category[] = [
-    {
-        id: "cat_1", name: "Electronics", slug: "electronics", product_count: 42, children: [
-            { id: "cat_1_1", name: "Smartphones", slug: "smartphones", product_count: 15, children: [] },
-            { id: "cat_1_2", name: "Laptops", slug: "laptops", product_count: 12, children: [] },
-            { id: "cat_1_3", name: "Audio & Headphones", slug: "audio-headphones", product_count: 8, children: [] },
-            { id: "cat_1_4", name: "Wearables", slug: "wearables", product_count: 7, children: [] },
-        ]
-    },
-    {
-        id: "cat_2", name: "Fashion", slug: "fashion", product_count: 38, children: [
-            { id: "cat_2_1", name: "Men's Clothing", slug: "mens-clothing", product_count: 14, children: [] },
-            { id: "cat_2_2", name: "Women's Clothing", slug: "womens-clothing", product_count: 16, children: [] },
-            { id: "cat_2_3", name: "Shoes & Sneakers", slug: "shoes-sneakers", product_count: 8, children: [] },
-        ]
-    },
-    {
-        id: "cat_3", name: "Home & Living", slug: "home-living", product_count: 25, children: [
-            { id: "cat_3_1", name: "Kitchen", slug: "kitchen", product_count: 10, children: [] },
-            { id: "cat_3_2", name: "Decor", slug: "decor", product_count: 8, children: [] },
-            { id: "cat_3_3", name: "Bedding", slug: "bedding", product_count: 7, children: [] },
-        ]
-    },
-    {
-        id: "cat_4", name: "Beauty & Health", slug: "beauty-health", product_count: 20, children: [
-            { id: "cat_4_1", name: "Skincare", slug: "skincare", product_count: 12, children: [] },
-            { id: "cat_4_2", name: "Haircare", slug: "haircare", product_count: 8, children: [] },
-        ]
-    },
-    {
-        id: "cat_5", name: "Gaming", slug: "gaming", product_count: 15, children: [
-            { id: "cat_5_1", name: "Consoles", slug: "consoles", product_count: 5, children: [] },
-            { id: "cat_5_2", name: "Accessories", slug: "gaming-accessories", product_count: 10, children: [] },
-        ]
-    },
-];
+import { DataSyncService, INITIAL_CATEGORIES } from "@/lib/sync-store";
 
 export default function CategoryManagement() {
-    const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
+    const [categories, setCategories] = useState<Category[]>([]);
+    
+    // Load categories on mount
+    useEffect(() => {
+        setCategories(DataSyncService.getInstance().getCategories());
+    }, []);
+
+    const updateAndSave = (updater: React.SetStateAction<Category[]>) => {
+        setCategories(prev => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            DataSyncService.getInstance().setCategories(next);
+            return next;
+        });
+    };
     const [expanded, setExpanded] = useState<Set<string>>(new Set(["cat_1"]));
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
@@ -95,75 +73,183 @@ export default function CategoryManagement() {
 
     const saveEdit = (parentId?: string) => {
         if (parentId) {
-            setCategories(prev => prev.map(c => c.id === parentId ? {
+            updateAndSave(prev => prev.map(c => c.id === parentId ? {
                 ...c,
                 children: c.children.map(ch => ch.id === editingId ? { ...ch, name: editName, slug: editName.toLowerCase().replace(/\s+/g, "-") } : ch)
             } : c));
         } else {
-            setCategories(prev => prev.map(c => c.id === editingId ? { ...c, name: editName, slug: editName.toLowerCase().replace(/\s+/g, "-") } : c));
+            updateAndSave(prev => prev.map(c => c.id === editingId ? { ...c, name: editName, slug: editName.toLowerCase().replace(/\s+/g, "-") } : c));
         }
         setEditingId(null);
         flash("Category updated.");
     };
 
-    const deleteCategory = (id: string, parentId?: string) => {
-        if (!confirm("Delete this category?")) return;
-        if (parentId) {
-            setCategories(prev => prev.map(c => c.id === parentId ? { ...c, children: c.children.filter(ch => ch.id !== id) } : c));
-        } else {
-            setCategories(prev => prev.filter(c => c.id !== id));
+    const deleteCategory = async (id: string, parentId?: string) => {
+        if (!confirm("Delete this category? This action is permanent and will sync to the database.")) return;
+        
+        try {
+            const type = parentId ? "subcategory" : "category";
+            const res = await fetch(`/api/admin/taxonomy?id=${id}&type=${type}`, {
+                method: "DELETE"
+            });
+            
+            if (res.ok) {
+                if (parentId) {
+                    updateAndSave(prev => prev.map(c => c.id === parentId ? { ...c, children: c.children.filter(ch => ch.id !== id) } : c));
+                } else {
+                    updateAndSave(prev => prev.filter(c => c.id !== id));
+                }
+                flash("Category permanently deleted.");
+            } else {
+                const data = await res.json();
+                flash(`Error: ${data.error || "Failed to delete"}`);
+            }
+        } catch (error) {
+            flash("Network error. Try again.");
         }
-        flash("Category deleted.");
     };
 
-    const addTopCategory = () => {
-        if (!newCatName.trim()) return;
-        setCategories(prev => [...prev, {
-            id: `cat_${Date.now()}`,
-            name: newCatName,
-            slug: newCatName.toLowerCase().replace(/\s+/g, "-"),
-            product_count: 0,
-            children: [],
-        }]);
-        setNewCatName("");
-        setShowAddForm(false);
-        flash("Category added.");
+    const addTopCategory = async () => {
+        const name = newCatName.trim();
+        if (!name) return;
+        
+        // Local duplicate check
+        if (categories.some(c => c.name.toLowerCase() === name.toLowerCase())) {
+            flash("Error: Category already exists.");
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/admin/taxonomy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "category", name })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                updateAndSave(prev => [...prev, {
+                    ...data.category,
+                    product_count: 0,
+                    children: [],
+                }]);
+                setNewCatName("");
+                setShowAddForm(false);
+                flash("Category added to database.");
+            } else {
+                const data = await res.json();
+                flash(`Error: ${data.error || "Failed to add"}`);
+            }
+        } catch (error) {
+            flash("Network error.");
+        }
     };
 
-    const addChildCategory = (parentId: string) => {
-        if (!newChildName.trim()) return;
-        setCategories(prev => prev.map(c => c.id === parentId ? {
+    const addChildCategory = async (parentId: string) => {
+        const name = newChildName.trim();
+        if (!name) return;
+
+        const parent = categories.find(c => c.id === parentId);
+        if (parent?.children.some(ch => ch.name.toLowerCase() === name.toLowerCase())) {
+            flash("Error: Subcategory already exists.");
+            return;
+        }
+
+        try {
+            const res = await fetch("/api/admin/taxonomy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "subcategory", name, categoryId: parentId })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                updateAndSave(prev => prev.map(c => c.id === parentId ? {
+                    ...c,
+                    children: [...c.children, {
+                        ...data.subcategory,
+                        product_count: 0,
+                        children: [],
+                    }]
+                } : c));
+                setNewChildName("");
+                setAddingChildTo(null);
+                flash("Subcategory added to database.");
+            } else {
+                const data = await res.json();
+                flash(`Error: ${data.error || "Failed to add"}`);
+            }
+        } catch (error) {
+            flash("Network error.");
+        }
+    };
+
+    const purgeDuplicates = () => {
+        if (!confirm("Automatically remove duplicate category names?")) return;
+        
+        const seen = new Set();
+        const next = categories.filter(c => {
+            const key = c.name.toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        }).map(c => ({
             ...c,
-            children: [...c.children, {
-                id: `cat_${Date.now()}`,
-                name: newChildName,
-                slug: newChildName.toLowerCase().replace(/\s+/g, "-"),
-                product_count: 0,
-                children: [],
-            }]
-        } : c));
-        setNewChildName("");
-        setAddingChildTo(null);
-        flash("Subcategory added.");
+            children: c.children.filter((ch, i, arr) => arr.findIndex(x => x.name.toLowerCase() === ch.name.toLowerCase()) === i)
+        }));
+
+        updateAndSave(next);
+        flash("Duplicates purged locally. Deletions from DB must be manual.");
+    };
+
+    const restoreDefaults = () => {
+        if (!confirm("Restore default taxonomy? This will overwrite current categories with the system defaults (including Fans, Generators, etc.).")) return;
+        updateAndSave(INITIAL_CATEGORIES);
+        flash("Taxonomy restored to defaults.");
     };
 
     return (
-        <div className="space-y-8 max-w-4xl">
-            <div className="flex items-center justify-between">
-                <div>
-                    <Link href="/admin/settings" className="inline-flex items-center gap-1 text-xs font-bold text-gray-400 hover:text-gray-600 mb-3">
-                        <ChevronLeft className="h-3 w-3" /> Back to Settings
+        <div className="p-8 max-w-7xl mx-auto min-h-screen bg-gray-50/30">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+                <div className="flex items-center gap-4">
+                    <Link href="/admin/dashboard" className="p-2 hover:bg-white rounded-xl transition-colors border border-transparent hover:border-gray-200">
+                        <ChevronLeft className="h-5 w-5 text-gray-500" />
                     </Link>
-                    <h2 className="text-3xl font-black text-gray-900 tracking-tight">Taxonomy & Categories</h2>
-                    <p className="text-sm text-gray-500 font-bold uppercase tracking-wider mt-1">Organize products into categories and subcategories</p>
+                    <div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+                            <FolderTree className="h-8 w-8 text-blue-600" />
+                            Taxonomy <span className="text-blue-600">Engine</span>
+                        </h1>
+                        <p className="text-sm text-gray-500 font-medium mt-1">Manage global product categories and attributes</p>
+                    </div>
                 </div>
-                <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl font-bold text-xs px-5 h-10">
-                    <Plus className="h-4 w-4 mr-1.5" /> Add Category
-                </Button>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <Button 
+                        variant="outline"
+                        onClick={restoreDefaults}
+                        className="rounded-xl border-amber-200 text-amber-700 hover:bg-amber-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                    >
+                        Restore Defaults
+                    </Button>
+                    <Button 
+                        variant="outline"
+                        onClick={purgeDuplicates}
+                        className="rounded-xl border-rose-200 text-rose-700 hover:bg-rose-50 h-11 px-6 font-bold text-xs uppercase tracking-widest"
+                    >
+                        Purge Duplicates
+                    </Button>
+                    <Button 
+                        onClick={() => setShowAddForm(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-11 px-6 font-bold text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20"
+                    >
+                        <Plus className="h-4 w-4 mr-2" /> New Category
+                    </Button>
+                </div>
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Top-Level</p>
                     <p className="text-2xl font-black text-gray-900 mt-1">{categories.length}</p>
@@ -226,7 +312,7 @@ export default function CategoryManagement() {
                                                     <Edit2 className="h-3.5 w-3.5 text-gray-400" />
                                                 </button>
                                                 <button onClick={() => deleteCategory(cat.id)} className="p-1.5 hover:bg-rose-50 rounded-lg" title="Delete">
-                                                    <Trash2 className="h-3.5 w-3.5 text-gray-300 hover:text-rose-500" />
+                                                    <Trash2 className="h-3.5 w-3.5 text-rose-500 hover:text-rose-600" />
                                                 </button>
                                             </div>
                                         </div>
@@ -266,7 +352,7 @@ export default function CategoryManagement() {
                                                         <Edit2 className="h-3 w-3 text-gray-400" />
                                                     </button>
                                                     <button onClick={() => deleteCategory(child.id, cat.id)} className="p-1 hover:bg-rose-50 rounded" title="Delete">
-                                                        <Trash2 className="h-3 w-3 text-gray-300 hover:text-rose-500" />
+                                                        <Trash2 className="h-3 w-3 text-rose-500 hover:text-rose-600" />
                                                     </button>
                                                 </div>
                                             </div>

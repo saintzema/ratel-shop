@@ -409,6 +409,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             created_at: "2026-01-01T00:00:00Z",
         } as any;
     }
+
+    const isVehicleListing = product?.category === 'cars' || product?.category === 'vehicles';
+    const isGlobalStore = product?._source || product?.seller_id === 'global-partners' || product?.id?.startsWith('global-');
+    const showFraudWarning = isVehicleListing && !isGlobalStore;
+    const sellerLocation = seller?.city && seller?.state ? `${seller.city}, ${seller.state}` : seller?.location || seller?.street_address;
+
     // Enhance generic/boilerplate descriptions with richer category-specific content
     if (product && product.description) {
         const GENERIC_PATTERNS = [
@@ -1039,6 +1045,21 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             <main className="container mx-auto px-4 py-8 pt-28 pb-32 md:pb-8 font-sans">
 
                 {/* Desktop & Mobile Breadcrumbs */}
+                {showFraudWarning && (
+                    <div className="mb-6 bg-rose-50 border border-rose-200 rounded-xl p-4 md:p-5 flex gap-4 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
+                        <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shrink-0 shadow-sm text-rose-500">
+                            <AlertTriangle className="h-5 w-5" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-rose-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                                Safety Tips <span className="bg-rose-200 text-rose-700 text-[10px] px-2 py-0.5 rounded-full font-black">IMPORTANT</span>
+                            </h3>
+                            <p className="text-sm text-rose-800 leading-relaxed font-medium">
+                                Dear user, avoid paying a deposit before you meet the seller. Verify and inspect the car carefully before making any payment. Make payment via the platform to prevent scam & fraud.
+                            </p>
+                        </div>
+                    </div>
+                )}
                 <div className="mb-6 md:mb-8">
                     <Breadcrumbs 
                         items={[
@@ -1240,7 +1261,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 {seller.business_name}
                             </Link>
                             <h1 className="text-3xl font-black text-gray-900 leading-tight mb-2">{product.name}</h1>
-                            <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-4 text-sm mt-3">
                                 <div className="flex items-center gap-1 text-amber-500 font-bold">
                                     <Star className="h-4 w-4 fill-current" />
                                     <span>{actualAvgRating}</span>
@@ -1250,6 +1271,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 <span className="text-gray-300">|</span>
                                 <span className="text-gray-500">{product.sold_count} sold</span>
                             </div>
+                            {sellerLocation && (
+                                <div className="mt-3 flex items-center gap-1.5 text-gray-600 font-medium bg-gray-100/80 px-2.5 py-1 rounded-md inline-flex text-sm">
+                                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                                    <span>{sellerLocation}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="relative">
@@ -1762,6 +1789,27 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         </p>
                                     </div>
 
+                                    {/* Seller Contact Info */}
+                                    {product.contact_info?.show && (product.contact_info?.phone || product.contact_info?.whatsapp) && (
+                                        <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest text-center">Contact Seller</p>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {product.contact_info.phone && (
+                                                    <a href={`tel:${product.contact_info.phone}`} className="flex items-center justify-center gap-2 w-full rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-3 text-sm transition-colors">
+                                                        <Phone className="h-4 w-4 text-gray-600" />
+                                                        {product.contact_info.phone}
+                                                    </a>
+                                                )}
+                                                {product.contact_info.whatsapp && (
+                                                    <a href={`https://wa.me/${product.contact_info.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-semibold py-3 text-sm transition-colors border border-[#25D366]/20">
+                                                        <MessageSquare className="h-4 w-4" />
+                                                        Chat on WhatsApp
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
                                 </div>
 
                                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-100 text-[11px] text-gray-500">
@@ -2174,13 +2222,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             {isLightboxOpen && (
                 <div className="fixed inset-0 z-[200] bg-black text-white flex flex-col items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/95 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
-                    <button 
-                        className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-[210] group" 
-                        onClick={() => setIsLightboxOpen(false)}
-                    >
-                        <span className="sr-only">Close</span>
-                        <X className="h-8 w-8 text-white group-hover:scale-110 transition-transform" />
-                    </button>
                     {allImages.length > 1 && (
                         <>
                             <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
@@ -2192,11 +2233,20 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                         </>
                     )}
                     <div 
-                        className="relative w-full max-w-5xl flex items-center justify-center select-none z-10"
+                        className="relative flex items-center justify-center select-none z-10 px-4 md:px-12"
                         onTouchStart={handleTouchStart}
                         onTouchEnd={handleTouchEnd}
                     >
-                        <img src={allImages[currentImageIndex] as string} alt={product.name} className="w-full max-h-[85vh] object-contain transition-transform duration-300 pointer-events-none" />
+                        <div className="relative inline-flex items-center justify-center max-w-5xl">
+                            <button 
+                                className="absolute -top-3 -right-3 md:-top-5 md:-right-5 p-2 rounded-full bg-black/70 hover:bg-black text-white backdrop-blur-md shadow-xl border border-white/10 transition-all z-[210] group" 
+                                onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(false); }}
+                            >
+                                <span className="sr-only">Close</span>
+                                <X className="h-5 w-5 md:h-6 md:w-6 group-hover:scale-110 transition-transform" />
+                            </button>
+                            <img src={allImages[currentImageIndex] as string} alt={product.name} className="w-auto max-w-full max-h-[80vh] object-contain transition-transform duration-300 pointer-events-none rounded-lg" />
+                        </div>
                     </div>
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-50 w-full max-w-md px-4">
                         {/* Thumbnail Navigator in Zoom Mode */}

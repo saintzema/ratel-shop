@@ -18,36 +18,66 @@ export interface Category {
 export const INITIAL_CATEGORIES: Category[] = [
     {
         id: "cat_1", name: "Electronics", slug: "electronics", product_count: 42, children: [
-            { id: "cat_1_1", name: "Smartphones", slug: "smartphones", product_count: 15, children: [] },
-            { id: "cat_1_2", name: "Laptops", slug: "laptops", product_count: 12, children: [] },
-            { id: "cat_1_3", name: "Audio & Headphones", slug: "audio-headphones", product_count: 8, children: [] },
-            { id: "cat_1_4", name: "Wearables", slug: "wearables", product_count: 7, children: [] },
+            { id: "cat_1_1", name: "Phones", slug: "phones", product_count: 15, children: [] },
+            { id: "cat_1_2", name: "Tablets", slug: "tablets", product_count: 5, children: [] },
+            { id: "cat_1_3", name: "Laptops", slug: "laptops", product_count: 12, children: [] },
+            { id: "cat_1_4", name: "Audio", slug: "audio", product_count: 4, children: [] },
+            { id: "cat_1_5", name: "Headphones", slug: "headphones", product_count: 4, children: [] },
+            { id: "cat_1_6", name: "Wearables", slug: "wearables", product_count: 7, children: [] },
         ]
     },
     {
         id: "cat_2", name: "Fashion", slug: "fashion", product_count: 38, children: [
             { id: "cat_2_1", name: "Men's Clothing", slug: "mens-clothing", product_count: 14, children: [] },
             { id: "cat_2_2", name: "Women's Clothing", slug: "womens-clothing", product_count: 16, children: [] },
-            { id: "cat_2_3", name: "Shoes & Sneakers", slug: "shoes-sneakers", product_count: 8, children: [] },
+            { id: "cat_2_3", name: "Shoes", slug: "shoes", product_count: 4, children: [] },
+            { id: "cat_2_4", name: "Sneakers", slug: "sneakers", product_count: 4, children: [] },
         ]
     },
     {
-        id: "cat_3", name: "Home & Living", slug: "home-living", product_count: 25, children: [
+        id: "cat_8", name: "Appliances", slug: "appliances", product_count: 35, children: [
+            { id: "cat_8_1", name: "Fans", slug: "fans", product_count: 12, children: [] },
+            { id: "cat_8_2", name: "Air Conditioning", slug: "air-conditioning", product_count: 8, children: [] },
+            { id: "cat_8_3", name: "Generators", slug: "generators", product_count: 5, children: [] },
+            { id: "cat_8_4", name: "Refrigerators", slug: "refrigerators", product_count: 5, children: [] },
+            { id: "cat_8_5", name: "Microwaves", slug: "microwaves", product_count: 5, children: [] },
+        ]
+    },
+    {
+        id: "cat_3", name: "Home", slug: "home", product_count: 25, children: [
             { id: "cat_3_1", name: "Kitchen", slug: "kitchen", product_count: 10, children: [] },
             { id: "cat_3_2", name: "Decor", slug: "decor", product_count: 8, children: [] },
-            { id: "cat_3_3", name: "Bedding", slug: "bedding", product_count: 7, children: [] },
+            { id: "cat_3_3", name: "Furniture", slug: "furniture", product_count: 4, children: [] },
+            { id: "cat_3_4", name: "Bedding", slug: "bedding", product_count: 3, children: [] },
         ]
     },
     {
-        id: "cat_4", name: "Beauty & Health", slug: "beauty-health", product_count: 20, children: [
-            { id: "cat_4_1", name: "Skincare", slug: "skincare", product_count: 12, children: [] },
-            { id: "cat_4_2", name: "Haircare", slug: "haircare", product_count: 8, children: [] },
+        id: "cat_4", name: "Beauty", slug: "beauty", product_count: 15, children: [
+            { id: "cat_4_1", name: "Skincare", slug: "skincare", product_count: 10, children: [] },
+            { id: "cat_4_2", name: "Haircare", slug: "haircare", product_count: 3, children: [] },
+            { id: "cat_4_3", name: "Makeup", slug: "makeup", product_count: 2, children: [] },
+        ]
+    },
+    {
+        id: "cat_9", name: "Health", slug: "health", product_count: 10, children: [
+            { id: "cat_9_1", name: "Fitness", slug: "fitness", product_count: 5, children: [] },
+            { id: "cat_9_2", name: "Supplements", slug: "supplements", product_count: 3, children: [] },
+            { id: "cat_9_3", name: "Medical Supplies", slug: "medical-supplies", product_count: 2, children: [] },
         ]
     },
     {
         id: "cat_5", name: "Gaming", slug: "gaming", product_count: 15, children: [
             { id: "cat_5_1", name: "Consoles", slug: "consoles", product_count: 5, children: [] },
             { id: "cat_5_2", name: "Accessories", slug: "gaming-accessories", product_count: 10, children: [] },
+        ]
+    },
+    {
+        id: "cat_6", name: "Vehicles", slug: "vehicles", product_count: 20, children: [
+            { id: "cat_6_1", name: "Cars", slug: "cars", product_count: 12, children: [] },
+            { id: "cat_6_2", name: "Motorcycles", slug: "motorcycles", product_count: 4, children: [] },
+            { id: "cat_6_3", name: "Tricycles", slug: "tricycles", product_count: 2, children: [] },
+            { id: "cat_6_4", name: "Buses", slug: "buses", product_count: 1, children: [] },
+            { id: "cat_6_5", name: "Vans", slug: "vans", product_count: 1, children: [] },
         ]
     },
 ];
@@ -906,12 +936,12 @@ class DataSyncServiceService {
     // --- Categories ---
     getCategories(): Category[] {
         if (typeof window === "undefined") return INITIAL_CATEGORIES;
-        const stored = localStorage.getItem(this.STORAGE_KEYS.CATEGORIES);
+        const stored = localStorage.getItem(this.STORAGE_KEYS.TAXONOMY);
         return stored ? JSON.parse(stored) : INITIAL_CATEGORIES;
     }
 
     setCategories(categories: Category[]) {
-        localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(categories));
+        localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(categories));
         window.dispatchEvent(new Event("sync-store-update"));
         window.dispatchEvent(new Event("storage"));
     }
@@ -932,9 +962,7 @@ class DataSyncServiceService {
     }
 
     getTaxonomy(): any[] {
-        if (typeof window === "undefined") return [];
-        const stored = localStorage.getItem(this.STORAGE_KEYS.TAXONOMY);
-        return stored ? JSON.parse(stored) : [];
+        return this.getCategories();
     }
 
     async createPersistentCategory(name: string) {
@@ -982,48 +1010,33 @@ class DataSyncServiceService {
         }
     }
 
+    /**
+     * Ensures category/subcategory stats are updated.
+     * NOTE: Auto-creation is DISABLED to prevent AI-generated duplicates.
+     * Taxonomy should be managed via the Admin Category page.
+     */
     ensureCategoryExists(categoryName: string, subCategoryName?: string) {
         if (!categoryName) return;
 
         const categories = this.getCategories();
-        let catIndex = categories.findIndex(c => c.name.toLowerCase() === categoryName.toLowerCase());
+        const catIndex = categories.findIndex(c => c.name.toLowerCase() === categoryName.toLowerCase());
 
-        // Auto-create category if doesn't exist
         if (catIndex === -1) {
-            const newCat: Category = {
-                id: `cat_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                name: categoryName,
-                slug: categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
-                product_count: 1, // Start with 1 since we are ensuring it for a new/edited product
-                children: []
-            };
-            categories.push(newCat);
-            catIndex = categories.length - 1;
+            console.warn(`🛡️ Data Integrity: Product uses unknown category "${categoryName}". Auto-creation skipped.`);
+            return;
         }
 
-        // Auto-create subcategory if doesn't exist AND is provided
-        if (subCategoryName) {
-            const parent = categories[catIndex];
-            const subIndex = parent.children.findIndex(c => c.name.toLowerCase() === subCategoryName.toLowerCase());
+        const parent = categories[catIndex];
+        parent.product_count = (parent.product_count || 0) + 1;
 
-            if (subIndex === -1) {
-                parent.children.push({
-                    id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                    name: subCategoryName,
-                    slug: subCategoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""),
-                    product_count: 1,
-                    children: []
-                });
+        if (subCategoryName) {
+            const subIndex = parent.children.findIndex(c => c.name.toLowerCase() === subCategoryName.toLowerCase());
+            if (subIndex !== -1) {
+                parent.children[subIndex].product_count = (parent.children[subIndex].product_count || 0) + 1;
             } else {
-                // Increment subcategory count
-                parent.children[subIndex].product_count += 1;
+                console.warn(`🛡️ Data Integrity: Product uses unknown subcategory "${subCategoryName}" in "${categoryName}".`);
             }
         }
-
-        // Increment top-level category count (we assume this is called per new product insertion)
-        // If the category was just created, it already has product_count=1.
-        // If it existing, we increment it. However, if wait, ensureCategory is called when?
-        // Let's just create them if they don't exist. Product counting might drift, so we'll recalculate stats on the Category page.
 
         this.setCategories(categories);
     }
@@ -2028,10 +2041,16 @@ class DataSyncServiceService {
         // Fallback to empty array if DB sync hasn't populated localStorage yet
         const allProducts: Product[] = stored ? JSON.parse(stored) : [];
 
-        // Always map seller_name so 'My Store' defaults are overwritten by the true business name
+        // Optimization: Create a seller map for O(1) lookups
         const allSellers = this.getSellers();
+        const sellerMap = new Map();
+        allSellers.forEach((s: any) => {
+            if (s.id) sellerMap.set(s.id, s);
+            if (s.userId || s.user_id) sellerMap.set(s.userId || s.user_id, s);
+        });
+
         const derivedProducts = allProducts.map((p: Product) => {
-            const seller = allSellers.find((s: any) => s.id === p.seller_id || (s.userId || s.user_id) === p.seller_id);
+            const seller = sellerMap.get(p.seller_id);
             if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
                 return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
             }

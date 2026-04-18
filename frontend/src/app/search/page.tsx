@@ -101,6 +101,10 @@ const getCategoryIcon = (value: string) => {
       return <Zap className="h-4 w-4" />;
     case "gaming":
       return <Gamepad2 className="h-4 w-4" />;
+    case "appliances":
+      return <Plug className="h-4 w-4" />;
+    case "health":
+      return <ShieldCheck className="h-4 w-4" />;
     default:
       return <Sparkles className="h-4 w-4" />;
   }
@@ -207,11 +211,17 @@ function getProductIcon(name: string, category?: string) {
     return <Paintbrush className="h-8 w-8" />;
   if (
     c.includes("energy") ||
+    c.includes("appliance") ||
     n.includes("solar") ||
     n.includes("generator") ||
-    n.includes("battery")
+    n.includes("battery") ||
+    n.includes("fan") ||
+    n.includes("ac ") ||
+    n.includes("conditioner")
   )
     return <Zap className="h-8 w-8" />;
+  if (c.includes("health") || n.includes("medical") || n.includes("hospital"))
+    return <ShieldCheck className="h-8 w-8" />;
   if (c.includes("grocer") || c.includes("food"))
     return <ShoppingBag className="h-8 w-8" />;
   // Fallback: extract first alphabetic character from name (skip year prefix like '2026')
@@ -1068,19 +1078,19 @@ function SearchContent() {
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
                 Popular:
               </span>
-              {CATEGORIES.map((cat) => (
+              {DataSyncService.getInstance().getCategories().map((cat) => (
                 <button
-                  key={cat.value}
-                  onClick={() => setSelectedCategory(cat.value === selectedCategory ? null : cat.value)}
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.slug === selectedCategory ? null : cat.slug as any)}
                   className={cn(
                     "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
-                    selectedCategory === cat.value
+                    selectedCategory === cat.slug
                       ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
                       : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
                   )}
                 >
-                  {getCategoryIcon(cat.value)}
-                  {cat.label}
+                  {getCategoryIcon(cat.slug)}
+                  {cat.name}
                 </button>
               ))}
             </div>
@@ -1141,12 +1151,13 @@ function SearchContent() {
                 ],
               };
               const cat = (detectedCategory || "").toLowerCase();
-              const brands = BRAND_MAP[cat];
+              const displayCat = BRAND_MAP[cat] ? cat : "cars";
+              const brands = BRAND_MAP[cat] || BRAND_MAP["cars"];
               if (!brands || brands.length === 0) return null;
               return (
                 <div className="mb-6">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5">
-                    Popular {cat === "cars" ? "Car" : cat === "phones" ? "Phone" : cat === "computers" ? "Computer" : cat === "fashion" ? "Fashion" : "Electronics"} Brands in Nigeria
+                    Popular {displayCat === "cars" ? "Car" : displayCat === "phones" ? "Phone" : displayCat === "computers" ? "Computer" : displayCat === "fashion" ? "Fashion" : "Electronics"} Brands in Nigeria
                   </p>
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
                     {brands.map((brand) => {
@@ -1178,7 +1189,7 @@ function SearchContent() {
                     })}
                     <button
                       onClick={() => {
-                        const brandQuery = `${cat === "cars" ? "cars" : cat === "phones" ? "phones" : cat === "computers" ? "laptops" : cat === "fashion" ? "fashion" : "electronics"} Nigeria`;
+                        const brandQuery = `${displayCat === "cars" ? "cars" : displayCat === "phones" ? "phones" : displayCat === "computers" ? "laptops" : displayCat === "fashion" ? "fashion" : "electronics"} Nigeria`;
                         const params = new URLSearchParams();
                         params.set("q", brandQuery);
                         params.set("category", cat);
