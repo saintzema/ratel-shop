@@ -48,7 +48,7 @@ export default function NewProduct() {
         if (seller?.phone_numbers) seller.phone_numbers.forEach(n => numbers.add(n));
         if (seller?.phone_number) numbers.add(seller.phone_number);
         if (user?.phone) numbers.add(user.phone);
-        if (user?.phone_numbers) user.phone_numbers.forEach(n => numbers.add(n));
+        if (user?.phone_numbers) user.phone_numbers.forEach((n: string) => numbers.add(n));
         setSavedNumbers(Array.from(numbers).filter(Boolean));
         
         if (numbers.size > 0 && !formData.contact_info.phone) {

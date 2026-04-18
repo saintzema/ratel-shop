@@ -331,7 +331,7 @@ export interface Notification {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "phones" | "tablets" | "computers" | "appliances" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "fitness" | "health" | "machinery" | "industrial" | "agriculture" | "construction" | "medical" | "furniture" | "office";
+export type ProductCategory = "phones" | "tablets" | "computers" | "appliances" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "fitness" | "health" | "machinery" | "industrial" | "agriculture" | "construction" | "medical" | "furniture" | "office" | "sports" | "baby" | "grocery" | "smartwatch";
 
 export const CATEGORIES: { value: ProductCategory; label: string; subcategories: string[] }[] = [
     { value: "phones", label: "Phones", subcategories: ["Smartphones", "Feature Phones", "Refurbished Phones", "Accessories"] },
@@ -350,6 +350,10 @@ export const CATEGORIES: { value: ProductCategory; label: string; subcategories:
     { value: "gaming", label: "Gaming", subcategories: ["Consoles", "Gaming PCs", "Accessories", "Video Games"] },
     { value: "vehicles", label: "Vehicles", subcategories: ["Cars", "Motorcycles", "Tricycles", "Buses", "Vans"] },
     { value: "automotive", label: "Auto Parts", subcategories: ["Engines", "Tyres", "Oils & Fluids", "Batteries"] },
+    { value: "sports", label: "Sports", subcategories: ["Exercise Equipment", "Outdoor Gear", "Sportswear"] },
+    { value: "baby", label: "Baby Products", subcategories: ["Baby Care", "Diapers", "Baby Toys", "Gear"] },
+    { value: "grocery", label: "Grocery", subcategories: ["Food", "Beverages", "Household", "Personal Care"] },
+    { value: "smartwatch", label: "Smartwatches", subcategories: ["Apple Watch", "Samsung Gear", "Fitness Trackers"] },
 ];
 
 // ─── Dashboard Stats ────────────────────────────────────────
