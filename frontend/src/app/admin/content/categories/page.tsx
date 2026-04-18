@@ -34,13 +34,13 @@ export default function CategoryManagement() {
     
     // Load categories on mount
     useEffect(() => {
-        setCategories(DataSyncService.getInstance().getCategories());
+        setCategories(DataSyncService.getCategories());
     }, []);
 
     const updateAndSave = (updater: React.SetStateAction<Category[]>) => {
         setCategories(prev => {
             const next = typeof updater === 'function' ? updater(prev) : updater;
-            DataSyncService.getInstance().setCategories(next);
+            DataSyncService.setCategories(next);
             return next;
         });
     };

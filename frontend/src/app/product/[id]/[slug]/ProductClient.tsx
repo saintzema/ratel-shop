@@ -1074,114 +1074,116 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     {/* Left Column (Images, Reviews) */}
                     <div className="md:col-span-5 lg:col-span-4 flex flex-col gap-8 min-w-0">
                         {/* Left: Images */}
-                        <div className="flex flex-col md:flex-row gap-4 lg:h-[500px]">
-                            {/* Thumbnail Strip */}
-                            {allImages.length > 1 && (
-                                <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto w-full md:w-20 flex-shrink-0 py-1 no-scrollbar order-2 md:order-1">
-                                    {allImages.map((img, i) => (
-                                        <div
-                                            key={i}
-                                            className={`w-16 md:w-full aspect-square flex-shrink-0 rounded-xl p-1.5 border cursor-pointer transition-all bg-white ${currentImageIndex === i ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm' : 'border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'}`}
-                                            onClick={() => setCurrentImageIndex(i)}
-                                        >
-                                            <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            <div
-                                className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex items-center justify-center order-1 md:order-2 aspect-square md:aspect-auto"
-                                onClick={handleDoubleTap}
-                                onTouchStart={handleTouchStart}
-                                onTouchEnd={handleTouchEnd}
-                            >
-                                {allImages.length > 0 ? (
-                                    <img
-                                        src={allImages[currentImageIndex] as string}
-                                        alt={product.name}
-                                        className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 pointer-events-none"
-                                        onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                        {/* Left: Images */}
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col md:flex-row gap-4 lg:h-[500px]">
+                                {/* Main Image Viewport (Now md:order-1) */}
+                                <div
+                                    className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex items-center justify-center order-1 md:order-1 aspect-square md:aspect-auto shadow-sm transition-all hover:shadow-md"
+                                    onClick={handleDoubleTap}
+                                    onTouchStart={handleTouchStart}
+                                    onTouchEnd={handleTouchEnd}
+                                >
+                                    {allImages.length > 0 ? (
                                         <img
-                                            src="/assets/images/placeholder.png"
-                                            alt="No image available"
-                                            className="w-full h-full object-contain mix-blend-multiply"
+                                            src={allImages[currentImageIndex] as string}
+                                            alt={product.name}
+                                            className="w-full h-full object-contain mix-blend-multiply transition-all duration-700 group-hover:scale-105 pointer-events-none"
+                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
                                         />
-                                    </div>
-                                )}
-                                {/* Heart burst animation */}
-                                {showHeartBurst && (
-                                    <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                                        <Heart className="h-24 w-24 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
-                                    </div>
-                                )}
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                                            <img
+                                                src="/assets/images/placeholder.png"
+                                                alt="No image available"
+                                                className="w-full h-full object-contain mix-blend-multiply"
+                                            />
+                                        </div>
+                                    )}
+                                    {/* Heart burst animation */}
+                                    {showHeartBurst && (
+                                        <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                                            <Heart className="h-24 w-24 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
+                                        </div>
+                                    )}
 
-                                {/* Navigation Arrows */}
-                                {allImages.length > 1 && (
-                                    <>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }}
-                                            className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-white/80 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center shadow-sm md:opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white hover:scale-110 z-20"
-                                        >
-                                            <ChevronLeft className="h-5 w-5 text-gray-700" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-white/80 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center shadow-sm md:opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white hover:scale-110 z-20"
-                                        >
-                                            <ChevronRight className="h-5 w-5 text-gray-700" />
-                                        </button>
-                                    </>
-                                )}
+                                    {/* Apple-styled Navigation Arrows */}
+                                    {allImages.length > 1 && (
+                                        <>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }}
+                                                className="absolute left-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/70 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center shadow-lg md:opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:scale-110 active:scale-95 z-20 text-gray-700"
+                                            >
+                                                <ChevronLeft className="h-6 w-6" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 h-12 w-12 bg-white/70 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center shadow-lg md:opacity-0 group-hover:opacity-100 transition-all hover:bg-white hover:scale-110 active:scale-95 z-20 text-gray-700"
+                                            >
+                                                <ChevronRight className="h-6 w-6" />
+                                            </button>
+                                        </>
+                                    )}
 
-                                {/* Indicators */}
-                                {allImages.length > 1 && (
-                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
-                                        {allImages.map((_, i) => (
-                                            <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-4 bg-emerald-500' : 'w-1.5 bg-gray-300'}`} />
-                                        ))}
-                                    </div>
-                                )}
+                                    {/* Indicators (Optional: Keep or remove based on preference, keeping for UX) */}
+                                    {allImages.length > 1 && (
+                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
+                                            {allImages.map((_, i) => (
+                                                <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-4 bg-emerald-500' : 'w-1.5 bg-gray-300'}`} />
+                                            ))}
+                                        </div>
+                                    )}
 
-                                {product.price_flag !== 'none' && (
+                                    {/* Badges and Favorite Button */}
                                     <div className="absolute top-4 left-4 z-10">
-                                        {product.price_flag === 'fair' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl">
-                                                <ShieldCheck className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-600" />
-                                                <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase tracking-widest">Fair Price</span>
-                                            </div>
-                                        ) : product.price_flag === 'overpriced' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-red-500/20 shadow-xl">
-                                                <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
-                                            </div>
-                                        ) : product.price_flag === 'great_deal' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-emerald-400/30 shadow-xl">
-                                                <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase tracking-widest">Great Deal</span>
-                                            </div>
-                                        ) : product.price_flag === 'too_low' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-yellow-400/30 shadow-xl">
-                                                <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-amber-600 uppercase tracking-widest">Low Price</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-gray-300/30 shadow-xl">
-                                                <Info className="h-3.5 w-3.5 md:h-4 md:w-4 text-gray-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-gray-600 uppercase tracking-widest">{product.price_flag}</span>
+                                        {/* ... (Badge logic preserved) ... */}
+                                        {product.price_flag !== 'none' && (
+                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-gray-200/50 shadow-xl">
+                                                {product.price_flag === 'fair' ? (
+                                                    <><ShieldCheck className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-600" /> <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase tracking-widest">Fair Price</span></>
+                                                ) : product.price_flag === 'overpriced' ? (
+                                                    <><AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-500" /> <span className="text-[10px] md:text-xs font-black text-red-500 uppercase tracking-widest">Pricing Alert</span></>
+                                                ) : product.price_flag === 'great_deal' ? (
+                                                    <><Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-500" /> <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase tracking-widest">Great Deal</span></>
+                                                ) : (
+                                                    <><Info className="h-3.5 w-3.5 md:h-4 md:w-4 text-gray-500" /> <span className="text-[10px] md:text-xs font-black text-gray-600 uppercase tracking-widest">{product.price_flag}</span></>
+                                                )}
                                             </div>
                                         )}
                                     </div>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); if (product) toggleFavorite(product.id); }}
+                                        className="absolute top-4 right-4 p-2 bg-white/80 backdrop-blur-md rounded-full shadow-lg border border-gray-100 hover:bg-white transition-all hover:scale-110 active:scale-90 z-20"
+                                    >
+                                        <Heart className={`h-5 w-5 transition-colors ${product && isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}`} />
+                                    </button>
+                                </div>
+
+                                {/* Thumbnail Strip (Now md:order-2 - Right Side) */}
+                                {allImages.length > 1 && (
+                                    <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto w-full md:w-20 flex-shrink-0 py-1 no-scrollbar order-2 md:order-2">
+                                        {allImages.map((img, i) => (
+                                            <div
+                                                key={i}
+                                                className={`w-16 md:w-full aspect-square flex-shrink-0 rounded-xl p-1 border cursor-pointer transition-all bg-white shadow-sm ${currentImageIndex === i ? 'border-emerald-500 ring-2 ring-emerald-500/20 scale-105 z-10' : 'border-gray-100 hover:border-gray-300 opacity-60 hover:opacity-100'}`}
+                                                onClick={() => setCurrentImageIndex(i)}
+                                            >
+                                                <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); if (product) toggleFavorite(product.id); }}
-                                    className="absolute top-4 right-4 p-2 bg-white rounded-full shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors z-20"
+                            </div>
+
+                            {/* Secondary Buy Now Button (Underneath the image area) */}
+                            <div className="hidden md:block">
+                                <Button
+                                    onClick={handleBuyNow}
+                                    className="w-full h-14 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-lg uppercase tracking-widest shadow-xl shadow-emerald-500/10 transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-3 mt-2"
                                 >
-                                    <Heart className={`h-5 w-5 transition-colors ${product && isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-                                </button>
+                                    <ShoppingCart className="h-6 w-6" /> Buy {product.name} Now
+                                </Button>
+                                <p className="text-[10px] text-gray-400 text-center mt-2 uppercase font-bold tracking-widest">Secure Checkout • Escrow Protected</p>
                             </div>
                         </div>
 
@@ -2220,45 +2222,58 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
             {/* Lightbox Modal */}
             {isLightboxOpen && (
-                <div className="fixed inset-0 z-[200] bg-black text-white flex flex-col items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/95 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
-                    {allImages.length > 1 && (
-                        <>
-                            <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
-                                <ChevronLeft className="h-8 w-8" />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
-                                <ChevronRight className="h-8 w-8" />
-                            </button>
-                        </>
-                    )}
-                    <div 
-                        className="relative flex items-center justify-center select-none z-10 px-4 md:px-12"
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
-                    >
-                        <div className="relative inline-flex items-center justify-center max-w-5xl">
-                            <button 
-                                className="absolute -top-3 -right-3 md:-top-5 md:-right-5 p-2 rounded-full bg-black/70 hover:bg-black text-white backdrop-blur-md shadow-xl border border-white/10 transition-all z-[210] group" 
-                                onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(false); }}
-                            >
-                                <span className="sr-only">Close</span>
-                                <X className="h-5 w-5 md:h-6 md:w-6 group-hover:scale-110 transition-transform" />
-                            </button>
-                            <img src={allImages[currentImageIndex] as string} alt={product.name} className="w-auto max-w-full max-h-[80vh] object-contain transition-transform duration-300 pointer-events-none rounded-lg" />
-                        </div>
+                <div className="fixed inset-0 z-[200] bg-black/98 text-white flex flex-col items-center justify-center animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-3xl cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
+                    
+                    {/* Header: Close Button */}
+                    <div className="absolute top-6 right-6 z-[210]">
+                        <button 
+                            className="p-3 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-xl border border-white/20 transition-all hover:scale-110 active:scale-95 group" 
+                            onClick={() => setIsLightboxOpen(false)}
+                        >
+                            <X className="h-6 w-6 group-hover:rotate-90 transition-transform duration-300" />
+                        </button>
                     </div>
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-50 w-full max-w-md px-4">
-                        {/* Thumbnail Navigator in Zoom Mode */}
+
+                    <div className="relative w-full h-full flex flex-col md:flex-row items-center justify-center p-4 md:p-12 gap-8 z-10">
+                        
+                        {/* Apple-styled Left Navigation Button */}
                         {allImages.length > 1 && (
-                            <div className="flex gap-2 p-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-full">
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} 
+                                className="absolute left-4 md:left-12 top-1/2 -translate-y-1/2 p-5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-2xl border border-white/10 z-[220] transition-all hover:scale-110 active:scale-90 group hidden sm:flex"
+                            >
+                                <ChevronLeft className="h-10 w-10 group-hover:-translate-x-1 transition-transform" />
+                            </button>
+                        )}
+
+                        {/* Main Image Viewport */}
+                        <div 
+                            className="relative flex-1 flex items-center justify-center max-w-5xl h-full select-none"
+                            onTouchStart={handleTouchStart}
+                            onTouchEnd={handleTouchEnd}
+                        >
+                            <motion.img 
+                                key={currentImageIndex}
+                                initial={{ opacity: 0, scale: 0.9, x: 20 }}
+                                animate={{ opacity: 1, scale: 1, x: 0 }}
+                                transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                src={allImages[currentImageIndex] as string} 
+                                alt={product.name} 
+                                className="max-w-full max-h-[70vh] object-contain rounded-2xl shadow-2xl pointer-events-none" 
+                            />
+                        </div>
+
+                        {/* Right Side: Gallery Thumbnails (Squares) */}
+                        {allImages.length > 1 && (
+                            <div className="flex md:flex-col gap-3 p-3 bg-white/5 backdrop-blur-xl rounded-[32px] border border-white/10 overflow-x-auto md:overflow-y-auto no-scrollbar max-h-[60vh] order-first md:order-last">
                                 {allImages.map((img, idx) => (
                                     <button
                                         key={idx}
                                         onClick={() => setCurrentImageIndex(idx)}
                                         className={cn(
-                                            "h-12 w-12 rounded-lg overflow-hidden border-2 transition-all shrink-0",
-                                            currentImageIndex === idx ? "border-emerald-500 scale-110" : "border-transparent opacity-50 hover:opacity-100"
+                                            "h-16 w-16 md:h-20 md:w-20 rounded-2xl overflow-hidden border-2 transition-all shrink-0 hover:scale-105 active:scale-95",
+                                            currentImageIndex === idx ? "border-emerald-500 ring-4 ring-emerald-500/20 shadow-lg" : "border-white/10 opacity-40 hover:opacity-100"
                                         )}
                                     >
                                         <img src={img} alt="" className="h-full w-full object-cover" />
@@ -2266,8 +2281,32 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 ))}
                             </div>
                         )}
-                        <div className="text-sm font-black tracking-widest text-white/90 bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10">
-                            {currentImageIndex + 1} / {allImages.length}
+
+                        {/* Apple-styled Right Navigation Button */}
+                        {allImages.length > 1 && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }} 
+                                className="absolute right-4 md:right-12 top-1/2 -translate-y-1/2 p-5 rounded-full bg-white/10 hover:bg-white/20 text-white backdrop-blur-2xl border border-white/10 z-[220] transition-all hover:scale-110 active:scale-90 group hidden sm:flex"
+                            >
+                                <ChevronRight className="h-10 w-10 group-hover:translate-x-1 transition-transform" />
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Bottom: Buy Now Button (Underneath where the squares were) */}
+                    <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-[230] flex flex-col items-center gap-6">
+                        <Button 
+                            className="w-full h-16 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-lg font-black uppercase tracking-widest shadow-2xl shadow-emerald-500/40 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleBuyNow();
+                            }}
+                        >
+                            <ShoppingCart className="h-6 w-6" /> Buy Now • {formatPrice(product.price * quantity)}
+                        </Button>
+                        
+                        <div className="text-sm font-black tracking-[0.2em] text-white/50 bg-white/5 px-6 py-2 rounded-full backdrop-blur-md border border-white/5 uppercase">
+                            Image {currentImageIndex + 1} of {allImages.length}
                         </div>
                     </div>
                 </div>

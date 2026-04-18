@@ -1078,7 +1078,7 @@ function SearchContent() {
               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
                 Popular:
               </span>
-              {DataSyncService.getInstance().getCategories().map((cat) => (
+              {DataSyncService.getCategories().map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.slug === selectedCategory ? null : cat.slug as any)}
