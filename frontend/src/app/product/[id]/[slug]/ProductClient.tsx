@@ -1075,8 +1075,23 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     <div className="md:col-span-5 lg:col-span-4 flex flex-col gap-8 min-w-0">
                         {/* Left: Images */}
                         <div className="flex flex-col md:flex-row gap-4 lg:h-[500px]">
+                            {/* Thumbnail Strip (Left Side on Desktop) */}
+                            {allImages.length > 1 && (
+                                <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto w-full md:w-24 flex-shrink-0 py-1 no-scrollbar order-1">
+                                    {allImages.map((img, i) => (
+                                        <div
+                                            key={i}
+                                            className={`w-16 md:w-full aspect-square flex-shrink-0 rounded-xl p-1.5 border cursor-pointer transition-all bg-white ${currentImageIndex === i ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm' : 'border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'}`}
+                                            onClick={() => setCurrentImageIndex(i)}
+                                        >
+                                            <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             <div
-                                className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex flex-col order-1"
+                                className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex flex-col order-2"
                                 onClick={handleDoubleTap}
                                 onTouchStart={handleTouchStart}
                                 onTouchEnd={handleTouchEnd}
@@ -1116,21 +1131,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </Button>
                                 </div>
                             </div>
-
-                            {/* Thumbnail Strip (Right Side on Desktop) */}
-                            {allImages.length > 1 && (
-                                <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto w-full md:w-24 flex-shrink-0 py-1 no-scrollbar order-2">
-                                    {allImages.map((img, i) => (
-                                        <div
-                                            key={i}
-                                            className={`w-16 md:w-full aspect-square flex-shrink-0 rounded-xl p-1.5 border cursor-pointer transition-all bg-white ${currentImageIndex === i ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm' : 'border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'}`}
-                                            onClick={() => setCurrentImageIndex(i)}
-                                        >
-                                            <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
 
@@ -1241,38 +1241,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 </button>
                             )}
                         </div>
-                        {product.specs && Object.keys(product.specs).length > 0 && (
-                            <div className="mt-6">
-                                <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                                    <Info className="h-4 w-4 text-emerald-500" />
-                                    Product Specifications
-                                </h3>
-                                <div className="rounded-xl border border-gray-200 overflow-hidden">
-                                    <table className="w-full text-sm">
-                                        <tbody>
-                                            {(showAllSpecs ? Object.entries(product.specs) : Object.entries(product.specs).slice(0, 6)).map(([key, value], i) => (
-                                                <tr key={key} className={i % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                                                    <td className="px-4 py-2.5 font-bold text-gray-700 w-[40%] border-r border-gray-100 whitespace-nowrap">{key}</td>
-                                                    <td className="px-4 py-2.5 text-gray-600">{value}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    {Object.keys(product.specs).length > 6 && (
-                                        <button
-                                            onClick={() => setShowAllSpecs(!showAllSpecs)}
-                                            className="w-full py-2.5 text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-colors border-t border-gray-200 flex items-center justify-center gap-1"
-                                        >
-                                            {showAllSpecs ? (
-                                                <><ChevronUp className="h-3.5 w-3.5" /> Show Less</>
-                                            ) : (
-                                                <><ChevronDown className="h-3.5 w-3.5" /> Show All {Object.keys(product.specs).length} Specifications</>
-                                            )}
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
 
 
 
@@ -2193,28 +2161,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             </button>
                         )}
 
-                        {/* Image Display */}
-                        <div 
-                            className="flex-1 relative h-full flex items-center justify-center select-none"
-                            onTouchStart={handleTouchStart}
-                            onTouchEnd={handleTouchEnd}
-                        >
-                            <img 
-                                src={allImages[currentImageIndex] as string} 
-                                alt={product.name} 
-                                className="max-w-full max-h-[80vh] object-contain transition-all duration-500 ease-out animate-in zoom-in-95" 
-                            />
-                            
-                            {/* Indicators for Mobile */}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:hidden">
-                                {allImages.map((_, i) => (
-                                    <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-6 bg-emerald-500' : 'w-1.5 bg-white/30'}`} />
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Right Sidebar: Thumbnails & Buy Now */}
-                        <div className="w-full md:w-32 flex flex-col gap-6 items-center animate-in slide-in-from-right-8 duration-500">
+                        {/* Left Sidebar: Thumbnails & Buy Now */}
+                        <div className="w-full md:w-32 flex flex-col gap-6 items-center animate-in slide-in-from-left-8 duration-500 order-1">
                             {/* Thumbnail Navigator */}
                             {allImages.length > 1 && (
                                 <div className="flex md:flex-col gap-3 p-3 bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 overflow-x-auto md:overflow-y-auto no-scrollbar max-h-[50vh]">
@@ -2244,6 +2192,26 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                             <div className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase bg-white/5 px-4 py-2 rounded-full border border-white/5">
                                 {currentImageIndex + 1} / {allImages.length}
+                            </div>
+                        </div>
+
+                        {/* Image Display */}
+                        <div 
+                            className="flex-1 relative h-full flex items-center justify-center select-none order-2"
+                            onTouchStart={handleTouchStart}
+                            onTouchEnd={handleTouchEnd}
+                        >
+                            <img 
+                                src={allImages[currentImageIndex] as string} 
+                                alt={product.name} 
+                                className="max-w-full max-h-[80vh] object-contain transition-all duration-500 ease-out animate-in zoom-in-95" 
+                            />
+                            
+                            {/* Indicators for Mobile */}
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:hidden">
+                                {allImages.map((_, i) => (
+                                    <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-6 bg-emerald-500' : 'w-1.5 bg-white/30'}`} />
+                                ))}
                             </div>
                         </div>
 
