@@ -1054,9 +1054,51 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     <div className="md:col-span-5 lg:col-span-4 flex flex-col gap-8 min-w-0">
                         {/* Left: Images */}
                         <div className="flex flex-col md:flex-row gap-4 lg:h-[500px]">
-                            {/* Thumbnail Strip */}
+                            <div
+                                className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex flex-col order-1"
+                                onClick={handleDoubleTap}
+                                onTouchStart={handleTouchStart}
+                                onTouchEnd={handleTouchEnd}
+                            >
+                                <div className="flex-1 relative flex items-center justify-center aspect-square md:aspect-auto">
+                                    {allImages.length > 0 ? (
+                                        <img
+                                            src={allImages[currentImageIndex] as string}
+                                            alt={product.name}
+                                            className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 pointer-events-none"
+                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                        />
+                                    ) : (
+                                        <div className="w-full h-full flex flex-col items-center justify-center p-2">
+                                            <img
+                                                src="/assets/images/placeholder.png"
+                                                alt="No image available"
+                                                className="w-full h-full object-contain mix-blend-multiply"
+                                            />
+                                        </div>
+                                    )}
+                                    {/* Heart burst animation */}
+                                    {showHeartBurst && (
+                                        <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                                            <Heart className="h-24 w-24 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                {/* Buy Now Button Below Image */}
+                                <div className="px-4 pb-4 pt-2">
+                                    <Button 
+                                        className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black h-12 shadow-md active:scale-[0.98] transition-all text-sm uppercase tracking-widest"
+                                        onClick={(e) => { e.stopPropagation(); handleBuyNow(); }}
+                                    >
+                                        Buy Now
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Thumbnail Strip (Right Side on Desktop) */}
                             {allImages.length > 1 && (
-                                <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto w-full md:w-20 flex-shrink-0 py-1 no-scrollbar order-2 md:order-1">
+                                <div className="flex md:flex-col gap-3 overflow-x-auto md:overflow-y-auto w-full md:w-24 flex-shrink-0 py-1 no-scrollbar order-2">
                                     {allImages.map((img, i) => (
                                         <div
                                             key={i}
@@ -1068,13 +1110,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     ))}
                                 </div>
                             )}
-
-                            <div
-                                className="flex-1 bg-gray-50 rounded-2xl p-2 border border-gray-100 relative overflow-hidden group cursor-pointer select-none flex items-center justify-center order-1 md:order-2 aspect-square md:aspect-auto"
-                                onClick={handleDoubleTap}
-                                onTouchStart={handleTouchStart}
-                                onTouchEnd={handleTouchEnd}
-                            >
+                        </div>
                                 {allImages.length > 0 ? (
                                     <img
                                         src={allImages[currentImageIndex] as string}
@@ -2172,53 +2208,93 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
             {/* Lightbox Modal */}
             {isLightboxOpen && (
-                <div className="fixed inset-0 z-[200] bg-black text-white flex flex-col items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/95 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
+                <div className="fixed inset-0 z-[200] bg-black/98 backdrop-blur-3xl text-white flex flex-col items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
+                    
+                    {/* Close Button */}
                     <button 
-                        className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-[210] group" 
+                        className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-[210] group border border-white/10" 
                         onClick={() => setIsLightboxOpen(false)}
                     >
                         <span className="sr-only">Close</span>
-                        <X className="h-8 w-8 text-white group-hover:scale-110 transition-transform" />
+                        <X className="h-6 w-6 text-white group-hover:rotate-90 transition-transform duration-300" />
                     </button>
-                    {allImages.length > 1 && (
-                        <>
-                            <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
-                                <ChevronLeft className="h-8 w-8" />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 hover:bg-white/30 backdrop-blur-md z-50 hidden md:flex">
-                                <ChevronRight className="h-8 w-8" />
-                            </button>
-                        </>
-                    )}
-                    <div 
-                        className="relative w-full max-w-5xl flex items-center justify-center select-none z-10"
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
-                    >
-                        <img src={allImages[currentImageIndex] as string} alt={product.name} className="w-full max-h-[85vh] object-contain transition-transform duration-300 pointer-events-none" />
-                    </div>
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-50 w-full max-w-md px-4">
-                        {/* Thumbnail Navigator in Zoom Mode */}
+
+                    {/* Main View Area */}
+                    <div className="relative w-full h-full flex flex-col md:flex-row items-center justify-center p-4 md:p-12 gap-8 z-10">
+                        {/* Apple-Style Navigation - Left */}
                         {allImages.length > 1 && (
-                            <div className="flex gap-2 p-2 bg-black/40 backdrop-blur-md rounded-2xl border border-white/10 overflow-x-auto no-scrollbar max-w-full">
-                                {allImages.map((img, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => setCurrentImageIndex(idx)}
-                                        className={cn(
-                                            "h-12 w-12 rounded-lg overflow-hidden border-2 transition-all shrink-0",
-                                            currentImageIndex === idx ? "border-emerald-500 scale-110" : "border-transparent opacity-50 hover:opacity-100"
-                                        )}
-                                    >
-                                        <img src={img} alt="" className="h-full w-full object-cover" />
-                                    </button>
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} 
+                                className="absolute left-8 top-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 group hidden md:flex"
+                            >
+                                <ChevronLeft className="h-8 w-8 text-white/50 group-hover:text-white transition-colors" />
+                            </button>
+                        )}
+
+                        {/* Image Display */}
+                        <div 
+                            className="flex-1 relative h-full flex items-center justify-center select-none"
+                            onTouchStart={handleTouchStart}
+                            onTouchEnd={handleTouchEnd}
+                        >
+                            <img 
+                                src={allImages[currentImageIndex] as string} 
+                                alt={product.name} 
+                                className="max-w-full max-h-[80vh] object-contain transition-all duration-500 ease-out animate-in zoom-in-95" 
+                            />
+                            
+                            {/* Indicators for Mobile */}
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:hidden">
+                                {allImages.map((_, i) => (
+                                    <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-6 bg-emerald-500' : 'w-1.5 bg-white/30'}`} />
                                 ))}
                             </div>
-                        )}
-                        <div className="text-sm font-black tracking-widest text-white/90 bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md border border-white/10">
-                            {currentImageIndex + 1} / {allImages.length}
                         </div>
+
+                        {/* Right Sidebar: Thumbnails & Buy Now */}
+                        <div className="w-full md:w-32 flex flex-col gap-6 items-center animate-in slide-in-from-right-8 duration-500">
+                            {/* Thumbnail Navigator */}
+                            {allImages.length > 1 && (
+                                <div className="flex md:flex-col gap-3 p-3 bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 overflow-x-auto md:overflow-y-auto no-scrollbar max-h-[50vh]">
+                                    {allImages.map((img, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => setCurrentImageIndex(idx)}
+                                            className={cn(
+                                                "h-16 w-16 md:h-20 md:w-20 rounded-2xl overflow-hidden border-2 transition-all shrink-0 p-1 bg-white/10",
+                                                currentImageIndex === idx ? "border-emerald-500 scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]" : "border-transparent opacity-40 hover:opacity-100"
+                                            )}
+                                        >
+                                            <img src={img} alt="" className="h-full w-full object-cover rounded-xl" />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Buy Now Button - Premium Style */}
+                            <Button 
+                                className="w-full md:w-full py-8 rounded-[2rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95 transition-all flex flex-col gap-0 uppercase tracking-tighter"
+                                onClick={() => { setIsLightboxOpen(false); handleBuyNow(); }}
+                            >
+                                <span className="text-xs opacity-80 font-bold mb-0.5">Secure Checkout</span>
+                                <span className="text-lg">Buy Now</span>
+                            </Button>
+
+                            <div className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase bg-white/5 px-4 py-2 rounded-full border border-white/5">
+                                {currentImageIndex + 1} / {allImages.length}
+                            </div>
+                        </div>
+
+                        {/* Apple-Style Navigation - Right */}
+                        {allImages.length > 1 && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }} 
+                                className="absolute right-8 top-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 group hidden md:flex"
+                            >
+                                <ChevronRight className="h-8 w-8 text-white/50 group-hover:text-white transition-colors" />
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
