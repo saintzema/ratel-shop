@@ -9,8 +9,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
 import { useRouter } from "next/navigation";
-import { PriceEngine } from "@/lib/price-engine";
 import { CATEGORIES } from "@/lib/types";
+import { PriceDiscoveryModal } from "@/components/modals/PriceDiscoveryModal";
+import { ProductSuggestion } from "@/lib/price-engine";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 
 export default function NewProduct() {
@@ -34,15 +35,52 @@ export default function NewProduct() {
         original_price: "",
         external_url: "",
         financing_available: false,
-        financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 }
+        external_url: "",
+        financing_available: false,
+        financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 },
+        contact_info: { show: false, phone: "", whatsapp: "" }
     });
+
+    const [savedNumbers, setSavedNumbers] = useState<string[]>([]);
+
+    useEffect(() => {
+        const seller = DataSyncService.getCurrentSeller();
+        const user = DataSyncService.getCurrentUser();
+        const numbers = new Set<string>();
+        if (seller?.phone_numbers) seller.phone_numbers.forEach(n => numbers.add(n));
+        if (seller?.phone_number) numbers.add(seller.phone_number);
+        if (user?.phone) numbers.add(user.phone);
+        if (user?.phone_numbers) user.phone_numbers.forEach(n => numbers.add(n));
+        setSavedNumbers(Array.from(numbers).filter(Boolean));
+        
+        if (numbers.size > 0 && !formData.contact_info.phone) {
+            const defaultNum = Array.from(numbers)[0];
+            setFormData(prev => ({
+                ...prev,
+                contact_info: { ...prev.contact_info, phone: defaultNum, whatsapp: defaultNum }
+            }));
+        }
+    }, []);
 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
+    const [isPriceDiscoveryOpen, setIsPriceDiscoveryOpen] = useState(false);
     const [priceAnalysis, setPriceAnalysis] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFetchingImage, setIsFetchingImage] = useState(false);
+    const [taxonomy, setTaxonomy] = useState<any[]>([]);
+
+    // 1. Load Initial Data & Listen for Updates
+    useEffect(() => {
+        const loadTaxonomy = () => {
+            const current = DataSyncService.getTaxonomy();
+            setTaxonomy(current);
+        };
+        loadTaxonomy();
+        window.addEventListener("sync-store-update", loadTaxonomy);
+        return () => window.removeEventListener("sync-store-update", loadTaxonomy);
+    }, []);
 
     // Dynamic price status update
     useEffect(() => {
@@ -76,13 +114,22 @@ export default function NewProduct() {
                 let inferredCategory = formData.category;
 
                 if (content.category) {
-                    const match = currentTaxonomy.find(c => c.name.toLowerCase() === content.category.toLowerCase());
-                    if (match) inferredCategory = match.name.toLowerCase();
+                    const match = taxonomy.find(c => c.name.toLowerCase() === content.category.toLowerCase());
+                    if (match) {
+                        inferredCategory = match.name.toLowerCase();
+                    } else {
+                        // Advanced: Check for fuzzy matches
+                        const fuzz = taxonomy.find(c => 
+                            c.name.toLowerCase().includes(content.category.toLowerCase()) || 
+                            content.category.toLowerCase().includes(c.name.toLowerCase())
+                        );
+                        if (fuzz) inferredCategory = fuzz.name.toLowerCase();
+                    }
                 } 
                 
                 if (!inferredCategory) {
                     const nameLower = formData.name.toLowerCase();
-                    for (const cat of currentTaxonomy) {
+                    for (const cat of taxonomy) {
                         if (nameLower.includes(cat.name.toLowerCase())) {
                             inferredCategory = cat.name.toLowerCase();
                             break;
@@ -108,54 +155,59 @@ export default function NewProduct() {
         }
     };
 
-    const handleBestPrice = async () => {
+    const handleBestPrice = () => {
         if (!formData.name) {
-            alert("Please enter a product name first to get accurate price intelligence.");
+            alert("Please enter a product name first.");
             return;
         }
-        setIsCalculatingBestPrice(true);
-        setIsAnalyzing(true);
-        try {
-            const currentPrice = parseInt(formData.price.replace(/,/g, "")) || 0;
-            const res = await fetch("/api/gemini-price", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    productName: formData.name, 
-                    region: "Nigeria", 
-                    mode: "analyze",
-                    anchorPrice: currentPrice,
-                    category: formData.category
-                })
-            });
-            if (res.ok) {
-                const data = await res.json();
-                const marketAvg = data.marketAverage || 50000;
-                const fairRangeLow = data.recommendedPrice || Math.round(marketAvg * 0.9);
-                setPriceAnalysis({ 
-                    marketAvg, 
-                    fairRangeLow, 
-                    status: "fair", 
-                    demand: "High", 
-                    salesProbability: "85%" 
-                });
-                setFormData(prev => ({ 
-                    ...prev, 
-                    price: fairRangeLow.toLocaleString(),
-                    // Auto-fill subcategory, tags, and category from AI analysis
-                    ...(data.subcategory ? { subcategory: data.subcategory } : {}),
-                    ...(data.tags && Array.isArray(data.tags) ? { tags: data.tags } : {}),
-                    ...(data.category ? { category: data.category } : {}),
-                }));
+        setIsPriceDiscoveryOpen(true);
+    };
+
+    const handlePriceSelect = (suggestion: ProductSuggestion) => {
+        const currentTaxonomy = DataSyncService.getTaxonomy();
+        let mappedCat = formData.category;
+        let mappedSub = suggestion.subcategory || formData.subcategory;
+
+        if (suggestion.category) {
+            const match = taxonomy.find(c => 
+                c.name.toLowerCase() === suggestion.category.toLowerCase() ||
+                suggestion.category.toLowerCase().includes(c.name.toLowerCase())
+            );
+            if (match) {
+                mappedCat = match.name.toLowerCase();
+                // Also try to map subcategory if possible
+                if (mappedSub) {
+                    const subMatch = match.subcategories?.find((s: any) => 
+                        s.name.toLowerCase() === mappedSub.toLowerCase() ||
+                        mappedSub.toLowerCase().includes(s.name.toLowerCase())
+                    );
+                    if (subMatch) mappedSub = subMatch.name;
+                }
             }
-        } catch (error) {
-            console.error("Price intelligence failed", error);
-            const mockAvg = 50000;
-            setPriceAnalysis({ marketAvg: mockAvg, fairRangeLow: Math.round(mockAvg * 0.9), status: "fair", demand: "High", salesProbability: "85%" });
-        } finally {
-            setIsCalculatingBestPrice(false);
-            setIsAnalyzing(false);
         }
+
+        setFormData(prev => ({
+            ...prev,
+            price: suggestion.approxPrice.toLocaleString(),
+            category: mappedCat,
+            subcategory: mappedSub,
+            tags: suggestion.tags || prev.tags,
+            description: suggestion.description || prev.description,
+            specs: suggestion.specs 
+                ? Object.entries(suggestion.specs).map(([k, v]) => ({ key: k, value: String(v) })) 
+                : prev.specs,
+            image_url: suggestion.image_url || prev.image_url
+        }));
+
+        setPriceAnalysis({
+            marketAvg: Math.round(suggestion.approxPrice * 1.15),
+            fairRangeLow: suggestion.approxPrice,
+            status: "fair",
+            demand: "High",
+            salesProbability: "85%"
+        });
+
+        setIsPriceDiscoveryOpen(false);
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -235,6 +287,9 @@ export default function NewProduct() {
         if (!sellerId || !formData.name || !formData.price || isSubmitting) return;
 
         setIsSubmitting(true);
+        
+        // Yield to allow UI to show loading state immediately
+        await new Promise(resolve => setTimeout(resolve, 50));
         try {
             const generateSlug = (name: string) => {
                 const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
@@ -248,11 +303,19 @@ export default function NewProduct() {
             const finalImageUrl = wrapInCDN(formData.image_url) || "/placeholder.png";
             const finalImages = formData.images.filter(url => url.trim() !== "").map(wrapInCDN);
 
+            const currentSeller = DataSyncService.getCurrentSeller();
+            const sellerLocation = currentSeller?.city && currentSeller?.state ? `${currentSeller.city}, ${currentSeller.state}` : currentSeller?.location || currentSeller?.street_address;
+            
+            let finalProductName = formData.name;
+            if ((formData.category === 'cars' || formData.category === 'vehicles') && sellerLocation && !finalProductName.toLowerCase().includes(' in ')) {
+                finalProductName = `${finalProductName} in ${sellerLocation}`;
+            }
+
             const newProduct = {
-                id: generateSlug(formData.name),
+                id: generateSlug(finalProductName),
                 seller_id: sellerId,
-                seller_name: DataSyncService.getCurrentSeller()?.business_name || "New Store",
-                name: formData.name,
+                seller_name: currentSeller?.business_name || "New Store",
+                name: finalProductName,
                 category: (formData.category || "electronics") as any,
                 price: isNaN(numericPrice) ? 0 : numericPrice,
                 original_price: formData.original_price ? parseInt(formData.original_price.replace(/,/g, "")) : undefined,
@@ -275,7 +338,28 @@ export default function NewProduct() {
                 created_at: new Date().toISOString(),
                 financing_available: formData.financing_available,
                 financing_config: { ...formData.financing_config, enabled: formData.financing_available },
+                contact_info: formData.contact_info
             };
+
+            // Save new numbers to seller profile for next time
+            if (formData.contact_info.show && formData.contact_info.phone) {
+                const currentSeller = DataSyncService.getCurrentSeller();
+                if (currentSeller) {
+                    const currentNumbers = currentSeller.phone_numbers || [];
+                    const numbersToAdd = [];
+                    if (formData.contact_info.phone && !currentNumbers.includes(formData.contact_info.phone)) {
+                        numbersToAdd.push(formData.contact_info.phone);
+                    }
+                    if (formData.contact_info.whatsapp && !currentNumbers.includes(formData.contact_info.whatsapp)) {
+                        numbersToAdd.push(formData.contact_info.whatsapp);
+                    }
+                    if (numbersToAdd.length > 0) {
+                        DataSyncService.updateSeller(sellerId, {
+                            phone_numbers: [...currentNumbers, ...numbersToAdd]
+                        });
+                    }
+                }
+            }
 
             await DataSyncService.addRawProduct(newProduct);
             router.push("/seller/products");
@@ -483,13 +567,17 @@ export default function NewProduct() {
                                         onChange={(e) => handleChange("category", e.target.value)}
                                     >
                                         <option value="">Select Category</option>
-                                        {DataSyncService.getTaxonomy().map(cat => (
+                                        {taxonomy.map(cat => (
                                             <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
                                         ))}
-                                        {/* Fallback */}
-                                        {CATEGORIES.filter(c => !DataSyncService.getTaxonomy().some(db => db.name.toLowerCase() === c.value)).map(cat => (
+                                        {/* Fallback for hardcoded categories not in DB */}
+                                        {CATEGORIES.filter(c => !taxonomy.some(db => db.name.toLowerCase() === c.value)).map(cat => (
                                             <option key={cat.value} value={cat.value}>{cat.label}</option>
                                         ))}
+                                        {/* Auto-select newly created custom category if it's in state but not in list yet */}
+                                        {formData.category && !taxonomy.some(c => c.name.toLowerCase() === formData.category) && !CATEGORIES.some(c => c.value === formData.category) && (
+                                            <option value={formData.category}>{formData.category.charAt(0).toUpperCase() + formData.category.slice(1)}</option>
+                                        )}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
@@ -500,10 +588,10 @@ export default function NewProduct() {
                                         onChange={(e) => handleChange("subcategory", e.target.value)}
                                     >
                                         <option value="">Select Subcategory</option>
-                                        {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.subcategories.map((sub: any) => (
+                                        {taxonomy.find(c => c.name.toLowerCase() === formData.category.toLowerCase())?.children.map((sub: any) => (
                                             <option key={sub.id} value={sub.name}>{sub.name}</option>
                                         ))}
-                                        {/* Legacy fallback */}
+                                        {/* Fallback */}
                                         {CATEGORIES.find(c => c.value === formData.category)?.subcategories.map(sub => (
                                             <option key={sub} value={sub}>{sub}</option>
                                         ))}
@@ -646,91 +734,160 @@ export default function NewProduct() {
                                         onChange={(e) => handleChange("stock", e.target.value)}
                                     />
                                 </div>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium text-gray-700 font-bold uppercase tracking-tight text-[10px] text-gray-400">Source Product Link <span className="normal-case font-medium">— cheapest competing store</span></label>
-                                <Input
-                                    placeholder="https://... (Alibaba, Jumia, Amazon, etc.)"
-                                    className="rounded-xl h-12 text-sm font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                                    value={formData.external_url}
-                                    onChange={(e) => handleChange("external_url", e.target.value)}
-                                />
-                                {formData.external_url && (
-                                    <p className="text-[10px] text-blue-500 mt-1 truncate px-1">Source: {formData.external_url}</p>
-                                )}
-                            </div>
                             
-                        {/* Financing & Ownership Toggle */}
-                        <div className="mt-8 pt-8 border-t border-gray-100 col-span-1 md:col-span-2">
-                            <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                <div className="flex gap-4">
-                                    <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
-                                        <TrendingUp className="h-6 w-6" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <h3 className="font-bold text-gray-900 leading-tight">Financing & Ownership</h3>
-                                        <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans.</p>
-                                    </div>
-                                </div>
-                                <div 
-                                    onClick={() => handleChange("financing_available", !formData.financing_available)}
-                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.financing_available ? 'bg-emerald-600' : 'bg-gray-200'}`}
-                                >
-                                    <span
-                                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.financing_available ? 'translate-x-5' : 'translate-x-0'}`}
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-gray-700 font-bold uppercase tracking-tight text-[10px] text-gray-400">Source Product Link <span className="normal-case font-medium">— cheapest competing store</span></label>
+                                    <Input
+                                        placeholder="https://... (Alibaba, Jumia, Amazon, etc.)"
+                                        className="rounded-xl h-12 text-sm font-medium bg-gray-50 border-gray-200 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                                        value={formData.external_url}
+                                        onChange={(e) => handleChange("external_url", e.target.value)}
                                     />
+                                    {formData.external_url && (
+                                        <p className="text-[10px] text-blue-500 mt-1 truncate px-1">Source: {formData.external_url}</p>
+                                    )}
                                 </div>
-                            </div>
                             
-                            {formData.financing_available && (
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
-                                    <div className="space-y-1.5">
-                                        <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
-                                        <div className="relative">
-                                            <Input 
-                                                type="number" 
-                                                min="5" max="95" 
-                                                className="rounded-lg h-9 text-sm border-gray-200" 
-                                                value={Math.round(formData.financing_config.deposit_percent * 100)}
-                                                onChange={(e) => setFormData(p => ({
-                                                    ...p,
-                                                    financing_config: { ...p.financing_config, deposit_percent: parseFloat(e.target.value) / 100 }
-                                                }))}
+                                {/* Financing & Ownership Toggle */}
+                                <div className="mt-8 pt-8 border-t border-gray-100 col-span-1 md:col-span-2">
+                                    <div className="bg-emerald-50/50 rounded-2xl p-6 border border-emerald-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                        <div className="flex gap-4">
+                                            <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm shrink-0">
+                                                <TrendingUp className="h-6 w-6" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <h3 className="font-bold text-gray-900 leading-tight">Financing & Ownership</h3>
+                                                <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans.</p>
+                                            </div>
+                                        </div>
+                                        <div 
+                                            onClick={() => handleChange("financing_available", !formData.financing_available)}
+                                            className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.financing_available ? 'bg-emerald-600' : 'bg-gray-200'}`}
+                                        >
+                                            <span
+                                                className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.financing_available ? 'translate-x-5' : 'translate-x-0'}`}
                                             />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
                                         </div>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
-                                        <div className="relative">
-                                            <Input 
-                                                type="number" 
-                                                min="0" max="100" 
-                                                className="rounded-lg h-9 text-sm border-gray-200" 
-                                                value={Math.round(formData.financing_config.interest_rate_pa * 100)}
-                                                onChange={(e) => setFormData(p => ({
-                                                    ...p,
-                                                    financing_config: { ...p.financing_config, interest_rate_pa: parseFloat(e.target.value) / 100 }
-                                                }))}
-                                            />
-                                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
+                                    
+                                    {formData.financing_available && (
+                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 border border-gray-100 p-4 rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Deposit %</label>
+                                                <div className="relative">
+                                                    <Input 
+                                                        type="number" 
+                                                        min="5" max="95" 
+                                                        className="rounded-lg h-9 text-sm border-gray-200" 
+                                                        value={Math.round(formData.financing_config.deposit_percent * 100)}
+                                                        onChange={(e) => setFormData(p => ({
+                                                            ...p,
+                                                            financing_config: { ...p.financing_config, deposit_percent: parseFloat(e.target.value) / 100 }
+                                                        }))}
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Interest Rate p.a.</label>
+                                                <div className="relative">
+                                                    <Input 
+                                                        type="number" 
+                                                        min="0" max="100" 
+                                                        className="rounded-lg h-9 text-sm border-gray-200" 
+                                                        value={Math.round(formData.financing_config.interest_rate_pa * 100)}
+                                                        onChange={(e) => setFormData(p => ({
+                                                            ...p,
+                                                            financing_config: { ...p.financing_config, interest_rate_pa: parseFloat(e.target.value) / 100 }
+                                                        }))}
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs tracking-tight bg-white">%</span>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
+                                                <Input 
+                                                    type="number" 
+                                                    min="1" max="60" 
+                                                    className="rounded-lg h-9 text-sm border-gray-200" 
+                                                    value={formData.financing_config.max_tenor_months}
+                                                    onChange={(e) => setFormData(p => ({
+                                                        ...p,
+                                                        financing_config: { ...p.financing_config, max_tenor_months: parseInt(e.target.value) || 12 }
+                                                    }))}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-[11px] font-semibold text-gray-600 uppercase">Max Tenor (Mo)</label>
-                                        <Input 
-                                            type="number" 
-                                            min="1" max="60" 
-                                            className="rounded-lg h-9 text-sm border-gray-200" 
-                                            value={formData.financing_config.max_tenor_months}
-                                            onChange={(e) => setFormData(p => ({
-                                                ...p,
-                                                financing_config: { ...p.financing_config, max_tenor_months: parseInt(e.target.value) || 12 }
-                                            }))}
-                                        />
-                                    </div>
+                                    )}
                                 </div>
-                            )}
+                                
+                                {/* Seller Contact Info (Vehicles/Cars Only) */}
+                                {(formData.category === "cars" || formData.category === "vehicles") && (
+                                    <div className="mt-8 pt-8 border-t border-gray-100 col-span-1 md:col-span-2">
+                                        <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100 flex flex-col gap-6">
+                                            <div className="flex items-start sm:items-center justify-between gap-4">
+                                                <div className="flex gap-4">
+                                                    <div className="h-12 w-12 bg-white rounded-xl flex items-center justify-center text-blue-600 shadow-sm shrink-0">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <h3 className="font-bold text-gray-900 leading-tight">Seller Contact Info</h3>
+                                                        <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Allow buyers to contact you directly via phone or WhatsApp for this vehicle.</p>
+                                                    </div>
+                                                </div>
+                                                <div 
+                                                    onClick={() => setFormData(p => ({ ...p, contact_info: { ...p.contact_info, show: !p.contact_info.show } }))}
+                                                    className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.contact_info.show ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                                >
+                                                    <span
+                                                        className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.contact_info.show ? 'translate-x-5' : 'translate-x-0'}`}
+                                                    />
+                                                </div>
+                                            </div>
+                                            
+                                            {formData.contact_info.show && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in duration-300">
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-medium text-gray-700">Phone Number</label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type="text"
+                                                                list="saved-numbers-phone"
+                                                                placeholder="e.g. 08012345678"
+                                                                className="rounded-xl h-12 text-base font-medium bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                                                value={formData.contact_info.phone}
+                                                                onChange={(e) => setFormData(p => ({ ...p, contact_info: { ...p.contact_info, phone: e.target.value } }))}
+                                                            />
+                                                            <datalist id="saved-numbers-phone">
+                                                                {savedNumbers.map(n => <option key={`phone-${n}`} value={n} />)}
+                                                            </datalist>
+                                                        </div>
+                                                        {savedNumbers.length > 0 && !savedNumbers.includes(formData.contact_info.phone || "") && formData.contact_info.phone && (
+                                                            <p className="text-[10px] text-blue-600 font-medium px-1">This new number will be saved for future listings.</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-sm font-medium text-gray-700">WhatsApp Number</label>
+                                                        <div className="relative">
+                                                            <Input
+                                                                type="text"
+                                                                list="saved-numbers-wa"
+                                                                placeholder="e.g. 08012345678"
+                                                                className="rounded-xl h-12 text-base font-medium bg-white border-blue-200 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                                                value={formData.contact_info.whatsapp}
+                                                                onChange={(e) => setFormData(p => ({ ...p, contact_info: { ...p.contact_info, whatsapp: e.target.value } }))}
+                                                            />
+                                                            <datalist id="saved-numbers-wa">
+                                                                {savedNumbers.map(n => <option key={`wa-${n}`} value={n} />)}
+                                                            </datalist>
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-500 px-1">Include country code if outside Nigeria, otherwise 080... format is fine.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                         </div>
                     </motion.section>
 
@@ -851,6 +1008,12 @@ export default function NewProduct() {
                     </div>
                 </div>
             </div>
+            <PriceDiscoveryModal 
+                isOpen={isPriceDiscoveryOpen}
+                onClose={() => setIsPriceDiscoveryOpen(false)}
+                productName={formData.name}
+                onSelect={handlePriceSelect}
+            />
         </div>
     );
 }

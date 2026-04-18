@@ -409,6 +409,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             created_at: "2026-01-01T00:00:00Z",
         } as any;
     }
+
+    const isVehicleListing = product?.category === 'cars' || product?.category === 'vehicles';
+    const isGlobalStore = product?._source || product?.seller_id === 'global-partners' || product?.id?.startsWith('global-');
+    const showFraudWarning = isVehicleListing && !isGlobalStore;
+    const sellerLocation = seller?.city && seller?.state ? `${seller.city}, ${seller.state}` : seller?.location || seller?.street_address;
+
     // Enhance generic/boilerplate descriptions with richer category-specific content
     if (product && product.description) {
         const GENERIC_PATTERNS = [
@@ -1039,6 +1045,21 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             <main className="container mx-auto px-4 py-8 pt-28 pb-32 md:pb-8 font-sans">
 
                 {/* Desktop & Mobile Breadcrumbs */}
+                {showFraudWarning && (
+                    <div className="mb-6 bg-rose-50 border border-rose-200 rounded-xl p-4 md:p-5 flex gap-4 animate-in fade-in slide-in-from-top-4 duration-500 shadow-sm">
+                        <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center shrink-0 shadow-sm text-rose-500">
+                            <AlertTriangle className="h-5 w-5" />
+                        </div>
+                        <div className="space-y-1">
+                            <h3 className="font-bold text-rose-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                                Safety Tips <span className="bg-rose-200 text-rose-700 text-[10px] px-2 py-0.5 rounded-full font-black">IMPORTANT</span>
+                            </h3>
+                            <p className="text-sm text-rose-800 leading-relaxed font-medium">
+                                Dear user, avoid paying a deposit before you meet the seller. Verify and inspect the car carefully before making any payment. Make payment via the platform to prevent scam & fraud.
+                            </p>
+                        </div>
+                    </div>
+                )}
                 <div className="mb-6 md:mb-8">
                     <Breadcrumbs 
                         items={[
@@ -1111,94 +1132,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 </div>
                             )}
                         </div>
-                                {allImages.length > 0 ? (
-                                    <img
-                                        src={allImages[currentImageIndex] as string}
-                                        alt={product.name}
-                                        className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 pointer-events-none"
-                                        onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center p-2">
-                                        <img
-                                            src="/assets/images/placeholder.png"
-                                            alt="No image available"
-                                            className="w-full h-full object-contain mix-blend-multiply"
-                                        />
-                                    </div>
-                                )}
-                                {/* Heart burst animation */}
-                                {showHeartBurst && (
-                                    <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                                        <Heart className="h-24 w-24 text-red-500 fill-red-500 animate-heart-burst drop-shadow-lg" />
-                                    </div>
-                                )}
 
-                                {/* Navigation Arrows */}
-                                {allImages.length > 1 && (
-                                    <>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }}
-                                            className="absolute left-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-white/80 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center shadow-sm md:opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white hover:scale-110 z-20"
-                                        >
-                                            <ChevronLeft className="h-5 w-5 text-gray-700" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }}
-                                            className="absolute right-4 top-1/2 -translate-y-1/2 h-10 w-10 bg-white/80 backdrop-blur-md border border-gray-200 rounded-full flex items-center justify-center shadow-sm md:opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white hover:scale-110 z-20"
-                                        >
-                                            <ChevronRight className="h-5 w-5 text-gray-700" />
-                                        </button>
-                                    </>
-                                )}
-
-                                {/* Indicators */}
-                                {allImages.length > 1 && (
-                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20">
-                                        {allImages.map((_, i) => (
-                                            <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-4 bg-emerald-500' : 'w-1.5 bg-gray-300'}`} />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {product.price_flag !== 'none' && (
-                                    <div className="absolute top-4 left-4 z-10">
-                                        {product.price_flag === 'fair' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl">
-                                                <ShieldCheck className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-600" />
-                                                <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase tracking-widest">Fair Price</span>
-                                            </div>
-                                        ) : product.price_flag === 'overpriced' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-red-500/20 shadow-xl">
-                                                <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-red-500 uppercase tracking-widest">Pricing Alert</span>
-                                            </div>
-                                        ) : product.price_flag === 'great_deal' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-emerald-400/30 shadow-xl">
-                                                <Sparkles className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase tracking-widest">Great Deal</span>
-                                            </div>
-                                        ) : product.price_flag === 'too_low' ? (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-yellow-400/30 shadow-xl">
-                                                <AlertTriangle className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-amber-600 uppercase tracking-widest">Low Price</span>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/70 backdrop-blur-md rounded-full border border-gray-300/30 shadow-xl">
-                                                <Info className="h-3.5 w-3.5 md:h-4 md:w-4 text-gray-500" />
-                                                <span className="text-[10px] md:text-xs font-black text-gray-600 uppercase tracking-widest">{product.price_flag}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); if (product) toggleFavorite(product.id); }}
-                                    className="absolute top-4 right-4 p-2 bg-white rounded-full shadow-sm border border-gray-100 hover:bg-gray-50 transition-colors z-20"
-                                >
-                                    <Heart className={`h-5 w-5 transition-colors ${product && isFavorite(product.id) ? 'text-red-500 fill-red-500' : 'text-gray-400 hover:text-red-500'}`} />
-                                </button>
-                            </div>
-                        </div>
 
                         {/* Share With Friends */}
                         <div className="mt-2 border-t border-gray-100 pt-6 pr-4">
@@ -1276,7 +1210,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 {seller.business_name}
                             </Link>
                             <h1 className="text-3xl font-black text-gray-900 leading-tight mb-2">{product.name}</h1>
-                            <div className="flex items-center gap-4 text-sm">
+                            <div className="flex items-center gap-4 text-sm mt-3">
                                 <div className="flex items-center gap-1 text-amber-500 font-bold">
                                     <Star className="h-4 w-4 fill-current" />
                                     <span>{actualAvgRating}</span>
@@ -1286,6 +1220,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 <span className="text-gray-300">|</span>
                                 <span className="text-gray-500">{product.sold_count} sold</span>
                             </div>
+                            {sellerLocation && (
+                                <div className="mt-3 flex items-center gap-1.5 text-gray-600 font-medium bg-gray-100/80 px-2.5 py-1 rounded-md inline-flex text-sm">
+                                    <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                                    <span>{sellerLocation}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="relative">
@@ -1797,6 +1737,27 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             85% Acceptance Rate
                                         </p>
                                     </div>
+
+                                    {/* Seller Contact Info */}
+                                    {product.contact_info?.show && (product.contact_info?.phone || product.contact_info?.whatsapp) && (
+                                        <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest text-center">Contact Seller</p>
+                                            <div className="grid grid-cols-1 gap-2">
+                                                {product.contact_info.phone && (
+                                                    <a href={`tel:${product.contact_info.phone}`} className="flex items-center justify-center gap-2 w-full rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-900 font-semibold py-3 text-sm transition-colors">
+                                                        <Phone className="h-4 w-4 text-gray-600" />
+                                                        {product.contact_info.phone}
+                                                    </a>
+                                                )}
+                                                {product.contact_info.whatsapp && (
+                                                    <a href={`https://wa.me/${product.contact_info.whatsapp.replace(/[^0-9]/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full rounded-xl bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] font-semibold py-3 text-sm transition-colors border border-[#25D366]/20">
+                                                        <MessageSquare className="h-4 w-4" />
+                                                        Chat on WhatsApp
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
 
                                 </div>
 

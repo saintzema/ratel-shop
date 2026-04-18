@@ -21,6 +21,9 @@ export interface ProductSuggestion {
     sourceUrl?: string;
     image_url?: string;
     specs?: Record<string, string>;
+    description?: string;
+    tags?: string[];
+    subcategory?: string;
 }
 
 export type PriceAnalysis = {

@@ -69,7 +69,9 @@ const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
     gym: <Dumbbell className="h-6 w-6" />,
     office: <BookOpen className="h-6 w-6" />,
     furniture: <Sofa className="h-6 w-6" />,
-    grocery: <ShoppingBag className="h-6 w-6" />
+    grocery: <ShoppingBag className="h-6 w-6" />,
+    appliances: <Plug className="h-6 w-6" />,
+    health: <Shield className="h-6 w-6" />,
 };
 
 const RECENT_SEARCHES_KEY = 'fp_recent_searches';
@@ -720,6 +722,8 @@ export function Navbar() {
                                                         cars: <Car className="h-3.5 w-3.5" />,
                                                         energy: <Zap className="h-3.5 w-3.5" />,
                                                         gaming: <Gamepad className="h-3.5 w-3.5" />,
+                                                        appliances: <Plug className="h-3.5 w-3.5" />,
+                                                        health: <Shield className="h-3.5 w-3.5" />,
                                                     };
                                                     const isSelected = selectedCategory === cat.label;
                                                     return (

@@ -119,8 +119,9 @@ const PHONE_FILTERS: FilterGroup[] = [
             { label: "Xiaomi", value: "xiaomi" },
             { label: "Infinix", value: "infinix" },
             { label: "Tecno", value: "tecno" },
-            { label: "OnePlus", value: "oneplus" },
-            { label: "Huawei", value: "huawei" },
+            { label: "Nokia", value: "nokia" },
+            { label: "Oppo", value: "oppo" },
+            { label: "Vivo", value: "vivo" },
         ]
     },
     {
@@ -521,8 +522,7 @@ const ENERGY_FILTERS: FilterGroup[] = [
             { label: "Solar Panel", value: "solar_panel" },
             { label: "Inverter", value: "inverter" },
             { label: "Battery", value: "battery" },
-            { label: "Generator", value: "generator" },
-            { label: "Complete System", value: "complete" },
+            { label: "Solar Street Light", value: "solar_light" },
             { label: "Charge Controller", value: "charge_controller" },
         ]
     },
@@ -543,6 +543,64 @@ const ENERGY_FILTERS: FilterGroup[] = [
             { label: "Lead Acid", value: "lead_acid" },
             { label: "LiFePO4", value: "lifepo4" },
             { label: "Tubular", value: "tubular" },
+        ]
+    },
+];
+
+// ─── Appliance Filters ──────────────────────────────────────────
+
+const APPLIANCE_FILTERS: FilterGroup[] = [
+    {
+        key: "type", label: "Product Type", type: "checkbox",
+        options: [
+            { label: "Fans", value: "fan" },
+            { label: "Air Conditioning", value: "ac" },
+            { label: "Generators", value: "generator" },
+            { label: "Refrigerators", value: "fridge" },
+            { label: "Microwaves", value: "microwave" },
+            { label: "Washing Machines", value: "washer" },
+        ]
+    },
+    {
+        key: "brand", label: "Brand", type: "checkbox",
+        options: [
+            { label: "LG", value: "lg" },
+            { label: "Samsung", value: "samsung" },
+            { label: "Haier Thermocool", value: "haier" },
+            { label: "Lontor", value: "lontor" },
+            { label: "Ox", value: "ox" },
+            { label: "Binatone", value: "binatone" },
+            { label: "Mikano", value: "mikano" },
+            { label: "Firman", value: "firman" },
+        ]
+    },
+    {
+        key: "condition", label: "Condition", type: "checkbox",
+        options: [
+            { label: "Brand New", value: "brand_new" },
+            { label: "Used", value: "used" },
+            { label: "Refurbished", value: "refurbished" },
+        ]
+    },
+];
+
+// ─── Health Filters ─────────────────────────────────────────────
+
+const HEALTH_FILTERS: FilterGroup[] = [
+    {
+        key: "type", label: "Category", type: "checkbox",
+        options: [
+            { label: "Fitness Gear", value: "fitness" },
+            { label: "Supplements", value: "supplements" },
+            { label: "Medical Supplies", value: "medical" },
+            { label: "Diagnostic Gear", value: "diagnostic" },
+        ]
+    },
+    {
+        key: "condition", label: "Condition", type: "checkbox",
+        options: [
+            { label: "Brand New", value: "brand_new" },
+            { label: "Sterilized", value: "sterilized" },
         ]
     },
 ];
@@ -573,8 +631,10 @@ export const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
     cars: VEHICLE_FILTERS,
     vehicles: VEHICLE_FILTERS,
     phones: PHONE_FILTERS,
+    tablets: PHONE_FILTERS,
     electronics: ELECTRONICS_FILTERS,
     computing: ELECTRONICS_FILTERS,
+    appliances: APPLIANCE_FILTERS,
     fashion: FASHION_FILTERS,
     home: HOME_FILTERS,
     furniture: HOME_FILTERS,
@@ -583,6 +643,7 @@ export const CATEGORY_FILTERS: Record<string, FilterGroup[]> = {
     sports: SPORTS_FILTERS,
     beauty: BEAUTY_FILTERS,
     energy: ENERGY_FILTERS,
+    health: HEALTH_FILTERS,
 };
 
 /**
@@ -620,6 +681,10 @@ export function detectCategoryFromQuery(query: string): string | null {
     // Beauty keywords
     if (/\b(skincare|makeup|cream|serum|perfume|cologne|lipstick|foundation|moisturizer|beauty)\b/.test(q)) return "beauty";
     // Energy keywords
-    if (/\b(solar|inverter|battery|generator|panel|energy)\b/.test(q)) return "energy";
+    if (/\b(solar|inverter|battery|panel|energy)\b/.test(q)) return "energy";
+    // Appliance keywords
+    if (/\b(fan|ac|air condition|refrigerator|fridge|microwave|generator|appliance|lontor|binatone|thermocool)\b/.test(q)) return "appliances";
+    // Health keywords
+    if (/\b(medical|fitness|supplement|gym|health|diagnostic|hospital|clinic)\b/.test(q)) return "health";
     return null;
 }

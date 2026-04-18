@@ -113,6 +113,11 @@ export interface Product {
         interest_rate_pa?: number; // Overrides the global/category annual markup (e.g. 0.20 for 20%)
         max_tenor_months?: number; // Shortened or extended tenor (e.g. 24 for 2 years max)
     };
+    contact_info?: {
+        show: boolean;
+        phone?: string;
+        whatsapp?: string;
+    };
 }
 
 export interface Order {
@@ -326,27 +331,25 @@ export interface Notification {
 
 // ─── Categories ─────────────────────────────────────────────
 
-export type ProductCategory = "phones" | "computers" | "smartwatch" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "textiles" | "fitness" | "office" | "furniture" | "grocery" | "baby" | "sports" | "machinery" | "industrial" | "agriculture" | "construction" | "medical";
+export type ProductCategory = "phones" | "tablets" | "computers" | "appliances" | "electronics" | "fashion" | "beauty" | "home" | "cars" | "vehicles" | "energy" | "gaming" | "automotive" | "solar" | "fitness" | "health" | "machinery" | "industrial" | "agriculture" | "construction" | "medical" | "furniture" | "office";
 
 export const CATEGORIES: { value: ProductCategory; label: string; subcategories: string[] }[] = [
-    { value: "phones", label: "Phones & Tablets", subcategories: ["Smartphones", "Tablets", "Feature Phones", "Refurbished Phones", "Accessories"] },
-    { value: "computers", label: "Computers & Tech", subcategories: ["Laptops", "Desktops", "Monitors", "Networking", "Components", "Software"] },
-    { value: "electronics", label: "Electronics", subcategories: ["Smart Home", "Drones", "Audio", "Cameras", "TV & Video"] },
-    { value: "machinery", label: "Machinery", subcategories: ["Generators", "Lathes", "CNC Machines", "Industrial Pumps", "Boilers", "Conveyor Systems"] },
-    { value: "industrial", label: "Industrial & Tools", subcategories: ["Power Tools", "Welding Equipment", "Air Compressors", "Safety Gear", "Pneumatics"] },
-    { value: "agriculture", label: "Agro & Farming", subcategories: ["Tractors", "Irrigation Systems", "Harvesters", "Poultry Equipment", "Threshers"] },
-    { value: "construction", label: "Construction", subcategories: ["Excavators", "Concrete Mixers", "Scaffolding", "Lifts", "Earthmoving"] },
-    { value: "energy", label: "Energy & Solar", subcategories: ["Solar Panels", "Inverters", "Batteries", "Solar Street Lights", "Wind Turbines"] },
-    { value: "fashion", label: "Fashion", subcategories: ["Men's Wear", "Women's Wear", "Kids", "Bags", "Shoes", "Watches"] },
-    { value: "beauty", label: "Beauty & Health", subcategories: ["Skincare", "Makeup", "Fragrances", "Haircare", "Personal Care"] },
-    { value: "home", label: "Home & Kitchen", subcategories: ["Kitchenware", "Bedding", "Decor", "Furniture", "Lighting"] },
-    { value: "medical", label: "Medical & Health", subcategories: ["Diagnostic Gear", "Hospital Furniture", "Lab Equipment", "First Aid", "Consumables"] },
-    { value: "furniture", label: "Office & Furniture", subcategories: ["Office Chairs", "Desks", "Filing Cabinets", "Shelving", "Conference Tables"] },
-    { value: "sports", label: "Sports & Gym", subcategories: ["Fitness Equipment", "Outdoor Sports", "Team Sports", "Activewear"] },
+    { value: "phones", label: "Phones", subcategories: ["Smartphones", "Feature Phones", "Refurbished Phones", "Accessories"] },
+    { value: "tablets", label: "Tablets", subcategories: ["iPads", "Android Tablets", "Drawing Tablets"] },
+    { value: "computers", label: "Computers", subcategories: ["Laptops", "Desktops", "Monitors", "Networking", "Components"] },
+    { value: "appliances", label: "Appliances", subcategories: ["Fans", "Generators", "Air Conditioning", "Refrigerators", "Microwaves"] },
+    { value: "electronics", label: "Electronics", subcategories: ["Audio", "Headphones", "Smart Home", "Drones", "Cameras", "TV & Video"] },
+    { value: "machinery", label: "Machinery", subcategories: ["Lathes", "CNC Machines", "Industrial Pumps", "Boilers", "Conveyor Systems"] },
+    { value: "industrial", label: "Industrial Tools", subcategories: ["Power Tools", "Welding Equipment", "Air Compressors", "Safety Gear"] },
+    { value: "agriculture", label: "Agro & Farming", subcategories: ["Tractors", "Irrigation Systems", "Harvesters", "Poultry Equipment"] },
+    { value: "energy", label: "Energy & Solar", subcategories: ["Solar Panels", "Inverters", "Batteries", "Solar Street Lights"] },
+    { value: "fashion", label: "Fashion", subcategories: ["Men's Wear", "Women's Wear", "Kids", "Bags", "Shoes", "Sneakers", "Watches"] },
+    { value: "beauty", label: "Beauty", subcategories: ["Skincare", "Makeup", "Fragrances", "Haircare", "Personal Care"] },
+    { value: "health", label: "Health", subcategories: ["Fitness", "Supplements", "Medical Supplies", "Diagnostic Gear"] },
+    { value: "home", label: "Home", subcategories: ["Kitchenware", "Bedding", "Decor", "Furniture", "Lighting"] },
     { value: "gaming", label: "Gaming", subcategories: ["Consoles", "Gaming PCs", "Accessories", "Video Games"] },
-    { value: "cars", label: "Cars", subcategories: ["Sedans", "SUVs", "Trucks", "Luxury", "Classic"] },
-    { value: "vehicles", label: "Other Vehicles", subcategories: ["Motorcycles", "Tricycles", "Buses", "Vans"] },
-    { value: "automotive", label: "Auto Parts", subcategories: ["Engines", "Tyres", "Oils & Fluids", "Batteries", "Exterior Accessories"] },
+    { value: "vehicles", label: "Vehicles", subcategories: ["Cars", "Motorcycles", "Tricycles", "Buses", "Vans"] },
+    { value: "automotive", label: "Auto Parts", subcategories: ["Engines", "Tyres", "Oils & Fluids", "Batteries"] },
 ];
 
 // ─── Dashboard Stats ────────────────────────────────────────
