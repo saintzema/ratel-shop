@@ -35,8 +35,6 @@ export default function NewProduct() {
         original_price: "",
         external_url: "",
         financing_available: false,
-        external_url: "",
-        financing_available: false,
         financing_config: { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 },
         contact_info: { show: false, phone: "", whatsapp: "" }
     });
