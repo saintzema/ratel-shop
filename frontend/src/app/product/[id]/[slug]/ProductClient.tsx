@@ -2137,95 +2137,130 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
             {/* Lightbox Modal */}
             {isLightboxOpen && (
-                <div className="fixed inset-0 z-[200] bg-black/98 backdrop-blur-3xl text-white flex flex-col items-center justify-center overflow-hidden">
-                    <div className="absolute inset-0 bg-black/40 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
-                    
-                    {/* Close Button */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[10001] bg-black/85 backdrop-blur-3xl flex flex-col items-center justify-center p-0"
+                >
+                    {/* Background Overlay - Tap to close */}
+                    <div className="absolute inset-0 bg-black/20 cursor-pointer" onClick={() => setIsLightboxOpen(false)} />
+
+                    {/* Close Button - Enhanced visibility */}
                     <button 
-                        className="absolute top-8 right-8 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-all z-[210] group border border-white/10" 
+                        className="absolute top-6 right-6 md:top-8 md:right-8 z-[10005] w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-all border border-white/20 backdrop-blur-md"
                         onClick={() => setIsLightboxOpen(false)}
                     >
-                        <span className="sr-only">Close</span>
-                        <X className="h-6 w-6 text-white group-hover:rotate-90 transition-transform duration-300" />
+                        <X className="h-6 w-6" />
                     </button>
 
-                    {/* Main View Area */}
-                    <div className="relative w-full h-full flex flex-col md:flex-row items-center justify-center p-4 md:p-12 gap-8 z-10">
-                        {/* Apple-Style Navigation - Left */}
-                        {allImages.length > 1 && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }} 
-                                className="absolute left-8 top-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 group hidden md:flex"
-                            >
-                                <ChevronLeft className="h-8 w-8 text-white/50 group-hover:text-white transition-colors" />
-                            </button>
-                        )}
-
-                        {/* Left Sidebar: Thumbnails & Buy Now */}
-                        <div className="w-full md:w-32 flex flex-col gap-6 items-center animate-in slide-in-from-left-8 duration-500 order-1">
-                            {/* Thumbnail Navigator */}
-                            {allImages.length > 1 && (
-                                <div className="flex md:flex-col gap-3 p-3 bg-white/5 backdrop-blur-2xl rounded-3xl border border-white/10 overflow-x-auto md:overflow-y-auto no-scrollbar max-h-[50vh]">
-                                    {allImages.map((img, idx) => (
-                                        <button
-                                            key={idx}
-                                            onClick={() => setCurrentImageIndex(idx)}
-                                            className={cn(
-                                                "h-16 w-16 md:h-20 md:w-20 rounded-2xl overflow-hidden border-2 transition-all shrink-0 p-1 bg-white/10",
-                                                currentImageIndex === idx ? "border-emerald-500 scale-105 shadow-[0_0_20px_rgba(16,185,129,0.3)]" : "border-transparent opacity-40 hover:opacity-100"
-                                            )}
-                                        >
-                                            <img src={img} alt="" className="h-full w-full object-cover rounded-xl" />
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Buy Now Button - Premium Style */}
-                            <Button 
-                                className="w-full md:w-full py-8 rounded-[2rem] bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-[0_15px_30px_rgba(16,185,129,0.3)] active:scale-95 transition-all flex flex-col gap-0 uppercase tracking-tighter"
-                                onClick={() => { setIsLightboxOpen(false); handleBuyNow(); }}
-                            >
-                                <span className="text-xs opacity-80 font-bold mb-0.5">Secure Checkout</span>
-                                <span className="text-lg">Buy Now</span>
-                            </Button>
-
-                            <div className="text-[10px] font-black tracking-[0.2em] text-white/40 uppercase bg-white/5 px-4 py-2 rounded-full border border-white/5">
-                                {currentImageIndex + 1} / {allImages.length}
-                            </div>
+                    {/* Desktop Thumbnails - Left Aligned */}
+                    {allImages.length > 1 && (
+                        <div className="hidden lg:flex flex-col gap-4 absolute left-8 top-1/2 -translate-y-1/2 z-[10005]">
+                            {allImages.map((img, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(idx); }}
+                                    className={`w-16 h-16 rounded-2xl overflow-hidden border-2 transition-all p-0.5 bg-black/20 ${
+                                        currentImageIndex === idx ? "border-emerald-500 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.4)]" : "border-white/10 opacity-40 hover:opacity-100"
+                                    }`}
+                                >
+                                    <img src={img as string} alt="" className="w-full h-full object-cover rounded-xl" />
+                                </button>
+                            ))}
                         </div>
+                    )}
 
+                    {/* Main Content Area */}
+                    <div className="flex flex-col lg:flex-row items-center justify-center gap-12 w-full h-full px-4 lg:px-24">
                         {/* Image Display */}
                         <div 
-                            className="flex-1 relative h-full flex items-center justify-center select-none order-2"
+                            className="relative w-full lg:flex-1 h-[50vh] lg:h-[80vh] flex items-center justify-center z-[10004]"
+                            onClick={(e) => e.stopPropagation()}
                             onTouchStart={handleTouchStart}
                             onTouchEnd={handleTouchEnd}
                         >
-                            <img 
-                                src={allImages[currentImageIndex] as string} 
-                                alt={product.name} 
-                                className="max-w-full max-h-[80vh] object-contain transition-all duration-500 ease-out animate-in zoom-in-95" 
-                            />
+                            <AnimatePresence mode="wait">
+                                <motion.div
+                                    key={currentImageIndex}
+                                    initial={{ opacity: 0, scale: 0.95, x: 20 }}
+                                    animate={{ opacity: 1, scale: 1, x: 0 }}
+                                    exit={{ opacity: 0, scale: 1.05, x: -20 }}
+                                    transition={{ type: "spring", damping: 25, stiffness: 200 }}
+                                    className="w-full h-full flex items-center justify-center"
+                                >
+                                    <img 
+                                        src={allImages[currentImageIndex] as string} 
+                                        alt={product.name} 
+                                        className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl shadow-black/50 select-none" 
+                                    />
+                                </motion.div>
+                            </AnimatePresence>
                             
-                            {/* Indicators for Mobile */}
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 md:hidden">
+                            {/* Mobile Indicators */}
+                            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 lg:hidden">
                                 {allImages.map((_, i) => (
                                     <div key={i} className={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-6 bg-emerald-500' : 'w-1.5 bg-white/30'}`} />
                                 ))}
                             </div>
                         </div>
 
-                        {/* Apple-Style Navigation - Right */}
-                        {allImages.length > 1 && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }} 
-                                className="absolute right-8 top-1/2 -translate-y-1/2 h-16 w-16 rounded-full bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 group hidden md:flex"
-                            >
-                                <ChevronRight className="h-8 w-8 text-white/50 group-hover:text-white transition-colors" />
-                            </button>
-                        )}
+                        {/* Sidebar: Product Info & Buy Now */}
+                        <div className="hidden lg:flex flex-col gap-6 z-[10005] w-96 animate-in slide-in-from-right-8 duration-500">
+                            <div className="bg-white/5 backdrop-blur-2xl rounded-[3rem] p-10 border border-white/10 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]">
+                                <h3 className="text-white font-bold text-2xl mb-2 leading-tight tracking-tight">{product.name}</h3>
+                                <p className="text-emerald-400 font-black text-4xl mb-8 tracking-tighter">₦{product.price.toLocaleString()}</p>
+                                
+                                <div className="space-y-5 mb-10">
+                                    <div className="flex items-center gap-4 text-white/70">
+                                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                            <ShieldCheck className="h-5 w-5 text-emerald-500" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-white text-sm">FairPrice Protected</p>
+                                            <p className="text-[11px] text-white/40 leading-none">Safe payment & guarantee</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-white/70">
+                                        <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
+                                            <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-white text-sm">Authenticity Verified</p>
+                                            <p className="text-[11px] text-white/40 leading-none">Quality check passed</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <Button 
+                                    className="w-full py-9 rounded-3xl bg-emerald-600 hover:bg-emerald-500 text-white font-black shadow-[0_20px_40px_rgba(16,185,129,0.4)] active:scale-95 transition-all flex flex-col gap-0 uppercase tracking-tighter"
+                                    onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(false); handleBuyNow(); }}
+                                >
+                                    <span className="text-2xl">Buy Now</span>
+                                    <span className="text-[11px] opacity-70 font-bold tracking-normal normal-case mt-1">Secure Checkout</span>
+                                </Button>
+                            </div>
+                        </div>
                     </div>
-                </div>
+
+                    {/* Navigation Arrows */}
+                    {allImages.length > 1 && (
+                        <>
+                            <button 
+                                className="absolute left-6 lg:left-32 top-1/2 -translate-y-1/2 z-[10006] w-14 h-14 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-all border border-white/10 backdrop-blur-md group"
+                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === 0 ? allImages.length - 1 : prev - 1); }}
+                            >
+                                <ChevronLeft className="h-8 w-8 group-hover:-translate-x-0.5 transition-transform" />
+                            </button>
+                            <button 
+                                className="absolute right-6 lg:right-32 top-1/2 -translate-y-1/2 z-[10006] w-14 h-14 flex items-center justify-center rounded-full bg-black/40 hover:bg-black/60 text-white transition-all border border-white/10 backdrop-blur-md group"
+                                onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(prev => prev === allImages.length - 1 ? 0 : prev + 1); }}
+                            >
+                                <ChevronRight className="h-8 w-8 group-hover:translate-x-0.5 transition-transform" />
+                            </button>
+                        </>
+                    )}
+                </motion.div>
             )}
             <PriceIntelModal 
                 isOpen={isPriceIntelOpen} 
