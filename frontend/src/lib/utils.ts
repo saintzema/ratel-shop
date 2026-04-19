@@ -159,3 +159,11 @@ export function wrapInCDN(url: string | null | undefined): string {
 
     return url;
 }
+
+export function isVideoUrl(url: string | null | undefined): boolean {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    // Common video extensions and handling URLs with query parameters
+    const extensions = ['.mp4', '.webm', '.ogg', '.mov'];
+    return extensions.some(ext => lower.includes(ext));
+}

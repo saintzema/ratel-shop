@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, TrendingUp, Loader2, ShoppingCart, Star } from "lucide-react";
 import { Product } from "@/lib/types";
-import { getProductUrl } from "@/lib/utils";
+import { getProductUrl, isVideoUrl } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 
 interface RecommendedProductsProps {
@@ -149,13 +149,27 @@ export function RecommendedProducts({
                         className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-xl overflow-hidden cursor-pointer border border-gray-100"
                     >
                         <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
-                            <img
-                                src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
-                                alt={product.name}
-                                loading="lazy"
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-                            />
+
+                            {isVideoUrl(product.image_url || product.images?.[0]) ? (
+                                <video
+                                    src={product.image_url || product.images?.[0]}
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                    poster={product.images?.find(img => !isVideoUrl(img)) || product.image_url}
+                                />
+                            ) : (
+                                <img
+                                    src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
+                                    alt={product.name}
+                                    loading="lazy"
+                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                />
+                            )}
+
 
                             {/* Sponsored Badge */}
                             {product.is_sponsored && (

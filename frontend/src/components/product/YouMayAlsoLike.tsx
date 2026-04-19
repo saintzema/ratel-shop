@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatPrice, getProductUrl } from "@/lib/utils";
+import { formatPrice, getProductUrl, isVideoUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Star, ChevronDown } from "lucide-react";
 import { useCart } from "@/context/CartContext";
@@ -55,12 +55,26 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
                         return (
                             <div key={product.id} className="group relative bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all overflow-hidden">
                                 <Link href={getProductUrl(product.id, product.name)} className="block">
+
                                     <div className="bg-gray-50 rounded-t-xl aspect-square p-3 flex items-center justify-center relative">
-                                        <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
+                                        {isVideoUrl(product.image_url) ? (
+                                            <video
+                                                src={product.image_url}
+                                                className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105"
+                                                autoPlay
+                                                muted
+                                                loop
+                                                playsInline
+                                                poster={product.images?.find(img => !isVideoUrl(img)) || product.image_url}
+                                            />
+                                        ) : (
+                                            <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
+                                        )}
                                         {discount > 0 && (
                                             <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md">-{discount}%</span>
                                         )}
                                     </div>
+
                                     <div className="p-2.5">
                                         <h3 className="text-xs sm:text-sm text-gray-700 line-clamp-2 min-h-[2.25rem] group-hover:text-brand-orange leading-tight">
                                             {product.name}

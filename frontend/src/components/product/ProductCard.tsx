@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl, formatNumber } from "@/lib/utils";
+import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl, formatNumber, isVideoUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/context/CartContext";
@@ -168,19 +168,33 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         </div>
                     )}
 
-                    <img
-                        src={getProxiedImageUrl(product.image_url)}
-                        alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                        loading="lazy"
-                        onError={(e) => {
-                            const target = e.currentTarget as HTMLImageElement;
-                            if (target.src.includes('placeholder.png')) return; // Prevent infinite loops
-                            target.onerror = null;
-                            target.src = "/assets/images/placeholder.png";
-                            target.className = target.className + " object-contain p-4 opacity-50"; // Make placeholder look distinct
-                        }}
-                    />
+
+                    {isVideoUrl(product.image_url) ? (
+                        <video
+                            src={getProxiedImageUrl(product.image_url)}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
+                        />
+                    ) : (
+                        <img
+                            src={getProxiedImageUrl(product.image_url)}
+                            alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
+                            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            loading="lazy"
+                            onError={(e) => {
+                                const target = e.currentTarget as HTMLImageElement;
+                                if (target.src.includes('placeholder.png')) return; // Prevent infinite loops
+                                target.onerror = null;
+                                target.src = "/assets/images/placeholder.png";
+                                target.className = target.className + " object-contain p-4 opacity-50"; // Make placeholder look distinct
+                            }}
+                        />
+                    )}
+
                 </div>
 
                 <div className="flex flex-col px-3 pb-1.5 pt-2">

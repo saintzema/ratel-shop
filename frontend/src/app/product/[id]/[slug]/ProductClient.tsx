@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, getProxiedImageUrl, cn } from "@/lib/utils";
+import { formatPrice, getProxiedImageUrl, cn, isVideoUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -1084,7 +1084,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             className={`w-16 md:w-full aspect-square flex-shrink-0 rounded-xl p-1.5 border cursor-pointer transition-all bg-white ${currentImageIndex === i ? 'border-emerald-500 ring-2 ring-emerald-500/20 shadow-sm' : 'border-gray-200 hover:border-gray-300 opacity-70 hover:opacity-100'}`}
                                             onClick={() => setCurrentImageIndex(i)}
                                         >
-                                            <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+
+                                            {isVideoUrl(img as string) ? (
+                                                <div className="relative w-full h-full">
+                                                    <video src={img as string} className="w-full h-full object-contain mix-blend-multiply" muted />
+                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-lg">
+                                                        <Zap className="h-4 w-4 text-emerald-500 fill-emerald-500" />
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                            )}
+
                                         </div>
                                     ))}
                                 </div>
@@ -1097,13 +1108,27 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 onTouchEnd={handleTouchEnd}
                             >
                                 <div className="flex-1 relative flex items-center justify-center aspect-square md:aspect-auto">
+
                                     {allImages.length > 0 ? (
-                                        <img
-                                            src={allImages[currentImageIndex] as string}
-                                            alt={product.name}
-                                            className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 pointer-events-none"
-                                            onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
-                                        />
+                                        isVideoUrl(allImages[currentImageIndex] as string) ? (
+                                            <video
+                                                src={allImages[currentImageIndex] as string}
+                                                className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105"
+                                                autoPlay
+                                                muted
+                                                loop
+                                                playsInline
+                                                poster={allImages.find(img => !isVideoUrl(img as string)) as string}
+                                            />
+                                        ) : (
+                                            <img
+                                                src={allImages[currentImageIndex] as string}
+                                                alt={product.name}
+                                                className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105 pointer-events-none"
+                                                onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }}
+                                            />
+                                        )
+
                                     ) : (
                                         <div className="w-full h-full flex flex-col items-center justify-center p-2">
                                             <img
@@ -2165,7 +2190,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         currentImageIndex === idx ? "border-emerald-500 scale-110 shadow-[0_0_20px_rgba(16,185,129,0.4)]" : "border-white/10 opacity-40 hover:opacity-100"
                                     }`}
                                 >
-                                    <img src={img as string} alt="" className="w-full h-full object-cover rounded-xl" />
+
+                                     {isVideoUrl(img as string) ? (
+                                         <div className="relative w-full h-full">
+                                             <video src={img as string} className="w-full h-full object-cover rounded-xl" muted />
+                                             <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
+                                                 <Zap className="h-5 w-5 text-emerald-400 fill-emerald-400" />
+                                             </div>
+                                         </div>
+                                     ) : (
+                                         <img src={img as string} alt="" className="w-full h-full object-cover rounded-xl" />
+                                     )}
+
                                 </button>
                             ))}
                         </div>
@@ -2189,11 +2225,25 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     transition={{ type: "spring", damping: 25, stiffness: 200 }}
                                     className="w-full h-full flex items-center justify-center"
                                 >
-                                    <img 
-                                        src={allImages[currentImageIndex] as string} 
-                                        alt={product.name} 
-                                        className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl shadow-black/50 select-none" 
-                                    />
+
+                                    {isVideoUrl(allImages[currentImageIndex] as string) ? (
+                                        <video
+                                            src={allImages[currentImageIndex] as string}
+                                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl shadow-black/50 select-none"
+                                            controls
+                                            autoPlay
+                                            loop
+                                            playsInline
+                                            poster={allImages.find(img => !isVideoUrl(img as string)) as string}
+                                        />
+                                    ) : (
+                                        <img 
+                                            src={allImages[currentImageIndex] as string} 
+                                            alt={product.name} 
+                                            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl shadow-black/50 select-none" 
+                                        />
+                                    )}
+
                                 </motion.div>
                             </AnimatePresence>
                             

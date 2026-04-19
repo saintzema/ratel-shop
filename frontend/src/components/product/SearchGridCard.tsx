@@ -7,7 +7,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
-import { cn, getProductUrl, getProxiedImageUrl } from "@/lib/utils";
+import { cn, getProductUrl, getProxiedImageUrl, isVideoUrl } from "@/lib/utils";
 import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 
 export const SearchGridCard = ({
@@ -161,28 +161,46 @@ export const SearchGridCard = ({
         {isImageLoading && (
           <div className="absolute inset-0 z-0 bg-gray-200 animate-pulse" />
         )}
-        <img
-          src={(() => {
-            if (imageError) return "/assets/images/placeholder.png";
-            if (hydratedImage) return getProxiedImageUrl(hydratedImage);
-            const rawUrl = product.image_url || product.images?.[0];
-            return getProxiedImageUrl(rawUrl);
-          })()}
-          alt={`${product.name} - Verified Market Price on FairPrice Shop`}
-          className={cn(
-            "absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-500",
-            isImageLoading ? "opacity-0" : "opacity-100 z-10"
-          )}
-          loading="lazy"
-          onLoad={() => setIsImageLoading(false)}
-          onError={(e) => {
-            setIsImageLoading(false);
-            if (!imageError) {
-              setImageError(true);
-            }
-            e.currentTarget.src = "/assets/images/placeholder.png";
-          }}
-        />
+
+        {isVideoUrl(hydratedImage || product.image_url || product.images?.[0]) ? (
+          <video
+            src={getProxiedImageUrl(hydratedImage || product.image_url || product.images?.[0])}
+            className={cn(
+              "absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-500",
+              isImageLoading ? "opacity-0" : "opacity-100 z-10"
+            )}
+            autoPlay
+            muted
+            loop
+            playsInline
+            onLoadedData={() => setIsImageLoading(false)}
+            poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
+          />
+        ) : (
+          <img
+            src={(() => {
+              if (imageError) return "/assets/images/placeholder.png";
+              if (hydratedImage) return getProxiedImageUrl(hydratedImage);
+              const rawUrl = product.image_url || product.images?.[0];
+              return getProxiedImageUrl(rawUrl);
+            })()}
+            alt={`${product.name} - Verified Market Price on FairPrice Shop`}
+            className={cn(
+              "absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-500",
+              isImageLoading ? "opacity-0" : "opacity-100 z-10"
+            )}
+            loading="lazy"
+            onLoad={() => setIsImageLoading(false)}
+            onError={(e) => {
+              setIsImageLoading(false);
+              if (!imageError) {
+                setImageError(true);
+              }
+              e.currentTarget.src = "/assets/images/placeholder.png";
+            }}
+          />
+        )}
+
       </div>
       <div className="p-3 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
         <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-brand-green-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
