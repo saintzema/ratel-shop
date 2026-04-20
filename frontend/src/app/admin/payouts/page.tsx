@@ -6,11 +6,16 @@ import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default function PayoutRequestsDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
     const [view, setView] = useState<"all" | "processing" | "completed">("all");
     const [payouts, setPayouts] = useState<any[]>([]);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     useEffect(() => {
         const load = () => {
@@ -26,6 +31,14 @@ export default function PayoutRequestsDirectory() {
         const matchesView = view === "all" || p.status === view;
         return matchesSearch && matchesView;
     });
+
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    // Reset page when search or view changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, view]);
 
     return (
         <div className="space-y-8">
@@ -81,7 +94,7 @@ export default function PayoutRequestsDirectory() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                        {filtered.map((p) => (
+                        {paginated.map((p) => (
                             <tr key={p.id} className="group hover:bg-gray-50/50 transition-colors">
                                 <td className="px-8 py-6">
                                     <div className="flex items-center gap-3">
@@ -160,6 +173,16 @@ export default function PayoutRequestsDirectory() {
                         <p className="text-sm text-gray-400 font-bold uppercase tracking-wider mt-1">Sellers have not requested cashouts matching this criteria</p>
                     </div>
                 )}
+
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filtered.length}
+                    onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    type="payouts"
+                />
             </div>
         </div>
     );

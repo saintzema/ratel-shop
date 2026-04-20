@@ -8,12 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDateExact, cn } from "@/lib/utils";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default function AdminOrdersPage() {
     const [orders, setOrders] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
 
     const [isLoading, setIsLoading] = useState(true);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     const loadOrders = async () => {
         // Fallback to local sync store while fetching
@@ -51,6 +56,14 @@ export default function AdminOrdersPage() {
         o.product?.name?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+    const paginatedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
+
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -85,7 +98,7 @@ export default function AdminOrdersPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                            {filteredOrders.length === 0 ? (
+                            {paginatedOrders.length === 0 ? (
                                 <tr>
                                     <td colSpan={6}>
                                         <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -95,7 +108,7 @@ export default function AdminOrdersPage() {
                                     </td>
                                 </tr>
                             ) : (
-                                filteredOrders.map((order) => {
+                                paginatedOrders.map((order) => {
                                     const buyerName = order.customer_name || order.customer_id?.split('@')[0] || "Customer";
                                     
                                     return (
@@ -177,6 +190,16 @@ export default function AdminOrdersPage() {
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filteredOrders.length}
+                    onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    type="orders"
+                />
             </div>
         </div>
     );

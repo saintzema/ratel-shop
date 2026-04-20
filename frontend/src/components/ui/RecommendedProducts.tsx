@@ -7,6 +7,7 @@ import { ChevronRight, TrendingUp, Loader2, ShoppingCart, Star } from "lucide-re
 import { Product } from "@/lib/types";
 import { getProductUrl, isVideoUrl } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
+import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
 interface RecommendedProductsProps {
     products: Product[];
@@ -151,14 +152,11 @@ export function RecommendedProducts({
                         <div className="relative aspect-[4/5] w-full bg-gray-50/50 overflow-hidden shrink-0">
 
                             {isVideoUrl(product.image_url || product.images?.[0]) ? (
-                                <video
+                                <VideoPlayer
                                     src={product.image_url || product.images?.[0]}
                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                    autoPlay
-                                    muted
-                                    loop
-                                    playsInline
                                     poster={product.images?.find(img => !isVideoUrl(img)) || product.image_url}
+                                    autoPlayOnHover={true}
                                 />
                             ) : (
                                 <img

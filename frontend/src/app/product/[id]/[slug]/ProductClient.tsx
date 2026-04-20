@@ -73,6 +73,7 @@ import {
     TrendingUp,
     X
 } from "lucide-react";
+import { VideoPlayer } from "@/components/ui/VideoPlayer";
 import { LocationModal } from "@/components/modals/LocationModal";
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import Link from "next/link";
@@ -1087,10 +1088,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                                             {isVideoUrl(img as string) ? (
                                                 <div className="relative w-full h-full">
-                                                    <video src={img as string} className="w-full h-full object-contain mix-blend-multiply" muted />
-                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 rounded-lg">
-                                                        <Zap className="h-4 w-4 text-emerald-500 fill-emerald-500" />
-                                                    </div>
+                                                    <VideoPlayer 
+                                                        src={img as string} 
+                                                        className="w-full h-full object-contain mix-blend-multiply" 
+                                                        muted 
+                                                        size="sm"
+                                                    />
                                                 </div>
                                             ) : (
                                                 <img src={img as string} alt="" className="w-full h-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
@@ -1111,14 +1114,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                                     {allImages.length > 0 ? (
                                         isVideoUrl(allImages[currentImageIndex] as string) ? (
-                                            <video
+                                            <VideoPlayer
                                                 src={allImages[currentImageIndex] as string}
                                                 className="w-full h-full object-contain mix-blend-multiply transition-transform duration-500 group-hover:scale-105"
-                                                autoPlay
-                                                muted
-                                                loop
-                                                playsInline
                                                 poster={allImages.find(img => !isVideoUrl(img as string)) as string}
+                                                autoPlayOnHover={true}
+                                                size="lg"
                                             />
                                         ) : (
                                             <img
@@ -2193,10 +2194,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                                      {isVideoUrl(img as string) ? (
                                          <div className="relative w-full h-full">
-                                             <video src={img as string} className="w-full h-full object-cover rounded-xl" muted />
-                                             <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl">
-                                                 <Zap className="h-5 w-5 text-emerald-400 fill-emerald-400" />
-                                             </div>
+                                             <VideoPlayer 
+                                                src={img as string} 
+                                                className="w-full h-full object-cover rounded-xl" 
+                                                muted 
+                                                size="sm"
+                                             />
                                          </div>
                                      ) : (
                                          <img src={img as string} alt="" className="w-full h-full object-cover rounded-xl" />
@@ -2227,14 +2230,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 >
 
                                     {isVideoUrl(allImages[currentImageIndex] as string) ? (
-                                        <video
+                                        <VideoPlayer
                                             src={allImages[currentImageIndex] as string}
                                             className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl shadow-black/50 select-none"
-                                            controls
-                                            autoPlay
-                                            loop
-                                            playsInline
-                                            poster={allImages.find(img => !isVideoUrl(img as string)) as string}
+                                            autoPlayOnHover={false}
+                                            size="lg"
                                         />
                                     ) : (
                                         <img 

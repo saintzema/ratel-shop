@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default function SponsoredAdsPage() {
     const [promotions, setPromotions] = useState<(Promotion & { product?: Product, seller?: Seller })[]>([]);
@@ -20,6 +21,10 @@ export default function SponsoredAdsPage() {
     const [endModalOpen, setEndModalOpen] = useState(false);
     const [selectedPromo, setSelectedPromo] = useState<(Promotion & { product?: Product, seller?: Seller }) | null>(null);
     const [extendDays, setExtendDays] = useState(7);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(25);
 
     useEffect(() => {
         loadData();
@@ -56,12 +61,19 @@ export default function SponsoredAdsPage() {
         setExtendDays(7);
         loadData();
     };
-
-    const filteredPromos = promotions.filter(promo =>
-        promo.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const filteredPromos = promotions.filter(promo => 
         promo.product?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        promo.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         promo.seller?.business_name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    const totalPages = Math.ceil(filteredPromos.length / itemsPerPage);
+    const paginatedPromos = filteredPromos.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery]);
 
     const activeCount = promotions.filter(p => p.status === "active").length;
     const totalRevenue = promotions.reduce((sum, p) => sum + p.amount_paid, 0);
@@ -139,14 +151,14 @@ export default function SponsoredAdsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {filteredPromos.length === 0 ? (
+                            {paginatedPromos.length === 0 ? (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
                                         No campaigns found matching "{searchQuery}"
                                     </td>
                                 </tr>
                             ) : (
-                                filteredPromos.map((promo) => {
+                                paginatedPromos.map((promo) => {
                                     const daysLeft = calculateDaysLeft(promo.expires_at);
                                     const pctComplete = promo.status === "active"
                                         ? Math.min(100, Math.max(0, ((new Date().getTime() - new Date(promo.started_at).getTime()) / (new Date(promo.expires_at).getTime() - new Date(promo.started_at).getTime())) * 100))
@@ -238,6 +250,16 @@ export default function SponsoredAdsPage() {
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filteredPromos.length}
+                    onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    type="campaigns"
+                />
             </div>
 
             {/* Extend Promo Modal */}

@@ -323,6 +323,9 @@ function CheckoutContent() {
     // Savings Breakdown Toggle
     const [showSavingsBreakdown, setShowSavingsBreakdown] = useState(false);
 
+    // Paystack Metadata (for webhook tracking)
+    const [paystackMetadata, setPaystackMetadata] = useState<any>(null);
+
     // Initial load effects
     useEffect(() => {
         setIsClient(true);
@@ -828,7 +831,15 @@ function CheckoutContent() {
             // Pay on delivery — skip Paystack, go straight to order confirmation
             finalizeOrder("COD-" + Date.now());
         } else {
-            // Both card and transfer go through Paystack
+            // Generate IDs for all items in this transaction before starting Paystack
+            // This allows the webhook to update these specific orders
+            const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
+            setPaystackMetadata({
+                type: "order",
+                order_ids: orderIds.join(','),
+                customer_id: user?.id || user?.email || address.email,
+                total_amount: total
+            });
             setShowPaystack(true);
         }
     };
@@ -844,13 +855,19 @@ function CheckoutContent() {
             const fullName = `${address.firstName} ${address.lastName}`.trim();
 
             const createdOrders: any[] = [];
-            checkoutItems.forEach(item => {
+            const preGeneratedIds = paystackMetadata?.order_ids?.split(',') || [];
+
+            checkoutItems.forEach((item, index) => {
                 // Calculate financing details for vehicle products
                 const isVehicleProduct = isVehicle(item.product);
                 const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * 0.15) : 0;
                 const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 'bnpl', 'foreign_used') : null;
 
+                // Use pre-generated ID if available (from Paystack flow)
+                const manualId = preGeneratedIds[index] || undefined;
+
                 const newOrder = DataSyncService.addOrder({
+                    id: manualId, // Pass the ID we used for Paystack
                     product_id: item.product.id,
                     customer_id: orderUserId,
                     customer_name: fullName || address.firstName || "Customer",
@@ -858,7 +875,7 @@ function CheckoutContent() {
                     seller_id: item.product.seller_id,
                     seller_name: item.product.seller_name,
                     amount: isVehicleProduct ? vehicleDeposit : item.price * item.quantity,
-                    status: "pending",
+                    status: _reference?.startsWith("COD-") ? "pending" : "processing", // If paid via Paystack, it's processing
                     escrow_status: "held",
                     shipping_address: deliveryMethod === "pickup"
                         ? `${fullName}, Pickup at: ${pickupDetails.station}, ${pickupDetails.city}, ${pickupDetails.state}`
@@ -2105,6 +2122,7 @@ function CheckoutContent() {
                     <PaystackCheckout
                         amount={total * 100}
                         email={user?.email || address.email || "guest@example.com"}
+                        metadata={paystackMetadata}
                         onSuccess={(ref) => finalizeOrder(ref)}
                         onClose={() => setShowPaystack(false)}
                         autoStart={true}

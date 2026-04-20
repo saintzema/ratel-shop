@@ -162,6 +162,27 @@ export default function AdminDashboard() {
 
     return (
         <div className="space-y-6 max-w-6xl">
+            {DataSyncService.isDbOffline() && (
+                <div className="bg-rose-50 border border-rose-100 rounded-3xl p-6 flex items-center justify-between shadow-lg shadow-rose-900/5 animate-pulse">
+                    <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-2xl bg-rose-100 flex items-center justify-center text-rose-600">
+                            <ShieldAlert className="h-6 w-6" />
+                        </div>
+                        <div>
+                            <h3 className="font-black text-rose-900 tracking-tight">Database Offline / Quota Exceeded</h3>
+                            <p className="text-sm text-rose-600/80 font-medium">Platform is running on local cache. Live updates and some admin features are temporarily restricted.</p>
+                        </div>
+                    </div>
+                    <Button 
+                        variant="outline" 
+                        onClick={() => DataSyncService.syncWithDB(undefined, true)}
+                        className="bg-white border-rose-200 text-rose-600 hover:bg-rose-50 rounded-xl font-bold"
+                    >
+                        Retry Connection
+                    </Button>
+                </div>
+            )}
+
             {/* Welcome Header */}
             <div>
                 <h1 className="text-2xl font-black text-gray-900 tracking-tight">
@@ -242,7 +263,9 @@ export default function AdminDashboard() {
                                                 </div>
                                                 <div>
                                                     <h4 className="font-bold text-gray-900 text-sm">{kyc.seller_name}</h4>
-                                                    <p className="text-[11px] text-gray-400 font-bold uppercase">{kyc.id_type} Submission • {new Date(kyc.created_at).toLocaleDateString()}</p>
+                                                    <p className="text-[11px] text-gray-400 font-bold uppercase">
+                                                        {kyc.id_type} Submission • {kyc.created_at ? new Date(kyc.created_at).toLocaleDateString() : "Pending"}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -383,7 +406,7 @@ export default function AdminDashboard() {
                                             <span>•</span>
                                             <span>{(() => { const p = DataSyncService.getProducts().find(p => p.id === review.product_id); return p?.name || review.product_id; })()}</span>
                                             <span>•</span>
-                                            <span>{new Date(review.created_at).toLocaleDateString()}</span>
+                                            <span>{review.created_at ? new Date(review.created_at).toLocaleDateString() : "N/A"}</span>
                                         </div>
                                     </div>
                                     <div className="transition-opacity shrink-0">
@@ -461,7 +484,7 @@ export default function AdminDashboard() {
                                                 {order.product?.name || "Product"}
                                             </td>
                                             <td className="px-6 py-4 font-black text-gray-900">
-                                                ₦{order.amount.toLocaleString()}
+                                                ₦{(order.amount || 0).toLocaleString()}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={cn(
@@ -480,7 +503,7 @@ export default function AdminDashboard() {
                                                         <span className="text-[10px] text-gray-400 font-mono tracking-wider">{order.tracking_id || "N/A"}</span>
                                                         {order.tracking_steps && order.tracking_steps.length > 0 && (
                                                             <span className="text-[10px] text-indigo-500 font-bold mt-1">
-                                                                📍 {order.tracking_steps[order.tracking_steps.length - 1].location}
+                                                                📍 {order.tracking_steps[order.tracking_steps.length - 1]?.location || "Processing"}
                                                             </span>
                                                         )}
                                                     </div>

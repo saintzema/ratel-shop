@@ -4,7 +4,7 @@ import React, { useRef, useState, useEffect } from "react";
 import { Upload, X, Image as ImageIcon, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { cn, wrapInCDN } from "@/lib/utils";
+import { cn, wrapInCDN, isVideoUrl } from "@/lib/utils";
 
 /**
  * Smart Price Formatter
@@ -44,9 +44,20 @@ export function ProductImageSlot({
             >
                 {url ? (
                     <>
-                        <img src={url} alt="Preview" className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" />
+                        {isVideoUrl(url) ? (
+                            <video 
+                                src={url} 
+                                className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" 
+                                muted 
+                                autoPlay 
+                                loop 
+                                playsInline 
+                            />
+                        ) : (
+                            <img src={url} alt="Preview" className="h-full w-full object-contain p-3 transition-transform group-hover:scale-105" />
+                        )}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                            <p className="text-white text-xs font-bold uppercase tracking-widest">Change Image</p>
+                            <p className="text-white text-xs font-bold uppercase tracking-widest">Change Media</p>
                         </div>
                     </>
                 ) : (

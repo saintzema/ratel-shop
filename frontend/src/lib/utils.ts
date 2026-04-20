@@ -121,8 +121,8 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
         return "/assets/images/placeholder.png";
     }
 
-    // Only proxy external HTTP(S) links
-    if (url.startsWith('http')) {
+    // Only proxy external HTTP(S) links, skip videos as they break in the image-cdn sharp processor
+    if (url.startsWith('http') && !isVideoUrl(url)) {
         return `/api/image-cdn?url=${encodeURIComponent(url)}`;
     }
 

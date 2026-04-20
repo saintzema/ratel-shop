@@ -9,6 +9,7 @@ import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
 import { cn, getProductUrl, getProxiedImageUrl, isVideoUrl } from "@/lib/utils";
 import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
+import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
 export const SearchGridCard = ({
   product,
@@ -163,18 +164,14 @@ export const SearchGridCard = ({
         )}
 
         {isVideoUrl(hydratedImage || product.image_url || product.images?.[0]) ? (
-          <video
+          <VideoPlayer
             src={getProxiedImageUrl(hydratedImage || product.image_url || product.images?.[0])}
             className={cn(
               "absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-all duration-500",
               isImageLoading ? "opacity-0" : "opacity-100 z-10"
             )}
-            autoPlay
-            muted
-            loop
-            playsInline
-            onLoadedData={() => setIsImageLoading(false)}
             poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
+            autoPlayOnHover={true}
           />
         ) : (
           <img

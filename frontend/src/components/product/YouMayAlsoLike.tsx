@@ -10,6 +10,7 @@ import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { Product } from "@/lib/types";
 import { hasFinancing, calculateMonthlyPayment } from "@/lib/financing-utils";
+import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
 interface YouMayAlsoLikeProps {
     cartCategories?: string[];
@@ -58,14 +59,11 @@ export function YouMayAlsoLike({ cartCategories = [], cartIds = new Set(), title
 
                                     <div className="bg-gray-50 rounded-t-xl aspect-square p-3 flex items-center justify-center relative">
                                         {isVideoUrl(product.image_url) ? (
-                                            <video
+                                            <VideoPlayer
                                                 src={product.image_url}
                                                 className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105"
-                                                autoPlay
-                                                muted
-                                                loop
-                                                playsInline
                                                 poster={product.images?.find(img => !isVideoUrl(img)) || product.image_url}
+                                                autoPlayOnHover={true}
                                             />
                                         ) : (
                                             <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />

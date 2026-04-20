@@ -28,8 +28,10 @@ import {
     Star,
     ArrowUpDown,
     Timer,
+    ChevronLeft,
     ChevronRight
 } from "lucide-react";
+import { Pagination } from "@/components/ui/Pagination";
 import {
     Dialog,
     DialogContent,
@@ -647,62 +649,16 @@ export default function SellerProducts() {
                 </table>
 
                 {/* Seller Pagination UI */}
-                <div className="px-6 py-5 border-t border-gray-100 bg-white/40 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                            Page {currentPage} of {totalPages || 1}
-                        </div>
-                        <div className="h-4 w-px bg-gray-200 hidden sm:block" />
-                        <div className="hidden sm:flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                            Display:
-                            <select 
-                                value={itemsPerPage} 
-                                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                                className="bg-transparent text-gray-900 font-black outline-none cursor-pointer"
-                            >
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                                <option value={200}>200</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {totalPages > 1 && (
-                        <div className="flex items-center gap-2">
-                            <button
-                                disabled={currentPage === 1}
-                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                className="p-2.5 rounded-2xl bg-white border border-gray-100 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-90 shadow-sm"
-                            >
-                                <ChevronRight className="h-4 w-4 rotate-180" />
-                            </button>
-                            <div className="hidden md:flex items-center gap-1.5">
-                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                    const pageNum = totalPages <= 5 ? i + 1 : (currentPage <= 3 ? i + 1 : (currentPage >= totalPages - 2 ? totalPages - 4 + i : currentPage - 2 + i));
-                                    return (
-                                        <button
-                                            key={pageNum}
-                                            onClick={() => setCurrentPage(pageNum)}
-                                            className={cn(
-                                                "w-10 h-10 rounded-2xl text-[10px] font-black uppercase transition-all tracking-tighter",
-                                                currentPage === pageNum ? "bg-gray-900 text-white shadow-xl scale-105" : "bg-white border border-gray-100 text-gray-400 hover:text-gray-900 hover:border-gray-300"
-                                            )}
-                                        >
-                                            {pageNum}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <button
-                                disabled={currentPage === totalPages}
-                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                className="p-2.5 rounded-2xl bg-white border border-gray-100 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-90 shadow-sm"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filtered.length}
+                    onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    type="items"
+                    className="bg-white/40"
+                />
             </div>
 
             {/* Promote Product Modal — 3-Tier Selector */}
@@ -763,10 +719,18 @@ export default function SellerProducts() {
                 </DialogContent>
             </Dialog>
 
-            {showPaystack && promoteModalOpen.product && (
+            {showPaystack && (promoteModalOpen.product || dealModalOpen.product) && (
                 <PaystackCheckout
-                    amount={(selectedAdPlan === "3_day" ? 500000 : selectedAdPlan === "10_day" ? 999900 : 2000000)}
+                    amount={dealModalOpen.isOpen ? 
+                        (dealDurationHours === "6" ? 200000 : dealDurationHours === "24" ? 500000 : 1200000) : 
+                        (selectedAdPlan === "3_day" ? 500000 : selectedAdPlan === "10_day" ? 999900 : 2000000)}
                     email={DataSyncService.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    metadata={{
+                        type: "sponsored_ad",
+                        product_id: promoteModalOpen.product?.id || dealModalOpen.product?.id,
+                        plan: dealModalOpen.isOpen ? `deal_${dealDurationHours}` : selectedAdPlan,
+                        seller_id: DataSyncService.getCurrentSellerId()
+                    }}
                     onSuccess={handlePromoteSuccess}
                     onClose={() => setShowPaystack(false)}
                     autoStart={true}

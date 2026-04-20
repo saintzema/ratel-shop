@@ -29,8 +29,11 @@ import {
     Zap, // Added Zap
     CheckCircle2 as CheckIcon, // Added CheckIcon to avoid conflicts
     Settings,
-    Sparkles
+    Sparkles,
+    ChevronLeft,
+    ChevronRight
 } from "lucide-react";
+import { Pagination } from "@/components/ui/Pagination";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCategory, CATEGORIES } from "@/lib/types";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
@@ -732,46 +735,16 @@ export default function CatalogControl() {
                         )}
 
                         {/* Search Cache Pagination UI */}
-                        {totalCachePages > 1 && (
-                            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                    Page {currentCachePage} of {totalCachePages} · Showing {paginatedCacheProducts.length} of {searchFilteredCache.length}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        disabled={currentCachePage === 1}
-                                        onClick={() => setCurrentCachePage(p => Math.max(1, p - 1))}
-                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors"
-                                    >
-                                        <Eye className="h-4 w-4 rotate-180" />
-                                    </button>
-                                    <div className="flex items-center gap-1">
-                                        {Array.from({ length: Math.min(5, totalCachePages) }, (_, i) => {
-                                            const pageNum = totalCachePages <= 5 ? i + 1 : (currentCachePage <= 3 ? i + 1 : (currentCachePage >= totalCachePages - 2 ? totalCachePages - 4 + i : currentCachePage - 2 + i));
-                                            return (
-                                                <button
-                                                    key={pageNum}
-                                                    onClick={() => setCurrentCachePage(pageNum)}
-                                                    className={cn(
-                                                        "w-8 h-8 rounded-lg text-xs font-black transition-all",
-                                                        currentCachePage === pageNum ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                                    )}
-                                                >
-                                                    {pageNum}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                    <button
-                                        disabled={currentCachePage === totalCachePages}
-                                        onClick={() => setCurrentCachePage(p => Math.min(totalCachePages, p + 1))}
-                                        className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors"
-                                    >
-                                        <Eye className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+                        <Pagination 
+                            currentPage={currentCachePage}
+                            totalPages={totalCachePages}
+                            onPageChange={setCurrentCachePage}
+                            itemsPerPage={cacheItemsPerPage}
+                            totalItems={searchFilteredCache.length}
+                            onItemsPerPageChange={(val) => { setCacheItemsPerPage(val); setCurrentCachePage(1); }}
+                            type="cached items"
+                            className="bg-blue-50/30 border-blue-100"
+                        />
 
                         {/* Cache Edit Modal */}
                         <Dialog open={!!editingCacheProduct} onOpenChange={() => setEditingCacheProduct(null)}>
@@ -1034,71 +1007,15 @@ export default function CatalogControl() {
                     </div>
 
                     {/* Main Catalog Pagination UI */}
-                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                                Showing {paginatedProducts.length} of {filtered.length} products
-                            </div>
-                            <div className="h-4 w-px bg-gray-200" />
-                            <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 uppercase">
-                                Rows:
-                                <select 
-                                    value={itemsPerPage} 
-                                    onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
-                                    className="bg-transparent text-indigo-600 font-black outline-none cursor-pointer"
-                                >
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                    <option value={200}>200</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        {totalPages > 1 && (
-                            <div className="flex items-center gap-2">
-                                <button
-                                    disabled={currentPage === 1}
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95"
-                                >
-                                    <Eye className="h-4 w-4 rotate-180" />
-                                </button>
-                                <div className="hidden md:flex items-center gap-1">
-                                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                        const pageNum = totalPages <= 5 ? i + 1 : (currentPage <= 3 ? i + 1 : (currentPage >= totalPages - 2 ? totalPages - 4 + i : currentPage - 2 + i));
-                                        return (
-                                            <button
-                                                key={pageNum}
-                                                onClick={() => setCurrentPage(pageNum)}
-                                                className={cn(
-                                                    "w-8 h-8 rounded-lg text-xs font-black transition-all",
-                                                    currentPage === pageNum ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-indigo-200"
-                                                )}
-                                            >
-                                                {pageNum}
-                                            </button>
-                                        );
-                                    })}
-                                    {totalPages > 5 && currentPage < totalPages - 2 && <span className="text-gray-400 px-1">...</span>}
-                                    {totalPages > 5 && currentPage < totalPages - 2 && (
-                                        <button
-                                            onClick={() => setCurrentPage(totalPages)}
-                                            className="w-8 h-8 rounded-lg text-xs font-black bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"
-                                        >
-                                            {totalPages}
-                                        </button>
-                                    )}
-                                </div>
-                                <button
-                                    disabled={currentPage === totalPages}
-                                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                    className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-all active:scale-95"
-                                >
-                                    <Eye className="h-4 w-4" />
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <Pagination 
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                        itemsPerPage={itemsPerPage}
+                        totalItems={filtered.length}
+                        onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                        type="products"
+                    />
 
                     {filtered.length === 0 && (
                         <div className="py-24 text-center bg-gray-50/50">

@@ -90,6 +90,11 @@ export default function PremiumPage() {
                     <PaystackCheckout
                         amount={500000} // ₦5,000 in kobo
                         email={user?.email || "guest@example.com"}
+                        metadata={{
+                            type: "account_upgrade",
+                            user_id: user?.id,
+                            role: "customer" // Or logic to determine role if different
+                        }}
                         onSuccess={handleSuccess}
                         onClose={() => setShowPaystack(false)}
                         autoStart={true}

@@ -24,6 +24,7 @@ import {
     ArrowUpDown,
     ChevronDown
 } from "lucide-react";
+import { Pagination } from "@/components/ui/Pagination";
 import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { cn, formatDateExact } from "@/lib/utils";
@@ -539,36 +540,14 @@ export default function EscrowManagement() {
                 )}
 
                 {/* Pagination Controls */}
-                {totalPages > 1 && (
-                    <div className="bg-gray-50/50 border-t border-gray-100 px-6 py-4 flex items-center justify-between">
-                        <p className="text-xs text-gray-500 font-medium">
-                            Showing <span className="font-black text-gray-900">{((currentPage - 1) * itemsPerPage) + 1}</span> to <span className="font-black text-gray-900">{Math.min(currentPage * itemsPerPage, filteredOrders.length)}</span> of <span className="font-black text-gray-900">{filteredOrders.length}</span> orders
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                disabled={currentPage === 1}
-                                className="h-8 border-gray-200"
-                            >
-                                <ChevronLeft className="h-4 w-4" />
-                            </Button>
-                            <span className="text-xs font-bold text-gray-700 mx-2">
-                                Page {currentPage} of {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                disabled={currentPage === totalPages}
-                                className="h-8 border-gray-200"
-                            >
-                                <ChevronRight className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                )}
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filteredOrders.length}
+                    type="orders"
+                />
             </div>
 
             {/* Info Banner */}

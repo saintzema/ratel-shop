@@ -4,7 +4,7 @@ import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins } from "lucide-react";
 import { Product } from "@/lib/types";
-import { formatPrice, cn, getProductUrl } from "@/lib/utils";
+import { formatPrice, cn, getProductUrl, isVideoUrl, getProxiedImageUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { DataSyncService } from "@/lib/sync-store";
 import { nativeBridge } from "@/lib/native-bridge";
 import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
+import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
 // Category icon map for product image fallback
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -142,8 +143,8 @@ export function SearchResultCard({
                 )}
                 <Link href={getProductUrl(product.id, product.name)} className="block h-full w-full" onClick={(e) => e.stopPropagation()}>
                     {!imgError ? (
-                        <img
-                            src={(() => {
+                        (() => {
+                            const mediaUrl = (() => {
                                 const isValid = (url: string | undefined | null) =>
                                   url && url.trim().length > 4 &&
                                   !url.toLowerCase().includes('no photo') &&
@@ -155,12 +156,29 @@ export function SearchResultCard({
                                 if (isValid(product.image_url)) return product.image_url;
                                 if (isValid(product.images?.[0])) return product.images[0];
                                 return "/assets/images/placeholder.png";
-                            })()}
-                            alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
-                            className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
-                            loading="lazy"
-                            onError={() => setImgError(true)}
-                        />
+                            })();
+
+                            if (isVideoUrl(mediaUrl)) {
+                                return (
+                                    <VideoPlayer
+                                        src={getProxiedImageUrl(mediaUrl)}
+                                        className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500"
+                                        poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)) || "")}
+                                        autoPlayOnHover={true}
+                                    />
+                                );
+                            }
+
+                            return (
+                                <img
+                                    src={getProxiedImageUrl(mediaUrl)}
+                                    alt={`${product.name} - Verified Market Price on FairPrice Shop Negotiate & Verify Market Prices`}
+                                    className="w-full h-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform duration-500 pointer-events-none"
+                                    loading="lazy"
+                                    onError={() => setImgError(true)}
+                                />
+                            );
+                        })()
                     ) : (
                         <div className="w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
                             {getCategoryIcon(product.category)}

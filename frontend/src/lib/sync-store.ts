@@ -86,9 +86,12 @@ class DataSyncServiceService {
     private static instance: DataSyncServiceService;
     // Track product IDs with local edits not yet confirmed by DB
     private _pendingEdits: Set<string> = new Set();
+    private _pendingSellerEdits: Set<string> = new Set();
+    private _deletedProductIds: Set<string> = new Set();
+    private _deletedSellerIds: Set<string> = new Set();
+    private _lastFullSync: number = 0;
+    private _isDbOffline: boolean = false;
     private readonly _PENDING_KEY = "fp_pending_product_edits";
-    // Track seller IDs with local edits (KYC approve/reject) not yet confirmed by DB
-    private _pendingSellerEdits: string[] = [];
     
     /**
      * seedDemoData: Safety net that populates the marketplace with 
@@ -203,7 +206,7 @@ class DataSyncServiceService {
                 const saved = localStorage.getItem(this._PENDING_KEY);
                 if (saved) this._pendingEdits = new Set(JSON.parse(saved));
                 const savedSellers = localStorage.getItem(this._PENDING_SELLER_KEY);
-                if (savedSellers) this._pendingSellerEdits = JSON.parse(savedSellers);
+                if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
                 const savedNegs = localStorage.getItem(this._PENDING_NEGOTIATION_KEY);
                 if (savedNegs) this._pendingNegotiationEdits = new Set(JSON.parse(savedNegs));
             } catch { /* ignore */ }
@@ -343,7 +346,7 @@ class DataSyncServiceService {
         };
     }
 
-    private _lastFullSync = 0;
+
     
     /**
      * Sharded Sync Logic:
@@ -428,10 +431,14 @@ class DataSyncServiceService {
 
             if (isDbOffline) {
                 console.warn("📢 Resilience: Database reported offline (503). Preserving local cache.");
+                this._isDbOffline = true;
                 this.seedDemoData(); // Last resort: seed if totally empty
                 this.isSyncing = false;
+                window.dispatchEvent(new Event("sync-store-update"));
                 return;
             }
+
+            this._isDbOffline = false;
 
             if (!collection) {
                 localStorage.setItem("fp_last_sync_time", new Date().toISOString());
@@ -464,20 +471,36 @@ class DataSyncServiceService {
                         seller_name: p.sellerName || p.seller_name || "Global Store",
                         tags: p.tags || [],
                         subcategory: p.subcategory || "",
+                        updated_at: p.updatedAt || p.updated_at || p.createdAt || p.created_at || new Date().toISOString()
                     }));
                     
-                    // START from existing local products, then overlay DB updates on top.
-                    // This prevents incremental (updated_after) syncs from wiping the catalog
-                    // when they return 0 new products.
+                    // MERGE STRATEGY:
+                    // If this is a FULL sync (no updated_after), we start fresh BUT keep user-pending edits.
+                    // If this is an INCREMENTAL sync (updated_after), we overlay DB changes on local data.
+                    const isIncremental = !!updatedAfter;
                     const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
-                    const merged = new Map(localMap);
+                    const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
                     
-                    // Apply DB updates (overwrite local versions with fresh DB data)
+                    // Apply DB updates (overwrite or add)
                     for (const dbProduct of mappedDbProducts) {
-                        merged.set(dbProduct.id, dbProduct);
+                        // Skip if recently deleted locally
+                        if (this._deletedProductIds.has(dbProduct.id)) continue;
+
+                        const localVersion = localMap.get(dbProduct.id);
+                        if (localVersion) {
+                            // Smart Merge: Only overwrite if DB version is newer or if we're forcing it
+                            const dbTime = new Date(dbProduct.updated_at).getTime();
+                            const localTime = new Date(localVersion.updated_at || 0).getTime();
+                            
+                            if (dbTime >= localTime || !isIncremental) {
+                                merged.set(dbProduct.id, dbProduct);
+                            }
+                        } else {
+                            merged.set(dbProduct.id, dbProduct);
+                        }
                     }
 
-                    // Preserve user's pending edits over DB versions
+                    // Preserve user's pending edits over DB versions (absolute priority)
                     for (const pendingId of this._pendingEdits) {
                         const localVersion = localMap.get(pendingId);
                         if (localVersion) merged.set(pendingId, localVersion);
@@ -504,15 +527,13 @@ class DataSyncServiceService {
                     if (dbSellers.length === 0 && localSellers.length > 0 && !collection) {
                         console.warn("🛡️ Resilience: API returned 0 sellers but local cache has", localSellers.length, "— preserving cache.");
                     } else {
-                    const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'payout_history'];
-                    
-                    // START from existing local sellers, then overlay DB updates on top.
-                    // This prevents incremental (updated_after) syncs from wiping the seller registry
-                    // when they return 0 updated sellers.
+                    // MERGE STRATEGY: Same as products
+                    const isIncremental = !!updatedAfter;
                     const localMap = new Map(localSellers.map((s: any) => [s.id, s]));
-                    const merged = new Map<string, any>(localMap);
+                    const merged = isIncremental ? new Map<string, any>(localMap) : new Map<string, any>();
+                    const LOCAL_ONLY_FIELDS = ['subscription_plan', 'plan_expiry_date', 'payout_history'];
 
-                    // Apply DB updates (overwrite local versions with fresh DB data)
+                    // Apply DB updates (overwrite or add)
                     for (const dbSeller of dbSellers) {
                         const localVersion = localMap.get(dbSeller.id);
                         if (localVersion) {
@@ -793,6 +814,10 @@ class DataSyncServiceService {
         } finally {
             this.isSyncing = false;
         }
+    }
+
+    public isDbOffline(): boolean {
+        return this._isDbOffline;
     }
 
     // --- Gamification Support ---
@@ -1826,10 +1851,10 @@ class DataSyncServiceService {
         const updated = sellers.map(s => s.id === id ? mergedSeller : s);
 
         // Mark as pending BEFORE writing — protects from syncWithDB overwrite
-        if (!this._pendingSellerEdits.includes(id)) {
-            this._pendingSellerEdits.push(id);
+        if (!this._pendingSellerEdits.has(id)) {
+            this._pendingSellerEdits.add(id);
         }
-        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify(this._pendingSellerEdits)); } catch { /* quota */ }
+        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
 
         localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         
@@ -1844,8 +1869,8 @@ class DataSyncServiceService {
             body: JSON.stringify(mergedSeller),
         }).then(res => {
             if (res.ok) {
-                this._pendingSellerEdits = this._pendingSellerEdits.filter(pid => pid !== id);
-                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify(this._pendingSellerEdits)); } catch { /* quota */ }
+                this._pendingSellerEdits.delete(id);
+                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
             }
         }).catch(() => {
             // Keep in pendingSellerEdits so syncWithDB doesn't overwrite
@@ -2418,12 +2443,12 @@ class DataSyncServiceService {
         });
     }
 
-    addOrder(order: Omit<Order, "id" | "created_at" | "updated_at" | "product">, sourceProduct?: Product): Order {
+    addOrder(order: Omit<Order, "created_at" | "updated_at" | "product">, sourceProduct?: Product): Order {
         const products = this.getProducts();
         const product = products.find(p => p.id === order.product_id) || sourceProduct;
         if (!product) throw new Error("Product not found");
 
-        const orderId = `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
+        const orderId = order.id || `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`;
 
         const now = new Date();
         const trackingSteps = [
@@ -3010,6 +3035,10 @@ class DataSyncServiceService {
         const products = this.getProducts();
         const updated = products.filter(p => p.id !== id);
         localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        
+        // Mark as deleted so syncWithDB doesn't add it back from stale DB response
+        this._deletedProductIds.add(id);
+        setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min tombstone
 
         // Sync deletion to Postgres
         resilientFetch(`/api/products?id=${id}`, { method: "DELETE", type: "product_update" });

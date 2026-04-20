@@ -304,6 +304,12 @@ export default function BillingPage() {
                 <PaystackCheckout
                     amount={paystackAmount}
                     email={DataSyncService.getCurrentSeller()?.owner_email || "seller@fairprice.ng"}
+                    metadata={{
+                        type: "account_upgrade",
+                        user_id: DataSyncService.getCurrentSellerId(),
+                        role: "seller",
+                        plan: paystackPlan
+                    }}
                     onSuccess={handlePaystackSuccess}
                     onClose={() => setShowPaystack(false)}
                     autoStart={true}

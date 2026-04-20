@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { DataSyncService } from "@/lib/sync-store";
+import { Pagination } from "@/components/ui/Pagination";
 
 export default function UserDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
@@ -47,6 +48,10 @@ export default function UserDirectory() {
 
     // Bulk Action State
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(50);
 
     useEffect(() => {
         const load = async () => {
@@ -175,6 +180,14 @@ export default function UserDirectory() {
             (view === "pending" && (p.status === "pending" || p.kyc_status === "pending"));
         return matchesSearch && matchesView;
     });
+
+    const totalPages = Math.ceil(filtered.length / itemsPerPage);
+    const paginatedParticipants = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    // Reset page when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, view]);
 
     const handleSaveCommission = () => {
         if (!editingCommissionSeller) return;
@@ -342,7 +355,7 @@ export default function UserDirectory() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-white/20">
-                            {filtered.map((p) => (
+                            {paginatedParticipants.map((p) => (
                                 <tr key={p.id} className="group hover:bg-white/40 transition-all">
                                     <td className="px-6 py-4 align-middle text-center">
                                         <input
@@ -508,6 +521,17 @@ export default function UserDirectory() {
                         </tbody>
                     </table>
                 </div>
+
+                <Pagination 
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={itemsPerPage}
+                    totalItems={filtered.length}
+                    onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                    type="users"
+                    className="bg-white/20"
+                />
 
                 {filtered.length === 0 && (
                     <div className="py-20 text-center">

@@ -13,6 +13,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { useAuth } from "@/context/AuthContext";
 import { nativeBridge } from "@/lib/native-bridge";
 import { hasFinancing, getProductPaymentRange } from "@/lib/financing-utils";
+import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
 interface ProductCardProps {
     product: Product;
@@ -170,14 +171,11 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
 
                     {isVideoUrl(product.image_url) ? (
-                        <video
+                        <VideoPlayer
                             src={getProxiedImageUrl(product.image_url)}
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                            autoPlay
-                            muted
-                            loop
-                            playsInline
                             poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
+                            autoPlayOnHover={true}
                         />
                     ) : (
                         <img
