@@ -199,12 +199,12 @@ export function WaitlistModal() {
                             <div className="hidden sm:block absolute -top-20 -right-20 w-48 h-48 bg-emerald-200/40 rounded-full blur-3xl pointer-events-none" />
                             <div className="hidden sm:block absolute -bottom-16 -left-16 w-40 h-40 bg-teal-200/30 rounded-full blur-3xl pointer-events-none" />
 
-                            {/* Close button */}
+                            {/* Close button — positioned outside rounded corner */}
                             <button
                                 onClick={handleClose}
-                                className="absolute top-3 right-3 z-20 h-8 w-8 rounded-full bg-gray-900/10 backdrop-blur-md border border-gray-900/10 flex items-center justify-center hover:bg-gray-900/20 transition-all group"
+                                className="absolute -top-2 -right-2 sm:top-4 sm:right-4 z-20 h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 transition-all group"
                             >
-                                <X className="h-4 w-4 text-gray-600 group-hover:text-gray-900 transition-colors" />
+                                <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-700 group-hover:text-gray-900 transition-colors" />
                             </button>
 
                             <div className="relative z-10 px-4 py-8 sm:px-7 sm:py-10">
