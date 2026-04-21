@@ -80,7 +80,8 @@ export default function SellerProducts() {
             const res = await fetch(`/api/products?all=true`);
             let all = [];
             if (res.ok) {
-                all = await res.json();
+                const data = await res.json();
+                all = Array.isArray(data) ? data : (data?.products ?? []);
             }
             if (!all || all.length === 0) {
                 all = DataSyncService.getProducts({ includeInactiveSellers: true });

@@ -7,6 +7,8 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const includeInactive = searchParams.get("all") === "true";
         const updatedAfter = searchParams.get("updated_after");
+        const cursor = searchParams.get("cursor") || undefined;
+        const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 200);
 
         const whereClause: any = includeInactive
             ? {}
@@ -27,6 +29,8 @@ export async function GET(req: Request) {
         // and avoid returning full Seller objects which bloats memory and CPU.
         const products = await db.product.findMany({
             where: whereClause,
+            ...(limit ? { take: limit + 1 } : {}),
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
             select: {
                 id: true,
                 sellerId: true,
@@ -53,8 +57,12 @@ export async function GET(req: Request) {
                 createdAt: true,
             },
             orderBy: { createdAt: "desc" },
-            take: includeInactive ? undefined : 200, // Safety limit for summary view
         });
+
+        // Pagination: detect if there's a next page
+        const hasMore = limit ? products.length > limit : false;
+        if (hasMore) products.pop();
+        const nextCursor = hasMore ? products[products.length - 1]?.id : null;
 
         const mappedProducts = products.map(p => ({
             ...p,
@@ -74,9 +82,8 @@ export async function GET(req: Request) {
             created_at: p.createdAt.toISOString(),
         }));
 
-        return NextResponse.json(mappedProducts, {
+        return NextResponse.json({ success: true, products: mappedProducts, nextCursor }, {
             headers: {
-                // Cache for 1 min on Edge, allow stale for 30s
                 "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30"
             }
         });

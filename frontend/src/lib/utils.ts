@@ -92,27 +92,33 @@ export async function copyToClipboard(text: string): Promise<boolean> {
         return false;
     }
 }
+export function isGroundingUrl(url: string): boolean {
+    const lower = url.toLowerCase();
+    return lower.includes('googleusercontent.com/grounding') ||
+           lower.includes('vertexaisearch.cloud.google.com') ||
+           lower.includes('grounding-api-redirect') ||
+           lower.includes('googleapis.com/download') ||
+           lower.includes('google.com/imgres');
+}
+
 export function getProxiedImageUrl(url: string | null | undefined): string {
     if (!url) return "/assets/images/placeholder.png";
-    
+
     // Internal assets or already proxied
     if (url.startsWith('/') || url.includes('api/image-cdn')) {
         return url;
     }
 
     const lower = url.toLowerCase();
-    
-    // Whitelist Google Grounding Redirects for Search Parity
-    const isGroundingRedirect = lower.includes('googleusercontent.com/grounding') || 
-                               lower.includes('vertexaisearch.cloud.google.com') ||
-                               lower.includes('grounding-api-redirect');
 
-    if (isGroundingRedirect) {
-        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+    // Google Grounding / VertexAI redirect URLs expire quickly and cause proxy timeouts.
+    // Return placeholder — background hydration will fetch a real image instead.
+    if (isGroundingUrl(url)) {
+        return "/assets/images/placeholder.png";
     }
 
-    const isBroken = lower.includes('no photo') || 
-                    lower.includes('no image') || 
+    const isBroken = lower.includes('no photo') ||
+                    lower.includes('no image') ||
                     lower.includes('n/a') ||
                     lower.includes('placeholder') ||
                     url.startsWith('data:image');
@@ -121,9 +127,10 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
         return "/assets/images/placeholder.png";
     }
 
-    // Only proxy external HTTP(S) links, skip videos as they break in the image-cdn sharp processor
+    // Proxy external HTTP(S) links — use ?thumb=1 so the CDN route redirects
+    // directly to the source (zero server CPU) instead of running Sharp.
     if (url.startsWith('http') && !isVideoUrl(url)) {
-        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
+        return `/api/image-cdn?url=${encodeURIComponent(url)}&thumb=1`;
     }
 
     return url;

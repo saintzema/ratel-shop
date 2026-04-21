@@ -123,25 +123,55 @@ export async function POST(request: Request) {
                 }
             });
 
-            // 2. Record Discount Usage if applicable
+            // 2. Decrement stock — prevent overselling
+            if (body.product_id) {
+                await tx.product.update({
+                    where: { id: body.product_id },
+                    data: { stock: { decrement: body.quantity || 1 } },
+                }).catch(() => { /* skip if product is virtual / not in DB */ });
+            }
+
+            // 3. Increment product soldCount
+            if (body.product_id) {
+                await tx.product.update({
+                    where: { id: body.product_id },
+                    data: { soldCount: { increment: body.quantity || 1 } },
+                }).catch(() => {});
+            }
+
+            // 4. Record Discount Usage if applicable
             if (body.discount_id) {
-                // Increment global usage
                 await tx.discount.update({
                     where: { id: body.discount_id },
                     data: { usageCount: { increment: 1 } }
                 }).catch(() => { /* skip if discount deleted */ });
 
-                // Record per-user usage
                 await tx.userDiscountUsage.create({
                     data: {
                         userId: userId,
                         discountId: body.discount_id
                     }
-                }).catch(() => { /* skip if already used — should be caught by validation, but safe to ignore here */ });
+                }).catch(() => {});
             }
 
             return order;
         });
+
+        // Notify the seller via persistent DB notification
+        if (body.seller_id) {
+            const productName = (newOrder as any).product?.name || "a product";
+            const amount = new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(body.amount || 0);
+            db.notification.create({
+                data: {
+                    userId: body.seller_id,
+                    type: "order",
+                    title: "New Order Received! 🎉",
+                    message: `${userName} just ordered ${productName} for ${amount}. Check your dashboard to confirm.`,
+                    link: `/seller/orders`,
+                    read: false,
+                }
+            }).catch(() => { /* non-critical */ });
+        }
 
         // Broadcast update for real-time sync
         broadcast({ type: "order_updated", id: newOrder.id });

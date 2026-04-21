@@ -51,7 +51,7 @@ import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { CATEGORIES } from "@/lib/types";
 import { SEED_PRODUCTS } from "@/lib/data"; // Import products for search
 import { DataSyncService } from "@/lib/sync-store";
-import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId } from "@/lib/utils";
+import { cn, getProductUrl, getProxiedImageUrl, generateCompliantId, isGroundingUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -216,6 +216,7 @@ export function Navbar() {
     const [isCategoryOpen, setIsCategoryOpen] = useState(false);
     const categoryRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLDivElement>(null);
+    const hydratedProductIds = useRef<Set<string>>(new Set());
     const router = useRouter();
 
     const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -385,7 +386,7 @@ export function Navbar() {
                 })
                 .catch(() => { })
                 .finally(() => setIsGlobalSearching(false));
-        }, 250);
+        }, 600);
 
         return () => {
             clearTimeout(fetchTimer);
@@ -557,49 +558,95 @@ export function Navbar() {
     }, []);
 
     // ─── Elite Background Image Hydration ───
+    // Runs when new results arrive. Max 3 concurrent requests. Updates both state
+    // AND sessionStorage so the Search Results Page (SRP) gets real images too.
     useEffect(() => {
-        const resultsToHydrate = [
-            ...globalResults.map(p => ({ ...p, _kind: 'global' })),
-            ...suggestions.map(p => ({ ...p, _kind: 'local' })),
-            ...cachedResults.map(p => ({ ...p, _kind: 'cached' }))
-        ];
-
-        if (resultsToHydrate.length === 0) return;
-
         const isValidImg = (url: string | undefined | null) =>
-            url && url.trim().length > 4 &&
+            !!url &&
+            url.trim().length > 4 &&
             !url.toLowerCase().includes('placeholder') &&
             !url.toLowerCase().includes('no photo') &&
             !url.toLowerCase().includes('no image') &&
             !url.toLowerCase().includes('sample') &&
-            !url.toLowerCase().includes('n/a');
+            !url.toLowerCase().includes('n/a') &&
+            !isGroundingUrl(url) &&
+            !url.startsWith('data:');
 
-        resultsToHydrate.forEach((product: any) => {
-            // Only hydrate if we haven't already hydrated this item in THIS session
-            // OR if it currently has a placeholder
-            const needsHydration = (!product._imageHydrated) || (!isValidImg(product.image_url));
-            
-            if (needsHydration) {
-                // Throttling: only fire if not currently searching and not already hydrated
-                fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
-                    .then(res => res.json())
+        const queue: Array<{ product: any; kind: 'global' | 'local' | 'cached' }> = [
+            ...globalResults.map(p => ({ product: p, kind: 'global' as const })),
+            ...suggestions.map(p => ({ product: p, kind: 'local' as const })),
+            ...cachedResults.map(p => ({ product: p, kind: 'cached' as const })),
+        ].filter(({ product }) => {
+            const key = product.id || product.name;
+            if (hydratedProductIds.current.has(key)) return false;
+            if (isValidImg(product.image_url)) {
+                hydratedProductIds.current.add(key); // already good
+                return false;
+            }
+            return true;
+        });
+
+        if (queue.length === 0) return;
+
+        let active = 0;
+        const MAX_CONCURRENT = 3;
+
+        const applyImageUpdate = (product: any, imageUrl: string, imageUrls: string[]) => {
+            const updateFn = (prev: any[]) =>
+                prev.map(p =>
+                    (p.id === product.id || p.name === product.name)
+                        ? { ...p, image_url: imageUrl, images: imageUrls, _imageHydrated: true }
+                        : p
+                );
+            if (product._kind === 'global') setGlobalResults(updateFn);
+            else if (product._kind === 'local') setSuggestions(updateFn);
+            else if (product._kind === 'cached') setCachedResults(updateFn);
+
+            // Sync to sessionStorage so the SRP hydrates immediately on load
+            try {
+                const raw = sessionStorage.getItem('fp_nav_search_results');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    const updated = parsed.map((p: any) =>
+                        (p.id === product.id || p.name === product.name)
+                            ? { ...p, image_url: imageUrl, images: imageUrls }
+                            : p
+                    );
+                    sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
+                }
+            } catch { /* quota */ }
+        };
+
+        const processNext = () => {
+            while (active < MAX_CONCURRENT && queue.length > 0) {
+                const { product, kind } = queue.shift()!;
+                const key = product.id || product.name;
+                hydratedProductIds.current.add(key);
+                active++;
+
+                const q = encodeURIComponent(product.name);
+                const cat = encodeURIComponent(product.category || '');
+                fetch(`/api/product-image?q=${q}&category=${cat}`)
+                    .then(res => res.ok ? res.json() : null)
                     .then(data => {
-                        if (data.imageUrls && data.imageUrls.length > 0) {
-                            const newImages = data.imageUrls;
-                            const updateFn = (prev: any[]) => prev.map(p => 
-                                (p.id === product.id || p.name === product.name) 
-                                    ? { ...p, image_url: newImages[0], images: newImages, _imageHydrated: true } 
-                                    : p
-                            );
-
-                            if (product._kind === 'global') setGlobalResults(updateFn);
-                            else if (product._kind === 'local') setSuggestions(updateFn);
-                            else if (product._kind === 'cached') setCachedResults(updateFn);
+                        if (!data) return;
+                        // Handle both { imageUrls: [...] } and { imageUrl: "..." }
+                        const urls: string[] = data.imageUrls?.length
+                            ? data.imageUrls
+                            : data.imageUrl
+                            ? [data.imageUrl]
+                            : [];
+                        if (urls.length > 0) {
+                            applyImageUpdate({ ...product, _kind: kind }, urls[0], urls);
                         }
                     })
-                    .catch(() => {});
+                    .catch(() => {})
+                    .finally(() => { active--; processNext(); });
             }
-        });
+        };
+
+        processNext();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [globalResults.length, suggestions.length, cachedResults.length]);
 
     const handleSearch = () => {
