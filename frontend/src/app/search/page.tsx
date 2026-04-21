@@ -865,6 +865,30 @@ function SearchContent() {
     return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
   }, [navResults, paginatedProducts, navClickedId, priceRange]);
 
+  // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
+  // When there are no local results and no ongoing search, auto-trigger the
+  // global Gemini search so the page always renders something relevant.
+  const autoSearchFiredRef = React.useRef<string>("");
+  useEffect(() => {
+    if (!isMounted) return;
+    if (isGlobalSearching) return;
+    if (globalResults.length > 0) return;
+    if (combinedCurrentResults.length > 0) return;
+    const effectiveQuery = (query || "").trim();
+    if (!effectiveQuery || effectiveQuery.length <= 2) return;
+    // Only fire once per unique query to avoid infinite loops
+    if (autoSearchFiredRef.current === effectiveQuery) return;
+    autoSearchFiredRef.current = effectiveQuery;
+    // Small delay so local results have time to load first
+    const t = setTimeout(() => {
+      if (combinedCurrentResults.length === 0) {
+        handleSeeMoreResults();
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, query, combinedCurrentResults.length, globalResults.length]);
+
   // Products are no longer auto-saved here. They get saved to DataSyncService only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
 
@@ -1113,7 +1137,16 @@ function SearchContent() {
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
-                      onClick={() => setSelectedCategory(cat.slug === selectedCategory ? null : cat.slug as any)}
+                      onClick={() => {
+                        const isActive = cat.slug === selectedCategory;
+                        if (isActive) {
+                          // Deselect: go back to original query without category filter
+                          router.push(`/search?q=${encodeURIComponent(query)}`);
+                        } else {
+                          // Select: navigate to category search — show products in this category
+                          router.push(`/search?q=${encodeURIComponent(cat.name)}&category=${cat.slug}`);
+                        }
+                      }}
                       className={cn(
                         "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
                         selectedCategory === cat.slug

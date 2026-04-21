@@ -405,10 +405,6 @@ export function Navbar() {
     const navigateWithResults = (clickedProductId: string) => {
         // 1. Close UI immediately
         setShowSuggestions(false);
-        // 1. Navigation happens AFTER session state is saved so search/page.tsx hydrates reliably
-        setTimeout(() => {
-            router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-        }, 10);
 
         // 2. Synchronous mapping and hydration 
         // Build product objects from global results with intelligent verification
