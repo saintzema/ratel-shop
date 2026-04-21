@@ -361,7 +361,7 @@ export function Navbar() {
         }
     }, [searchQuery]);
 
-    // Debounced global search — fetches after user stops typing for 400ms
+    // Debounced global search — fetches after user stops typing for 350ms
     useEffect(() => {
         const trimmed = searchQuery.trim();
         if (trimmed.length <= 2) {
@@ -371,7 +371,6 @@ export function Navbar() {
         }
 
         setIsGlobalSearching(true);
-        setGlobalResults([]);
         const fetchTimer = setTimeout(() => {
             fetch('/api/gemini-price', {
                 method: 'POST',
@@ -382,11 +381,17 @@ export function Navbar() {
                 .then(data => {
                     if (data.suggestions && Array.isArray(data.suggestions)) {
                         setGlobalResults(data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10));
+                    } else {
+                        console.warn("Gemini price search returned empty suggestions:", data);
+                        setGlobalResults([]);
                     }
                 })
-                .catch(() => { })
+                .catch((err) => {
+                    console.error("Gemini price fetch failed:", err);
+                    setGlobalResults([]);
+                })
                 .finally(() => setIsGlobalSearching(false));
-        }, 600);
+        }, 350);
 
         return () => {
             clearTimeout(fetchTimer);
@@ -589,7 +594,7 @@ export function Navbar() {
         if (queue.length === 0) return;
 
         let active = 0;
-        const MAX_CONCURRENT = 3;
+        const MAX_CONCURRENT = 8;
 
         const applyImageUpdate = (product: any, imageUrl: string, imageUrls: string[]) => {
             const updateFn = (prev: any[]) =>
