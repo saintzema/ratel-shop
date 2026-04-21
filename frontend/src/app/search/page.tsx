@@ -1073,27 +1073,33 @@ function SearchContent() {
 
         <div className="flex flex-col gap-8">
           <div className="flex-1 w-full">
-            {/* Scrollable Apple-like Translucent Pill Filters */}
-            <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
-                Popular:
-              </span>
-              {DataSyncService.getCategories().map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.slug === selectedCategory ? null : cat.slug as any)}
-                  className={cn(
-                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
-                    selectedCategory === cat.slug
-                      ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
-                      : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
-                  )}
-                >
-                  {getCategoryIcon(cat.slug)}
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+            {/* Scrollable Apple-like Translucent Pill Filters — hydration-safe */}
+            {(() => {
+              const categories = DataSyncService.getCategories();
+              if (!categories || categories.length === 0) return null;
+              return (
+                <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
+                    Popular:
+                  </span>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setSelectedCategory(cat.slug === selectedCategory ? null : cat.slug as any)}
+                      className={cn(
+                        "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
+                        selectedCategory === cat.slug
+                          ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
+                          : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
+                      )}
+                    >
+                      {getCategoryIcon(cat.slug)}
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* UNIFIED SEARCH RESULTS GRID */}
 
@@ -1252,6 +1258,13 @@ function SearchContent() {
               </div>
             )}
 
+            {combinedCurrentResults.length === 0 && isGlobalSearching && (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+                <p className="text-gray-600 text-sm">Finding similar products...</p>
+              </div>
+            )}
+
             {combinedCurrentResults.length === 0 && !isGlobalSearching && (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                 <SearchIcon className="h-10 w-10 text-gray-300 mb-4" />
@@ -1261,15 +1274,24 @@ function SearchContent() {
                 <p className="text-gray-500 max-w-md mb-6 text-sm">
                   Try checking your spelling or use more general terms.
                 </p>
-                <Button
-                  onClick={() => {
-                    setAttributeFilters({});
-                    router.push("/search", { scroll: false });
-                  }}
-                  className="rounded-full bg-emerald-600 text-white px-8 font-bold text-sm"
-                >
-                  Clear all filters
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Button
+                    onClick={() => handleSeeMoreResults()}
+                    className="rounded-full bg-emerald-600 text-white px-8 font-bold text-sm hover:bg-emerald-700"
+                  >
+                    🔍 Search Across All Products
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setAttributeFilters({});
+                      router.push("/search", { scroll: false });
+                    }}
+                    variant="outline"
+                    className="rounded-full px-8 font-bold text-sm"
+                  >
+                    Clear all filters
+                  </Button>
+                </div>
               </div>
             )}
 
