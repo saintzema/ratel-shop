@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+
+// Server-side cache TTL: 24h. Dramatically reduces Gemini quota consumption
+// because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function makeCacheKey(productName: string, mode: string, category?: string, anchorPrice?: number): string {
+    return `v1:${mode}:${(category || 'any').toLowerCase()}:${productName.trim().toLowerCase()}${anchorPrice ? `:a${anchorPrice}` : ''}`;
+}
 
 const RL_MAP = new Map<string, { count: number; reset: number }>();
 const RL_MAX = 20;
@@ -33,6 +42,21 @@ export async function POST(req: Request) {
 
         if (!productName) {
             return NextResponse.json({ error: "Product name is required" }, { status: 400 });
+        }
+
+        // ─── SERVER-SIDE CACHE CHECK (Postgres, 24h TTL) ───
+        // Saves Gemini quota + sub-100ms response for repeat queries
+        const cacheKey = makeCacheKey(productName, mode, category, anchorPrice);
+        try {
+            const cached = await db.searchCache.findUnique({ where: { query: cacheKey } });
+            if (cached && Date.now() - cached.updatedAt.getTime() < CACHE_TTL_MS) {
+                return NextResponse.json(cached.products as any, {
+                    headers: { "X-Cache": "HIT" }
+                });
+            }
+        } catch (cacheErr) {
+            // Cache read failure must never block the live path
+            console.warn("[gemini-price] cache read failed:", (cacheErr as any)?.code);
         }
 
         let prompt = "";
@@ -222,7 +246,7 @@ default to NEW from 2024 onwards.
             // Surface Gemini's rate limit clearly to the client so the UI can show a helpful message
             if (response.status === 429) {
                 return NextResponse.json(
-                    { error: "Gemini is rate-limited right now. Please wait a moment and try again." },
+                    { error: "AI search is rate-limited right now. Please wait a moment and try again." },
                     { status: 429 }
                 );
             }
@@ -353,7 +377,14 @@ default to NEW from 2024 onwards.
                 }
             }
 
-            return NextResponse.json(parsedData);
+            // ─── WRITE THROUGH TO SERVER CACHE (fire-and-forget) ───
+            db.searchCache.upsert({
+                where: { query: cacheKey },
+                create: { query: cacheKey, products: parsedData as any },
+                update: { products: parsedData as any },
+            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.code));
+
+            return NextResponse.json(parsedData, { headers: { "X-Cache": "MISS" } });
         } catch (parseError) {
             console.error("Failed to parse Gemini JSON. Raw text:", textResponse);
             return NextResponse.json({ error: "Invalid JSON from Gemini" }, { status: 500 });

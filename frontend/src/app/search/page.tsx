@@ -608,7 +608,7 @@ function SearchContent() {
           const msg = err?.message || '';
           setGlobalSearchError(
             msg.includes('429')
-              ? "Too many searches right now — Gemini is rate-limited. Please wait 10-15 seconds and try again."
+              ? "Too many searches right now — please wait 10-15 seconds and try again."
               : msg.includes('DEPLOYMENT_DISABLED') || msg.includes('402')
                 ? "AI search temporarily unavailable. Please try again later."
                 : `Search failed: ${msg || 'Network error'}. Please try again.`

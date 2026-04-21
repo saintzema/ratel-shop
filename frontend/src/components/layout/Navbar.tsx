@@ -394,7 +394,7 @@ export function Navbar() {
                     setGlobalResults([]);
                 })
                 .finally(() => setIsGlobalSearching(false));
-        }, 350);
+        }, 600);
 
         return () => {
             clearTimeout(fetchTimer);
