@@ -1091,10 +1091,15 @@ function SearchContent() {
           </div>
         </div>
 
+        {!isMounted ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+          </div>
+        ) : (
         <div className="flex flex-col gap-8">
           <div className="flex-1 w-full">
             {/* Scrollable Apple-like Translucent Pill Filters — hydration-safe */}
-            {isMounted && (() => {
+            {(() => {
               const categories = DataSyncService.getCategories();
               if (!categories || categories.length === 0) return null;
               return (
@@ -1124,7 +1129,7 @@ function SearchContent() {
             {/* UNIFIED SEARCH RESULTS GRID */}
 
             {/* ─── Brand Logo Rail (Category-Aware) ─── */}
-            {isMounted && (() => {
+            {(() => {
               const BRAND_MAP: Record<string, { name: string; logo: string; logoImage?: string }[]> = {
                 cars: [
                   { name: "Toyota", logo: "🚗", logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
@@ -1430,6 +1435,7 @@ function SearchContent() {
             )}
           </div>
         </div>
+        )}
       </main>
 
       <Footer />
