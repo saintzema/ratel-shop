@@ -605,10 +605,13 @@ function SearchContent() {
         })
         .catch((err) => {
           console.error("[GlobalSearch] Failed:", err);
+          const msg = err?.message || '';
           setGlobalSearchError(
-            err?.message?.includes('DEPLOYMENT_DISABLED') || err?.message?.includes('402')
-              ? "AI search temporarily unavailable. Please try again later."
-              : `Search failed: ${err?.message || 'Network error'}. Please try again.`
+            msg.includes('429')
+              ? "Too many searches right now — Gemini is rate-limited. Please wait 10-15 seconds and try again."
+              : msg.includes('DEPLOYMENT_DISABLED') || msg.includes('402')
+                ? "AI search temporarily unavailable. Please try again later."
+                : `Search failed: ${msg || 'Network error'}. Please try again.`
           );
         })
         .finally(() => setIsGlobalSearching(false));

@@ -195,18 +195,37 @@ default to NEW from 2024 onwards.
             `;
         }
 
-        const response = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                tools: [{ google_search: {} }]
-            })
-        });
+        // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM)
+        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
+            const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    tools: [{ google_search: {} }]
+                })
+            });
+            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 2 times
+            if ((res.status === 429 || res.status === 503) && attempt < 2) {
+                const backoffMs = Math.pow(2, attempt) * 800 + Math.random() * 500; // 800ms, 1.6s + jitter
+                await new Promise(r => setTimeout(r, backoffMs));
+                return fetchWithRetry(attempt + 1);
+            }
+            return res;
+        };
+
+        const response = await fetchWithRetry();
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Gemini API Error:", errorText);
+            console.error("Gemini API Error:", response.status, errorText);
+            // Surface Gemini's rate limit clearly to the client so the UI can show a helpful message
+            if (response.status === 429) {
+                return NextResponse.json(
+                    { error: "Gemini is rate-limited right now. Please wait a moment and try again." },
+                    { status: 429 }
+                );
+            }
             return NextResponse.json({ error: "Failed to fetch from Gemini" }, { status: response.status });
         }
 
