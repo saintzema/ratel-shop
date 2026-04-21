@@ -207,14 +207,14 @@ export function WaitlistModal() {
                                 <X className="h-4 w-4 text-gray-600 group-hover:text-gray-900 transition-colors" />
                             </button>
 
-                            <div className="relative z-10 px-4 py-4 sm:px-7 sm:py-7">
+                            <div className="relative z-10 px-4 py-8 sm:px-7 sm:py-10">
                                 {!submitted ? (
                                     <>
                                         {/* Header — compact on mobile */}
                                         <div className="text-center mb-3 sm:mb-5">
                                             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600/10 border border-emerald-500/20 mb-2">
                                                 <Sparkles className="h-3 w-3 text-emerald-600" />
-                                                <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-700 uppercase tracking-widest">Launching Soon</span>
+                                                <span className="text-[10px] sm:text-[11px] font-extrabold text-emerald-700 uppercase tracking-widest">Now Live</span>
                                             </div>
                                             <h2 className="text-xl sm:text-3xl font-black text-gray-900 tracking-tight leading-tight">
                                                 Tired of Being
