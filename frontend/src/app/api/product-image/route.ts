@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic'; // Prevent Vercel from statically caching this free-tier proxy
 
+const RL_MAP = new Map<string, { count: number; reset: number }>();
+const RL_MAX = 30;
+const RL_WINDOW_MS = 60_000;
+
+function checkRateLimit(req: Request): boolean {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const now = Date.now();
+    const entry = RL_MAP.get(ip);
+    if (!entry || now > entry.reset) {
+        RL_MAP.set(ip, { count: 1, reset: now + RL_WINDOW_MS });
+        return true;
+    }
+    entry.count++;
+    return entry.count <= RL_MAX;
+}
+
 // We prioritize Serper.dev for Google Image Search (2,500 free queries)
 // or standard Google Custom Search API.
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
@@ -124,6 +140,10 @@ async function searchProductImage(query: string, category?: string): Promise<{ i
  * Used by the single-product "Get Image" button in the edit modal.
  */
 export async function GET(req: Request) {
+    if (!checkRateLimit(req)) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("q");
     const category = searchParams.get("category") || searchParams.get("cat");
@@ -153,6 +173,10 @@ export async function GET(req: Request) {
  * Accepts { productTitle: string, category: string } in the JSON body.
  */
 export async function POST(req: Request) {
+    if (!checkRateLimit(req)) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     try {
         const body = await req.json();
         const query = body.productTitle || body.query || body.q;

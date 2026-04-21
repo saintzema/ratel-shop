@@ -386,7 +386,7 @@ export function Navbar() {
                 })
                 .catch(() => { })
                 .finally(() => setIsGlobalSearching(false));
-        }, 250);
+        }, 600);
 
         return () => {
             clearTimeout(fetchTimer);

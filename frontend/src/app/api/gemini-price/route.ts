@@ -3,7 +3,27 @@ import { NextResponse } from "next/server";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
+const RL_MAP = new Map<string, { count: number; reset: number }>();
+const RL_MAX = 20;
+const RL_WINDOW_MS = 60_000;
+
+function checkRateLimit(req: Request): boolean {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const now = Date.now();
+    const entry = RL_MAP.get(ip);
+    if (!entry || now > entry.reset) {
+        RL_MAP.set(ip, { count: 1, reset: now + RL_WINDOW_MS });
+        return true;
+    }
+    entry.count++;
+    return entry.count <= RL_MAX;
+}
+
 export async function POST(req: Request) {
+    if (!checkRateLimit(req)) {
+        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+    }
+
     if (!GEMINI_API_KEY) {
         return NextResponse.json({ error: "Gemini API key not configured" }, { status: 500 });
     }

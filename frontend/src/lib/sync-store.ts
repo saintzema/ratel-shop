@@ -446,7 +446,8 @@ class DataSyncServiceService {
 
             // ── Process Products ──
             if (productsResult.status === "fulfilled" && productsResult.value.ok) {
-                const dbProducts = await productsResult.value.json();
+                const raw = await productsResult.value.json();
+                const dbProducts = Array.isArray(raw) ? raw : (raw?.products ?? []);
                 if (Array.isArray(dbProducts)) {
                     const localProducts: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
                     
