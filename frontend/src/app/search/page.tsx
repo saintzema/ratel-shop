@@ -322,7 +322,7 @@ function SearchContent() {
           // This ensures updated images from sellers appear correctly in SRP.
           const approved = DataSyncService.getApprovedProducts();
           parsed = parsed.map((p: any) => {
-            const live = approved.find(lp => lp.id === p.id || lp.name.toLowerCase() === p.name.toLowerCase());
+            const live = approved.find(lp => lp.id === p.id || (lp.name || "").toLowerCase() === (p.name || "").toLowerCase());
             if (live) {
               return { ...p, ...live }; // Prefer live local data for imaging/pricing
             }
@@ -534,7 +534,7 @@ function SearchContent() {
               setShowGlobalResults(true); // Auto-show the global results seamlessly
               // Formatting for auto-cache seeding
               const mapped = data.suggestions.map((r: any) => ({
-                id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                id: `global-${(r.name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
                 name: r.name,
                 price: r.approxPrice || 0,
                 category: r.category || effectiveQuery || "general",
@@ -581,12 +581,12 @@ function SearchContent() {
           if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
             setGlobalResults(prev => {
               const newItems = data.suggestions.filter(
-                (s: any) => !prev.some(p => p.name.toLowerCase() === s.name.toLowerCase())
+                (s: any) => !prev.some(p => (p.name || "").toLowerCase() === (s.name || "").toLowerCase())
               );
               // Formatting for auto-cache seeding
               if (newItems.length > 0) {
                   const mapped = newItems.map((r: any) => ({
-                    id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                    id: `global-${(r.name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
                     name: r.name,
                     price: r.approxPrice || 0,
                     category: r.category || effectiveQuery || "general",
@@ -619,11 +619,13 @@ function SearchContent() {
   };
 
   const searchableProducts = useMemo(() => {
-    let locals = allProducts;
+    // Guard: ensure every local product has a non-null name to prevent toLowerCase() crashes
+    let locals = allProducts.filter(p => p && p.name);
     if (showGlobalResults && globalResults.length > 0) {
-      const mappedGlobal = globalResults.map((r, i) => {
+      // Guard: filter out Gemini results with missing names before any processing
+      const mappedGlobal = globalResults.filter(r => r && r.name).map((r, i) => {
         // Create a stable, URL-safe ID from the product name, matching Navbar logic
-        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+        const stableId = `global-${(r.name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
         
         // ─── Use REAL Gemini description, fallback to category templates only if empty ───
         const fallbackDescriptions: Record<string, string> = {
@@ -690,7 +692,7 @@ function SearchContent() {
       .filter((p) => {
         const VEHICLE_FLOOR = 5_000_000;
         if (p.price >= VEHICLE_FLOOR) return true;
-        const name = p.name.toLowerCase();
+        const name = (p.name || "").toLowerCase();
         const cat = (p.category || "").toLowerCase();
         const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
         const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
@@ -703,10 +705,10 @@ function SearchContent() {
 
       // Deduplicate globals
       const uniqueGlobal: import("@/lib/types").Product[] = [];
-      const seenNames = new Set(locals.map(l => l.name.toLowerCase()));
+      const seenNames = new Set(locals.map(l => (l.name || "").toLowerCase()));
       for(const g of mappedGlobal) {
-         if (!seenNames.has(g.name.toLowerCase())) {
-             seenNames.add(g.name.toLowerCase());
+         if (!seenNames.has((g.name || "").toLowerCase())) {
+             seenNames.add((g.name || "").toLowerCase());
              uniqueGlobal.push(g);
          }
       }
