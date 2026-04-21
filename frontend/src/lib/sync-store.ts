@@ -2931,7 +2931,7 @@ class DataSyncServiceService {
             );
         }
 
-        const mergedProduct = { ...existingProduct, ...updates } as Product;
+        const mergedProduct = { ...existingProduct, ...updates, updated_at: new Date().toISOString() } as Product;
         const updated = products.map(p => p.id === id ? mergedProduct : p);
 
         // Mark as pending BEFORE writing — protects from syncWithDB overwrite
@@ -2947,31 +2947,37 @@ class DataSyncServiceService {
             sessionStorage.removeItem('nav_search_clicked_id');
         } catch { /* ignore */ }
 
-        // Dispatch events IMMEDIATELY so UI updates right away
+        // Dispatch events IMMEDIATELY — UI resolves at this point, DB write is fire-and-forget
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 
-        // Persist to Postgres — AWAIT so the DB has the latest data
-        try {
-            const res = await fetch("/api/products", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(mergedProduct),
+        // Persist to Postgres in the background — never block the caller
+        // Uses AbortSignal timeout (20s) so a slow Neon cold-start doesn't stall anything
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20_000);
+        fetch("/api/products", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(mergedProduct),
+            signal: controller.signal,
+        })
+            .then(async (res) => {
+                clearTimeout(timeoutId);
+                if (res.ok) {
+                    console.log(`✅ Persisted product update to DB: ${id}`);
+                    this._pendingEdits.delete(id);
+                    try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    console.warn(`⚠️ DB write returned ${res.status} for product ${id}:`, errData.error || "Unknown error");
+                }
+            })
+            .catch((err) => {
+                clearTimeout(timeoutId);
+                if (err?.name !== "AbortError") {
+                    console.warn("⚠️ Failed to persist product update to DB:", err);
+                }
             });
-            if (res.ok) {
-                console.log(`✅ Persisted product update to DB: ${id}`);
-                // DB confirmed — safe to remove from pending
-                this._pendingEdits.delete(id);
-                try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
-            } else {
-                const errData = await res.json().catch(() => ({}));
-                console.warn(`⚠️ DB write returned ${res.status} for product ${id}:`, errData.error || "Unknown error");
-                // Keep in pendingEdits so syncWithDB doesn't overwrite
-            }
-        } catch (err) {
-            console.warn("⚠️ Failed to persist product update to DB:", err);
-            // Keep in pendingEdits so syncWithDB doesn't overwrite
-        }
     }
 
     promoteProduct(id: string, isSponsored: boolean = true) {

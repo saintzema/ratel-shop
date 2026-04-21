@@ -25,7 +25,8 @@ import {
     Eye,
     Globe,
     Loader2,
-    ShieldCheck
+    ShieldCheck,
+    AlertTriangle
 } from "lucide-react";
 
 export default function EditProduct() {
@@ -62,6 +63,7 @@ export default function EditProduct() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isFetchingImage, setIsFetchingImage] = useState(false);
     const [taxonomy, setTaxonomy] = useState<any[]>([]);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {
@@ -103,6 +105,7 @@ export default function EditProduct() {
     const handleAIGenerate = async () => {
         if (!formData.name) return;
         setIsGenerating(true);
+        setErrorMsg(null);
         try {
             const res = await fetch("/api/gemini-seller", {
                 method: "POST",
@@ -111,8 +114,6 @@ export default function EditProduct() {
             });
             if (res.ok) {
                 const content = await res.json();
-                // Infer category from AI response or product name
-                const currentTaxonomy = DataSyncService.getTaxonomy();
                 let inferredCategory = formData.category;
 
                 if (content.category) {
@@ -120,9 +121,8 @@ export default function EditProduct() {
                     if (match) {
                         inferredCategory = match.name.toLowerCase();
                     } else {
-                        // Advanced: Check for fuzzy matches in names or common aliases
-                        const fuzz = taxonomy.find(c => 
-                            c.name.toLowerCase().includes(content.category.toLowerCase()) || 
+                        const fuzz = taxonomy.find(c =>
+                            c.name.toLowerCase().includes(content.category.toLowerCase()) ||
                             content.category.toLowerCase().includes(c.name.toLowerCase())
                         );
                         if (fuzz) inferredCategory = fuzz.name.toLowerCase();
@@ -139,8 +139,12 @@ export default function EditProduct() {
                     tags: content.tags || prev.tags,
                     colors: content.colors ? content.colors.join(", ") : prev.colors
                 }));
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setErrorMsg(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set in Vercel.`);
             }
         } catch (error) {
+            setErrorMsg("AI Auto-Fill request failed. Check your internet connection.");
             console.error("AI Generation failed", error);
         } finally {
             setIsGenerating(false);
@@ -357,6 +361,21 @@ export default function EditProduct() {
                 </motion.div>
             )}
 
+            {/* Error Banner */}
+            {errorMsg && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-start gap-2 text-sm font-medium text-red-700 bg-red-50 px-5 py-3.5 rounded-2xl border border-red-200 mb-8"
+                >
+                    <AlertTriangle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <span className="flex-1">{errorMsg}</span>
+                    <button onClick={() => setErrorMsg(null)} className="text-red-400 hover:text-red-600 ml-2">
+                        <X className="h-4 w-4" />
+                    </button>
+                </motion.div>
+            )}
+
             {/* ─── Section 1: Product Image ─── */}
             <motion.section
                 initial={{ opacity: 0, y: 10 }}
@@ -382,8 +401,9 @@ export default function EditProduct() {
                             onClick={async () => {
                                 if (!formData.name) return;
                                 setIsFetchingImage(true);
+                                setErrorMsg(null);
                                 try {
-                                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(formData.name + ' official product high resolution')}`);
+                                    const res = await fetch(`/api/product-image?q=${encodeURIComponent(formData.name + ' official product high resolution')}&category=${encodeURIComponent(formData.category || '')}`);
                                     if (res.ok) {
                                         const data = await res.json();
                                         if (data.imageUrl) {
@@ -405,9 +425,10 @@ export default function EditProduct() {
                                             return;
                                         }
                                     }
-                                    alert('Could not find an image. Try a more specific product name or upload manually.');
-                                } catch { alert('Image search failed.'); }
-                                finally { setIsFetchingImage(false); }
+                                    setErrorMsg('Could not find an image. Try a more specific product name or upload manually.');
+                                } catch {
+                                    setErrorMsg('Image search failed. Check your internet connection.');
+                                } finally { setIsFetchingImage(false); }
                             }}
                             disabled={isFetchingImage || !formData.name}
                         >
