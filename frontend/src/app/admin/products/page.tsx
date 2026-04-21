@@ -101,6 +101,7 @@ export default function CatalogControl() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [syncReport, setSyncReport] = useState<any[]>([]);
     const [profitMargin, setProfitMargin] = useState("25");
+    const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; currentName: string }>({ current: 0, total: 0, currentName: "" });
     const [selectedSyncIds, setSelectedSyncIds] = useState<string[]>([]);
     const [isPromoting, setIsPromoting] = useState(false);
     
@@ -244,8 +245,8 @@ export default function CatalogControl() {
                     failed++;
                     console.error("Failed to update image for", item.name, e);
                 }
-                // Small delay to avoid rate-limiting on Serper (100ms between requests)
-                await new Promise(r => setTimeout(r, 100));
+                // 1.2s delay keeps bulk scan well under the 60 req/min rate limit
+                await new Promise(r => setTimeout(r, 1200));
             }
         }
         
@@ -403,24 +404,61 @@ export default function CatalogControl() {
         setEditSpecs(newSpecs);
     };
 
-    const handleInitiateSync = () => {
+    const handleInitiateSync = async () => {
         setIsSyncModalOpen(true);
         setIsSyncing(true);
-        setTimeout(() => {
-            const globalProducts = products.filter(p => p.seller_name.toLowerCase().includes("global store"));
-            const report = globalProducts.map(p => {
-                const rawMarketPrice = p.price * (Math.random() * (1.15 - 0.85) + 0.85); // +/- 15% drift simulation
-                return {
-                    ...p,
-                    oldPrice: p.price,
-                    rawMarketPrice: rawMarketPrice,
-                    suggestedPrice: rawMarketPrice * (1 + parseFloat(profitMargin) / 100)
-                };
+        setSyncReport([]);
+
+        // Filter to global store products only, cap at 20 per run to respect rate limits
+        const globalProducts = products.filter(p =>
+            p.seller_name?.toLowerCase().includes("global store") || p._source === "global"
+        ).slice(0, 20);
+
+        setSyncProgress({ current: 0, total: globalProducts.length, currentName: "" });
+
+        const report: any[] = [];
+        const margin = parseFloat(profitMargin) / 100;
+
+        for (let i = 0; i < globalProducts.length; i++) {
+            const p = globalProducts[i];
+            setSyncProgress({ current: i + 1, total: globalProducts.length, currentName: p.name });
+
+            let rawMarketPrice = p.price; // fallback: keep existing price
+            try {
+                const res = await fetch("/api/gemini-price", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        productName: p.name,
+                        category: p.category,
+                        mode: "analyze",
+                        anchorPrice: p.price,
+                    }),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    // Use recommendedPrice → marketAverage → current as fallback chain
+                    rawMarketPrice = data.recommendedPrice || data.marketAverage || p.price;
+                }
+            } catch { /* keep fallback */ }
+
+            report.push({
+                ...p,
+                oldPrice: p.price,
+                rawMarketPrice,
+                suggestedPrice: rawMarketPrice * (1 + margin),
             });
-            setSyncReport(report);
-            setSelectedSyncIds(report.filter(r => Math.abs(r.suggestedPrice - r.oldPrice) / r.oldPrice > 0.05).map(r => r.id));
-            setIsSyncing(false);
-        }, 2000);
+
+            // 3.5s delay keeps bulk analysis well under the 20 req/min Gemini rate limit
+            if (i < globalProducts.length - 1) {
+                await new Promise(r => setTimeout(r, 3500));
+            }
+        }
+
+        setSyncReport(report);
+        // Auto-select products where suggested price differs by more than 5%
+        setSelectedSyncIds(report.filter(r => Math.abs(r.suggestedPrice - r.oldPrice) / r.oldPrice > 0.05).map(r => r.id));
+        setIsSyncing(false);
     };
 
     const handleMarginChange = (val: string) => {
@@ -1044,8 +1082,17 @@ export default function CatalogControl() {
                         {isSyncing ? (
                             <div className="flex flex-col items-center justify-center py-20 text-center">
                                 <RefreshCw className="h-12 w-12 text-indigo-600 animate-spin mb-6" />
-                                <h3 className="text-xl font-black text-gray-900 mb-2">Fetching Live Data from Global Suppliers</h3>
-                                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest">Amazon • AliExpress • BestBuy</p>
+                                <h3 className="text-xl font-black text-gray-900 mb-2">Fetching Live Market Prices via AI</h3>
+                                {syncProgress.total > 0 && (
+                                    <>
+                                        <p className="text-sm font-black text-indigo-600 mb-1">{syncProgress.current} / {syncProgress.total} products analyzed</p>
+                                        <p className="text-xs text-gray-400 font-bold max-w-xs truncate">{syncProgress.currentName}</p>
+                                        <div className="w-64 h-2 bg-gray-100 rounded-full mt-4 overflow-hidden">
+                                            <div className="h-full bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${(syncProgress.current / syncProgress.total) * 100}%` }} />
+                                        </div>
+                                    </>
+                                )}
+                                <p className="text-sm text-gray-500 font-bold uppercase tracking-widest mt-4">cars45.com • jiji.ng • Alibaba • Amazon</p>
                             </div>
                         ) : (
                             <div className="space-y-6">
