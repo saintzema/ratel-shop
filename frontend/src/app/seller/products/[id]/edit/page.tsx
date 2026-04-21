@@ -199,17 +199,23 @@ export default function EditProduct() {
         const file = e.target.files?.[0];
         if (file) {
             compressImage(file, (url) => {
-                const newImages = [...formData.images];
-                newImages[index] = url;
-                setFormData(prev => ({ ...prev, images: newImages }));
+                // Use functional updater to avoid stale closure — async callback must read latest state
+                setFormData(prev => {
+                    const newImages = [...prev.images];
+                    newImages[index] = url;
+                    return { ...prev, images: newImages };
+                });
             });
         }
     };
 
     const handleGalleryUrlChange = (index: number, val: string) => {
-        const newImages = [...formData.images];
-        newImages[index] = val;
-        setFormData({ ...formData, images: newImages });
+        // Use functional updater to avoid overwriting concurrent changes
+        setFormData(prev => {
+            const newImages = [...prev.images];
+            newImages[index] = val;
+            return { ...prev, images: newImages };
+        });
     };
 
     const addGallerySlot = () => {

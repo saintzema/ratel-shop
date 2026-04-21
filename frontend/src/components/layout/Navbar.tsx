@@ -363,6 +363,9 @@ export function Navbar() {
 
     // Debounced global search — fetches after user stops typing for 350ms
     useEffect(() => {
+        // Reset hydration tracking so every new search gets fresh image hydration
+        hydratedProductIds.current.clear();
+
         const trimmed = searchQuery.trim();
         if (trimmed.length <= 2) {
             setGlobalResults([]);
@@ -939,7 +942,7 @@ export function Navbar() {
                                             >
                                                 <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
                                                     <img
-                                                        src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
+                                                        src={getProxiedImageUrl(product.images?.[0] || product.image_url)}
                                                         alt={product.name}
                                                         className="w-full h-full object-contain"
                                                         onError={(e) => {
