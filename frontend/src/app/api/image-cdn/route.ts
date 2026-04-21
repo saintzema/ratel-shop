@@ -22,6 +22,18 @@ export async function GET(req: Request) {
         return NextResponse.redirect(new URL('/assets/images/placeholder.png', req.url));
     }
 
+    // Fail-fast for Google Grounding / VertexAI URLs — they expire quickly and always time out.
+    // The client's background hydration will fetch a real image via /api/product-image instead.
+    const lowerUrl = imageUrl.toLowerCase();
+    if (
+        lowerUrl.includes('googleusercontent.com/grounding') ||
+        lowerUrl.includes('vertexaisearch.cloud.google.com') ||
+        lowerUrl.includes('grounding-api-redirect') ||
+        lowerUrl.includes('googleapis.com/download')
+    ) {
+        return NextResponse.redirect(new URL('/assets/images/placeholder.png', req.url));
+    }
+
     try {
         // 1. Fetch external image with retry logic
         async function fetchWithRetry(url: string, retries = 3, backoff = 500) {

@@ -7,7 +7,7 @@ import { useFavorites } from "@/context/FavoritesContext";
 import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
-import { cn, getProductUrl, getProxiedImageUrl, isVideoUrl } from "@/lib/utils";
+import { cn, getProductUrl, getProxiedImageUrl, isVideoUrl, isGroundingUrl } from "@/lib/utils";
 import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
 
@@ -29,39 +29,54 @@ export const SearchGridCard = ({
   const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
-    // Check if the current product lacks a valid image
     const isValidImg = (url: string | undefined | null) =>
-      url && url.trim().length > 4 &&
+      !!url &&
+      url.trim().length > 4 &&
       !url.toLowerCase().includes('no photo') &&
       !url.toLowerCase().includes('no image') &&
       !url.toLowerCase().includes('n/a') &&
       !url.toLowerCase().includes('undefined') &&
-      !url.includes('vertexaisearch.cloud.google.com') &&
-      !url.includes('grounding-api-redirect');
+      !url.toLowerCase().includes('placeholder') &&
+      !isGroundingUrl(url);
 
-    const hasNoRealImage = !isValidImg(product.image_url) && !isValidImg(product.images?.[0]);
+    const bestExistingImage = isValidImg(product.image_url)
+      ? product.image_url
+      : isValidImg(product.images?.[0])
+      ? product.images[0]
+      : null;
 
-    if (product._source === "global" && !hydratedImage) {
-      // Async fetch real image in the background
-      fetch(`/api/product-image?q=${encodeURIComponent(product.name)}`)
-        .then(res => res.json())
-        .then(data => {
-            if (data.imageUrl) {
-                setHydratedImage(data.imageUrl);
-                // Attempt to cache it to session storage so we don't refetch on back/forward navigation
-                try {
-                    const cached = sessionStorage.getItem('fp_nav_search_results');
-                    if (cached) {
-                        const parsed = JSON.parse(cached);
-                        const updated = parsed.map((p: any) => p.id === product.id ? { ...p, image_url: data.imageUrl } : p);
-                        sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
-                    }
-                } catch(e) {}
-            }
-        })
-        .catch(() => {});
-    }
-  }, [product.id, product._source, product.image_url, product.name, hydratedImage, product.images]);
+    // Skip hydration if we already have a good image or already hydrated this product
+    if (bestExistingImage || hydratedImage) return;
+
+    // Only hydrate global / AI-sourced products (local catalog products always have real images)
+    if (product._source !== "global" && product._source !== "cached") return;
+
+    const q = encodeURIComponent(product.name);
+    const cat = encodeURIComponent(product.category || '');
+    fetch(`/api/product-image?q=${q}&category=${cat}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        const imageUrl = (data.imageUrls?.length ? data.imageUrls[0] : null) || data.imageUrl || null;
+        if (!imageUrl) return;
+        setHydratedImage(imageUrl);
+        // Persist to sessionStorage so back/forward navigation keeps the image
+        try {
+          const cached = sessionStorage.getItem('fp_nav_search_results');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            const updated = parsed.map((p: any) =>
+              p.id === product.id
+                ? { ...p, image_url: imageUrl, images: data.imageUrls || [imageUrl] }
+                : p
+            );
+            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
+          }
+        } catch { /* quota */ }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
 
   const lastTapRef = useRef<number>(0);
   const handleDoubleTap = (e: React.MouseEvent) => {

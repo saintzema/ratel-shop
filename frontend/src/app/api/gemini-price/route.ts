@@ -62,12 +62,19 @@ export async function POST(req: Request) {
             - For health/wellness devices: Massage Type, Heat Settings, Speed Levels, Power Source, Material, Dimensions, Weight, Timer, Auto-Shutoff.
             - NEVER return a specs object with fewer than 6 entries. Fill with relevant technical details.
             
-            ANONYMIZATION & REAL ASSETS (CRITICAL): 
+            ANONYMIZATION & REAL ASSETS (CRITICAL):
             - NEVER mention any real store name in the product *name*.
             - YOU HAVE GOOGLE SEARCH ENABLED. You MUST find REAL product assets.
-            - SEARCH AGGRESSIVELY for high-resolution, professional image links from official sites, manufacturer press kits, or specialized retailers (e.g., cars45.com, jiji.ng, Alibaba, Amazon).
-            - For the sourceUrl, provide the REAL product link you found (e.g., https://www.cars45.com/... or https://www.alibaba.com/...).
-            - For the image_url, provide the REAL direct image link from the product page (e.g., https://s.alicdn.com/.../image.jpg). DO NOT hallucinate image URLs. If you cannot extract a real valid image URL, leave it as an empty string "".
+            - SEARCH AGGRESSIVELY for high-resolution, professional image links from official manufacturer sites, press kits, or major retailers (Alibaba/AliExpress CDN, Amazon, cars45.com, jiji.ng).
+            - For the sourceUrl, provide the REAL product listing URL (e.g., https://www.alibaba.com/product-detail/...).
+            - For the image_url, you MUST provide a DIRECT, PERMANENT image URL that loads without authentication.
+              REQUIRED format examples: https://s.alicdn.com/kf/.../image.jpg  OR  https://m.media-amazon.com/images/I/xxx.jpg  OR  https://cars45.com/cdn/images/xxx.jpg
+              STRICTLY FORBIDDEN (these expire and cause errors):
+              - Any URL containing "googleusercontent.com/grounding"
+              - Any URL containing "vertexaisearch.cloud.google.com"
+              - Any URL containing "grounding-api-redirect"
+              - Any Google redirect or temporary URL
+              If you cannot find a permanent direct image URL, return an empty string "" — do NOT return a Grounding/temporary URL.
             
             Return JSON:
             {
@@ -242,18 +249,43 @@ default to NEW from 2024 onwards.
                     return true;
                 });
 
+                // ─── SERVER-SIDE GROUNDING URL SANITIZATION ───
+                // Gemini sometimes returns Google's Grounding/VertexAI redirect URLs as image_url.
+                // These expire in minutes and cause proxy timeouts on the client. Strip them here
+                // so the client falls straight to background image hydration via /api/product-image.
+                const GROUNDING_PATTERNS = [
+                    'googleusercontent.com/grounding',
+                    'vertexaisearch.cloud.google.com',
+                    'grounding-api-redirect',
+                    'googleapis.com/download',
+                    'google.com/imgres',
+                ];
+                parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                    const imgUrl = item.image_url || '';
+                    const lower = imgUrl.toLowerCase();
+                    if (GROUNDING_PATTERNS.some(p => lower.includes(p))) {
+                        item.image_url = '';
+                    }
+                    return item;
+                });
+
                 // ─── IMAGE SHARING FALLBACK (Zero-latency) ───
-                // If some results have valid HD images and others don't, share the valid image among them
-                // since they are all highly related variants of the same core search query.
+                // If some results have valid permanent images and others don't, share the valid
+                // image among variants of the same search query (related products).
+                const isValidPermanentUrl = (url: any) =>
+                    url && typeof url === 'string' && url.trim() !== '' &&
+                    !url.toLowerCase().includes('no photo') &&
+                    !url.toLowerCase().includes('n/a') &&
+                    !GROUNDING_PATTERNS.some(p => url.toLowerCase().includes(p));
+
                 const validImages = parsedData.suggestions
                     .map((item: any) => item.image_url)
-                    .filter((url: any) => url && typeof url === 'string' && url.trim() !== '' && !url.toLowerCase().includes('no photo') && !url.toLowerCase().includes('n/a'));
+                    .filter(isValidPermanentUrl);
 
                 if (validImages.length > 0) {
                     const fallbackImage = validImages[0];
                     parsedData.suggestions = parsedData.suggestions.map((item: any) => {
-                        const currentImg = (item.image_url || "").toLowerCase();
-                        if (!currentImg || currentImg === "" || currentImg.includes('no photo') || currentImg.includes('n/a')) {
+                        if (!isValidPermanentUrl(item.image_url)) {
                             item.image_url = fallbackImage;
                         }
                         return item;
