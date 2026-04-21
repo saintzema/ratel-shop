@@ -165,8 +165,7 @@ export async function POST(request: Request) {
                 data: {
                     userId: body.seller_id,
                     type: "order",
-                    title: "New Order Received! 🎉",
-                    message: `${userName} just ordered ${productName} for ${amount}. Check your dashboard to confirm.`,
+                    message: `New Order! 🎉 ${userName} ordered ${productName} for ${amount}. Check your dashboard to confirm.`,
                     link: `/seller/orders`,
                     read: false,
                 }
