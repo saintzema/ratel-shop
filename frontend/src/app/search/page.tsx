@@ -485,10 +485,13 @@ function SearchContent() {
   const { ref: observerRef, inView } = useInView({ threshold: 0.1 });
 
   useEffect(() => {
-    const refresh = () =>
-      setAllProducts(
-        DataSyncService.getApprovedProducts().filter((p) => p.is_active),
-      );
+    const refresh = () => {
+      try {
+        setAllProducts(
+          DataSyncService.getApprovedProducts().filter((p) => p.is_active),
+        );
+      } catch { /* localStorage may be unavailable or corrupt */ }
+    };
     refresh();
     window.addEventListener("sync-store-update", refresh);
     return () => window.removeEventListener("sync-store-update", refresh);

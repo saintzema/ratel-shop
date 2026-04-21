@@ -405,10 +405,11 @@ export function Navbar() {
     const navigateWithResults = (clickedProductId: string) => {
         // 1. Close UI immediately
         setShowSuggestions(false);
+        try {
 
-        // 2. Synchronous mapping and hydration 
+        // 2. Synchronous mapping and hydration
         // Build product objects from global results with intelligent verification
-        const globalAsProducts = globalResults.map((r: any) => {
+        const globalAsProducts = globalResults.filter((r: any) => r && r.name).map((r: any) => {
             const productId = generateCompliantId(r.name);
 
             // ─── Real Gemini Description & Specs ───
@@ -539,6 +540,14 @@ export function Navbar() {
                     body: JSON.stringify({ productId: resolvedClickedId })
                 }).catch(() => {});
             }, 100);
+        }
+
+        } catch (err) {
+            console.error('[NavSearch] navigateWithResults error:', err);
+            // Still navigate even if state-prep fails
+            setTimeout(() => {
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+            }, 10);
         }
     };
 
@@ -1326,7 +1335,7 @@ export function Navbar() {
                                 <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
                                     {mounted && user ? (
                                         <div className="flex items-center gap-2">
-                                            <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
+                                            <User className="h-6 w-6" /> Hello, {(user.name || user.email || "there").split(" ")[0]}
                                         </div>
                                     ) : (
                                         <Link href="/login" className="flex items-center gap-2 hover:underline">

@@ -136,8 +136,8 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
     return url;
 }
 
-export function generateCompliantId(name: string, prefix = 'global'): string {
-    const slug = name.toLowerCase()
+export function generateCompliantId(name: string | null | undefined, prefix = 'global'): string {
+    const slug = (name || 'unknown').toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
     
