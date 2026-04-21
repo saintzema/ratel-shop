@@ -254,6 +254,8 @@ function SearchContent() {
   const pageParam = searchParams.get("page");
 
   // Local State
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
   const [priceRange, setPriceRange] = useState([0, 500000000]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     categoryParam,
@@ -553,8 +555,11 @@ function SearchContent() {
 
   const [globalSearchCount, setGlobalSearchCount] = useState(0);
 
+  const [globalSearchError, setGlobalSearchError] = useState<string | null>(null);
+
   const handleSeeMoreResults = () => {
     setShowGlobalResults(true);
+    setGlobalSearchError(null);
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
@@ -565,9 +570,15 @@ function SearchContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productName: effectiveQuery, mode: "search", offset: globalSearchCount + 1, category: detectedCategory }),
       })
-        .then((res) => res.json())
+        .then(async (res) => {
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`API returned ${res.status}: ${errText.slice(0, 100)}`);
+          }
+          return res.json();
+        })
         .then((data) => {
-          if (data.suggestions && Array.isArray(data.suggestions)) {
+          if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
             setGlobalResults(prev => {
               const newItems = data.suggestions.filter(
                 (s: any) => !prev.some(p => p.name.toLowerCase() === s.name.toLowerCase())
@@ -588,9 +599,18 @@ function SearchContent() {
               }
               return [...prev, ...newItems];
             });
+          } else {
+            setGlobalSearchError(`No similar products found for "${effectiveQuery}". Try a different search term.`);
           }
         })
-        .catch(() => { })
+        .catch((err) => {
+          console.error("[GlobalSearch] Failed:", err);
+          setGlobalSearchError(
+            err?.message?.includes('DEPLOYMENT_DISABLED') || err?.message?.includes('402')
+              ? "AI search temporarily unavailable. Please try again later."
+              : `Search failed: ${err?.message || 'Network error'}. Please try again.`
+          );
+        })
         .finally(() => setIsGlobalSearching(false));
     }
   };
@@ -1074,7 +1094,7 @@ function SearchContent() {
         <div className="flex flex-col gap-8">
           <div className="flex-1 w-full">
             {/* Scrollable Apple-like Translucent Pill Filters — hydration-safe */}
-            {(() => {
+            {isMounted && (() => {
               const categories = DataSyncService.getCategories();
               if (!categories || categories.length === 0) return null;
               return (
@@ -1104,7 +1124,7 @@ function SearchContent() {
             {/* UNIFIED SEARCH RESULTS GRID */}
 
             {/* ─── Brand Logo Rail (Category-Aware) ─── */}
-            {(() => {
+            {isMounted && (() => {
               const BRAND_MAP: Record<string, { name: string; logo: string; logoImage?: string }[]> = {
                 cars: [
                   { name: "Toyota", logo: "🚗", logoImage: "/assets/images/Car-Logos/Toyota-logo.png" },
@@ -1272,7 +1292,7 @@ function SearchContent() {
                   No results for &quot;{query}&quot;
                 </h2>
                 <p className="text-gray-500 max-w-md mb-6 text-sm">
-                  Try checking your spelling or use more general terms.
+                  {globalSearchError || "Try checking your spelling or use more general terms."}
                 </p>
                 <div className="flex flex-col gap-3">
                   <Button
