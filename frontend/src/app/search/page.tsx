@@ -474,10 +474,12 @@ function SearchContent() {
     return getFiltersForCategory(detectedCategory);
   }, [detectedCategory]);
 
-  // Live products from DataSyncService
-  const [allProducts, setAllProducts] = useState<
-    import("@/lib/types").Product[]
-  >([]);
+  // Live products from DataSyncService — lazy init so catalog renders on first frame
+  const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return DataSyncService.getApprovedProducts().filter((p) => p.is_active); }
+    catch { return []; }
+  });
 
   // Pagination State
   const [page, setPage] = useState(pageParam ? parseInt(pageParam, 10) : 1);
