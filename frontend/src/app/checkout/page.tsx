@@ -10,7 +10,7 @@ import {
 } from "@/lib/escrow-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck } from "lucide-react";
+import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building, Sparkles } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo, useRef } from "react";
@@ -390,8 +390,10 @@ function CheckoutContent() {
     const [isGuestCheckout, setIsGuestCheckout] = useState(false);
     const [showGuestPasswordSetup, setShowGuestPasswordSetup] = useState(false);
     const [guestPassword, setGuestPassword] = useState("");
+    const [showGuestPassword, setShowGuestPassword] = useState(false);
     const [isSettingPassword, setIsSettingPassword] = useState(false);
     const [passwordError, setPasswordError] = useState("");
+    const [guestEmailHasAccount, setGuestEmailHasAccount] = useState(false);
 
     const [baseDoorFee, setBaseDoorFee] = useState(4000);
     const [basePickupFee, setBasePickupFee] = useState(2500);
@@ -2194,6 +2196,11 @@ function CheckoutContent() {
                 onClose={() => {
                     setShowConcierge(false);
                     if (isGuestCheckout) {
+                        // Check if this email already has a full account with password
+                        fetch(`/api/users?email=${encodeURIComponent(address.email)}`)
+                            .then(r => r.ok ? r.json() : null)
+                            .then(user => { if (user?.password) setGuestEmailHasAccount(true); })
+                            .catch(() => {});
                         setShowGuestPasswordSetup(true);
                     } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
                         setShowPushOptIn(true);
@@ -2223,72 +2230,120 @@ function CheckoutContent() {
                             <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-5 border border-emerald-200 shadow-sm">
                                 <Lock className="h-7 w-7 text-emerald-600" />
                             </div>
-                            <h2 className="text-2xl font-black text-gray-900 mb-2">Secure Your Account</h2>
-                            <p className="text-gray-500 mb-6 text-sm">
-                                Your order was placed successfully! Please create a password to track this order and shop faster next time.
+                            <h2 className="text-2xl font-black text-gray-900 mb-2">
+                                {guestEmailHasAccount ? "Welcome Back!" : "Secure Your Account"}
+                            </h2>
+                            <p className="text-gray-500 mb-2 text-sm">
+                                {guestEmailHasAccount
+                                    ? "Looks like you already have a FairPrice account with this email. Sign in to track your order."
+                                    : "Your order was placed successfully! Create a password to track this order and shop faster next time."}
                             </p>
-                            
-                            <form 
-                                onSubmit={async (e) => {
-                                    e.preventDefault();
-                                    setPasswordError("");
-                                    if (!guestPassword || guestPassword.length < 6) {
-                                        setPasswordError("Password must be at least 6 characters.");
-                                        return;
-                                    }
-                                    setIsSettingPassword(true);
-                                    try {
-                                        const res = await fetch("/api/users", {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ email: address.email, password: guestPassword })
-                                        });
-                                        if (res.ok) {
-                                            setShowGuestPasswordSetup(false);
-                                            // Handle success route
-                                            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
-                                                setShowPushOptIn(true);
-                                            } else {
-                                                router.push("/account/orders?success=true");
-                                            }
-                                        } else {
-                                            throw new Error("Failed to secure account");
-                                        }
-                                    } catch (err) {
-                                        setPasswordError("Failed to set password. Try again later.");
-                                    } finally {
-                                        setIsSettingPassword(false);
-                                    }
-                                }}
-                            >
-                                {passwordError && (
-                                    <div className="mb-4 text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
-                                        {passwordError}
-                                    </div>
-                                )}
-                                <div className="mb-6 relative">
-                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                                    <Input 
-                                        type="password"
-                                        placeholder="Create a secure password"
-                                        value={guestPassword}
-                                        onChange={(e) => setGuestPassword(e.target.value)}
-                                        className="pl-10 h-12 text-base font-medium rounded-xl border-gray-200 bg-gray-50 focus:border-brand-green-500 focus:ring-1 focus:ring-brand-green-500 shadow-inner"
-                                        required
-                                        minLength={6}
-                                        disabled={isSettingPassword}
-                                    />
+
+                            {/* Show the email that was used */}
+                            <div className="flex items-center justify-center gap-2 mb-6 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
+                                <span className="text-xs text-gray-500 font-medium">Order placed as</span>
+                                <span className="text-sm font-bold text-gray-900 truncate max-w-[200px]">{address?.email}</span>
+                            </div>
+
+                            {guestEmailHasAccount ? (
+                                /* Existing account: direct to login */
+                                <div className="space-y-3">
+                                    <Button
+                                        onClick={() => router.push(`/login?from=/account/orders`)}
+                                        className="w-full h-12 rounded-xl text-base font-bold bg-brand-green-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                                    >
+                                        Sign In to View Order
+                                    </Button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setShowGuestPasswordSetup(false); router.push("/account/orders?success=true"); }}
+                                        className="w-full text-sm text-gray-400 hover:text-gray-600 font-medium py-2"
+                                    >
+                                        Skip for now
+                                    </button>
                                 </div>
-                                
-                                <Button 
-                                    type="submit" 
-                                    disabled={isSettingPassword} 
-                                    className="w-full h-12 rounded-xl text-base font-bold bg-brand-green-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
+                            ) : (
+                                /* New account: create password */
+                                <form
+                                    onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        setPasswordError("");
+                                        if (!guestPassword || guestPassword.length < 6) {
+                                            setPasswordError("Password must be at least 6 characters.");
+                                            return;
+                                        }
+                                        setIsSettingPassword(true);
+                                        try {
+                                            const res = await fetch("/api/users", {
+                                                method: "POST",
+                                                headers: { "Content-Type": "application/json" },
+                                                body: JSON.stringify({ email: address.email, password: guestPassword })
+                                            });
+                                            if (res.ok) {
+                                                setShowGuestPasswordSetup(false);
+                                                if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+                                                    setShowPushOptIn(true);
+                                                } else {
+                                                    router.push("/account/orders?success=true");
+                                                }
+                                            } else {
+                                                throw new Error("Failed to secure account");
+                                            }
+                                        } catch {
+                                            setPasswordError("Failed to set password. Try again later.");
+                                        } finally {
+                                            setIsSettingPassword(false);
+                                        }
+                                    }}
                                 >
-                                    {isSettingPassword ? <span className="animate-spin mr-2">⏳</span> : null}
-                                    Create Password & View Order
-                                </Button>
-                            </form>
+                                    {passwordError && (
+                                        <div className="mb-4 text-sm font-medium text-red-600 bg-red-50 p-3 rounded-lg border border-red-100">
+                                            {passwordError}
+                                        </div>
+                                    )}
+                                    <div className="mb-4 relative">
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                                        <Input
+                                            type={showGuestPassword ? "text" : "password"}
+                                            placeholder="Create a secure password"
+                                            value={guestPassword}
+                                            onChange={(e) => setGuestPassword(e.target.value)}
+                                            className="pl-10 pr-12 h-12 text-base font-medium rounded-xl border-gray-200 bg-gray-50 focus:border-brand-green-500 focus:ring-1 focus:ring-brand-green-500 shadow-inner"
+                                            required
+                                            minLength={6}
+                                            disabled={isSettingPassword}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowGuestPassword(p => !p)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        >
+                                            {showGuestPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                        </button>
+                                    </div>
+
+                                    <Button
+                                        type="submit"
+                                        disabled={isSettingPassword}
+                                        className="w-full h-12 rounded-xl text-base font-bold bg-brand-green-600 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 mb-3"
+                                    >
+                                        {isSettingPassword ? <span className="animate-spin mr-2">⏳</span> : null}
+                                        Create Password & View Order
+                                    </Button>
+
+                                    {/* Sign in option for users who already have account */}
+                                    <p className="text-xs text-gray-400">
+                                        Already have an account?{" "}
+                                        <button
+                                            type="button"
+                                            onClick={() => router.push(`/login?from=/account/orders`)}
+                                            className="text-brand-green-600 font-bold hover:underline"
+                                        >
+                                            Sign in instead
+                                        </button>
+                                    </p>
+                                </form>
+                            )}
                         </motion.div>
                     </div>
                 )}
