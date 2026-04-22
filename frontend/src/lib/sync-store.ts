@@ -963,7 +963,12 @@ class DataSyncServiceService {
     getCategories(): Category[] {
         if (typeof window === "undefined") return INITIAL_CATEGORIES;
         const stored = localStorage.getItem(this.STORAGE_KEYS.TAXONOMY);
-        return stored ? JSON.parse(stored) : INITIAL_CATEGORIES;
+        try {
+            return stored ? JSON.parse(stored) : INITIAL_CATEGORIES;
+        } catch {
+            localStorage.removeItem(this.STORAGE_KEYS.TAXONOMY);
+            return INITIAL_CATEGORIES;
+        }
     }
 
     setCategories(categories: Category[]) {
@@ -1071,12 +1076,13 @@ class DataSyncServiceService {
     /** Returns all negotiations from local cache without any filtering. Used for upsert operations. */
     getNegotiationsRaw(): any[] {
         if (typeof window === "undefined") return [];
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+        try { return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]"); } catch { return []; }
     }
 
     getNegotiations(sellerId?: string, buyerId?: string): NegotiationRequest[] {
         if (typeof window === "undefined") return [];
-        const all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+        let all: any[] = [];
+        try { all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]"); } catch { /* corrupted */ }
         
         let filtered = all;
         
@@ -2064,8 +2070,13 @@ class DataSyncServiceService {
     getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
-        // Fallback to empty array if DB sync hasn't populated localStorage yet
-        const allProducts: Product[] = stored ? JSON.parse(stored) : [];
+        let allProducts: Product[] = [];
+        try {
+            allProducts = stored ? JSON.parse(stored) : [];
+        } catch {
+            console.warn("Corrupted products in localStorage — resetting.");
+            localStorage.removeItem(this.STORAGE_KEYS.PRODUCTS);
+        }
 
         // Optimization: Create a seller map for O(1) lookups
         const allSellers = this.getSellers();
