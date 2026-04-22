@@ -494,6 +494,20 @@ function SearchContent() {
     };
     refresh();
     window.addEventListener("sync-store-update", refresh);
+
+    // Also seed from the API on first load so fresh sessions always have catalogue products
+    fetch("/api/products?limit=200")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.products?.length) {
+          data.products.forEach((p: any) => {
+            try { DataSyncService.addRawProduct(p, false); } catch { /* ignore */ }
+          });
+          refresh();
+        }
+      })
+      .catch(() => {});
+
     return () => window.removeEventListener("sync-store-update", refresh);
   }, []);
 
@@ -835,6 +849,21 @@ function SearchContent() {
   const paginatedProducts = useMemo(() => {
     return filteredProducts.slice(0, page * ITEMS_PER_PAGE);
   }, [filteredProducts, page]);
+
+  // Broad catalogue fallback — any word match across all products, ignoring category.
+  // Shown when AI is unavailable and filteredProducts is empty so the page is never blank.
+  const catalogueFallback = useMemo(() => {
+    if (!query || query.trim().length < 2) return [];
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+    return allProducts
+      .filter(p => p && p.name && p.is_active)
+      .filter(p => {
+        const name = (p.name || "").toLowerCase();
+        const desc = (p.description || "").toLowerCase();
+        return words.some(w => name.includes(w) || desc.includes(w));
+      })
+      .slice(0, 12);
+  }, [query, allProducts]);
 
   // Build the combined current view array
   const combinedCurrentResults = useMemo(() => {
@@ -1367,6 +1396,29 @@ function SearchContent() {
             )}
 
             {combinedCurrentResults.length === 0 && !isGlobalSearching && (
+              catalogueFallback.length > 0 ? (
+                <div>
+                  {globalSearchError && (
+                    <div className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 font-medium">
+                      <span>⚠️</span>
+                      <span>Global AI search is temporarily unavailable. Showing matching products from our catalogue.</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {catalogueFallback.map((product: any) => (
+                      <SearchGridCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                  <div className="flex justify-center mt-8">
+                    <Button
+                      onClick={() => handleSeeMoreResults()}
+                      className="rounded-full bg-emerald-600 text-white px-8 font-bold text-sm hover:bg-emerald-700"
+                    >
+                      🔍 Search Global Suppliers
+                    </Button>
+                  </div>
+                </div>
+              ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                 <SearchIcon className="h-10 w-10 text-gray-300 mb-4" />
                 <h2 className="text-xl font-bold mb-2 text-black">
@@ -1394,6 +1446,7 @@ function SearchContent() {
                   </Button>
                 </div>
               </div>
+              )
             )}
 
             {/* See more results Button — always visible when there's a valid query */}
