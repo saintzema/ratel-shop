@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { Pool, neonConfig } from "@neondatabase/serverless";
+import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import ws from "ws";
 
@@ -14,8 +14,8 @@ const CONNECTION_STRING =
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createClient(): PrismaClient {
-    const pool = new Pool({ connectionString: CONNECTION_STRING });
-    const adapter = new PrismaNeon(pool as any);
+    // PrismaNeon constructor takes PoolConfig, not a Pool instance
+    const adapter = new PrismaNeon({ connectionString: CONNECTION_STRING });
     return new PrismaClient({ adapter } as any);
 }
 

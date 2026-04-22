@@ -1,41 +1,52 @@
 /**
- * Tiered Escrow Fee Calculation Utility
- * 
- * Logic:
- * - < ₦19,000: 10% of total
- * - ₦20,000 - ₦49,000: 9% of total
- * - ₦50,000 - ₦99,000: 8% of total
- * - >= ₦100,000: 7% of total
- * - MAX CAP: ₦7,000
- * - ROUNDING: Nearest ₦50
+ * Tiered Escrow / Platform Fee Calculation
+ *
+ * Designed to be competitive for everyday items while still generating
+ * meaningful revenue on high-value (car, machinery) transactions.
+ *
+ * Tiers:
+ *   Under ₦10,000      → ₦150 flat
+ *   ₦10k – ₦50k       → 1.5%  (max ₦750)
+ *   ₦50k – ₦200k      → 1%    (max ₦2,000)
+ *   ₦200k – ₦1M       → 0.8%  (max ₦4,000)
+ *   ₦1M – ₦10M        → 0.5%  (max ₦7,000)  ← ₦7k reserved for this tier
+ *   ₦10M+              → 0.3%  (max ₦15,000) ← premium/cars tier
+ *
+ * Examples:
+ *   ₦122,200  → 1% = ₦1,222  → capped at ₦2,000 → ₦1,200 (rounded ₦50)
+ *   ₦500,000  → 0.8% = ₦4,000 → ₦4,000
+ *   ₦5,000,000 → 0.5% = ₦25,000 → capped ₦7,000
+ *   ₦50,000,000 → 0.3% = ₦150,000 → capped ₦15,000
  */
-
 export function calculateTieredEscrowFee(subtotal: number): number {
     if (subtotal <= 0) return 0;
 
-    let percentage = 0.10; // Default 10%
+    let fee: number;
 
-    if (subtotal >= 100000) {
-        percentage = 0.07;
-    } else if (subtotal >= 50000) {
-        percentage = 0.08;
-    } else if (subtotal >= 20000) {
-        percentage = 0.09;
+    if (subtotal < 10_000) {
+        fee = 150;
+    } else if (subtotal < 50_000) {
+        fee = Math.min(subtotal * 0.015, 750);
+    } else if (subtotal < 200_000) {
+        fee = Math.min(subtotal * 0.01, 2_000);
+    } else if (subtotal < 1_000_000) {
+        fee = Math.min(subtotal * 0.008, 4_000);
+    } else if (subtotal < 10_000_000) {
+        fee = Math.min(subtotal * 0.005, 7_000);
+    } else {
+        fee = Math.min(subtotal * 0.003, 15_000);
     }
 
-    const calculatedFee = subtotal * percentage;
-    
-    // Cap at ₦7,000
-    const cappedFee = Math.min(calculatedFee, 7000);
-    
     // Round to nearest ₦50
-    return Math.round(cappedFee / 50) * 50;
+    return Math.round(fee / 50) * 50;
 }
 
-export const ESCROW_FEE_MAX_CAP = 7000;
+export const ESCROW_FEE_MAX_CAP = 15_000;
 export const ESCROW_TIERS = [
-    { label: "Under ₦20k", percentage: "10%" },
-    { label: "₦20k - ₦49k", percentage: "9%" },
-    { label: "₦50k - ₦99k", percentage: "8%" },
-    { label: "₦100k+", percentage: "7% (capped at ₦7k)" }
+    { label: "Under ₦10k",    percentage: "₦150 flat" },
+    { label: "₦10k – ₦50k",  percentage: "1.5% (max ₦750)" },
+    { label: "₦50k – ₦200k", percentage: "1% (max ₦2,000)" },
+    { label: "₦200k – ₦1M",  percentage: "0.8% (max ₦4,000)" },
+    { label: "₦1M – ₦10M",   percentage: "0.5% (max ₦7,000)" },
+    { label: "₦10M+",         percentage: "0.3% (max ₦15,000)" },
 ];

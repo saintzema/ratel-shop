@@ -80,18 +80,35 @@ export async function POST(req: Request) {
         - Do NOT include any image URLs in the JSON.
         `;
 
-        const response = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.7 }
-            })
-        });
+        // Retry with exponential backoff on 429/503 (up to 2 retries)
+        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
+            const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.7 }
+                })
+            });
+            if ((res.status === 429 || res.status === 503) && attempt < 2) {
+                const backoffMs = Math.pow(2, attempt) * 800 + Math.random() * 400;
+                await new Promise(r => setTimeout(r, backoffMs));
+                return fetchWithRetry(attempt + 1);
+            }
+            return res;
+        };
+
+        const response = await fetchWithRetry();
 
         if (!response.ok) {
             const errorText = await response.text();
             console.error("Gemini API Error:", errorText);
+            if (response.status === 429) {
+                return NextResponse.json(
+                    { error: "AI is busy right now — please wait a moment and try again." },
+                    { status: 429 }
+                );
+            }
             throw new Error(`Gemini API failed with status ${response.status} `);
         }
 

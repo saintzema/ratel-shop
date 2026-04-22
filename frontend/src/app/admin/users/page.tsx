@@ -240,16 +240,43 @@ export default function UserDirectory() {
         }
     };
 
-    const handleToggleSuspend = (p: any) => {
+    const handleToggleSuspend = async (p: any) => {
         const newStatus = p.status === "suspended" ? "active" : "suspended";
-        if (p.role === "seller") {
-            DataSyncService.updateSeller(p.id, { status: newStatus as any });
-        }
+
+        // Optimistic UI update immediately
         setParticipants(prev => prev.map(participant =>
             participant.id === p.id ? { ...participant, status: newStatus } : participant
         ));
-        window.dispatchEvent(new Event("sync-store-update"));
-        alert(`${p.display_name} has been ${newStatus === "suspended" ? "suspended" : "reactivated"}.`);
+
+        try {
+            // Persist to DB via API — this is what makes the change survive a page reload
+            const endpoint = p.role === "seller"
+                ? `/api/sellers/${p.id}`
+                : `/api/users/${p.id}`;
+
+            const res = await fetch(endpoint, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (!res.ok) {
+                throw new Error(`Server returned ${res.status}`);
+            }
+
+            // Also update localStorage so DataSyncService stays in sync
+            if (p.role === "seller") {
+                DataSyncService.updateSeller(p.id, { status: newStatus as any });
+            }
+
+            alert(`${p.display_name} has been ${newStatus === "suspended" ? "suspended" : "reactivated"}.`);
+        } catch (err: any) {
+            // Rollback optimistic update on failure
+            setParticipants(prev => prev.map(participant =>
+                participant.id === p.id ? { ...participant, status: p.status } : participant
+            ));
+            alert(`Failed to update status: ${err.message}. Please try again.`);
+        }
     };
 
     return (

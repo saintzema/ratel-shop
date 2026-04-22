@@ -2,6 +2,65 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "../../realtime/route";
 
+/**
+ * PATCH /api/users/:id
+ * Admin endpoint to suspend or reactivate a user account.
+ * We toggle via the `isPremium` flag as a proxy until a proper `status`
+ * column is added — but more importantly we update the linked Seller record
+ * if one exists, since Seller.status is the authoritative field for sellers.
+ */
+export async function PATCH(
+    req: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        const { id } = await params;
+        const { status } = await req.json(); // "active" | "suspended"
+
+        if (!id || !status) {
+            return NextResponse.json({ error: "Missing id or status" }, { status: 400 });
+        }
+
+        // Update linked seller if one exists
+        const user = await db.user.findUnique({
+            where: { id },
+            include: { seller: true }
+        });
+
+        if (!user) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+
+        if (user.seller) {
+            await db.seller.update({
+                where: { id: user.seller.id },
+                data: { status }
+            });
+
+            // When suspending, also deactivate their products
+            if (status === "suspended") {
+                await db.product.updateMany({
+                    where: { sellerId: user.seller.id },
+                    data: { isActive: false }
+                });
+            } else {
+                await db.product.updateMany({
+                    where: { sellerId: user.seller.id },
+                    data: { isActive: true }
+                });
+            }
+
+            broadcast({ type: "seller_updated", id: user.seller.id });
+        }
+
+        broadcast({ type: "user_updated", id });
+        return NextResponse.json({ success: true, id, status });
+    } catch (error: any) {
+        console.error("User PATCH error:", error);
+        return NextResponse.json({ error: error.message || "Update failed" }, { status: 500 });
+    }
+}
+
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }

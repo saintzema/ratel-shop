@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 export const dynamic = 'force-dynamic'; // Prevent Vercel from statically caching this free-tier proxy
 
 const RL_MAP = new Map<string, { count: number; reset: number }>();
-const RL_MAX = 30;
+const RL_MAX = 60;
 const RL_WINDOW_MS = 60_000;
 
 function checkRateLimit(req: Request): boolean {

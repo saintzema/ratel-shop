@@ -224,9 +224,9 @@ export function Navbar() {
     // Search scoring algorithm
     const scoreProduct = (product: typeof SEED_PRODUCTS[0], query: string): number => {
         const q = query.toLowerCase();
-        const name = product.name.toLowerCase();
-        const cat = product.category.toLowerCase();
-        const seller = product.seller_name.toLowerCase();
+        const name = (product.name || "").toLowerCase();
+        const cat = (product.category || "").toLowerCase();
+        const seller = (product.seller_name || "").toLowerCase();
         const words = q.split(/\s+/).filter(w => w.length > 0);
         let score = 0;
 
@@ -263,10 +263,13 @@ export function Navbar() {
     // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
         if (searchQuery.trim().length > 0) {
+          try {
             const q = searchQuery.toLowerCase();
             // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
             const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
+            // Guard: filter out any products with null/undefined names (can happen with old localStorage data)
+            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))]
+                .filter(p => p && p.name);
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
@@ -351,6 +354,9 @@ export function Navbar() {
 
             setShowSuggestions(true);
             setActiveIndex(-1);
+          } catch (err) {
+            console.error('[NavSearch] instant search error:', err);
+          }
         } else {
             setSuggestions([]);
             setGlobalResults([]);
@@ -361,8 +367,11 @@ export function Navbar() {
         }
     }, [searchQuery]);
 
-    // Debounced global search — fetches after user stops typing for 400ms
+    // Debounced global search — fetches after user stops typing for 350ms
     useEffect(() => {
+        // Reset hydration tracking so every new search gets fresh image hydration
+        hydratedProductIds.current.clear();
+
         const trimmed = searchQuery.trim();
         if (trimmed.length <= 2) {
             setGlobalResults([]);
@@ -371,7 +380,6 @@ export function Navbar() {
         }
 
         setIsGlobalSearching(true);
-        setGlobalResults([]);
         const fetchTimer = setTimeout(() => {
             fetch('/api/gemini-price', {
                 method: 'POST',
@@ -382,9 +390,15 @@ export function Navbar() {
                 .then(data => {
                     if (data.suggestions && Array.isArray(data.suggestions)) {
                         setGlobalResults(data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10));
+                    } else {
+                        console.warn("Gemini price search returned empty suggestions:", data);
+                        setGlobalResults([]);
                     }
                 })
-                .catch(() => { })
+                .catch((err) => {
+                    console.error("Gemini price fetch failed:", err);
+                    setGlobalResults([]);
+                })
                 .finally(() => setIsGlobalSearching(false));
         }, 600);
 
@@ -399,17 +413,11 @@ export function Navbar() {
     const navigateWithResults = (clickedProductId: string, toDetail: boolean = false) => {
         // 1. Close UI immediately
         setShowSuggestions(false);
-        // 1. Navigation to SRP happens AFTER session state is saved so search/page.tsx hydrates reliably.
-        //    For toDetail clicks we navigate later (once we know the resolved product).
-        if (!toDetail) {
-            setTimeout(() => {
-                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-            }, 10);
-        }
+        try {
 
-        // 2. Synchronous mapping and hydration 
+        // 2. Synchronous mapping and hydration
         // Build product objects from global results with intelligent verification
-        const globalAsProducts = globalResults.map((r: any) => {
+        const globalAsProducts = globalResults.filter((r: any) => r && r.name).map((r: any) => {
             const productId = generateCompliantId(r.name);
 
             // ─── Real Gemini Description & Specs ───
@@ -558,6 +566,14 @@ export function Navbar() {
                 }).catch(() => {});
             }, 100);
         }
+
+        } catch (err) {
+            console.error('[NavSearch] navigateWithResults error:', err);
+            // Still navigate even if state-prep fails
+            setTimeout(() => {
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+            }, 10);
+        }
     };
 
     // Close suggestions when clicking outside (Apple-level smoothness)
@@ -611,7 +627,7 @@ export function Navbar() {
         if (queue.length === 0) return;
 
         let active = 0;
-        const MAX_CONCURRENT = 3;
+        const MAX_CONCURRENT = 8;
 
         const applyImageUpdate = (product: any, imageUrl: string, imageUrls: string[]) => {
             const updateFn = (prev: any[]) =>
@@ -956,7 +972,7 @@ export function Navbar() {
                                             >
                                                 <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
                                                     <img
-                                                        src={product.images?.[0] || product.image_url || '/assets/images/placeholder.png'}
+                                                        src={getProxiedImageUrl(product.images?.[0] || product.image_url)}
                                                         alt={product.name}
                                                         className="w-full h-full object-contain"
                                                         onError={(e) => {
@@ -1344,7 +1360,7 @@ export function Navbar() {
                                 <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
                                     {mounted && user ? (
                                         <div className="flex items-center gap-2">
-                                            <User className="h-6 w-6" /> Hello, {user.name.split(" ")[0]}
+                                            <User className="h-6 w-6" /> Hello, {(user.name || user.email || "there").split(" ")[0]}
                                         </div>
                                     ) : (
                                         <Link href="/login" className="flex items-center gap-2 hover:underline">

@@ -254,6 +254,8 @@ function SearchContent() {
   const pageParam = searchParams.get("page");
 
   // Local State
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
   const [priceRange, setPriceRange] = useState([0, 500000000]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(
     categoryParam,
@@ -320,7 +322,7 @@ function SearchContent() {
           // This ensures updated images from sellers appear correctly in SRP.
           const approved = DataSyncService.getApprovedProducts();
           parsed = parsed.map((p: any) => {
-            const live = approved.find(lp => lp.id === p.id || lp.name.toLowerCase() === p.name.toLowerCase());
+            const live = approved.find(lp => lp.id === p.id || (lp.name || "").toLowerCase() === (p.name || "").toLowerCase());
             if (live) {
               return { ...p, ...live }; // Prefer live local data for imaging/pricing
             }
@@ -483,12 +485,29 @@ function SearchContent() {
   const { ref: observerRef, inView } = useInView({ threshold: 0.1 });
 
   useEffect(() => {
-    const refresh = () =>
-      setAllProducts(
-        DataSyncService.getApprovedProducts().filter((p) => p.is_active),
-      );
+    const refresh = () => {
+      try {
+        setAllProducts(
+          DataSyncService.getApprovedProducts().filter((p) => p.is_active),
+        );
+      } catch { /* localStorage may be unavailable or corrupt */ }
+    };
     refresh();
     window.addEventListener("sync-store-update", refresh);
+
+    // Also seed from the API on first load so fresh sessions always have catalogue products
+    fetch("/api/products?limit=200")
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.products?.length) {
+          data.products.forEach((p: any) => {
+            try { DataSyncService.addRawProduct(p, false); } catch { /* ignore */ }
+          });
+          refresh();
+        }
+      })
+      .catch(() => {});
+
     return () => window.removeEventListener("sync-store-update", refresh);
   }, []);
 
@@ -532,7 +551,7 @@ function SearchContent() {
               setShowGlobalResults(true); // Auto-show the global results seamlessly
               // Formatting for auto-cache seeding
               const mapped = data.suggestions.map((r: any) => ({
-                id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                id: `global-${(r.name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
                 name: r.name,
                 price: r.approxPrice || 0,
                 category: r.category || effectiveQuery || "general",
@@ -553,8 +572,11 @@ function SearchContent() {
 
   const [globalSearchCount, setGlobalSearchCount] = useState(0);
 
+  const [globalSearchError, setGlobalSearchError] = useState<string | null>(null);
+
   const handleSeeMoreResults = () => {
     setShowGlobalResults(true);
+    setGlobalSearchError(null);
     // Trigger another global search to fetch more results each time
     setGlobalSearchCount(prev => prev + 1);
     const effectiveQuery = (query || "").trim() || (selectedCategory !== "All" ? selectedCategory : "");
@@ -565,17 +587,23 @@ function SearchContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productName: effectiveQuery, mode: "search", offset: globalSearchCount + 1, category: detectedCategory }),
       })
-        .then((res) => res.json())
+        .then(async (res) => {
+          if (!res.ok) {
+            const errText = await res.text().catch(() => '');
+            throw new Error(`API returned ${res.status}: ${errText.slice(0, 100)}`);
+          }
+          return res.json();
+        })
         .then((data) => {
-          if (data.suggestions && Array.isArray(data.suggestions)) {
+          if (data.suggestions && Array.isArray(data.suggestions) && data.suggestions.length > 0) {
             setGlobalResults(prev => {
               const newItems = data.suggestions.filter(
-                (s: any) => !prev.some(p => p.name.toLowerCase() === s.name.toLowerCase())
+                (s: any) => !prev.some(p => (p.name || "").toLowerCase() === (s.name || "").toLowerCase())
               );
               // Formatting for auto-cache seeding
               if (newItems.length > 0) {
                   const mapped = newItems.map((r: any) => ({
-                    id: `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+                    id: `global-${(r.name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
                     name: r.name,
                     price: r.approxPrice || 0,
                     category: r.category || effectiveQuery || "general",
@@ -588,19 +616,33 @@ function SearchContent() {
               }
               return [...prev, ...newItems];
             });
+          } else {
+            setGlobalSearchError(`No similar products found for "${effectiveQuery}". Try a different search term.`);
           }
         })
-        .catch(() => { })
+        .catch((err) => {
+          console.error("[GlobalSearch] Failed:", err);
+          const msg = err?.message || '';
+          setGlobalSearchError(
+            msg.includes('429')
+              ? "Too many searches right now — please wait 10-15 seconds and try again."
+              : msg.includes('DEPLOYMENT_DISABLED') || msg.includes('402')
+                ? "AI search temporarily unavailable. Please try again later."
+                : `Search failed: ${msg || 'Network error'}. Please try again.`
+          );
+        })
         .finally(() => setIsGlobalSearching(false));
     }
   };
 
   const searchableProducts = useMemo(() => {
-    let locals = allProducts;
+    // Guard: ensure every local product has a non-null name to prevent toLowerCase() crashes
+    let locals = allProducts.filter(p => p && p.name);
     if (showGlobalResults && globalResults.length > 0) {
-      const mappedGlobal = globalResults.map((r, i) => {
+      // Guard: filter out Gemini results with missing names before any processing
+      const mappedGlobal = globalResults.filter(r => r && r.name).map((r, i) => {
         // Create a stable, URL-safe ID from the product name, matching Navbar logic
-        const stableId = `global-${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
+        const stableId = `global-${(r.name || "unknown").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`;
         
         // ─── Use REAL Gemini description, fallback to category templates only if empty ───
         const fallbackDescriptions: Record<string, string> = {
@@ -667,7 +709,7 @@ function SearchContent() {
       .filter((p) => {
         const VEHICLE_FLOOR = 5_000_000;
         if (p.price >= VEHICLE_FLOOR) return true;
-        const name = p.name.toLowerCase();
+        const name = (p.name || "").toLowerCase();
         const cat = (p.category || "").toLowerCase();
         const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
         const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
@@ -680,10 +722,10 @@ function SearchContent() {
 
       // Deduplicate globals
       const uniqueGlobal: import("@/lib/types").Product[] = [];
-      const seenNames = new Set(locals.map(l => l.name.toLowerCase()));
+      const seenNames = new Set(locals.map(l => (l.name || "").toLowerCase()));
       for(const g of mappedGlobal) {
-         if (!seenNames.has(g.name.toLowerCase())) {
-             seenNames.add(g.name.toLowerCase());
+         if (!seenNames.has((g.name || "").toLowerCase())) {
+             seenNames.add((g.name || "").toLowerCase());
              uniqueGlobal.push(g);
          }
       }
@@ -808,6 +850,21 @@ function SearchContent() {
     return filteredProducts.slice(0, page * ITEMS_PER_PAGE);
   }, [filteredProducts, page]);
 
+  // Broad catalogue fallback — any word match across all products, ignoring category.
+  // Shown when AI is unavailable and filteredProducts is empty so the page is never blank.
+  const catalogueFallback = useMemo(() => {
+    if (!query || query.trim().length < 2) return [];
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+    return allProducts
+      .filter(p => p && p.name && p.is_active)
+      .filter(p => {
+        const name = (p.name || "").toLowerCase();
+        const desc = (p.description || "").toLowerCase();
+        return words.some(w => name.includes(w) || desc.includes(w));
+      })
+      .slice(0, 12);
+  }, [query, allProducts]);
+
   // Build the combined current view array
   const combinedCurrentResults = useMemo(() => {
     const seenIds = new Set<string>();
@@ -841,6 +898,30 @@ function SearchContent() {
     // Filter by price range at the very end
     return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
   }, [navResults, paginatedProducts, navClickedId, priceRange]);
+
+  // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
+  // When there are no local results and no ongoing search, auto-trigger the
+  // global Gemini search so the page always renders something relevant.
+  const autoSearchFiredRef = React.useRef<string>("");
+  useEffect(() => {
+    if (!isMounted) return;
+    if (isGlobalSearching) return;
+    if (globalResults.length > 0) return;
+    if (combinedCurrentResults.length > 0) return;
+    const effectiveQuery = (query || "").trim();
+    if (!effectiveQuery || effectiveQuery.length <= 2) return;
+    // Only fire once per unique query to avoid infinite loops
+    if (autoSearchFiredRef.current === effectiveQuery) return;
+    autoSearchFiredRef.current = effectiveQuery;
+    // Small delay so local results have time to load first
+    const t = setTimeout(() => {
+      if (combinedCurrentResults.length === 0) {
+        handleSeeMoreResults();
+      }
+    }, 800);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMounted, query, combinedCurrentResults.length, globalResults.length]);
 
   // Products are no longer auto-saved here. They get saved to DataSyncService only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
@@ -1071,29 +1152,49 @@ function SearchContent() {
           </div>
         </div>
 
+        {!isMounted ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
+          </div>
+        ) : (
         <div className="flex flex-col gap-8">
           <div className="flex-1 w-full">
-            {/* Scrollable Apple-like Translucent Pill Filters */}
-            <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
-                Popular:
-              </span>
-              {DataSyncService.getCategories().map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.slug === selectedCategory ? null : cat.slug as any)}
-                  className={cn(
-                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
-                    selectedCategory === cat.slug
-                      ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
-                      : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
-                  )}
-                >
-                  {getCategoryIcon(cat.slug)}
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+            {/* Scrollable Apple-like Translucent Pill Filters — hydration-safe */}
+            {(() => {
+              const categories = DataSyncService.getCategories();
+              if (!categories || categories.length === 0) return null;
+              return (
+                <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
+                    Popular:
+                  </span>
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        const isActive = cat.slug === selectedCategory;
+                        if (isActive) {
+                          // Deselect: go back to original query without category filter
+                          router.push(`/search?q=${encodeURIComponent(query)}`);
+                        } else {
+                          // Select: navigate to category search — show products in this category
+                          router.push(`/search?q=${encodeURIComponent(cat.name)}&category=${cat.slug}`);
+                        }
+                      }}
+                      className={cn(
+                        "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
+                        selectedCategory === cat.slug
+                          ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
+                          : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
+                      )}
+                    >
+                      {getCategoryIcon(cat.slug)}
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* UNIFIED SEARCH RESULTS GRID */}
 
@@ -1122,32 +1223,52 @@ function SearchContent() {
                   { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
                 ],
                 phones: [
-                  { name: "Apple", logo: "🍎" }, { name: "Samsung", logo: "📱" },
-                  { name: "Tecno", logo: "📲" }, { name: "Infinix", logo: "♾️" },
-                  { name: "Xiaomi", logo: "🔶" }, { name: "Oppo", logo: "🟢" },
-                  { name: "Vivo", logo: "🟣" }, { name: "Nokia", logo: "📞" },
-                  { name: "Google Pixel", logo: "🔷" }, { name: "Huawei", logo: "🔴" },
-                  { name: "OnePlus", logo: "➕" }, { name: "Itel", logo: "📳" },
+                  { name: "Apple", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
+                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
+                  { name: "Tecno", logo: "T", logoImage: "/assets/images/Brand-Logos/Tecno-logo.png" },
+                  { name: "Infinix", logo: "I", logoImage: "/assets/images/Brand-Logos/Infinix-logo.png" },
+                  { name: "Xiaomi", logo: "X", logoImage: "/assets/images/Brand-Logos/Xiaomi-logo.png" },
+                  { name: "Oppo", logo: "O", logoImage: "/assets/images/Brand-Logos/Oppo-logo.png" },
+                  { name: "Vivo", logo: "V", logoImage: "/assets/images/Brand-Logos/Vivo-logo.png" },
+                  { name: "Nokia", logo: "N", logoImage: "/assets/images/Brand-Logos/Nokia-logo.png" },
+                  { name: "Google Pixel", logo: "G", logoImage: "/assets/images/Brand-Logos/Google-logo.png" },
+                  { name: "Huawei", logo: "H", logoImage: "/assets/images/Brand-Logos/Huawei-logo.png" },
+                  { name: "OnePlus", logo: "1+", logoImage: "/assets/images/Brand-Logos/OnePlus-logo.png" },
+                  { name: "Itel", logo: "i", logoImage: "/assets/images/Brand-Logos/Itel-logo.png" },
                 ],
                 electronics: [
-                  { name: "Samsung", logo: "📺" }, { name: "LG", logo: "🖥️" },
-                  { name: "Hisense", logo: "📡" }, { name: "Sony", logo: "🎧" },
-                  { name: "HP", logo: "💻" }, { name: "Dell", logo: "🖲️" },
-                  { name: "Apple", logo: "🍏" }, { name: "Lenovo", logo: "⌨️" },
-                  { name: "Panasonic", logo: "🔌" }, { name: "Haier Thermocool", logo: "❄️" },
-                  { name: "Scanfrost", logo: "🧊" }, { name: "Binatone", logo: "🔋" },
+                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
+                  { name: "LG", logo: "LG", logoImage: "/assets/images/Brand-Logos/LG-logo.png" },
+                  { name: "Hisense", logo: "H", logoImage: "/assets/images/Brand-Logos/Hisense-logo.png" },
+                  { name: "Sony", logo: "S", logoImage: "/assets/images/Brand-Logos/Sony-logo.png" },
+                  { name: "HP", logo: "HP", logoImage: "/assets/images/Brand-Logos/HP-logo.png" },
+                  { name: "Dell", logo: "D", logoImage: "/assets/images/Brand-Logos/Dell-logo.png" },
+                  { name: "Apple", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
+                  { name: "Lenovo", logo: "L", logoImage: "/assets/images/Brand-Logos/Lenovo-logo.png" },
+                  { name: "Panasonic", logo: "P", logoImage: "/assets/images/Brand-Logos/Panasonic-logo.png" },
+                  { name: "Haier Thermocool", logo: "H", logoImage: "/assets/images/Brand-Logos/Haier-logo.png" },
+                  { name: "Scanfrost", logo: "SF", logoImage: "/assets/images/Brand-Logos/Scanfrost-logo.png" },
+                  { name: "Binatone", logo: "B", logoImage: "/assets/images/Brand-Logos/Binatone-logo.png" },
                 ],
                 computers: [
-                  { name: "Apple MacBook", logo: "🍏" }, { name: "HP", logo: "💻" },
-                  { name: "Dell", logo: "🖲️" }, { name: "Lenovo", logo: "⌨️" },
-                  { name: "Asus", logo: "🎮" }, { name: "Acer", logo: "🟩" },
-                  { name: "Microsoft Surface", logo: "🪟" }, { name: "Samsung", logo: "📱" },
+                  { name: "Apple MacBook", logo: "A", logoImage: "/assets/images/Brand-Logos/Apple-logo.png" },
+                  { name: "HP", logo: "HP", logoImage: "/assets/images/Brand-Logos/HP-logo.png" },
+                  { name: "Dell", logo: "D", logoImage: "/assets/images/Brand-Logos/Dell-logo.png" },
+                  { name: "Lenovo", logo: "L", logoImage: "/assets/images/Brand-Logos/Lenovo-logo.png" },
+                  { name: "Asus", logo: "A", logoImage: "/assets/images/Brand-Logos/Asus-logo.png" },
+                  { name: "Acer", logo: "A", logoImage: "/assets/images/Brand-Logos/Acer-logo.png" },
+                  { name: "Microsoft Surface", logo: "M", logoImage: "/assets/images/Brand-Logos/Microsoft-logo.png" },
+                  { name: "Samsung", logo: "S", logoImage: "/assets/images/Brand-Logos/Samsung-logo.png" },
                 ],
                 fashion: [
-                  { name: "Nike", logo: "✔️" }, { name: "Adidas", logo: "🏃" },
-                  { name: "Zara", logo: "👗" }, { name: "H&M", logo: "🛍️" },
-                  { name: "Gucci", logo: "👜" }, { name: "Louis Vuitton", logo: "💼" },
-                  { name: "Balenciaga", logo: "🧥" }, { name: "Prada", logo: "👠" },
+                  { name: "Nike", logo: "N", logoImage: "/assets/images/Brand-Logos/Nike-logo.png" },
+                  { name: "Adidas", logo: "A", logoImage: "/assets/images/Brand-Logos/Adidas-logo.png" },
+                  { name: "Zara", logo: "Z", logoImage: "/assets/images/Brand-Logos/Zara-logo.png" },
+                  { name: "H&M", logo: "H", logoImage: "/assets/images/Brand-Logos/HM-logo.png" },
+                  { name: "Gucci", logo: "G", logoImage: "/assets/images/Brand-Logos/Gucci-logo.png" },
+                  { name: "Louis Vuitton", logo: "LV", logoImage: "/assets/images/Brand-Logos/LV-logo.png" },
+                  { name: "Balenciaga", logo: "B", logoImage: "/assets/images/Brand-Logos/Balenciaga-logo.png" },
+                  { name: "Prada", logo: "P", logoImage: "/assets/images/Brand-Logos/Prada-logo.png" },
                 ],
               };
               const cat = (detectedCategory || "").toLowerCase();
@@ -1180,10 +1301,25 @@ function SearchContent() {
                           title={brand.name}
                         >
                           {brand.logoImage ? (
-                            <img src={brand.logoImage} alt={brand.name} className="h-8 w-auto max-w-[56px] object-contain" />
-                          ) : (
-                            <span className="text-base px-1">{brand.logo} <span className="text-[11px] font-bold">{brand.name}</span></span>
-                          )}
+                            <img
+                              src={brand.logoImage}
+                              alt={brand.name}
+                              className="h-7 w-auto max-w-[52px] object-contain"
+                              onError={(e) => {
+                                const el = e.currentTarget;
+                                el.style.display = "none";
+                                const sib = el.nextElementSibling as HTMLElement | null;
+                                if (sib) sib.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className="items-center justify-center gap-1.5 text-[11px] font-bold"
+                            style={{ display: brand.logoImage ? "none" : "flex" }}
+                          >
+                            <span className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-black text-gray-600 shrink-0">{brand.logo}</span>
+                            {brand.name}
+                          </span>
                         </button>
                       );
                     })}
@@ -1252,25 +1388,65 @@ function SearchContent() {
               </div>
             )}
 
+            {combinedCurrentResults.length === 0 && isGlobalSearching && (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
+                <p className="text-gray-600 text-sm">Finding similar products...</p>
+              </div>
+            )}
+
             {combinedCurrentResults.length === 0 && !isGlobalSearching && (
+              catalogueFallback.length > 0 ? (
+                <div>
+                  {globalSearchError && (
+                    <div className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 font-medium">
+                      <span>⚠️</span>
+                      <span>Global AI search is temporarily unavailable. Showing matching products from our catalogue.</span>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {catalogueFallback.map((product: any) => (
+                      <SearchGridCard key={product.id} product={product} />
+                    ))}
+                  </div>
+                  <div className="flex justify-center mt-8">
+                    <Button
+                      onClick={() => handleSeeMoreResults()}
+                      className="rounded-full bg-emerald-600 text-white px-8 font-bold text-sm hover:bg-emerald-700"
+                    >
+                      🔍 Search Global Suppliers
+                    </Button>
+                  </div>
+                </div>
+              ) : (
               <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                 <SearchIcon className="h-10 w-10 text-gray-300 mb-4" />
                 <h2 className="text-xl font-bold mb-2 text-black">
                   No results for &quot;{query}&quot;
                 </h2>
                 <p className="text-gray-500 max-w-md mb-6 text-sm">
-                  Try checking your spelling or use more general terms.
+                  {globalSearchError || "Try checking your spelling or use more general terms."}
                 </p>
-                <Button
-                  onClick={() => {
-                    setAttributeFilters({});
-                    router.push("/search", { scroll: false });
-                  }}
-                  className="rounded-full bg-emerald-600 text-white px-8 font-bold text-sm"
-                >
-                  Clear all filters
-                </Button>
+                <div className="flex flex-col gap-3">
+                  <Button
+                    onClick={() => handleSeeMoreResults()}
+                    className="rounded-full bg-emerald-600 text-white px-8 font-bold text-sm hover:bg-emerald-700"
+                  >
+                    🔍 Search Across All Products
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setAttributeFilters({});
+                      router.push("/search", { scroll: false });
+                    }}
+                    variant="outline"
+                    className="rounded-full px-8 font-bold text-sm"
+                  >
+                    Clear all filters
+                  </Button>
+                </div>
               </div>
+              )
             )}
 
             {/* See more results Button — always visible when there's a valid query */}
@@ -1388,6 +1564,7 @@ function SearchContent() {
             )}
           </div>
         </div>
+        )}
       </main>
 
       <Footer />
