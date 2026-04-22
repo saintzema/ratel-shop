@@ -161,8 +161,8 @@ export default function CatalogControl() {
     }, [searchTerm, sort]);
 
     let filtered = products.filter(p => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
-        const isGlobal = p._source === "global" || p.seller_id === "global-partners" || p.seller_name.toLowerCase().includes("global store");
+        const matchesSearch = (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.seller_name || "").toLowerCase().includes(searchTerm.toLowerCase());
+        const isGlobal = p._source === "global" || p.seller_id === "global-partners" || (p.seller_name || "").toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
             (filter === "flagged" && p.price_flag !== "fair") ||
             (filter === "fair" && p.price_flag === "fair") ||
@@ -407,7 +407,7 @@ export default function CatalogControl() {
         setIsSyncModalOpen(true);
         setIsSyncing(true);
         setTimeout(() => {
-            const globalProducts = products.filter(p => p.seller_name.toLowerCase().includes("global store"));
+            const globalProducts = products.filter(p => (p.seller_name || "").toLowerCase().includes("global store"));
             const report = globalProducts.map(p => {
                 const rawMarketPrice = p.price * (Math.random() * (1.15 - 0.85) + 0.85); // +/- 15% drift simulation
                 return {
@@ -568,7 +568,7 @@ export default function CatalogControl() {
             {/* ════════ SEARCH CACHE TAB ════════ */}
             {filter === 'cache' ? (() => {
                 const searchFilteredCache = cachedProducts
-                    .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.cache_query && p.cache_query.toLowerCase().includes(searchTerm.toLowerCase())))
+                    .filter(p => !searchTerm || (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.cache_query && p.cache_query.toLowerCase().includes(searchTerm.toLowerCase())))
                     .sort((a, b) => {
                         if (sort === "date_desc") return (new Date(b.created_at || b.cached_at || 0).getTime()) - (new Date(a.created_at || a.cached_at || 0).getTime());
                         if (sort === "date_asc") return (new Date(a.created_at || a.cached_at || 0).getTime()) - (new Date(b.created_at || b.cached_at || 0).getTime());
@@ -824,7 +824,7 @@ export default function CatalogControl() {
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {paginatedProducts.map((p) => {
-                                    const isGlobal = p.seller_name.toLowerCase().includes("global store");
+                                    const isGlobal = (p.seller_name || "").toLowerCase().includes("global store");
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-6 py-4 align-middle text-center">
