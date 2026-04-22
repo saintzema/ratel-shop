@@ -1342,7 +1342,7 @@ function SearchContent() {
               );
             })()}
 
-            {(combinedCurrentResults.length > 0 || isGlobalSearching) && (
+            {(combinedCurrentResults.length > 0 || isGlobalSearching || catalogueFallback.length > 0) && (
               <div className="mb-10">
                 {combinedCurrentResults.length === 0 && isGlobalSearching && (
                    <div className="flex items-center gap-3 mb-6 bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
@@ -1355,9 +1355,14 @@ function SearchContent() {
                     <SearchGridCard key={product.id} product={product} />
                   ))}
 
+                  {/* Show catalog matches immediately while AI searches — replaced once combined results arrive */}
+                  {combinedCurrentResults.length === 0 && isGlobalSearching && catalogueFallback.map((product: any) => (
+                    <SearchGridCard key={`fallback-${product.id}`} product={product} />
+                  ))}
+
                   {/* Inline Loading skeletons for global search when active */}
                   {isGlobalSearching &&
-                    [1, 2, 3, 4, 5, 6, 7, 8].slice(0, combinedCurrentResults.length > 0 ? 4 : 8).map((i) => (
+                    [1, 2, 3, 4, 5, 6, 7, 8].slice(0, (combinedCurrentResults.length + catalogueFallback.length) > 0 ? 4 : 8).map((i) => (
                       <div
                         key={`skeleton-${i}`}
                         className="bg-white rounded-2xl border border-gray-100 p-3 animate-pulse shadow-sm h-[320px]"
