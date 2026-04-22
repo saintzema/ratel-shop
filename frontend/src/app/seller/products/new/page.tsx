@@ -68,6 +68,7 @@ export default function NewProduct() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFetchingImage, setIsFetchingImage] = useState(false);
     const [taxonomy, setTaxonomy] = useState<any[]>([]);
+    const [aiErrorMsg, setAiErrorMsg] = useState<string | null>(null);
 
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {
@@ -98,6 +99,7 @@ export default function NewProduct() {
     const handleAIGenerate = async () => {
         if (!formData.name) return;
         setIsGenerating(true);
+        setAiErrorMsg(null);
         try {
             const res = await fetch("/api/gemini-seller", {
                 method: "POST",
@@ -107,24 +109,19 @@ export default function NewProduct() {
             if (res.ok) {
                 const content = await res.json();
 
-                // Infer category from AI response or product name
-                const currentTaxonomy = DataSyncService.getTaxonomy();
                 let inferredCategory = formData.category;
-
                 if (content.category) {
                     const match = taxonomy.find(c => c.name.toLowerCase() === content.category.toLowerCase());
                     if (match) {
                         inferredCategory = match.name.toLowerCase();
                     } else {
-                        // Advanced: Check for fuzzy matches
-                        const fuzz = taxonomy.find(c => 
-                            c.name.toLowerCase().includes(content.category.toLowerCase()) || 
+                        const fuzz = taxonomy.find(c =>
+                            c.name.toLowerCase().includes(content.category.toLowerCase()) ||
                             content.category.toLowerCase().includes(c.name.toLowerCase())
                         );
                         if (fuzz) inferredCategory = fuzz.name.toLowerCase();
                     }
-                } 
-                
+                }
                 if (!inferredCategory) {
                     const nameLower = formData.name.toLowerCase();
                     for (const cat of taxonomy) {
@@ -145,9 +142,13 @@ export default function NewProduct() {
                     tags: content.tags || prev.tags,
                     colors: content.colors ? content.colors.join(", ") : prev.colors
                 }));
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setAiErrorMsg(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set in Vercel.`);
             }
         } catch (error) {
             console.error("AI Generation failed", error);
+            setAiErrorMsg("AI Auto-Fill request failed. Check your internet connection.");
         } finally {
             setIsGenerating(false);
         }
@@ -392,6 +393,13 @@ export default function NewProduct() {
                 </Button>
             </motion.div>
 
+            {aiErrorMsg && (
+                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-2 text-sm font-medium text-red-700 bg-red-50 px-5 py-3.5 rounded-2xl border border-red-200 mb-6">
+                    <span className="flex-1">{aiErrorMsg}</span>
+                    <button onClick={() => setAiErrorMsg(null)} className="text-red-400 hover:text-red-600 ml-2 shrink-0">✕</button>
+                </motion.div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
 
                 {/* ─── Left Column: Form ─── */}
@@ -445,8 +453,8 @@ export default function NewProduct() {
                                                     return;
                                                 }
                                             }
-                                            alert('Could not find an image. Try a more specific product name or upload manually.');
-                                        } catch { alert('Image search failed.'); }
+                                            setAiErrorMsg('No image found. Try a more specific product name or upload manually.');
+                                        } catch { setAiErrorMsg('Image search failed. Please try again.'); }
                                         finally { setIsFetchingImage(false); }
                                     }}
                                     disabled={isFetchingImage || !formData.name}
