@@ -224,9 +224,9 @@ export function Navbar() {
     // Search scoring algorithm
     const scoreProduct = (product: typeof SEED_PRODUCTS[0], query: string): number => {
         const q = query.toLowerCase();
-        const name = product.name.toLowerCase();
-        const cat = product.category.toLowerCase();
-        const seller = product.seller_name.toLowerCase();
+        const name = (product.name || "").toLowerCase();
+        const cat = (product.category || "").toLowerCase();
+        const seller = (product.seller_name || "").toLowerCase();
         const words = q.split(/\s+/).filter(w => w.length > 0);
         let score = 0;
 
@@ -263,10 +263,13 @@ export function Navbar() {
     // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
         if (searchQuery.trim().length > 0) {
+          try {
             const q = searchQuery.toLowerCase();
             // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
             const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))];
+            // Guard: filter out any products with null/undefined names (can happen with old localStorage data)
+            const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))]
+                .filter(p => p && p.name);
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
@@ -351,6 +354,9 @@ export function Navbar() {
 
             setShowSuggestions(true);
             setActiveIndex(-1);
+          } catch (err) {
+            console.error('[NavSearch] instant search error:', err);
+          }
         } else {
             setSuggestions([]);
             setGlobalResults([]);
