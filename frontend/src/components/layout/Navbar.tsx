@@ -393,14 +393,19 @@ export function Navbar() {
         };
     }, [searchQuery]);
 
-    // Helper: Save results to search cache and navigate. Only promote the clicked product to catalog.
-    const navigateWithResults = (clickedProductId: string) => {
+    // Helper: Save results to search cache and navigate.
+    // - toDetail=false (default, used by Enter/Search button): navigate to SRP with hydrated results
+    // - toDetail=true (used by result-button clicks): promote clicked product, navigate to its detail page
+    const navigateWithResults = (clickedProductId: string, toDetail: boolean = false) => {
         // 1. Close UI immediately
         setShowSuggestions(false);
-        // 1. Navigation happens AFTER session state is saved so search/page.tsx hydrates reliably
-        setTimeout(() => {
-            router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-        }, 10);
+        // 1. Navigation to SRP happens AFTER session state is saved so search/page.tsx hydrates reliably.
+        //    For toDetail clicks we navigate later (once we know the resolved product).
+        if (!toDetail) {
+            setTimeout(() => {
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+            }, 10);
+        }
 
         // 2. Synchronous mapping and hydration 
         // Build product objects from global results with intelligent verification
@@ -520,10 +525,27 @@ export function Navbar() {
         // Persist to recent searches
         saveRecentSearch(searchQuery);
 
-        // 3. Navigation happens AFTER session state is saved so search/page.tsx hydrates reliably
-        setTimeout(() => {
-            router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-        }, 10);
+        // 3. Navigation
+        if (toDetail) {
+            // Find the clicked product (local / cached / global) and route to its detail page
+            const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
+            const clickedProd = clickedLocal || clickedCached || clickedGlobal;
+            if (clickedProd) {
+                setTimeout(() => {
+                    router.push(getProductUrl(clickedProd.id, clickedProd.name));
+                }, 10);
+            } else {
+                // Fallback to SRP if we can't resolve a product
+                setTimeout(() => {
+                    router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+                }, 10);
+            }
+        } else {
+            // Default (Enter / Search button): navigate to SRP
+            setTimeout(() => {
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+            }, 10);
+        }
 
         // ─── ELITE REVIEW GENERATION ───
         // Trigger review generation in background for the promoted global product
@@ -926,7 +948,7 @@ export function Navbar() {
                                         return (
                                             <button
                                                 key={product.id}
-                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id); }}
+                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, true); }}
                                                 className={cn(
                                                     "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
@@ -971,7 +993,7 @@ export function Navbar() {
                                                 return (
                                                     <button
                                                         key={`cached-${result.id || i}`}
-                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`); }}
+                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, true); }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
                                                             activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-50/50"
@@ -1031,7 +1053,7 @@ export function Navbar() {
                                                         onMouseDown={(e) => {
                                                             e.preventDefault();
                                                             // The navigateWithResults will create the global product and cache it
-                                                            navigateWithResults(`__global_${i}`);
+                                                            navigateWithResults(`__global_${i}`, true);
                                                         }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-gray-100",
