@@ -13,7 +13,7 @@ function makeCacheKey(productName: string, mode: string, category?: string, anch
 }
 
 const RL_MAP = new Map<string, { count: number; reset: number }>();
-const RL_MAX = 20;
+const RL_MAX = 40;
 const RL_WINDOW_MS = 60_000;
 
 function checkRateLimit(req: Request): boolean {

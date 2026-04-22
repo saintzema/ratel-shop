@@ -1194,32 +1194,52 @@ function SearchContent() {
                   { name: "Innoson", logo: "🇳🇬", logoImage: "/assets/images/Car-Logos/Innoson-Logo.png" },
                 ],
                 phones: [
-                  { name: "Apple", logo: "🍎" }, { name: "Samsung", logo: "📱" },
-                  { name: "Tecno", logo: "📲" }, { name: "Infinix", logo: "♾️" },
-                  { name: "Xiaomi", logo: "🔶" }, { name: "Oppo", logo: "🟢" },
-                  { name: "Vivo", logo: "🟣" }, { name: "Nokia", logo: "📞" },
-                  { name: "Google Pixel", logo: "🔷" }, { name: "Huawei", logo: "🔴" },
-                  { name: "OnePlus", logo: "➕" }, { name: "Itel", logo: "📳" },
+                  { name: "Apple", logo: "A", logoImage: "https://logo.clearbit.com/apple.com" },
+                  { name: "Samsung", logo: "S", logoImage: "https://logo.clearbit.com/samsung.com" },
+                  { name: "Tecno", logo: "T", logoImage: "https://logo.clearbit.com/tecno.com" },
+                  { name: "Infinix", logo: "I", logoImage: "https://logo.clearbit.com/infinixmobility.com" },
+                  { name: "Xiaomi", logo: "X", logoImage: "https://logo.clearbit.com/xiaomi.com" },
+                  { name: "Oppo", logo: "O", logoImage: "https://logo.clearbit.com/oppo.com" },
+                  { name: "Vivo", logo: "V", logoImage: "https://logo.clearbit.com/vivo.com" },
+                  { name: "Nokia", logo: "N", logoImage: "https://logo.clearbit.com/nokia.com" },
+                  { name: "Google Pixel", logo: "G", logoImage: "https://logo.clearbit.com/google.com" },
+                  { name: "Huawei", logo: "H", logoImage: "https://logo.clearbit.com/huawei.com" },
+                  { name: "OnePlus", logo: "1+", logoImage: "https://logo.clearbit.com/oneplus.com" },
+                  { name: "Itel", logo: "i", logoImage: "https://logo.clearbit.com/itel-mobile.com" },
                 ],
                 electronics: [
-                  { name: "Samsung", logo: "📺" }, { name: "LG", logo: "🖥️" },
-                  { name: "Hisense", logo: "📡" }, { name: "Sony", logo: "🎧" },
-                  { name: "HP", logo: "💻" }, { name: "Dell", logo: "🖲️" },
-                  { name: "Apple", logo: "🍏" }, { name: "Lenovo", logo: "⌨️" },
-                  { name: "Panasonic", logo: "🔌" }, { name: "Haier Thermocool", logo: "❄️" },
-                  { name: "Scanfrost", logo: "🧊" }, { name: "Binatone", logo: "🔋" },
+                  { name: "Samsung", logo: "S", logoImage: "https://logo.clearbit.com/samsung.com" },
+                  { name: "LG", logo: "LG", logoImage: "https://logo.clearbit.com/lg.com" },
+                  { name: "Hisense", logo: "H", logoImage: "https://logo.clearbit.com/hisense.com" },
+                  { name: "Sony", logo: "S", logoImage: "https://logo.clearbit.com/sony.com" },
+                  { name: "HP", logo: "HP", logoImage: "https://logo.clearbit.com/hp.com" },
+                  { name: "Dell", logo: "D", logoImage: "https://logo.clearbit.com/dell.com" },
+                  { name: "Apple", logo: "A", logoImage: "https://logo.clearbit.com/apple.com" },
+                  { name: "Lenovo", logo: "L", logoImage: "https://logo.clearbit.com/lenovo.com" },
+                  { name: "Panasonic", logo: "P", logoImage: "https://logo.clearbit.com/panasonic.com" },
+                  { name: "Haier", logo: "H", logoImage: "https://logo.clearbit.com/haier.com" },
+                  { name: "Scanfrost", logo: "SF", logoImage: "https://logo.clearbit.com/scanfrostng.com" },
+                  { name: "Binatone", logo: "B", logoImage: "https://logo.clearbit.com/binatone.com" },
                 ],
                 computers: [
-                  { name: "Apple MacBook", logo: "🍏" }, { name: "HP", logo: "💻" },
-                  { name: "Dell", logo: "🖲️" }, { name: "Lenovo", logo: "⌨️" },
-                  { name: "Asus", logo: "🎮" }, { name: "Acer", logo: "🟩" },
-                  { name: "Microsoft Surface", logo: "🪟" }, { name: "Samsung", logo: "📱" },
+                  { name: "Apple MacBook", logo: "A", logoImage: "https://logo.clearbit.com/apple.com" },
+                  { name: "HP", logo: "HP", logoImage: "https://logo.clearbit.com/hp.com" },
+                  { name: "Dell", logo: "D", logoImage: "https://logo.clearbit.com/dell.com" },
+                  { name: "Lenovo", logo: "L", logoImage: "https://logo.clearbit.com/lenovo.com" },
+                  { name: "Asus", logo: "A", logoImage: "https://logo.clearbit.com/asus.com" },
+                  { name: "Acer", logo: "A", logoImage: "https://logo.clearbit.com/acer.com" },
+                  { name: "Microsoft Surface", logo: "M", logoImage: "https://logo.clearbit.com/microsoft.com" },
+                  { name: "Samsung", logo: "S", logoImage: "https://logo.clearbit.com/samsung.com" },
                 ],
                 fashion: [
-                  { name: "Nike", logo: "✔️" }, { name: "Adidas", logo: "🏃" },
-                  { name: "Zara", logo: "👗" }, { name: "H&M", logo: "🛍️" },
-                  { name: "Gucci", logo: "👜" }, { name: "Louis Vuitton", logo: "💼" },
-                  { name: "Balenciaga", logo: "🧥" }, { name: "Prada", logo: "👠" },
+                  { name: "Nike", logo: "N", logoImage: "https://logo.clearbit.com/nike.com" },
+                  { name: "Adidas", logo: "A", logoImage: "https://logo.clearbit.com/adidas.com" },
+                  { name: "Zara", logo: "Z", logoImage: "https://logo.clearbit.com/zara.com" },
+                  { name: "H&M", logo: "H", logoImage: "https://logo.clearbit.com/hm.com" },
+                  { name: "Gucci", logo: "G", logoImage: "https://logo.clearbit.com/gucci.com" },
+                  { name: "Louis Vuitton", logo: "LV", logoImage: "https://logo.clearbit.com/louisvuitton.com" },
+                  { name: "Balenciaga", logo: "B", logoImage: "https://logo.clearbit.com/balenciaga.com" },
+                  { name: "Prada", logo: "P", logoImage: "https://logo.clearbit.com/prada.com" },
                 ],
               };
               const cat = (detectedCategory || "").toLowerCase();
@@ -1252,10 +1272,25 @@ function SearchContent() {
                           title={brand.name}
                         >
                           {brand.logoImage ? (
-                            <img src={brand.logoImage} alt={brand.name} className="h-8 w-auto max-w-[56px] object-contain" />
-                          ) : (
-                            <span className="text-base px-1">{brand.logo} <span className="text-[11px] font-bold">{brand.name}</span></span>
-                          )}
+                            <img
+                              src={brand.logoImage}
+                              alt={brand.name}
+                              className="h-7 w-auto max-w-[52px] object-contain"
+                              onError={(e) => {
+                                const el = e.currentTarget;
+                                el.style.display = "none";
+                                const sib = el.nextElementSibling as HTMLElement | null;
+                                if (sib) sib.style.display = "flex";
+                              }}
+                            />
+                          ) : null}
+                          <span
+                            className="items-center justify-center gap-1.5 text-[11px] font-bold"
+                            style={{ display: brand.logoImage ? "none" : "flex" }}
+                          >
+                            <span className="h-6 w-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-black text-gray-600 shrink-0">{brand.logo}</span>
+                            {brand.name}
+                          </span>
                         </button>
                       );
                     })}
