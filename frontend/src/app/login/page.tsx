@@ -25,6 +25,8 @@ export default function UnifiedAuthPage() {
     const [step, setStep] = useState<AuthStep>("identifier");
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    // Tracks whether the current error is a server/connectivity issue (not an input problem)
+    const [isServerError, setIsServerError] = useState(false);
 
     // Form data
     const [identifier, setIdentifier] = useState(""); // Email or Phone
@@ -60,6 +62,7 @@ export default function UnifiedAuthPage() {
         // Fallback for demo accounts
         const normalizedId = identifier.toLowerCase().trim();
         if (normalizedId === "techzema@gmail.com") return { id: "admin_1", name: "Tech Zema", email: "techzema@gmail.com", role: "admin" as const, created_at: new Date().toISOString() };
+        if (normalizedId === "fairprice2026@gmail.com") return { id: "admin_2", name: "FairPrice Admin", email: "fairprice2026@gmail.com", role: "admin" as const, created_at: new Date().toISOString() };
         if (normalizedId === "seller@example.com") return { id: "seller_1", name: "Demo Seller", email: "seller@example.com", role: "seller" as const, created_at: new Date().toISOString() };
         if (normalizedId === "apple-review@fairprice.app") return { id: "apple_review_1", name: "Apple Reviewer", email: "apple-review@fairprice.app", role: "customer" as const, created_at: new Date().toISOString() };
         return null;
@@ -159,6 +162,7 @@ export default function UnifiedAuthPage() {
     const handleIdentifierSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        setIsServerError(false);
         if (!identifier.trim()) return;
 
         setIsLoading(true);
@@ -215,17 +219,18 @@ export default function UnifiedAuthPage() {
         // If DB lookup fails or user not found in DB, check local registry before assuming NEW user
         setTimeout(() => {
             const isRegisteredLocally = checkRegisteredUser(normalizedId);
-            const isKnownDemo = 
+            const isKnownDemo =
                 normalizedId === "techzema@gmail.com" ||
+                normalizedId === "fairprice2026@gmail.com" ||
                 normalizedId === "seller@example.com" ||
                 normalizedId === "apple-review@fairprice.app";
 
             const isExisting = isRegisteredLocally || isKnownDemo;
 
             if (dbError && !isExisting) {
-                // If DB failed AND we don't know them locally, we can't be sure they are NEW.
-                // Warn them instead of funneling them into "Create Password" which might fail later.
-                setError("Database is connecting... Please try again in a few seconds.");
+                // DB failed & we don't know them locally — warn without making the email input red
+                setIsServerError(true);
+                setError("Server is warming up. Please wait a moment and try again.");
                 setIsLoading(false);
                 return;
             }
@@ -250,6 +255,7 @@ export default function UnifiedAuthPage() {
     const handleExistingLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+        setIsServerError(false);
         setIsLoading(true);
 
         const controller = new AbortController();
@@ -699,14 +705,15 @@ export default function UnifiedAuthPage() {
                                                 placeholder="you@email.com"
                                                 className={cn(
                                                     "w-full h-12 bg-white border text-[15px] text-[#1d1d1f] placeholder:text-[#86868b]/50 rounded-xl transition-all duration-300 px-4",
-                                                    error 
-                                                        ? "border-red-500 focus:ring-4 focus:ring-red-500/20 focus:shadow-[0_0_15px_rgba(239,68,68,0.2)]" 
+                                                    // Only show red border for actual email errors, not server connectivity issues
+                                                    (error && !isServerError)
+                                                        ? "border-red-500 focus:ring-4 focus:ring-red-500/20 focus:shadow-[0_0_15px_rgba(239,68,68,0.2)]"
                                                         : "border-[#d2d2d7] focus:border-brand-green-500 focus:ring-4 focus:ring-brand-green-500/40 focus:shadow-[0_0_20px_rgba(52,211,153,0.35)]"
                                                 )}
                                                 value={identifier}
                                                 onChange={(e) => {
                                                     setIdentifier(e.target.value);
-                                                    if (error) setError("");
+                                                    if (error) { setError(""); setIsServerError(false); }
                                                 }}
                                                 list="email-domains"
                                             />
@@ -731,6 +738,21 @@ export default function UnifiedAuthPage() {
                                                 </datalist>
                                             )}
                                         </div>
+                                        {error && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -6 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className={cn(
+                                                    "p-3 rounded-xl flex items-center gap-2 text-[13px] font-medium",
+                                                    isServerError
+                                                        ? "bg-amber-50 border border-amber-100 text-amber-700"
+                                                        : "bg-red-50 border border-red-100 text-red-700"
+                                                )}
+                                            >
+                                                <AlertCircle className="h-4 w-4 shrink-0" />
+                                                {error}
+                                            </motion.div>
+                                        )}
                                         <Button
                                             type="submit"
                                             disabled={isLoading || !identifier.trim()}

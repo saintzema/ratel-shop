@@ -95,6 +95,7 @@ export default function CatalogControl() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [isFetchingImage, setIsFetchingImage] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
 
     // Sync Modal State
     const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
@@ -273,13 +274,14 @@ export default function CatalogControl() {
     const handleBestPrice = async () => {
         if (!editName) return;
         setIsCalculatingBestPrice(true);
+        setAiError(null);
         try {
             const currentPrice = parseInt(editPrice.replace(/,/g, "")) || 0;
             const res = await fetch("/api/gemini-price", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    productName: editName, 
+                body: JSON.stringify({
+                    productName: editName,
                     mode: "analyze",
                     anchorPrice: currentPrice,
                     category: editCategory
@@ -293,10 +295,16 @@ export default function CatalogControl() {
                     if (data.subcategory) setEditSubcategory(data.subcategory);
                     if (data.tags && Array.isArray(data.tags)) setEditTags(data.tags);
                     if (data.category) setEditCategory(data.category);
+                } else {
+                    setAiError("Best Price returned no price data. Try a more specific product name.");
                 }
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setAiError(errData.error || `Best Price failed (${res.status}). Please try again.`);
             }
         } catch (error) {
             console.error("Best price calculation failed", error);
+            setAiError("Best Price request failed. Check your connection.");
         } finally {
             setIsCalculatingBestPrice(false);
         }
@@ -305,15 +313,14 @@ export default function CatalogControl() {
     const handleGetImage = async () => {
         if (!editName) return;
         setIsFetchingImage(true);
+        setAiError(null);
         try {
-            // Strategy 1: Use our product-image API (Serper / Google CSE / Wikipedia) with category awareness
             const catQuery = editCategory ? `&cat=${encodeURIComponent(editCategory)}` : "";
             const res = await fetch(`/api/product-image?q=${encodeURIComponent(editName + ' official product high resolution')}${catQuery}`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.imageUrl) {
                     setEditImage(data.imageUrl);
-                    // Also populate gallery with all found images
                     if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
                         setEditImages(data.imageUrls.slice(0, 8));
                     }
@@ -321,7 +328,6 @@ export default function CatalogControl() {
                 }
             }
 
-            // Strategy 2: Use Gemini to find image URLs through grounded search
             const geminiRes = await fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -335,10 +341,10 @@ export default function CatalogControl() {
                 }
             }
 
-            alert('Could not find an image for this product. Please try a more specific product name or upload manually.');
+            setAiError('No image found. Try a more specific product name or upload manually.');
         } catch (error) {
             console.error('Image fetch failed:', error);
-            alert('Image search failed. Please try again or upload manually.');
+            setAiError('Image search failed. Please try again or upload manually.');
         } finally {
             setIsFetchingImage(false);
         }
@@ -376,6 +382,7 @@ export default function CatalogControl() {
     const handleAIGenerate = async () => {
         if (!editName) return;
         setIsGenerating(true);
+        setAiError(null);
         try {
             const res = await fetch("/api/gemini-seller", {
                 method: "POST",
@@ -384,15 +391,19 @@ export default function CatalogControl() {
             });
             if (res.ok) {
                 const content = await res.json();
-                setEditDescription(content.description || editDescription);
-                if (content.specs) {
-                    setEditSpecs(Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })));
-                }
-                setEditSubcategory(content.subcategory || editSubcategory);
-                if (content.colors) setEditColors(content.colors.join(", "));
+                if (content.description) setEditDescription(content.description);
+                if (content.specs) setEditSpecs(Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })));
+                if (content.subcategory) setEditSubcategory(content.subcategory);
+                if (content.tags && Array.isArray(content.tags)) setEditTags(content.tags);
+                if (content.colors && Array.isArray(content.colors)) setEditColors(content.colors.join(", "));
+                if (content.category) setEditCategory(content.category.toLowerCase());
+            } else {
+                const errData = await res.json().catch(() => ({}));
+                setAiError(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set.`);
             }
         } catch (error) {
             console.error("AI Generation failed", error);
+            setAiError("AI Auto-Fill request failed. Check your connection.");
         } finally {
             setIsGenerating(false);
         }
@@ -606,7 +617,7 @@ export default function CatalogControl() {
             {/* ════════ SEARCH CACHE TAB ════════ */}
             {filter === 'cache' ? (() => {
                 const searchFilteredCache = cachedProducts
-                    .filter(p => !searchTerm || p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.cache_query && p.cache_query.toLowerCase().includes(searchTerm.toLowerCase())))
+                    .filter(p => !searchTerm || (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.cache_query && p.cache_query.toLowerCase().includes(searchTerm.toLowerCase())))
                     .sort((a, b) => {
                         if (sort === "date_desc") return (new Date(b.created_at || b.cached_at || 0).getTime()) - (new Date(a.created_at || a.cached_at || 0).getTime());
                         if (sort === "date_asc") return (new Date(a.created_at || a.cached_at || 0).getTime()) - (new Date(b.created_at || b.cached_at || 0).getTime());
@@ -862,7 +873,7 @@ export default function CatalogControl() {
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {paginatedProducts.map((p) => {
-                                    const isGlobal = p.seller_name.toLowerCase().includes("global store");
+                                    const isGlobal = (p.seller_name || "").toLowerCase().includes("global store");
                                     return (
                                         <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                             <td className="px-6 py-4 align-middle text-center">
@@ -1229,9 +1240,18 @@ export default function CatalogControl() {
             </Dialog>
 
             {/* Edit Modal */}
-            <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+            <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) { setEditingProduct(null); setAiError(null); } }}>
                 <DialogContent className="sm:max-w-lg p-0 overflow-hidden rounded-[32px] border-gray-100 max-h-[85vh] overflow-y-auto">
                     <div className="p-8">
+                        {aiError && (
+                            <div className="flex items-start gap-2 text-sm font-medium text-red-700 bg-red-50 px-4 py-3 rounded-xl border border-red-200 mb-5">
+                                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                                <span className="flex-1">{aiError}</span>
+                                <button onClick={() => setAiError(null)} className="text-red-400 hover:text-red-600 ml-1">
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        )}
                         <DialogHeader className="mb-6 flex flex-row items-center justify-between">
                             <div>
                                 <DialogTitle className="text-2xl font-black text-gray-900 tracking-tight">Modify Details</DialogTitle>
