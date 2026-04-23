@@ -56,16 +56,17 @@ export function CurrencyBanner() {
 
     const currencyInfo = CONVERSION_RATES[location.country] || CONVERSION_RATES['US'];
     const cityName = location.city || "your location";
+    const decodedCity = cityName ? decodeURIComponent(cityName).replace(/\+/g, " ") : "Nigeria";
 
     return (
     <AnimatePresence>
         {isVisible && (
             <motion.div
-                initial={{ y: -100, opacity: 0 }}
+                initial={{ y: 100, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                exit={{ y: -100, opacity: 0 }}
-                // Added mt-20 (80px) to clear the Navbar. Adjust based on your header height.
-                className="fixed top-0 left-0 right-0 z-[1000] px-4 py-2 mt-20"
+                exit={{ y: 100, opacity: 0 }}
+                // Moved to bottom.
+                className="fixed bottom-6 left-0 right-0 z-[1000] px-4"
             >
                 <div className="max-w-5xl mx-auto">
                     {/* Added a stronger shadow and slight border glow for visibility */}
@@ -76,7 +77,7 @@ export function CurrencyBanner() {
                             </div>
                             <div>
                                 <p className="text-[13px] md:text-sm font-bold text-white leading-tight">
-                                    Visiting from <span className="text-emerald-400">{cityName}</span>?
+                                    Visiting from <span className="text-emerald-400">{decodedCity}</span>?
                                 </p>
                                 <p className="text-[11px] text-gray-400 font-medium">
                                     Buying for family in Nigeria? Prices are shown in ₦aira. Approximately <span className="text-white font-bold">{currencyInfo.symbol}1.00 ≈ ₦{currencyInfo.rate.toLocaleString()}</span>.
