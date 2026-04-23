@@ -162,8 +162,8 @@ export default function CatalogControl() {
     }, [searchTerm, sort]);
 
     let filtered = products.filter(p => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.seller_name.toLowerCase().includes(searchTerm.toLowerCase());
-        const isGlobal = p._source === "global" || p.seller_id === "global-partners" || p.seller_name.toLowerCase().includes("global store");
+        const matchesSearch = (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || (p.seller_name || "").toLowerCase().includes(searchTerm.toLowerCase());
+        const isGlobal = p._source === "global" || p.seller_id === "global-partners" || (p.seller_name || "").toLowerCase().includes("global store");
         const matchesFilter = filter === "all" ||
             (filter === "flagged" && p.price_flag !== "fair") ||
             (filter === "fair" && p.price_flag === "fair") ||
