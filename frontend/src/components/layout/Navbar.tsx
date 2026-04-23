@@ -884,6 +884,10 @@ export function Navbar() {
                                                                 <button key={term} onMouseDown={(e) => {
                                                                     e.preventDefault();
                                                                     setSearchQuery(term);
+                                                                    setShowSuggestions(false);
+                                                                    const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                                                                    const catValue = catMatch ? catMatch.value : "All";
+                                                                    router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
                                                                 }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
                                                                     <History className="h-3 w-3 text-gray-400" />
                                                                     {term}
@@ -900,6 +904,10 @@ export function Navbar() {
                                                         <button key={term} onMouseDown={(e) => {
                                                             e.preventDefault();
                                                             setSearchQuery(term);
+                                                            setShowSuggestions(false);
+                                                            const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
+                                                            const catValue = catMatch ? catMatch.value : "All";
+                                                            router.push(`/search?q=${encodeURIComponent(term)}&category=${catValue}`);
                                                         }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
                                                             <Zap className="h-3 w-3" />
                                                             {term}

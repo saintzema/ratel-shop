@@ -2016,7 +2016,12 @@ class DataSyncServiceService {
     // --- Deals Management ---
     getDeals(): Deal[] {
         if (typeof window === "undefined") return [];
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DEALS) || "[]");
+        try {
+            return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DEALS) || "[]");
+        } catch {
+            localStorage.removeItem(this.STORAGE_KEYS.DEALS);
+            return [];
+        }
     }
 
     addDeal(deal: Omit<Deal, "id">) {
