@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { SEED_PRODUCTS } from '@/lib/data';
 
-// Set revalidation to 0 for immediate updates during GMC review phase
-export const revalidate = 0;
-export const dynamic = 'force-dynamic';
+// Set revalidation to 3600 for hourly updates during GMC review phase
+export const revalidate = 3600;
 
 export async function GET() {
     const baseUrl = "https://fairprice.ng";

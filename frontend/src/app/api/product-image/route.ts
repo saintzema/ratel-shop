@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic'; // Prevent Vercel from statically caching this free-tier proxy
+export const revalidate = 86400; // Prevent Vercel from statically caching this free-tier proxy
 
 const RL_MAP = new Map<string, { count: number; reset: number }>();
 const RL_MAX = 60;

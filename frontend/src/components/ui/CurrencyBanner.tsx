@@ -56,48 +56,51 @@ export function CurrencyBanner() {
 
     const currencyInfo = CONVERSION_RATES[location.country] || CONVERSION_RATES['US'];
     const cityName = location.city || "your location";
+    const decodedCity = cityName ? decodeURIComponent(cityName).replace(/\+/g, " ") : "Nigeria";
 
     return (
-        <AnimatePresence>
-            {isVisible && (
-                <motion.div
-                    initial={{ y: -100, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -100, opacity: 0 }}
-                    className="fixed top-0 left-0 right-0 z-[1000] px-4 py-2"
-                >
-                    <div className="max-w-5xl mx-auto">
-                        <div className="bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-3 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/20">
-                                    <Globe className="h-4 w-4 text-emerald-400" />
-                                </div>
-                                <div>
-                                    <p className="text-[13px] md:text-sm font-bold text-white leading-tight">
-                                        Visiting from <span className="text-emerald-400">{cityName}</span>?
-                                    </p>
-                                    <p className="text-[11px] text-gray-400 font-medium">
-                                        Buying for family in Nigeria? Prices are shown in ₦. Approximately <span className="text-white font-bold">{currencyInfo.symbol}1.00 ≈ ₦{currencyInfo.rate.toLocaleString()}</span>.
-                                    </p>
-                                </div>
+    <AnimatePresence>
+        {isVisible && (
+            <motion.div
+                initial={{ y: 100, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                exit={{ y: 100, opacity: 0 }}
+                // Moved to bottom.
+                className="fixed bottom-6 left-0 right-0 z-[1000] px-4"
+            >
+                <div className="max-w-5xl mx-auto">
+                    {/* Added a stronger shadow and slight border glow for visibility */}
+                    <div className="bg-black/95 backdrop-blur-2xl border border-emerald-500/30 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-3 flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-emerald-500/20 flex items-center justify-center border border-emerald-500/20">
+                                <Globe className="h-4 w-4 text-emerald-400" />
                             </div>
-
-                            <div className="flex items-center gap-2 w-full md:w-auto">
-                                <div className="flex-1 md:flex-none h-9 px-4 bg-white/10 text-white rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 border border-white/10">
-                                    <Zap className="h-3 w-3 text-emerald-400" />
-                                    Diaspora Verified
-                                </div>
-                                <button 
-                                    onClick={handleDismiss}
-                                    className="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-colors"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
+                            <div>
+                                <p className="text-[13px] md:text-sm font-bold text-white leading-tight">
+                                    Visiting from <span className="text-emerald-400">{decodedCity}</span>?
+                                </p>
+                                <p className="text-[11px] text-gray-400 font-medium">
+                                    Buying for family in Nigeria? Prices are shown in ₦aira. Approximately <span className="text-white font-bold">{currencyInfo.symbol}1.00 ≈ ₦{currencyInfo.rate.toLocaleString()}</span>.
+                                </p>
                             </div>
                         </div>
+
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <div className="flex-1 md:flex-none h-9 px-4 bg-emerald-500/10 text-emerald-400 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center gap-2 border border-emerald-500/20">
+                                <Zap className="h-3 w-3" />
+                                Diaspora Verified
+                            </div>
+                            <button 
+                                onClick={handleDismiss}
+                                className="p-2 rounded-xl bg-white/5 text-gray-400 hover:text-white transition-colors"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
                     </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-    );
+                </div>
+            </motion.div>
+        )}
+    </AnimatePresence>
+);
 }

@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { SEED_PRODUCTS, SEED_SELLERS } from '@/lib/data';
 import { getProductUrl } from '@/lib/utils';
 
-export const dynamic = 'force-dynamic'; // Always regenerate on request
+export const revalidate = 21600; // Always regenerate on request
 
 export async function GET() {
     const baseUrl = 'https://fairprice.ng';

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-export const dynamic = 'force-dynamic';
+export const revalidate = 43200;
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
@@ -41,7 +41,7 @@ export async function GET() {
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             const data = JSON.parse(jsonMatch[0]);
-            return NextResponse.json(data);
+            return NextResponse.json({...data, lastUpdated: new Date().toISOString() });
         }
 
         return NextResponse.json({ error: "Failed to parse trends" }, { status: 500 });

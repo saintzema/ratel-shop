@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
 import { SEED_PRODUCTS } from '@/lib/data';
 import { getProductUrl } from '@/lib/utils';
 
@@ -12,13 +12,18 @@ type Props = {
 export default async function ProductRedirect({ params }: Props) {
     const { id } = await params;
     const decodedId = decodeURIComponent(id);
-    let productName = "product";
-    
+    let productName = decodedId.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
     // Attempt to fetch the real product name from DB
     try {
         const dbProduct = await db.product.findUnique({ where: { id: decodedId } });
         if (dbProduct) {
             productName = dbProduct.name;
+        } else {
+            const seedMatch = SEED_PRODUCTS.find(p => p.id === decodedId);
+            if (seedMatch) {
+                productName = seedMatch.name;
+            }
         }
     } catch(e) { }
     
