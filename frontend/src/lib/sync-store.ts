@@ -2248,19 +2248,27 @@ class DataSyncServiceService {
     }
 
     /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
-    searchCacheFuzzyMatch(query: string): any[] {
-        if (typeof window === "undefined") return [];
-        const cache = this._getSearchCache();
-        const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
+    /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
+searchCacheFuzzyMatch(query: string): any[] {
+    if (typeof window === "undefined") return [];
+    
+    // Fallback to empty object if cache is missing to avoid crashes
+    const cache = this._getSearchCache() || {};
+    const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
 
-        // If query is empty or too short, don't show random cache items
-        if (tokens.length === 0) return [];
+    // If query is empty or too short, don't show random cache items
+    if (tokens.length === 0) return [];
 
-        const results: any[] = [];
-        const seenIds = new Set<string>();
-        Object.values(cache).forEach((products: any[]) => {
+    const results: any[] = [];
+    const seenIds = new Set<string>();
+
+    Object.values(cache).forEach((products) => {
+        // CRITICAL FIX: Ensure 'products' is an array before iterating.
+        // This prevents the "e.forEach is not a function" error.
+        if (Array.isArray(products)) {
             products.forEach(p => {
-                if (seenIds.has(p.id)) return;
+                if (!p || !p.id || seenIds.has(p.id)) return;
+                
                 const name = (p.name || '').toLowerCase();
                 const category = (p.category || '').toLowerCase();
 
@@ -2272,32 +2280,37 @@ class DataSyncServiceService {
                     seenIds.add(p.id);
                 }
             });
-        });
+        }
+    });
 
-        // Return max 4 most relevant (we'll sort them slightly by name length to prefer tighter matches)
-        return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
-    }
+    // Return max 4 most relevant (sorted by name length to prefer tighter matches)
+    return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
+}
 
-    getAllSearchCache(): Record<string, any[]> {
-        return this._getSearchCache();
-    }
+/** Direct access to the raw search cache */
+getAllSearchCache(): Record<string, any[]> {
+    return this._getSearchCache() || {};
+}
 
-    /** Flat list of all cached products (for admin) */
-    getAllCachedProducts(): any[] {
-        const cache = this._getSearchCache();
-        const seen = new Set<string>();
-        const all: any[] = [];
-        Object.values(cache).forEach((products: any[]) => {
+/** Flat list of all cached products (crucial for Admin view stability) */
+getAllCachedProducts(): any[] {
+    const cache = this._getSearchCache() || {};
+    const seen = new Set<string>();
+    const all: any[] = [];
+
+    Object.values(cache).forEach((products) => {
+        // DEFENSIVE FIX: Guard against non-array values sitting in the store
+        if (Array.isArray(products)) {
             products.forEach(p => {
-                if (!seen.has(p.id)) {
+                if (p && p.id && !seen.has(p.id)) {
                     seen.add(p.id);
                     all.push(p);
                 }
             });
-        });
-        return all;
-    }
-
+        }
+    });
+    return all;
+}
     /** Update a product in the search cache (admin edits) */
     updateSearchCacheProduct(productId: string, updates: Partial<any>) {
         if (typeof window === "undefined") return;
