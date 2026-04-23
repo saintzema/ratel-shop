@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 // Cache at the edge for 30 days — images almost never change
-export const dynamic = 'force-dynamic';
+export const revalidate = 86400;
 
 /**
  * Lightweight image proxy.

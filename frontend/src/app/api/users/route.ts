@@ -1,13 +1,38 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "../realtime/route";
+import { UserRole } from "@prisma/client";
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
 
-        const updateData: any = {};
-        
+        const updateData: any = {
+            name: body.name,
+            email: body.email,
+            avatarUrl: body.avatar_url, // Matches schema
+            location: body.location,
+            birthday: body.birthday,
+            role: body.role
+        };
+
+        // Handle password hashing if provided
+        if (body.password) {
+            const bcryptStr = await import("bcryptjs");
+            const bcrypt = 'default' in bcryptStr ? bcryptStr.default : bcryptStr;
+            updateData.password = await bcrypt.hash(body.password, 12);
+        }
+
+        // To handle addresses, you must use 'connect' or 'create'
+        if (body.address) {
+            updateData.addresses = {
+                upsert: {
+                    where: { id: body.addressId || 'new-address' }, // Use a unique ID or create
+                    create: { street: body.address, city: body.location || "Lagos", state: "Nigeria" },
+                    update: { street: body.address }
+                }
+            };
+        }        
         if (body.id !== undefined) updateData.id = body.id;
         if (body.email !== undefined) updateData.email = body.email;
         if (body.name !== undefined) updateData.name = body.name;
@@ -51,19 +76,30 @@ export async function POST(req: Request) {
             id: body.id || `user_${body.email}`,
             email: body.email,
             name: body.name || "User",
-            role: body.role || "customer",
+            role: (body.role as UserRole) || "customer",
             avatarUrl: body.avatar_url,
             location: body.location,
             birthday: body.birthday,
-            phone: body.phone,
-            address: body.address,
-            password: updateData.password, // already hashed above if provided
+            password: updateData.password, 
+            // Handle the Address relation correctly
+            addresses: body.address ? {
+                create: {
+                    street: body.address,
+                    city: body.location || "Lagos",
+                    state: "Nigeria",
+                    phone: body.phone,
+                }
+            } : undefined
         };
 
         const user = await db.user.upsert({
             where: { email: body.email },
             update: updateData,
             create: createData,
+            include: {
+                addresses: true, // Returns the addresses in the response
+                seller: true
+            }
         });
 
         // Broadcast update for real-time sync
@@ -72,7 +108,10 @@ export async function POST(req: Request) {
         return NextResponse.json(user);
     } catch (error: any) {
         console.error("User creation error:", error);
-        return NextResponse.json({ error: error.message || "Failed to create user" }, { status: 500 });
+        return NextResponse.json(
+            { error: error.message || "Failed to create or update user" }, 
+            { status: 500 }
+        );
     }
 }
 
