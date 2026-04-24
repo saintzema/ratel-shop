@@ -7,10 +7,10 @@ import ws from "ws";
 neonConfig.webSocketConstructor = ws;
 
 // Pooler URL — used for all serverless/edge queries (HTTP + WebSocket)
-const CONNECTION_STRING =
-    process.env.DATABASE_URL ??
-    "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&connect_timeout=60";
-
+const CONNECTION_STRING = process.env.DATABASE_URL;
+if (!CONNECTION_STRING) {
+    throw new Error("DATABASE_URL is not defined in environment variables");
+}
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
 
 function createClient(): PrismaClient {

@@ -3,7 +3,9 @@ dotenv.config({ path: '.env.local' });
 
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+
+import prisma from '../src/lib/prisma';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -13,10 +15,6 @@ if (!DATABASE_URL) {
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
-// Use the same adapter pattern as the app's db.ts
-const pool = new Pool({ connectionString: DATABASE_URL });
-const adapter = new PrismaPg(pool as any);
-const prisma = new PrismaClient({ adapter, log: ["error", "warn"] });
 
 // List of signatures that indicate a missing/broken/test/GMC-rejected image
 const isBrokenImage = (url: string | null | undefined) => {
@@ -130,7 +128,6 @@ async function run() {
         console.error("Catastrophic error running hydration:", e);
     } finally {
         await prisma.$disconnect();
-        await pool.end();
     }
 }
 

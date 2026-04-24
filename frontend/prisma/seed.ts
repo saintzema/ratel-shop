@@ -1,4 +1,5 @@
-import { PrismaClient } from "@prisma/client";
+// import { PrismaClient } from "@prisma/client";
+import prisma from "../src/lib/prisma";
 import { SEED_SELLERS, SEED_PRODUCTS } from "../src/lib/data";
 import bcrypt from "bcryptjs";
 import * as dotenv from "dotenv";
@@ -11,25 +12,28 @@ dotenv.config();
  * This version uses namespaced IDs for mock sellers, 
  * but maps 'Global Stores' products directly to your REAL live account.
  */
-const prisma = new PrismaClient();
-
 async function main() {
-    console.log("Starting Protective Smart Seed...");
+    const email = process.env.SEED_ADMIN_EMAIL;
+    const rawPassword = process.env.SEED_ADMIN_PASSWORD;
+
+    if (!email || !rawPassword) {
+        console.error("❌ Missing Seed Environment Variables!");
+        process.exit(1);
+    }
+
+    const adminPassword = await bcrypt.hash(rawPassword, 12);
     
-    // 0. Seed Admin Superuser
-    const adminPassword = await bcrypt.hash("admin123", 12);
     await prisma.user.upsert({
-        where: { email: "techzema@gmail.com" },
+        where: { email },
         update: { role: "admin" },
         create: {
             id: "seed_admin_1",
-            email: "techzema@gmail.com",
-            name: "Tech Zema",
+            email,
+            name: "System Admin",
             role: "admin",
             password: adminPassword,
         },
     });
-
     // 1. Create Sellers with Namespaced IDs (except for your real one)
     for (const s of SEED_SELLERS) {
         // DETECT YOUR REAL ACCOUNT: If it's global-partners, use the real ID

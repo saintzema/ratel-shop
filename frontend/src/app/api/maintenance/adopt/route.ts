@@ -1,8 +1,9 @@
 
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+// import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+// const prisma = new PrismaClient();
 
 const TARGET_SELLER_ID = 'global_partner';
 const TARGET_BUYER_ID = 'user_abc123def';

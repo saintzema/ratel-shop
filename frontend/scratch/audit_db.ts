@@ -1,12 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+// import { PrismaClient } from "@prisma/client";
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient({
-    datasources: {
-        db: {
-            url: "postgresql://neondb_owner:npg_OETt9q4xyHKv@ep-shiny-glade-abtv1ysp.eu-west-2.aws.neon.tech/neondb?sslmode=require"
-        }
-    }
-});
 
 async function audit() {
     console.log("--- FINDING REAL SELLER ---");
