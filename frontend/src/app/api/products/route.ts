@@ -8,7 +8,8 @@ export async function GET(req: Request) {
         const includeInactive = searchParams.get("all") === "true";
         const updatedAfter = searchParams.get("updated_after");
         const cursor = searchParams.get("cursor") || undefined;
-        const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 200);
+        // Keep the limit high for admin, but manageable
+        const limit = includeInactive ? undefined : Math.min(parseInt(searchParams.get("limit") || "50"), 1000);
 
         const whereClause: any = includeInactive
             ? {}
@@ -25,8 +26,11 @@ export async function GET(req: Request) {
             whereClause.updatedAt = { gte: new Date(updatedAfter) };
         }
 
-        // Optimization: Use 'select' instead of 'include' to fetch only what the frontend needs
-        // and avoid returning full Seller objects which bloats memory and CPU.
+        // 1. ADDED: Fetch the real total count from the DB
+        // This is what fixes the "255" display issue.
+        const totalCount = await db.product.count({ where: whereClause });
+
+        // 2. Fetch the specific page/batch of products
         const products = await db.product.findMany({
             where: whereClause,
             ...(limit ? { take: limit + 1 } : {}),
@@ -59,7 +63,6 @@ export async function GET(req: Request) {
             orderBy: { createdAt: "desc" },
         });
 
-        // Pagination: detect if there's a next page
         const hasMore = limit ? products.length > limit : false;
         if (hasMore) products.pop();
         const nextCursor = hasMore ? products[products.length - 1]?.id : null;
@@ -82,7 +85,13 @@ export async function GET(req: Request) {
             created_at: p.createdAt.toISOString(),
         }));
 
-        return NextResponse.json({ success: true, products: mappedProducts, nextCursor }, {
+        // 3. UPDATED: Return 'total' in the response
+        return NextResponse.json({ 
+            success: true, 
+            products: mappedProducts, 
+            total: totalCount, 
+            nextCursor 
+        }, {
             headers: {
                 "Cache-Control": "public, s-maxage=60, stale-while-revalidate=30"
             }
@@ -100,6 +109,19 @@ export async function GET(req: Request) {
                 "Cache-Control": "no-store" 
             }
         });
+    }
+}
+
+export async function DELETE(req: Request) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get("id");
+        if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
+
+        await db.product.delete({ where: { id } });
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json({ error: "Delete failed" }, { status: 500 });
     }
 }
 
