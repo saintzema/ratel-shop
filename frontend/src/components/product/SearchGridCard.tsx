@@ -4,12 +4,35 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/context/CartContext";
 import { useFavorites } from "@/context/FavoritesContext";
-import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins } from "lucide-react";
+import { ShieldCheck, Heart, Star, Check, ShoppingCart, Coins, Phone, Monitor, Shirt, Home, Sofa, Car, Gamepad2, Zap, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, ShoppingBag, Package } from "lucide-react";
 import NextLink from "next/link";
 import { nativeBridge } from "@/lib/native-bridge";
 import { cn, getProductUrl, getProxiedImageUrl, isVideoUrl, isGroundingUrl } from "@/lib/utils";
 import { hasFinancing, calculateMonthlyPayment, formatNaira } from "@/lib/financing-utils";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
+
+const CATEGORY_ICONS: Record<string, React.ReactNode> = {
+    phones: <Phone className="h-10 w-10" />,
+    electronics: <Monitor className="h-10 w-10" />,
+    computing: <Monitor className="h-10 w-10" />,
+    fashion: <Shirt className="h-10 w-10" />,
+    home: <Home className="h-10 w-10" />,
+    furniture: <Sofa className="h-10 w-10" />,
+    cars: <Car className="h-10 w-10" />,
+    gaming: <Gamepad2 className="h-10 w-10" />,
+    energy: <Zap className="h-10 w-10" />,
+    baby: <Baby className="h-10 w-10" />,
+    sports: <Dumbbell className="h-10 w-10" />,
+    books: <BookOpen className="h-10 w-10" />,
+    tools: <Wrench className="h-10 w-10" />,
+    beauty: <Paintbrush className="h-10 w-10" />,
+    grocery: <ShoppingBag className="h-10 w-10" />,
+};
+
+function getCategoryIcon(category: string) {
+    const cat = category?.toLowerCase() || "";
+    return Object.entries(CATEGORY_ICONS).find(([key]) => cat.includes(key))?.[1] || <Package className="h-10 w-10" />;
+}
 
 export const SearchGridCard = ({
   product,
@@ -188,10 +211,13 @@ export const SearchGridCard = ({
             poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
             autoPlayOnHover={true}
           />
+        ) : imageError ? (
+          <div className="absolute inset-0 z-10 w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
+            {getCategoryIcon(product.category)}
+          </div>
         ) : (
           <img
             src={(() => {
-              if (imageError) return "/assets/images/placeholder.png";
               if (hydratedImage) return getProxiedImageUrl(hydratedImage);
               const rawUrl = product.image_url || product.images?.[0];
               return getProxiedImageUrl(rawUrl);
@@ -208,7 +234,6 @@ export const SearchGridCard = ({
               if (!imageError) {
                 setImageError(true);
               }
-              e.currentTarget.src = "/assets/images/placeholder.png";
             }}
           />
         )}

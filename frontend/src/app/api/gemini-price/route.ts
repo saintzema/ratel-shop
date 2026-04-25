@@ -263,7 +263,7 @@ default to NEW from 2024 onwards.
                     const name = (item.name || "").toLowerCase();
                     const cat = (item.category || "").toLowerCase();
                     const price = item.approxPrice || 0;
-                    
+
                     const itemYearMatch = name.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
                     const itemYear = itemYearMatch ? parseInt(itemYearMatch[0], 10) : null;
 

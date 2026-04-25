@@ -411,6 +411,8 @@ export function Navbar() {
     // - toDetail=false (default, used by Enter/Search button): navigate to SRP with hydrated results
     // - toDetail=true (used by result-button clicks): promote clicked product, navigate to its detail page
     const navigateWithResults = (clickedProductId: string, toDetail: boolean = false) => {
+        // 1. Close UI immediately
+        setShowSuggestions(false);
         try {
 
         // 2. Synchronous mapping and hydration
@@ -509,37 +511,18 @@ export function Navbar() {
             }
         }
 
-        // Build combined results for session cache — ordered by relevance
-        // 1. The explicitly clicked item MUST be first.
-        // 2. Followed by Local, Cached, and Global items from the dropdown.
-        const combinedResults: any[] = [];
+        // Build combined results for session cache — global results FIRST so they appear
+        // at the top of the SRP. We DO NOT pass all fuzzy suggestions to prevent irrelevant
+        // results from polluting the SRP. We only pass the explicitly clicked local/cached item.
+        const combinedResults: any[] = [
+            ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
+        ];
         
         const clickedLocal = suggestions.find(s => s.id === resolvedClickedId);
         if (clickedLocal) combinedResults.push({ ...clickedLocal, _source: 'local', source_url: '' });
         
         const clickedCached = cachedResults.find(s => s.id === resolvedClickedId);
-        if (clickedCached && !clickedLocal) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
-        
-        const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
-        if (clickedGlobal && !clickedLocal && !clickedCached) combinedResults.push({ ...clickedGlobal, _source: 'global' });
-
-        // Add the rest of the items
-        suggestions.forEach(s => {
-            if (s.id !== resolvedClickedId) combinedResults.push({ ...s, _source: 'local', source_url: '' });
-        });
-        
-        cachedResults.forEach(c => {
-            if (c.id !== resolvedClickedId && !combinedResults.find(r => r.id === c.id)) {
-                combinedResults.push({ ...c, _source: 'cached', source_url: '' });
-            }
-        });
-
-        globalAsProducts.forEach((p: any) => {
-            if (p.id !== resolvedClickedId && !combinedResults.find(r => r.id === p.id)) {
-                combinedResults.push({ ...p, _source: 'global' });
-            }
-        });
-
+        if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
 
         try {
             sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
@@ -551,12 +534,26 @@ export function Navbar() {
         saveRecentSearch(searchQuery);
 
         // 3. Navigation
-        // User requested that clicking a result SHOULD route to the SRP, NOT the PDP,
-        // and the clicked item should appear first in the SRP list.
-        setTimeout(() => {
-            setShowSuggestions(false);
-            router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-        }, 100);
+        if (toDetail) {
+            // Find the clicked product (local / cached / global) and route to its detail page
+            const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
+            const clickedProd = clickedLocal || clickedCached || clickedGlobal;
+            if (clickedProd) {
+                setTimeout(() => {
+                    router.push(getProductUrl(clickedProd.id, clickedProd.name));
+                }, 10);
+            } else {
+                // Fallback to SRP if we can't resolve a product
+                setTimeout(() => {
+                    router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+                }, 10);
+            }
+        } else {
+            // Default (Enter / Search button): navigate to SRP
+            setTimeout(() => {
+                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+            }, 10);
+        }
 
         // ─── ELITE REVIEW GENERATION ───
         // Trigger review generation in background for the promoted global product
@@ -574,9 +571,8 @@ export function Navbar() {
             console.error('[NavSearch] navigateWithResults error:', err);
             // Still navigate even if state-prep fails
             setTimeout(() => {
-                setShowSuggestions(false);
                 router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-            }, 100);
+            }, 10);
         }
     };
 
@@ -1012,7 +1008,7 @@ export function Navbar() {
                                                         onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, false); }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
-                                                            activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-50/50"
+                                                            activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-100"
                                                         )}
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
@@ -1072,8 +1068,8 @@ export function Navbar() {
                                                             navigateWithResults(`__global_${i}`, false);
                                                         }}
                                                         className={cn(
-                                                            "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-gray-100",
-                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-gray-50"
+                                                            "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-emerald-100",
+                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-emerald-50/50"
                                                         )}
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
@@ -1174,7 +1170,7 @@ export function Navbar() {
                                         </div>
                                     ) : (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3">
-                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="flex items-center text-left gap-3 hover:opacity-80 transition-opacity">
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="flex items-center text-left gap-3 hover:bg-gray-200 p-2 rounded-lg transition-colors cursor-pointer">
                                                 <div className={cn(
                                                     "h-10 w-10 min-w-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative",
                                                     user.isPremium ? "bg-gradient-to-br from-amber-400 to-amber-600 ring-2 ring-amber-400 ring-offset-1" : "bg-gradient-to-br from-brand-green-600 to-emerald-400"
@@ -1212,11 +1208,11 @@ export function Navbar() {
 
                                     {/* Favorites & Negotiations — promoted */}
                                     <div className="py-1">
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/favorites"); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors">
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/favorites"); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors cursor-pointer">
                                             <Heart className="h-4 w-4 text-red-500 fill-red-500" />
                                             <span>My Favorites</span>
                                         </button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/negotiations"); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors">
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/negotiations"); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors cursor-pointer">
                                             <Handshake className="h-4 w-4 text-emerald-600" />
                                             <span>Negotiate a Price</span>
                                             <span className="ml-auto text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">New</span>
@@ -1227,25 +1223,25 @@ export function Navbar() {
 
                                     <div className="py-1">
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">My Account</button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">My Account</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">
                                             My Wallet
                                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
                                         </button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">Delivery Address</button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">My Orders</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">Delivery Address</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">My Orders</button>
                                         {mounted && (user?.role === 'admin' ? (
                                             <>
-                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/admin/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium">Admin Dashboard</button>
-                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium">Seller Dashboard</button>
+                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/admin/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-emerald-100 text-emerald-700 font-medium cursor-pointer transition-colors">Admin Dashboard</button>
+                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-100 text-red-600 font-medium cursor-pointer transition-colors">Seller Dashboard</button>
                                             </>
                                         ) : isSeller ? (
-                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium">Seller Dashboard</button>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-100 text-red-600 font-medium cursor-pointer transition-colors">Seller Dashboard</button>
                                         ) : (
-                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push(user ? "/seller/onboarding" : "/login?from=/seller/onboarding"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium">Become a Seller</button>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push(user ? "/seller/onboarding" : "/login?from=/seller/onboarding"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-100 text-red-600 font-medium cursor-pointer transition-colors">Become a Seller</button>
                                         ))}
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/recommendations"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700">Recommendations</button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/history"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700">Browsing History</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/recommendations"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700 cursor-pointer transition-colors">Recommendations</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/history"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700 cursor-pointer transition-colors">Browsing History</button>
                                     </div>
                                 </motion.div>
                             )}

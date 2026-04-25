@@ -898,7 +898,10 @@ function SearchContent() {
     }
 
     // Filter by price range at the very end
-    return combined.filter(p => p.price >= priceRange[0] && p.price <= priceRange[1]);
+    return combined.filter(p => {
+      const itemPrice = p.price !== undefined ? p.price : (p.approxPrice || 0);
+      return itemPrice >= priceRange[0] && itemPrice <= priceRange[1];
+    });
   }, [navResults, paginatedProducts, navClickedId, priceRange]);
 
   // ─── AUTO GLOBAL SEARCH: Never show an empty page ───
@@ -1197,6 +1200,25 @@ function SearchContent() {
                 </div>
               );
             })()}
+
+            {/* Scrollable Apple-like Translucent Pill Filters */}
+            <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">Popular:</span>
+              {CATEGORIES.slice(0, 10).map(cat => (
+                  <button
+                      key={cat.value}
+                      onClick={() => updateFilters({ category: cat.value })}
+                      className={cn(
+                          "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap backdrop-blur-md shadow-sm border",
+                          selectedCategory === cat.value
+                              ? "bg-emerald-600/90 text-white border-emerald-500 shadow-md scale-105"
+                              : "bg-white/80 text-gray-700 border-gray-200/50 hover:bg-white hover:border-emerald-200 hover:text-emerald-700 hover:shadow-md"
+                      )}
+                  >
+                      {getCategoryIcon(cat.value)} {cat.label}
+                  </button>
+              ))}
+            </div>
 
             {/* UNIFIED SEARCH RESULTS GRID */}
 
