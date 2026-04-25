@@ -721,9 +721,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [product?.id]);
 
-    // Hydrate Global Product Price if missing
+    // Hydrate Global Product Price and Image if missing or placeholder
     useEffect(() => {
-        if (product && product.price === 0 && product.id?.startsWith('global') && !isFetchingGlobalData) {
+        const hasPlaceholderImage = !product?.image_url || product?.image_url?.includes('placeholder') || product?.image_url?.includes('vertexaisearch') || product?.image_url?.includes('no photo');
+        const needsHydration = product && product.id?.startsWith('global') && !isFetchingGlobalData && (product.price === 0 || hasPlaceholderImage);
+
+        if (needsHydration && product) {
             setIsFetchingGlobalData(true);
             const namePart = product.name;
             const productId = product.id;
@@ -735,44 +738,43 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 .then(res => res.json())
                 .then(data => {
                     const bestMatch = data.suggestions?.[0];
-                    if (bestMatch && bestMatch.approxPrice) {
-                        const validImageUrl = bestMatch.image_url && !bestMatch.image_url.toLowerCase().includes('no photo') && !bestMatch.image_url.toLowerCase().includes('n/a') ? bestMatch.image_url : null;
-                        // Update existing product in DataSyncService (addRawProduct skips if ID exists)
+                    if (bestMatch && (bestMatch.approxPrice > 0 || bestMatch.image_url)) {
+                        const validImageUrl = bestMatch.image_url && !bestMatch.image_url.toLowerCase().includes('no photo') && !bestMatch.image_url.toLowerCase().includes('placeholder') && !bestMatch.image_url.toLowerCase().includes('n/a') ? bestMatch.image_url : null;
+                        
+                        // Create update payload
+                        const updates: any = {};
+                        if (bestMatch.approxPrice > 0) {
+                            updates.price = bestMatch.approxPrice;
+                            updates.original_price = Math.round(bestMatch.approxPrice * 1.15);
+                            updates.recommended_price = bestMatch.approxPrice;
+                        }
+                        if (bestMatch.specs) updates.specs = bestMatch.specs;
+                        if (validImageUrl) updates.image_url = validImageUrl;
+
                         try {
                             const products = DataSyncService.getProducts();
                             const idx = products.findIndex((p: any) => p.id === productId);
                             if (idx >= 0) {
-                                products[idx] = {
-                                    ...products[idx],
-                                    price: bestMatch.approxPrice,
-                                    original_price: Math.round(bestMatch.approxPrice * 1.15),
-                                    recommended_price: bestMatch.approxPrice,
-                                    specs: bestMatch.specs || products[idx].specs,
-                                    ...(validImageUrl ? { image_url: validImageUrl } : {}),
-                                };
+                                products[idx] = { ...products[idx], ...updates };
                                 localStorage.setItem('fp_products', JSON.stringify(products));
                             } else {
-                                const updatedProduct = {
-                                    ...product,
-                                    price: bestMatch.approxPrice,
-                                    original_price: Math.round(bestMatch.approxPrice * 1.15),
-                                    recommended_price: bestMatch.approxPrice,
-                                    specs: bestMatch.specs || product.specs,
-                                    ...(validImageUrl ? { image_url: validImageUrl } : {}),
-                                };
-                                DataSyncService.addRawProduct(updatedProduct as any);
+                                DataSyncService.addRawProduct({ ...product, ...updates } as any);
                             }
+                            
+                            // Aggressively update the search cache so Navsearch shows the new image globally
+                            DataSyncService.updateSearchCacheProduct(productId, updates);
+                            
                             window.dispatchEvent(new Event("storage"));
                             setStoreVersion(v => v + 1);
                         } catch (e) {
-                            console.error("Failed to update global product price:", e);
+                            console.error("Failed to update global product hydration:", e);
                         }
                     }
                 })
                 .catch(() => { })
                 .finally(() => setIsFetchingGlobalData(false));
         }
-    }, [product?.id, product?.price]);
+    }, [product?.id, product?.price, product?.image_url]);
 
     // Auto-open negotiation modal if ?negotiate=true is in the URL
     useEffect(() => {

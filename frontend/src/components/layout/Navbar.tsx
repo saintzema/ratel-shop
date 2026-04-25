@@ -411,8 +411,6 @@ export function Navbar() {
     // - toDetail=false (default, used by Enter/Search button): navigate to SRP with hydrated results
     // - toDetail=true (used by result-button clicks): promote clicked product, navigate to its detail page
     const navigateWithResults = (clickedProductId: string, toDetail: boolean = false) => {
-        // 1. Close UI immediately
-        setShowSuggestions(false);
         try {
 
         // 2. Synchronous mapping and hydration
@@ -511,18 +509,20 @@ export function Navbar() {
             }
         }
 
-        // Build combined results for session cache — global results FIRST so they appear
-        // at the top of the SRP. We DO NOT pass all fuzzy suggestions to prevent irrelevant
-        // results from polluting the SRP. We only pass the explicitly clicked local/cached item.
-        const combinedResults: any[] = [
-            ...globalAsProducts.map(p => ({ ...p, _source: 'global' }))
-        ];
+        // Build combined results for session cache — ordered by relevance
+        // 1. Local (Exact matches in user's catalog)
+        // 2. Cached (Previously searched global products)
+        // 3. Global (Newly fetched from Gemini)
+        const combinedResults: any[] = [];
         
         const clickedLocal = suggestions.find(s => s.id === resolvedClickedId);
         if (clickedLocal) combinedResults.push({ ...clickedLocal, _source: 'local', source_url: '' });
         
         const clickedCached = cachedResults.find(s => s.id === resolvedClickedId);
         if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
+
+        combinedResults.push(...globalAsProducts.map((p: any) => ({ ...p, _source: 'global' })));
+
 
         try {
             sessionStorage.setItem('fp_nav_search_results', JSON.stringify(combinedResults));
@@ -540,19 +540,22 @@ export function Navbar() {
             const clickedProd = clickedLocal || clickedCached || clickedGlobal;
             if (clickedProd) {
                 setTimeout(() => {
+                    setShowSuggestions(false);
                     router.push(getProductUrl(clickedProd.id, clickedProd.name));
-                }, 10);
+                }, 100);
             } else {
                 // Fallback to SRP if we can't resolve a product
                 setTimeout(() => {
+                    setShowSuggestions(false);
                     router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-                }, 10);
+                }, 100);
             }
         } else {
             // Default (Enter / Search button): navigate to SRP
             setTimeout(() => {
+                setShowSuggestions(false);
                 router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-            }, 10);
+            }, 100);
         }
 
         // ─── ELITE REVIEW GENERATION ───
@@ -571,8 +574,9 @@ export function Navbar() {
             console.error('[NavSearch] navigateWithResults error:', err);
             // Still navigate even if state-prep fails
             setTimeout(() => {
+                setShowSuggestions(false);
                 router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-            }, 10);
+            }, 100);
         }
     };
 
@@ -960,7 +964,7 @@ export function Navbar() {
                                         return (
                                             <button
                                                 key={product.id}
-                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, false); }}
+                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, true); }}
                                                 className={cn(
                                                     "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
@@ -1005,7 +1009,7 @@ export function Navbar() {
                                                 return (
                                                     <button
                                                         key={`cached-${result.id || i}`}
-                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, false); }}
+                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, true); }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
                                                             activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-50/50"
@@ -1065,7 +1069,7 @@ export function Navbar() {
                                                         onMouseDown={(e) => {
                                                             e.preventDefault();
                                                             // The navigateWithResults will create the global product and cache it
-                                                            navigateWithResults(`__global_${i}`, false);
+                                                            navigateWithResults(`__global_${i}`, true);
                                                         }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-gray-100",
@@ -1170,7 +1174,7 @@ export function Navbar() {
                                         </div>
                                     ) : (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 flex flex-col gap-3">
-                                            <Link href="/account" onClick={() => setIsAccountMenuOpen(false)} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="flex items-center text-left gap-3 hover:opacity-80 transition-opacity">
                                                 <div className={cn(
                                                     "h-10 w-10 min-w-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative",
                                                     user.isPremium ? "bg-gradient-to-br from-amber-400 to-amber-600 ring-2 ring-amber-400 ring-offset-1" : "bg-gradient-to-br from-brand-green-600 to-emerald-400"
@@ -1193,7 +1197,7 @@ export function Navbar() {
                                                     </p>
                                                     <p className="text-xs text-gray-500 truncate">{mounted ? user?.email || 'user@example.com' : '...'}</p>
                                                 </div>
-                                            </Link>
+                                            </button>
                                             <button
                                                 onClick={() => {
                                                     logout();
@@ -1208,40 +1212,40 @@ export function Navbar() {
 
                                     {/* Favorites & Negotiations — promoted */}
                                     <div className="py-1">
-                                        <Link href="/account/favorites" className="flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/favorites"); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors">
                                             <Heart className="h-4 w-4 text-red-500 fill-red-500" />
                                             <span>My Favorites</span>
-                                        </Link>
-                                        <Link href="/account/negotiations" className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors" onClick={() => setIsAccountMenuOpen(false)}>
+                                        </button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/negotiations"); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors">
                                             <Handshake className="h-4 w-4 text-emerald-600" />
                                             <span>Negotiate a Price</span>
                                             <span className="ml-auto text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">New</span>
-                                        </Link>
+                                        </button>
                                     </div>
 
                                     <div className="border-t border-gray-100 my-1"></div>
 
                                     <div className="py-1">
                                         <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
-                                        <Link href="/account" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Account</Link>
-                                        <Link href="/account/payments" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium flex items-center justify-between" onClick={() => setIsAccountMenuOpen(false)}>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">My Account</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">
                                             My Wallet
                                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
-                                        </Link>
-                                        <Link href="/account/addresses" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Delivery Address</Link>
-                                        <Link href="/account/orders" className="block px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>My Orders</Link>
+                                        </button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">Delivery Address</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-700 font-medium">My Orders</button>
                                         {mounted && (user?.role === 'admin' ? (
                                             <>
-                                                <Link href="/admin/dashboard" className="block px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Admin Dashboard</Link>
-                                                <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
+                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/admin/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-emerald-50 text-emerald-700 font-medium">Admin Dashboard</button>
+                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium">Seller Dashboard</button>
                                             </>
                                         ) : isSeller ? (
-                                            <Link href="/seller/dashboard" className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Seller Dashboard</Link>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium">Seller Dashboard</button>
                                         ) : (
-                                            <Link href={user ? "/seller/onboarding" : "/login?from=/seller/onboarding"} className="block px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium" onClick={() => setIsAccountMenuOpen(false)}>Become a Seller</Link>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push(user ? "/seller/onboarding" : "/login?from=/seller/onboarding"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-50 text-red-600 font-medium">Become a Seller</button>
                                         ))}
-                                        <Link href="/account/recommendations" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Recommendations</Link>
-                                        <Link href="/account/history" className="block px-4 py-1.5 hover:bg-gray-100 text-gray-700" onClick={() => setIsAccountMenuOpen(false)}>Browsing History</Link>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/recommendations"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700">Recommendations</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/history"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700">Browsing History</button>
                                     </div>
                                 </motion.div>
                             )}
