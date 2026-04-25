@@ -510,18 +510,35 @@ export function Navbar() {
         }
 
         // Build combined results for session cache — ordered by relevance
-        // 1. Local (Exact matches in user's catalog)
-        // 2. Cached (Previously searched global products)
-        // 3. Global (Newly fetched from Gemini)
+        // 1. The explicitly clicked item MUST be first.
+        // 2. Followed by Local, Cached, and Global items from the dropdown.
         const combinedResults: any[] = [];
         
         const clickedLocal = suggestions.find(s => s.id === resolvedClickedId);
         if (clickedLocal) combinedResults.push({ ...clickedLocal, _source: 'local', source_url: '' });
         
         const clickedCached = cachedResults.find(s => s.id === resolvedClickedId);
-        if (clickedCached) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
+        if (clickedCached && !clickedLocal) combinedResults.push({ ...clickedCached, _source: 'cached', source_url: '' });
+        
+        const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
+        if (clickedGlobal && !clickedLocal && !clickedCached) combinedResults.push({ ...clickedGlobal, _source: 'global' });
 
-        combinedResults.push(...globalAsProducts.map((p: any) => ({ ...p, _source: 'global' })));
+        // Add the rest of the items
+        suggestions.forEach(s => {
+            if (s.id !== resolvedClickedId) combinedResults.push({ ...s, _source: 'local', source_url: '' });
+        });
+        
+        cachedResults.forEach(c => {
+            if (c.id !== resolvedClickedId && !combinedResults.find(r => r.id === c.id)) {
+                combinedResults.push({ ...c, _source: 'cached', source_url: '' });
+            }
+        });
+
+        globalAsProducts.forEach((p: any) => {
+            if (p.id !== resolvedClickedId && !combinedResults.find(r => r.id === p.id)) {
+                combinedResults.push({ ...p, _source: 'global' });
+            }
+        });
 
 
         try {
@@ -534,29 +551,12 @@ export function Navbar() {
         saveRecentSearch(searchQuery);
 
         // 3. Navigation
-        if (toDetail) {
-            // Find the clicked product (local / cached / global) and route to its detail page
-            const clickedGlobal = globalAsProducts.find((p: any) => p.id === resolvedClickedId);
-            const clickedProd = clickedLocal || clickedCached || clickedGlobal;
-            if (clickedProd) {
-                setTimeout(() => {
-                    setShowSuggestions(false);
-                    router.push(getProductUrl(clickedProd.id, clickedProd.name));
-                }, 100);
-            } else {
-                // Fallback to SRP if we can't resolve a product
-                setTimeout(() => {
-                    setShowSuggestions(false);
-                    router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-                }, 100);
-            }
-        } else {
-            // Default (Enter / Search button): navigate to SRP
-            setTimeout(() => {
-                setShowSuggestions(false);
-                router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
-            }, 100);
-        }
+        // User requested that clicking a result SHOULD route to the SRP, NOT the PDP,
+        // and the clicked item should appear first in the SRP list.
+        setTimeout(() => {
+            setShowSuggestions(false);
+            router.push(`/search?q=${encodeURIComponent(searchQuery)}&from=nav`);
+        }, 100);
 
         // ─── ELITE REVIEW GENERATION ───
         // Trigger review generation in background for the promoted global product
@@ -964,7 +964,7 @@ export function Navbar() {
                                         return (
                                             <button
                                                 key={product.id}
-                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, true); }}
+                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, false); }}
                                                 className={cn(
                                                     "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
@@ -1009,7 +1009,7 @@ export function Navbar() {
                                                 return (
                                                     <button
                                                         key={`cached-${result.id || i}`}
-                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, true); }}
+                                                        onMouseDown={(e) => { e.preventDefault(); navigateWithResults(`__cached_${i}`, false); }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-blue-100",
                                                             activeIndex === cachedIdx ? "bg-blue-50" : "hover:bg-blue-50/50"
@@ -1069,7 +1069,7 @@ export function Navbar() {
                                                         onMouseDown={(e) => {
                                                             e.preventDefault();
                                                             // The navigateWithResults will create the global product and cache it
-                                                            navigateWithResults(`__global_${i}`, true);
+                                                            navigateWithResults(`__global_${i}`, false);
                                                         }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-gray-100",
