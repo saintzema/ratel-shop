@@ -579,18 +579,22 @@ export function Navbar() {
     // Close suggestions when clicking outside (Apple-level smoothness)
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+            const path = event.composedPath();
+            const isInsideSearch = searchRef.current && path.includes(searchRef.current);
+            const isInsideCategory = categoryRef.current && path.includes(categoryRef.current);
+            const isInsideAccount = containerRef.current && path.includes(containerRef.current);
+
+            if (!isInsideSearch) {
                 setShowSuggestions(false);
             }
-            if (categoryRef.current && !categoryRef.current.contains(event.target as Node)) {
+            if (!isInsideCategory) {
                 setIsCategoryOpen(false);
             }
-            // Explicitly close account menu on click-outside
-            if (!containerRef.current?.contains(event.target as Node)) {
+            if (!isInsideAccount) {
                setIsAccountMenuOpen(false);
             }
         };
-        const containerRef = { current: document.querySelector('.account-menu-trigger') }; // We'll add this class below
+        const containerRef = { current: document.querySelector('.account-menu-trigger') };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
@@ -876,49 +880,65 @@ export function Navbar() {
                                         <div className="p-5">
                                             {(() => {
                                                 const recentSearches = getRecentSearches();
-                                                return recentSearches.length > 0 ? (
-                                                    <div className="mb-5">
-                                                        <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5"><History className="h-3.5 w-3.5" /> Recent Searches</h3>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {recentSearches.map(term => (
-                                                                <button key={term} onMouseDown={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    setSearchQuery(term);
-                                                                    setShowSuggestions(true);
-                                                                    if (term.trim().length > 2) setIsGlobalSearching(true);
-                                                                    setTimeout(() => {
-                                                                        searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
-                                                                    }, 10);
-                                                                }} className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5">
-                                                                    <History className="h-3 w-3 text-gray-400" />
-                                                                    {term}
-                                                                </button>
-                                                            ))}
+                                                return (
+                                                    <>
+                                                        {recentSearches.length > 0 && (
+                                                            <div className="mb-6">
+                                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1.5">
+                                                                    <History className="h-3.5 w-3.5" /> Recent Searches
+                                                                </h3>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {recentSearches.map(term => (
+                                                                        <button 
+                                                                            key={term} 
+                                                                            onMouseDown={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                setSearchQuery(term);
+                                                                                setShowSuggestions(true);
+                                                                                if (term.trim().length > 2) setIsGlobalSearching(true);
+                                                                                setTimeout(() => {
+                                                                                    searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
+                                                                                }, 10);
+                                                                            }} 
+                                                                            className="px-3 py-1.5 bg-gray-100/80 hover:bg-gray-200/80 text-xs font-semibold text-gray-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                        >
+                                                                            <History className="h-3 w-3 text-gray-400" />
+                                                                            {term}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        <div>
+                                                            <h3 className="text-[11px] font-black uppercase tracking-wider text-emerald-500 mb-3 flex items-center gap-1.5">
+                                                                <TrendingUp className="h-3.5 w-3.5" /> Trending Searches
+                                                            </h3>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
+                                                                    <button 
+                                                                        key={term} 
+                                                                        onMouseDown={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            setSearchQuery(term);
+                                                                            setShowSuggestions(true);
+                                                                            if (term.trim().length > 2) setIsGlobalSearching(true);
+                                                                            setTimeout(() => {
+                                                                                searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
+                                                                            }, 10);
+                                                                        }} 
+                                                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                    >
+                                                                        <Zap className="h-3 w-3" />
+                                                                        {term}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ) : null;
+                                                    </>
+                                                );
                                             })()}
-                                            <div>
-                                                <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5"><Heart className="h-3.5 w-3.5" /> Popular Right Now</h3>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {['Starlink Kit', 'MacBook Air M3', 'Inverter Battery', 'AirPods Pro'].map(term => (
-                                                        <button key={term} onMouseDown={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            setSearchQuery(term);
-                                                            setShowSuggestions(true);
-                                                            if (term.trim().length > 2) setIsGlobalSearching(true);
-                                                            setTimeout(() => {
-                                                                searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
-                                                            }, 10);
-                                                        }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5">
-                                                            <Zap className="h-3 w-3" />
-                                                            {term}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
                                         </div>
                                     )}
 
