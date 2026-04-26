@@ -50,16 +50,37 @@ export const SearchGridCard = ({
   const [hydratedImage, setHydratedImage] = useState<string | null>(null);
   const [isImageLoading, setIsImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const cardRef = useRef<HTMLAnchorElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !("IntersectionObserver" in window)) {
+        setIsVisible(true);
+        return;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setIsVisible(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '200px' });
+    
+    if (cardRef.current) observer.observe(cardRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    
     const isValidImg = (url: string | undefined | null) =>
       !!url &&
-      url.trim().length > 4 &&
+      url.trim().length > 10 && 
       !url.toLowerCase().includes('no photo') &&
       !url.toLowerCase().includes('no image') &&
       !url.toLowerCase().includes('n/a') &&
       !url.toLowerCase().includes('undefined') &&
       !url.toLowerCase().includes('placeholder') &&
+      !url.toLowerCase().includes('grounding-api-redirect') &&
       !isGroundingUrl(url);
 
     const bestExistingImage = isValidImg(product.image_url)
@@ -71,35 +92,43 @@ export const SearchGridCard = ({
     // Skip hydration if we already have a good image or already hydrated this product
     if (bestExistingImage || hydratedImage) return;
 
-    // Only hydrate global / AI-sourced products (local catalog products always have real images)
+    // Only hydrate global / AI-sourced products
     if (product._source !== "global" && product._source !== "cached") return;
 
     const q = encodeURIComponent(product.name);
     const cat = encodeURIComponent(product.category || '');
-    fetch(`/api/product-image?q=${q}&category=${cat}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (!data) return;
-        const imageUrl = (data.imageUrls?.length ? data.imageUrls[0] : null) || data.imageUrl || null;
-        if (!imageUrl) return;
-        setHydratedImage(imageUrl);
-        // Persist to sessionStorage so back/forward navigation keeps the image
-        try {
-          const cached = sessionStorage.getItem('fp_nav_search_results');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            const updated = parsed.map((p: any) =>
-              p.id === product.id
-                ? { ...p, image_url: imageUrl, images: data.imageUrls || [imageUrl] }
-                : p
-            );
-            sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
-          }
-        } catch { /* quota */ }
-      })
-      .catch(() => {});
+    
+    // Use a small random delay to stagger the initial batch of visible requests
+    const staggerDelay = Math.random() * 800;
+    const t = setTimeout(() => {
+        fetch(`/api/product-image?q=${q}&category=${cat}`)
+          .then(res => res.ok ? res.json() : null)
+          .then(data => {
+            if (!data) return;
+            const imageUrl = (data.imageUrls?.length ? data.imageUrls[0] : null) || data.imageUrl || null;
+            if (!imageUrl || !isValidImg(imageUrl)) return;
+            
+            setHydratedImage(imageUrl);
+            // Persist to sessionStorage so back/forward navigation keeps the image
+            try {
+              const cached = sessionStorage.getItem('fp_nav_search_results');
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                const updated = parsed.map((p: any) =>
+                  p.id === product.id
+                    ? { ...p, image_url: imageUrl, images: data.imageUrls || [imageUrl] }
+                    : p
+                );
+                sessionStorage.setItem('fp_nav_search_results', JSON.stringify(updated));
+              }
+            } catch { /* quota */ }
+          })
+          .catch(() => {});
+    }, staggerDelay);
+    
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [product.id]);
+  }, [product.id, isVisible]);
 
   const lastTapRef = useRef<number>(0);
   const handleDoubleTap = (e: React.MouseEvent) => {
@@ -152,6 +181,7 @@ export const SearchGridCard = ({
 
   return (
     <NextLink
+      ref={cardRef}
       href={getProductUrl(product.id, product.name)}
       className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group flex flex-col overflow-hidden h-full"
     >

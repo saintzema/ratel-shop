@@ -922,16 +922,18 @@ function SearchContent() {
     if (!effectiveQuery || effectiveQuery.length <= 2) return;
     // Only fire once per unique query to avoid infinite loops
     if (autoSearchFiredRef.current === effectiveQuery) return;
-    autoSearchFiredRef.current = effectiveQuery;
+    
     // Small delay so local results have time to load first
     const t = setTimeout(() => {
-      if (combinedCurrentResults.length === 0) {
+      // Re-check results before firing to avoid race conditions
+      if (combinedCurrentResults.length === 0 && !isGlobalSearching) {
+        autoSearchFiredRef.current = effectiveQuery;
         handleSeeMoreResults();
       }
-    }, 800);
+    }, 1200); // Increased delay for stability
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isMounted, query, combinedCurrentResults.length, globalResults.length]);
+  }, [isMounted, query, combinedCurrentResults.length]);
 
   // Products are no longer auto-saved here. They get saved to DataSyncService only when a user clicks
   // on a specific product to view its PDP (handled in product/[id]/page.tsx).
@@ -1002,14 +1004,15 @@ function SearchContent() {
               </p>
           </div>
           <div className="relative z-10 shrink-0 bg-white/20 backdrop-blur-md rounded-full px-5 py-2.5 flex items-center justify-center gap-2 shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-white/20 transition-all font-black text-sm whitespace-nowrap text-white group-hover:bg-white group-hover:text-emerald-700">
-              <PlusCircle className="h-5 w-5" strokeWidth={3} /> Get Started
+            Start Selling Now
           </div>
         </motion.div>
 
-        {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
-        <div className="mb-4 w-full flex flex-col gap-2 bg-white/95 pt-8 pb-1 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
-            {/* Category/Brand Shortcut Pills (Popular) */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0">
+        {/* Unified & Compact Filter Bar */}
+        <div className="mb-4 w-full flex flex-col bg-white/95 pt-2 pb-0 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
+            {/* Unified Scrollable Row: Shortcuts + Filters */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+                {/* Category Shortcuts */}
                 {[
                     { label: 'Cars', icon: <Car className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
                     { label: 'Electronics', icon: <Monitor className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
@@ -1022,7 +1025,7 @@ function SearchContent() {
                         key={pill.label}
                         onClick={() => updateFilters({ category: pill.label.toLowerCase() })}
                         className={cn(
-                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black whitespace-nowrap border transition-all active:scale-95 shadow-sm hover:shadow-md cursor-pointer",
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-black whitespace-nowrap border transition-all active:scale-95 shadow-sm hover:shadow-md cursor-pointer snap-start",
                             pill.color,
                             selectedCategory?.toLowerCase() === pill.label.toLowerCase() ? "ring-2 ring-offset-1 ring-current" : ""
                         )}
@@ -1031,160 +1034,64 @@ function SearchContent() {
                         {pill.label}
                     </button>
                 ))}
-            </div>
 
-            {/* Top Row: Horizontal Scrollable Filters */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
-            {/* Clear All */}
-            {(Object.keys(attributeFilters).length > 0 ||
-              selectedCategory ||
-              isVerified ||
-              priceRange[0] > 0 ||
-              priceRange[1] < 5000000) && (
-                <button
-                  onClick={() => {
-                    setAttributeFilters({});
-                    setPriceRange([0, 500000000]);
-                    setSelectedCategory(null);
-                    setIsVerified(false);
-                    const params = new URLSearchParams();
-                    if (query) params.set("q", query);
-                    router.push(`/search?${params.toString()}`, {
-                      scroll: false,
-                    });
-                  }}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 hover:border-red-200 active:scale-95 transition-all shrink-0 shadow-sm snap-start"
-                >
-                  <Filter className="h-3 w-3" /> Clear All
-                </button>
-              )}
+                <div className="h-6 w-[1px] bg-gray-200 shrink-0 mx-1 snap-start" />
 
-            {/* Sort Dropdown as Pill (Native Select for Mobile Reliability) */}
-            <div className="relative shrink-0 snap-start">
-              <select
-                value={sortBy}
-                onChange={(e) => updateFilters({ sort: e.target.value })}
-                className="appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              >
-                <option value="relevance">Sort by: Relevance</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="newest">Newest Arrivals</option>
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            </div>
-
-            {/* Dynamic Price Pill */}
-            <div className="relative shrink-0 snap-start">
-              <select
-                value={(minPriceParam || maxPriceParam) ? `${minPriceParam || 0}-${maxPriceParam || 500000000}` : "all"}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "all") {
-                    updateFilters({ minPrice: null, maxPrice: null });
-                  } else {
-                    const [min, max] = val.split('-');
-                    updateFilters({ minPrice: min, maxPrice: max });
-                  }
-                }}
-                className={cn(
-                  "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
-                  (minPriceParam || maxPriceParam)
-                    ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
-                )}
-              >
-                <option value="all">Price: All</option>
-                {priceBrackets.map((bracket) => (
-                  <option key={bracket.label} value={`${bracket.min}-${bracket.max}`}>
-                    {bracket.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none mix-blend-difference opacity-50" />
-            </div>
-
-            {/* Category Dropdown as Pill (Native Select) */}
-            <div className="relative shrink-0 snap-start">
-              <select
-                value={selectedCategory || "all"}
-                onChange={(e) => updateFilters({ category: e.target.value === "all" ? "" : e.target.value })}
-                className="appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 capitalize"
-              >
-                <option value="all">All Categories</option>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-            </div>
-
-            {/* Verified Only Pill */}
-            <button
-              onClick={() =>
-                updateFilters({ verified: isVerified ? null : "true" })
-              }
-              className={cn(
-                "flex items-center gap-1.5 px-4 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border shrink-0 snap-start active:scale-95",
-                isVerified
-                  ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
-                  : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
-              )}
-            >
-              <ShieldCheck className="h-4 w-4" /> Verified
-            </button>
-
-            {/* Dynamic category filters as Native Select Pills */}
-            {categoryFilterGroups.map((group: FilterGroup) => {
-              const activeValues = attributeFilters[group.key] || [];
-              const isActive = activeValues.length > 0;
-              return (
-                <div key={group.key} className="relative shrink-0 snap-start">
-                  <select
-                    value={activeValues[0] || ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (val === "clear" || !val) {
-                        setAttributeFilters((prev) => ({ ...prev, [group.key]: [] }));
-                        updateFilters({ [`attr_${group.key}`]: null });
-                      } else {
-                        setAttributeFilters((prev) => ({ ...prev, [group.key]: [val] }));
-                        updateFilters({ [`attr_${group.key}`]: val });
-                      }
-                    }}
-                    className={cn(
-                      "appearance-none flex items-center gap-1.5 pl-4 pr-8 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-emerald-500/20",
-                      isActive
-                        ? "bg-gray-900 text-white border-gray-900 hover:bg-gray-800"
-                        : "bg-white text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-gray-50",
+                {/* Filters */}
+                <div className="flex items-center gap-2 shrink-0">
+                    {(Object.keys(attributeFilters).length > 0 || selectedCategory || isVerified || priceRange[0] > 0 || priceRange[1] < 5000000) && (
+                        <button
+                          onClick={() => {
+                            setAttributeFilters({});
+                            setPriceRange([0, 500000000]);
+                            setSelectedCategory(null);
+                            setIsVerified(false);
+                            const params = new URLSearchParams();
+                            if (query) params.set("q", query);
+                            router.push(`/search?${params.toString()}`, { scroll: false });
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 snap-start"
+                        >
+                          <Filter className="h-3 w-3" /> Clear
+                        </button>
                     )}
-                  >
-                    <option value="" disabled hidden>{group.label} {isActive ? `(1)` : ''}</option>
-                    {isActive && <option value="clear">✕ Clear {group.label}</option>}
-                    {group.options.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className={cn("absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 pointer-events-none", isActive ? "text-gray-400" : "text-gray-400")} />
-                </div>
-              );
-            })}
-          </div>
 
-          {/* Bottom Row: Results Count */}
-          <div className="flex items-center border-t border-emerald-100/60 pt-2.5 px-2 bg-emerald-50/20 py-1.5 -mx-4 px-4 sm:mx-0 sm:px-4">
-              <p className="text-[12px] text-emerald-900 font-black tracking-tight">
-                {query ? (
-                  <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results for &quot;<span className="text-brand-orange italic underline decoration-2 underline-offset-4">{query}</span>&quot;</span>
-                ) : (
-                  <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length || 0}</span> of <span className="text-emerald-600">{totalResultCount}</span> results</span>
-                )}
-              </p>
-          </div>
+                    <div className="relative shrink-0 snap-start">
+                      <select
+                        value={sortBy}
+                        onChange={(e) => updateFilters({ sort: e.target.value })}
+                        className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white"
+                      >
+                        <option value="relevance">Sort: Relevance</option>
+                        <option value="price_asc">Price: Low-High</option>
+                        <option value="price_desc">Price: High-Low</option>
+                        <option value="newest">Newest</option>
+                      </select>
+                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400 pointer-events-none" />
+                    </div>
+
+                    <button
+                      onClick={() => updateFilters({ verified: isVerified ? null : "true" })}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold border shrink-0 snap-start",
+                        isVerified ? "bg-emerald-600 text-white border-emerald-600" : "bg-white text-gray-700 border-gray-200"
+                      )}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" /> Verified
+                    </button>
+                </div>
+            </div>
+
+            {/* Compact Stats Bar */}
+            <div className="flex items-center border-t border-emerald-100/60 pt-2 px-2 bg-emerald-50/20 pb-2 -mx-4 px-4 sm:mx-0 sm:px-4">
+                <p className="text-[11px] text-emerald-900 font-bold">
+                    {query ? (
+                        <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length}</span> of <span className="text-emerald-600">{totalResultCount}</span> for &quot;<span className="text-brand-orange italic">{query}</span>&quot;</span>
+                    ) : (
+                        <span>Showing <span className="text-emerald-600">1-{paginatedProducts.length}</span> products</span>
+                    )}
+                </p>
+            </div>
         </div>
 
         {!isMounted ? (
@@ -1192,65 +1099,10 @@ function SearchContent() {
             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-600" />
           </div>
         ) : (
-        <div className="flex flex-col gap-8">
-          <div className="flex-1 w-full">
-            {/* Scrollable Apple-like Translucent Pill Filters — hydration-safe */}
-            {(() => {
-              const categories = DataSyncService.getCategories();
-              if (!categories || categories.length === 0) return null;
-              return (
-                <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">
-                    Popular:
-                  </span>
-                  {categories.map((cat) => (
-                    <button
-                      key={cat.id}
-                      onClick={() => {
-                        const isActive = cat.slug === selectedCategory;
-                        if (isActive) {
-                          // Deselect: go back to original query without category filter
-                          router.push(`/search?q=${encodeURIComponent(query)}`);
-                        } else {
-                          // Select: navigate to category search — show products in this category
-                          router.push(`/search?q=${encodeURIComponent(cat.name)}&category=${cat.slug}`);
-                        }
-                      }}
-                      className={cn(
-                        "flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all shadow-sm border snap-start",
-                        selectedCategory === cat.slug
-                          ? "bg-brand-green-600 text-white border-brand-green-600 shadow-brand-green-200"
-                          : "bg-white text-gray-600 border-gray-100 hover:border-gray-200 hover:bg-gray-50",
-                      )}
-                    >
-                      {getCategoryIcon(cat.slug)}
-                      {cat.name}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
-
-            {/* Scrollable Apple-like Translucent Pill Filters */}
-            <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mr-2 shrink-0">Popular:</span>
-              {CATEGORIES.slice(0, 10).map(cat => (
-                  <button
-                      key={cat.value}
-                      onClick={() => updateFilters({ category: cat.value })}
-                      className={cn(
-                          "flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap backdrop-blur-md shadow-sm border",
-                          selectedCategory === cat.value
-                              ? "bg-emerald-600/90 text-white border-emerald-500 shadow-md scale-105"
-                              : "bg-white/80 text-gray-700 border-gray-200/50 hover:bg-white hover:border-emerald-200 hover:text-emerald-700 hover:shadow-md"
-                      )}
-                  >
-                      {getCategoryIcon(cat.value)} {cat.label}
-                  </button>
-              ))}
-            </div>
-
-            {/* UNIFIED SEARCH RESULTS GRID */}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row gap-8">
+              <div className="flex-1 w-full">
+                {/* UNIFIED SEARCH RESULTS GRID */}
 
             {/* ─── Brand Logo Rail (Category-Aware) ─── */}
             {(() => {

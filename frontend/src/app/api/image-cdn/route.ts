@@ -47,9 +47,9 @@ export async function GET(req: Request) {
         return NextResponse.redirect(new URL(PLACEHOLDER, req.url));
     }
 
-    // Thumbnail mode (NavSearch dropdown, product cards): just redirect.
-    // Browser fetches the source CDN directly; no server CPU used at all.
-    if (isThumb) {
+    // Thumbnail mode (NavSearch dropdown, product cards): redirect to source if HTTPS.
+    // IF the source is HTTP, we MUST proxy it to avoid Mixed Content errors.
+    if (isThumb && imageUrl.startsWith('https://')) {
         return NextResponse.redirect(imageUrl, {
             headers: { "Cache-Control": "public, max-age=2592000" },
         });
