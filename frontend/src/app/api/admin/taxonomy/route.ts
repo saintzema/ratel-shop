@@ -21,8 +21,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const { type, name, categoryId, slug } = await req.json();
-    const generatedSlug = slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const body = await req.json();
+    const { type, name, categoryId, slug } = body;
+    const generatedSlug = name ? (slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-')) : null;
 
     if (type === "category") {
       // Check for duplicates
