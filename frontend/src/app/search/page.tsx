@@ -1473,12 +1473,13 @@ function SearchContent() {
             )}
           </div>
         </div>
-        )}
-      </main>
+      </div>
+      )}
+    </main>
 
-      <Footer />
-    </div>
-  );
+    <Footer />
+  </div>
+);
 }
 
 export default function SearchPage() {
