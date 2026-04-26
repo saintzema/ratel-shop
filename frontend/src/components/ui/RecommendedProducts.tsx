@@ -114,7 +114,7 @@ export function RecommendedProducts({
         const node = loaderRef.current;
         if (node) observer.observe(node);
         return () => { if (node) observer.unobserve(node); };
-    }, [displayedProducts.length]); // Re-attach observer when list updates to ensure loader target is tracked
+    }, []); // Empty dependency array: rely on refs for latest state to prevent infinite loop
 
     if (!products || products.length === 0) return null;
 

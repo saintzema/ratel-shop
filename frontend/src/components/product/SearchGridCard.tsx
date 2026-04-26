@@ -211,13 +211,10 @@ export const SearchGridCard = ({
             poster={getProxiedImageUrl([product.image_url, ...(product.images || [])].find(img => !isVideoUrl(img)))}
             autoPlayOnHover={true}
           />
-        ) : imageError ? (
-          <div className="absolute inset-0 z-10 w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
-            {getCategoryIcon(product.category)}
-          </div>
         ) : (
           <img
             src={(() => {
+              if (imageError) return "/assets/images/placeholder.png";
               if (hydratedImage) return getProxiedImageUrl(hydratedImage);
               const rawUrl = product.image_url || product.images?.[0];
               return getProxiedImageUrl(rawUrl);
@@ -234,6 +231,7 @@ export const SearchGridCard = ({
               if (!imageError) {
                 setImageError(true);
               }
+              e.currentTarget.src = "/assets/images/placeholder.png";
             }}
           />
         )}

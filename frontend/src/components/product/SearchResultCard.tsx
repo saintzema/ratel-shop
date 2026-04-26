@@ -180,9 +180,11 @@ export function SearchResultCard({
                             );
                         })()
                     ) : (
-                        <div className="w-full h-full rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-white">
-                            {getCategoryIcon(product.category)}
-                        </div>
+                        <img
+                            src="/assets/images/placeholder.png"
+                            alt="Product Placeholder"
+                            className="w-full h-full object-contain"
+                        />
                     )}
                 </Link>
             </div>

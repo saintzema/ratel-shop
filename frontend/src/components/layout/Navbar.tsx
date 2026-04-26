@@ -930,17 +930,19 @@ export function Navbar() {
                                     )}
 
                                     {/* Text Suggestions (Autocomplete) */}
-                                    {searchQuery.trim().length >= 2 && textSuggestions.length > 0 && (
-                                        <div className="border-b border-gray-100/50 py-2">
                                             {textSuggestions.map((suggestion, idx) => (
                                                 <button
                                                     key={`sug-${idx}`}
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();
                                                         setSearchQuery(suggestion);
-                                                        document.querySelector('input')?.focus();
+                                                        setShowSuggestions(true);
+                                                        // Keep focus on the input to prevent it from closing
+                                                        setTimeout(() => {
+                                                            searchRef.current?.querySelector('input')?.focus();
+                                                        }, 10);
                                                     }}
-                                                    className="w-full text-left px-4 py-2 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] md:text-sm text-gray-700 transition-all flex items-center justify-between group"
+                                                    className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] md:text-sm text-gray-700 transition-all flex items-center justify-between group"
                                                 >
                                                     <div className="flex items-center gap-2">
                                                         <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
@@ -951,8 +953,6 @@ export function Navbar() {
                                                     <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                 </button>
                                             ))}
-                                        </div>
-                                    )}
 
                                     {/* Product Suggestions */}
                                     {suggestions.map((product, i) => {
@@ -1069,7 +1069,7 @@ export function Navbar() {
                                                         }}
                                                         className={cn(
                                                             "w-full flex items-center gap-3 px-4 py-2.5 transition-all border-b border-gray-50 last:border-0 cursor-pointer text-left active:scale-[0.99] active:bg-emerald-100",
-                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-emerald-50/50"
+                                                            activeIndex === globalIdx ? "bg-emerald-50" : "hover:bg-emerald-100/50"
                                                         )}
                                                     >
                                                         <div className="h-10 w-10 shrink-0 bg-white border border-gray-100 rounded overflow-hidden p-1 shadow-sm">
@@ -1102,7 +1102,7 @@ export function Navbar() {
                                                 setIsPriceIntelOpen(true);
                                                 setShowSuggestions(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100 animate-pulse-grow"
+                                            className="w-full flex items-center gap-3 px-4 py-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 hover:from-emerald-100 hover:to-emerald-200/60 transition-all border-t border-emerald-100 animate-pulse-grow cursor-pointer"
                                         >
                                             <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                                                 <Globe className="h-5 w-5" />
@@ -1208,12 +1208,12 @@ export function Navbar() {
 
                                     {/* Favorites & Negotiations — promoted */}
                                     <div className="py-1">
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/favorites"); }} className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-red-50 text-gray-700 font-semibold transition-colors cursor-pointer">
-                                            <Heart className="h-4 w-4 text-red-500 fill-red-500" />
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/favorites"); }} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-red-50 text-gray-700 font-bold transition-all cursor-pointer active:scale-95 group">
+                                            <Heart className="h-4 w-4 text-red-500 fill-red-500 group-hover:scale-110 transition-transform" />
                                             <span>My Favorites</span>
                                         </button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/negotiations"); }} className="w-full flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-gray-700 font-medium transition-colors cursor-pointer">
-                                            <Handshake className="h-4 w-4 text-emerald-600" />
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/negotiations"); }} className="w-full flex items-center gap-2 px-4 py-3 hover:bg-emerald-50 text-gray-700 font-bold transition-all cursor-pointer active:scale-95 group">
+                                            <Handshake className="h-4 w-4 text-emerald-600 group-hover:scale-110 transition-transform" />
                                             <span>Negotiate a Price</span>
                                             <span className="ml-auto text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full">New</span>
                                         </button>
@@ -1222,26 +1222,26 @@ export function Navbar() {
                                     <div className="border-t border-gray-100 my-1"></div>
 
                                     <div className="py-1">
-                                        <div className="px-4 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider">Your Account</div>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">My Account</button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">
+                                        <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-wider">Your Account</div>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">My Account</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">
                                             My Wallet
                                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
                                         </button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">Delivery Address</button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2 hover:bg-gray-100 text-gray-700 font-medium cursor-pointer transition-colors">My Orders</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">Delivery Address</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">My Orders</button>
                                         {mounted && (user?.role === 'admin' ? (
                                             <>
-                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/admin/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-emerald-100 text-emerald-700 font-medium cursor-pointer transition-colors">Admin Dashboard</button>
-                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-100 text-red-600 font-medium cursor-pointer transition-colors">Seller Dashboard</button>
+                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/admin/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-emerald-500">Admin Dashboard</button>
+                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>
                                             </>
                                         ) : isSeller ? (
-                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-100 text-red-600 font-medium cursor-pointer transition-colors">Seller Dashboard</button>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>
                                         ) : (
-                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push(user ? "/seller/onboarding" : "/login?from=/seller/onboarding"); }} className="w-full text-left px-4 py-1.5 hover:bg-red-100 text-red-600 font-medium cursor-pointer transition-colors">Become a Seller</button>
+                                            <button onClick={() => { setIsAccountMenuOpen(false); router.push(user ? "/seller/onboarding" : "/login?from=/seller/onboarding"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Become a Seller</button>
                                         ))}
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/recommendations"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700 cursor-pointer transition-colors">Recommendations</button>
-                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/history"); }} className="w-full text-left px-4 py-1.5 hover:bg-gray-100 text-gray-700 cursor-pointer transition-colors">Browsing History</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/recommendations"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all">Recommendations</button>
+                                        <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/history"); }} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all">Browsing History</button>
                                     </div>
                                 </motion.div>
                             )}

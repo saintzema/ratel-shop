@@ -44,6 +44,15 @@ export default function UserDirectory() {
     const [deleteConfirmEmail, setDeleteConfirmEmail] = useState("");
     const [deleteLoading, setDeleteLoading] = useState(false);
 
+    // Edit State
+    const [editingUser, setEditingUser] = useState<any | null>(null);
+    const [editFormData, setEditFormData] = useState({
+        display_name: "",
+        business_name: "",
+        owner_email: ""
+    });
+    const [editLoading, setEditLoading] = useState(false);
+
     const [loading, setLoading] = useState(true);
 
     // Bulk Action State
@@ -215,12 +224,27 @@ export default function UserDirectory() {
             return;
         }
         setDeleteLoading(true);
+
+        const performDelete = async (method: string) => {
+            const endpoint = method === "DELETE" ? `/api/users/${deletingUser.id}` : `/api/sellers/${deletingUser.id}`;
+            const options: RequestInit = { method };
+            if (method === "POST") {
+                options.headers = { "Content-Type": "application/json" };
+                options.body = JSON.stringify({ action: "delete" });
+            }
+            return fetch(endpoint, options);
+        };
+
         try {
-            // Try API cascade delete first
-            const res = await fetch(`/api/users/${deletingUser.id}`, { method: "DELETE" });
-            const data = await res.json();
+            let res = await performDelete("DELETE");
+            
+            // Fallback for 405 Method Not Allowed
+            if (res.status === 405) {
+                res = await performDelete("POST");
+            }
 
             if (!res.ok) {
+                const data = await res.json();
                 alert(`Delete failed: ${data.error || "Server error"}`);
                 setDeleteLoading(false);
                 return;
@@ -237,6 +261,50 @@ export default function UserDirectory() {
             setDeleteLoading(false);
             setDeletingUser(null);
             setDeleteConfirmEmail("");
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingUser) return;
+        setEditLoading(true);
+        try {
+            const endpoint = editingUser.role === "seller" 
+                ? `/api/sellers/${editingUser.id}` 
+                : `/api/users/${editingUser.id}`;
+            
+            const res = await fetch(endpoint, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(editFormData)
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || "Update failed");
+            }
+
+            // Update local state
+            setParticipants(prev => prev.map(p => 
+                p.id === editingUser.id 
+                    ? { ...p, ...editFormData } 
+                    : p
+            ));
+            
+            // Also update localStorage if it's a seller
+            if (editingUser.role === "seller") {
+                DataSyncService.updateSeller(editingUser.id, {
+                    business_name: editFormData.business_name,
+                    owner_name: editFormData.display_name,
+                    owner_email: editFormData.owner_email
+                });
+            }
+
+            alert("User details updated successfully.");
+            setEditingUser(null);
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setEditLoading(false);
         }
     };
 
@@ -487,6 +555,21 @@ export default function UserDirectory() {
                                                     View
                                                 </Button>
                                             </Link>
+                                            <Button 
+                                                size="sm" 
+                                                variant="ghost" 
+                                                className="h-8 rounded-xl text-xs font-bold text-blue-700 bg-white/50 border-[0.5px] border-white/60 hover:bg-white hover:shadow-lg transition-all"
+                                                onClick={() => {
+                                                    setEditingUser(p);
+                                                    setEditFormData({
+                                                        display_name: p.display_name || "",
+                                                        business_name: p.business_name || "",
+                                                        owner_email: p.owner_email || p.email || ""
+                                                    });
+                                                }}
+                                            >
+                                                Edit
+                                            </Button>
                                             {/* Approve: only for pending sellers */}
                                             {p.role === "seller" && (p.status === "pending" || p.kyc_status === "pending") && (
                                                 <Button
@@ -601,6 +684,57 @@ export default function UserDirectory() {
                     <div className="flex justify-end gap-3 mt-4">
                         <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingCommissionSeller(null)}>Cancel</Button>
                         <Button className="h-12 px-6 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSaveCommission}>Save Rate</Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Quick Edit Details Dialog */}
+            <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+                <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900">Edit {editingUser?.role === "seller" ? "Seller" : "User"} Details</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4 mt-2">
+                        <div className="grid gap-2">
+                            <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Display Name</Label>
+                            <Input 
+                                value={editFormData.display_name} 
+                                onChange={e => setEditFormData({...editFormData, display_name: e.target.value})}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                            />
+                        </div>
+                        {editingUser?.role === "seller" && (
+                            <div className="grid gap-2">
+                                <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Business Name</Label>
+                                <Input 
+                                    value={editFormData.business_name} 
+                                    onChange={e => setEditFormData({...editFormData, business_name: e.target.value})}
+                                    className="h-12 border-gray-200 rounded-xl font-medium"
+                                />
+                            </div>
+                        )}
+                        <div className="grid gap-2">
+                            <Label className="text-xs font-bold text-gray-700 uppercase tracking-wider">Email Address</Label>
+                            <Input 
+                                value={editFormData.owner_email} 
+                                onChange={e => setEditFormData({...editFormData, owner_email: e.target.value})}
+                                className="h-12 border-gray-200 rounded-xl font-medium"
+                            />
+                        </div>
+                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 mt-2">
+                            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Administrator Note</p>
+                            <p className="text-xs text-amber-600 mt-1">Changing the email will affect the user's login credentials. Ensure the user is notified.</p>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setEditingUser(null)}>Cancel</Button>
+                        <Button 
+                            className="h-12 px-6 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white" 
+                            onClick={handleSaveEdit}
+                            disabled={editLoading}
+                        >
+                            {editLoading ? "Saving..." : "Save Changes"}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

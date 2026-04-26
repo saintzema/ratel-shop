@@ -306,7 +306,9 @@ function SearchContent() {
         const cachedQuery = sessionStorage.getItem("fp_nav_search_query");
 
         // Clean up sessionStorage ONLY if the query is different, to allow "Back" button to work
-        if (cachedQuery && cachedQuery !== query) {
+        // Clean up sessionStorage ONLY if the query is significantly different
+        // We use lowerCase and trim for leniency
+        if (cachedQuery && cachedQuery.toLowerCase().trim() !== query.toLowerCase().trim()) {
           sessionStorage.removeItem("fp_nav_search_results");
           sessionStorage.removeItem("fp_nav_search_clicked");
           sessionStorage.removeItem("fp_nav_search_query");
@@ -872,7 +874,7 @@ function SearchContent() {
     const seenIds = new Set<string>();
     const combined: any[] = [];
 
-    // 1. Process navResults (safeguard against duplicated IDs in sessionStorage)
+    // 1. Process navResults (safeguard against duplicated IDs/Names in sessionStorage)
     for (const n of navResults) {
       if (!seenIds.has(n.id)) {
         seenIds.add(n.id);
@@ -880,9 +882,12 @@ function SearchContent() {
       }
     }
 
-    // 2. Process paginatedProducts (filter out anything already provided by nav)
+    // 2. Process paginatedProducts (filter out anything already provided by nav by ID or Name)
     for (const p of paginatedProducts) {
-      if (!seenIds.has(p.id)) {
+      const pName = (p.name || "").toLowerCase().trim();
+      const isDuplicate = seenIds.has(p.id) || combined.some(r => (r.name || "").toLowerCase().trim() === pName);
+      
+      if (!isDuplicate) {
         seenIds.add(p.id);
         combined.push(p);
       }
@@ -1003,8 +1008,33 @@ function SearchContent() {
 
         {/* Scrollable Apple/Temu-like Pill Filter Bar (Non-sticky) */}
         <div className="mb-4 w-full flex flex-col gap-2 bg-white/95 pt-8 pb-1 sm:rounded-b-2xl border-b sm:border border-gray-100 shadow-[0_4px_20px_-10px_rgba(0,0,0,0.1)] -mx-4 px-4 sm:mx-0 sm:px-4 -mt-2 transition-all duration-300">
-          {/* Top Row: Horizontal Scrollable Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
+            {/* Category/Brand Shortcut Pills (Popular) */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-3 px-1 -mx-4 sm:mx-0 sm:px-0">
+                {[
+                    { label: 'Cars', icon: <Car className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-100' },
+                    { label: 'Electronics', icon: <Monitor className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+                    { label: 'Smartphones', icon: <Phone className="h-3.5 w-3.5" />, color: 'bg-purple-50 text-purple-700 border-purple-100' },
+                    { label: 'Computing', icon: <Laptop className="h-3.5 w-3.5" />, color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
+                    { label: 'Appliances', icon: <Zap className="h-3.5 w-3.5" />, color: 'bg-amber-50 text-amber-700 border-amber-100' },
+                    { label: 'Fashion', icon: <Shirt className="h-3.5 w-3.5" />, color: 'bg-pink-50 text-pink-700 border-pink-100' }
+                ].map(pill => (
+                    <button
+                        key={pill.label}
+                        onClick={() => updateFilters({ category: pill.label.toLowerCase() })}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-black whitespace-nowrap border transition-all active:scale-95 shadow-sm hover:shadow-md cursor-pointer",
+                            pill.color,
+                            selectedCategory?.toLowerCase() === pill.label.toLowerCase() ? "ring-2 ring-offset-1 ring-current" : ""
+                        )}
+                    >
+                        {pill.icon}
+                        {pill.label}
+                    </button>
+                ))}
+            </div>
+
+            {/* Top Row: Horizontal Scrollable Filters */}
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 pt-0.5 px-1 -mx-4 sm:mx-0 sm:px-0 w-full snap-x">
             {/* Clear All */}
             {(Object.keys(attributeFilters).length > 0 ||
               selectedCategory ||
@@ -1331,9 +1361,7 @@ function SearchContent() {
                               className="h-7 w-auto max-w-[52px] object-contain"
                               onError={(e) => {
                                 const el = e.currentTarget;
-                                el.style.display = "none";
-                                const sib = el.nextElementSibling as HTMLElement | null;
-                                if (sib) sib.style.display = "flex";
+                                el.src = "/assets/images/placeholder.png";
                               }}
                             />
                           ) : null}

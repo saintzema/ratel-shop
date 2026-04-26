@@ -129,6 +129,13 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
 
+        // FALLBACK: Handle deletion via POST if DELETE method is blocked
+        if (body.action === "delete" && body.id) {
+            await db.product.delete({ where: { id: body.id } });
+            broadcast({ type: "product_updated", id: body.id });
+            return NextResponse.json({ success: true, message: "Product deleted via POST fallback" });
+        }
+
         // Ensure "global-partners" seller exists if saving a globally sourced product
         if (body.seller_id === 'global-partners') {
             try {

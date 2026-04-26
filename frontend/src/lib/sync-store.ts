@@ -3071,8 +3071,12 @@ getAllCachedProducts(): any[] {
         this._deletedProductIds.add(id);
         setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min tombstone
 
-        // Sync deletion to Postgres
-        resilientFetch(`/api/products?id=${id}`, { method: "DELETE", type: "product_update" });
+        // Sync deletion to Postgres via POST fallback (more reliable than DELETE method)
+        resilientFetch(`/api/products`, { 
+            method: "POST", 
+            body: { action: "delete", id },
+            type: "product_update" 
+        });
 
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
