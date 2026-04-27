@@ -38,7 +38,8 @@ import {
     Car,
     Gamepad,
     Package,
-    Plug
+    Plug,
+    AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -391,6 +392,13 @@ export function Navbar() {
         setIsGlobalSearching(true);
         setApiError(null);
         const fetchTimer = setTimeout(() => {
+            // Re-check cache just before fetch in case it was populated while typing
+            if (NAV_SEARCH_CACHE.has(trimmed)) {
+                setGlobalResults(NAV_SEARCH_CACHE.get(trimmed)!);
+                setIsGlobalSearching(false);
+                return;
+            }
+
             fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -418,7 +426,7 @@ export function Navbar() {
                     setGlobalResults([]);
                 })
                 .finally(() => setIsGlobalSearching(false));
-        }, 600);
+        }, 1000);
 
         return () => {
             clearTimeout(fetchTimer);
@@ -602,7 +610,10 @@ export function Navbar() {
             const isInsideCategory = categoryRef.current && path.includes(categoryRef.current);
             const isInsideAccount = containerRef.current && path.includes(containerRef.current);
 
-            if (!isInsideSearch) {
+            // Robust check: don't close if we're still focusing the input
+            const isFocusingInput = document.activeElement?.getAttribute('name') === 'globalSearch';
+
+            if (!isInsideSearch && !isFocusingInput) {
                 setShowSuggestions(false);
             }
             if (!isInsideCategory) {
