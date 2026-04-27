@@ -374,31 +374,27 @@ export function Navbar() {
         // Reset hydration tracking so every new search gets fresh image hydration
         hydratedProductIds.current.clear();
 
-        const trimmed = searchQuery.trim();
-        if (trimmed.length <= 2) {
+        // ─── Persistent Client-Side Cache Check ───
+        try {
+            const sessionCache = sessionStorage.getItem(`nav_search_${trimmed}`);
+            if (sessionCache) {
+                const results = JSON.parse(sessionCache);
+                setGlobalResults(results);
+                setIsGlobalSearching(false);
+                setApiError(null);
+                return;
+            }
+        } catch { /* session storage blocked */ }
+
+        if (trimmed.length <= 3) {
             setGlobalResults([]);
             setIsGlobalSearching(false);
-            return;
-        }
-
-        // ─── Client-Side Cache Check ───
-        if (NAV_SEARCH_CACHE.has(trimmed)) {
-            setGlobalResults(NAV_SEARCH_CACHE.get(trimmed)!);
-            setIsGlobalSearching(false);
-            setApiError(null);
             return;
         }
 
         setIsGlobalSearching(true);
         setApiError(null);
         const fetchTimer = setTimeout(() => {
-            // Re-check cache just before fetch in case it was populated while typing
-            if (NAV_SEARCH_CACHE.has(trimmed)) {
-                setGlobalResults(NAV_SEARCH_CACHE.get(trimmed)!);
-                setIsGlobalSearching(false);
-                return;
-            }
-
             fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -415,8 +411,10 @@ export function Navbar() {
                     if (data.suggestions && Array.isArray(data.suggestions)) {
                         const filtered = data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10);
                         setGlobalResults(filtered);
-                        // Save to client-side cache (session scoped)
-                        NAV_SEARCH_CACHE.set(trimmed, filtered);
+                        // Save to persistent session cache
+                        try {
+                            sessionStorage.setItem(`nav_search_${trimmed}`, JSON.stringify(filtered));
+                        } catch { /* quota */ }
                     } else {
                         setGlobalResults([]);
                     }
@@ -426,7 +424,7 @@ export function Navbar() {
                     setGlobalResults([]);
                 })
                 .finally(() => setIsGlobalSearching(false));
-        }, 1000);
+        }, 1500);
 
         return () => {
             clearTimeout(fetchTimer);
