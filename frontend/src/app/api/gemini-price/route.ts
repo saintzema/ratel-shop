@@ -226,8 +226,9 @@ default to NEW from 2024 onwards.
             console.error("Gemini API Error:", response.status, errorText);
             // Surface Gemini's rate limit clearly to the client so the UI can show a helpful message
             if (response.status === 429) {
+                // If we get a 429 even after retries, it means the daily quota is likely exhausted.
                 return NextResponse.json(
-                    { error: "AI search is rate-limited right now. Please wait a moment and try again." },
+                    { error: "AI search is currently resting. Please try again later or use the popular searches below." },
                     { status: 429 }
                 );
             }

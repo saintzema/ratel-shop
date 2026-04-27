@@ -56,7 +56,7 @@ import { useLocation } from "@/context/LocationContext";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useMessages } from "@/context/MessageContext";
-
+const NAV_SEARCH_CACHE = new Map<string, any[]>();
 const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
     phones: <Phone className="h-6 w-6" />,
     smartphones: <Phone className="h-6 w-6" />,
@@ -99,6 +99,7 @@ export function Navbar() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
     const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [apiError, setApiError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [searchQuery, setSearchQuery] = useState("");
     const [suggestions, setSuggestions] = useState<typeof SEED_PRODUCTS>([]); // State for suggestions
@@ -379,19 +380,36 @@ export function Navbar() {
             return;
         }
 
+        // ─── Client-Side Cache Check ───
+        if (NAV_SEARCH_CACHE.has(trimmed)) {
+            setGlobalResults(NAV_SEARCH_CACHE.get(trimmed)!);
+            setIsGlobalSearching(false);
+            setApiError(null);
+            return;
+        }
+
         setIsGlobalSearching(true);
+        setApiError(null);
         const fetchTimer = setTimeout(() => {
             fetch('/api/gemini-price', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ productName: trimmed, mode: 'search' })
             })
-                .then(res => res.json())
+                .then(res => {
+                    if (res.status === 429) {
+                        setApiError("AI search is currently resting. Please try again later or use the popular searches below.");
+                        return { suggestions: [] };
+                    }
+                    return res.json();
+                })
                 .then(data => {
                     if (data.suggestions && Array.isArray(data.suggestions)) {
-                        setGlobalResults(data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10));
+                        const filtered = data.suggestions.filter((s: any) => !/\b(duty|levy|tariff|cif|customs|clearance fee|fertilizer|supplement|chemical)\b/i.test(s.name)).slice(0, 10);
+                        setGlobalResults(filtered);
+                        // Save to client-side cache (session scoped)
+                        NAV_SEARCH_CACHE.set(trimmed, filtered);
                     } else {
-                        console.warn("Gemini price search returned empty suggestions:", data);
                         setGlobalResults([]);
                     }
                 })
@@ -1061,6 +1079,40 @@ export function Navbar() {
                                                 );
                                             })}
                                         </div>
+                                    )}
+
+                                    {/* Fallback Empty State / No Results State */}
+                                    {searchQuery.trim().length > 0 && !isGlobalSearching && globalResults.length === 0 && suggestions.length === 0 && (
+                                        <div className="p-8 text-center flex flex-col items-center justify-center">
+                                            <div className="h-16 w-16 rounded-full bg-gray-50 flex items-center justify-center mb-4">
+                                                <Search className="h-8 w-8 text-gray-300" />
+                                            </div>
+                                            <h3 className="text-sm font-bold text-gray-800 mb-1">No instant results found</h3>
+                                            <p className="text-xs text-gray-500 mb-6 px-4">Try a different term or browse our trending categories.</p>
+                                            
+                                            <div className="w-full max-w-xs space-y-2">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 text-left px-1">Try Trending</h4>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['Starlink Kit', 'iPhone 15 Pro', 'Inverter Battery'].map(term => (
+                                                        <button 
+                                                            key={term}
+                                                            onMouseDown={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                setSearchQuery(term);
+                                                                setShowSuggestions(true);
+                                                                setTimeout(() => {
+                                                                    searchRef.current?.querySelector('input')?.focus();
+                                                                }, 10);
+                                                            }}
+                                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[11px] font-bold text-emerald-700 rounded-lg transition-colors"
+                                                        >
+                                                            {term}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}                                    {/* Global Search Results (from Gemini API) */}
                                     {isGlobalSearching && (
                                         <div className="border-t border-emerald-50 px-4 py-3">
@@ -1079,6 +1131,17 @@ export function Navbar() {
                                             ))}
                                         </div>
                                     )}
+                                    
+                                    {/* API Error Message */}
+                                    {apiError && (
+                                        <div className="mx-4 my-2 p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2.5">
+                                            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                                            <div className="flex flex-col">
+                                                <span className="text-[11px] font-bold text-red-700">Service Alert</span>
+                                                <span className="text-[10px] text-red-600/90 leading-tight">{apiError}</span>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* GLOBAL FAIRPRICE RESULTS */}
                                     {globalResults.length > 0 && (
@@ -1094,6 +1157,7 @@ export function Navbar() {
                                                         key={`global-${result.id || i}`}
                                                         onMouseDown={(e) => {
                                                             e.preventDefault();
+                                                            e.stopPropagation();
                                                             // The navigateWithResults will create the global product and cache it
                                                             navigateWithResults(`__global_${i}`, false);
                                                         }}
