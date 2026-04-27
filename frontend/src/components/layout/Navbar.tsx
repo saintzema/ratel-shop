@@ -373,6 +373,7 @@ export function Navbar() {
     useEffect(() => {
         // Reset hydration tracking so every new search gets fresh image hydration
         hydratedProductIds.current.clear();
+        const trimmed = searchQuery.trim();
 
         // ─── Persistent Client-Side Cache Check ───
         try {
