@@ -5,7 +5,11 @@ import ws from "ws";
 
 // 1. Setup for Neon Serverless
 if (typeof window === 'undefined') {
-    neonConfig.webSocketConstructor = ws;
+    // Only set the websocket constructor if we are actually using Neon serverless
+    const isLocal = process.env.DATABASE_URL?.includes('localhost') || process.env.DATABASE_URL?.includes('127.0.0.1');
+    if (!isLocal) {
+        neonConfig.webSocketConstructor = ws;
+    }
 }
 
 const CONNECTION_STRING = process.env.DATABASE_URL;
@@ -17,6 +21,10 @@ const globalForPrisma = globalThis as unknown as {
 
 // 3. The client creator function
 function createClient(): PrismaClient {
+  // If connecting to a local DB, don't use the Neon Serverless adapter
+  if (CONNECTION_STRING?.includes('localhost') || CONNECTION_STRING?.includes('127.0.0.1')) {
+    return new PrismaClient();
+  }
   const adapter = new PrismaNeon({ connectionString: CONNECTION_STRING! });
   return new PrismaClient({ adapter } as any);
 }

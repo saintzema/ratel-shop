@@ -183,20 +183,20 @@ export const SearchGridCard = ({
     <NextLink
       ref={cardRef}
       href={getProductUrl(product.id, product.name)}
-      className="bg-white rounded-2xl border border-gray-100 hover:border-emerald-200 hover:shadow-xl hover:shadow-emerald-500/5 transition-all group flex flex-col overflow-hidden h-full"
+      className="bg-white rounded-2xl border border-gray-100 hover:border-red-200 hover:shadow-xl hover:shadow-red-500/5 transition-all group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">
         {/* Sponsored Badge */}
         {product.is_sponsored && (
           <div className="absolute bottom-3 left-3 z-30 bg-gray-900/90 backdrop-blur-md text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-sm border border-white/20 uppercase tracking-widest flex items-center gap-1.5">
-            <span className="h-1 w-1 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
+            <span className="h-1 w-1 rounded-full bg-red-400 animate-pulse" /> Sponsored
           </div>
         )}
 
         {product.price_flag === "fair" && (
-          <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 bg-white/90 backdrop-blur-md rounded-full shadow border border-emerald-500/20">
-            <ShieldCheck className="h-3 w-3 text-emerald-600" />
-            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
+          <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 bg-white/90 backdrop-blur-md rounded-full shadow border border-red-500/20">
+            <ShieldCheck className="h-3 w-3 text-red-600" />
+            <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">
               Fair Price
             </span>
           </div>
@@ -268,7 +268,7 @@ export const SearchGridCard = ({
 
       </div>
       <div className="p-3 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
-        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-brand-green-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
+        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-red-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
           {product.name}
         </h4>
 
@@ -296,15 +296,15 @@ export const SearchGridCard = ({
         {/* Phase 5: Compact Trust & Negotiation Indicators OR Financing */}
         <div className="flex items-center gap-1.5 mb-2.5">
             {financingResult ? (
-                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
-                    <Coins className="h-2 w-2 text-emerald-600" />
-                    <span className="text-[10px] sm:text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)} MONTHLY</span>
+                <div className="flex items-center gap-1 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
+                    <Coins className="h-2 w-2 text-red-600" />
+                    <span className="text-[10px] sm:text-[11px] font-black text-red-700">{formatNaira(financingResult.monthlyPayment)} MONTHLY</span>
                 </div>
             ) : (
                 <>
-                    <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1 py-0.5 rounded-md" title={`Trust Score: ${product.seller_trust_score || 85}%`}>
-                        <ShieldCheck className="h-2 w-2 text-emerald-600" />
-                        <span className="text-[8px] font-bold text-emerald-700">{product.seller_trust_score || 85}%</span>
+                    <div className="flex items-center gap-1 bg-amber-50 border border-amber-100 px-1 py-0.5 rounded-md" title={`Trust Score: ${product.seller_trust_score || 85}%`}>
+                        <ShieldCheck className="h-2 w-2 text-amber-600" />
+                        <span className="text-[8px] font-bold text-amber-700">{product.seller_trust_score || 85}%</span>
                     </div>
                     <div className="text-[8px] font-bold text-gray-500 bg-gray-100 px-1 py-0.5 rounded-md">
                         {product.negotiation_rate || 80}% Accept
@@ -335,7 +335,7 @@ export const SearchGridCard = ({
             "w-full mt-auto flex items-center justify-center gap-1.5 text-[12px] font-black py-2.5 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
             added
               ? "bg-black text-white hover:bg-gray-800 border-black"
-              : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
+              : "bg-red-600 text-white border-red-600 hover:bg-red-700",
           )}
           onClick={handleAction}
         >

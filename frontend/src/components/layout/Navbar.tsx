@@ -1101,9 +1101,12 @@ export function Navbar() {
                                             <p className="text-xs text-gray-500 mb-6 px-4">Try a different term or browse our trending categories.</p>
                                             
                                             <div className="w-full max-w-xs space-y-2">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 text-left px-1">Try Trending</h4>
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-600 text-left px-1 flex items-center gap-1">
+                                                    <Flame className="h-3 w-3 text-orange-500 fill-orange-500" /> 
+                                                    Trending in Nigeria
+                                                </h4>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {['Starlink Kit', 'iPhone 15 Pro', 'Inverter Battery'].map(term => (
+                                                    {['Starlink Kit', 'Solar Inverter', 'Skin Care', 'Generator', 'iPhone 15 Pro', 'Power Bank', 'Sneakers', 'Laptops', 'PS5', 'Designer Bags'].map(term => (
                                                         <button 
                                                             key={term}
                                                             onMouseDown={(e) => {
@@ -1115,8 +1118,9 @@ export function Navbar() {
                                                                     searchRef.current?.querySelector('input')?.focus();
                                                                 }, 10);
                                                             }}
-                                                            className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-[11px] font-bold text-emerald-700 rounded-lg transition-colors"
+                                                            className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-[11px] font-bold text-red-700 rounded-lg transition-colors border border-red-100 shadow-sm flex items-center gap-1"
                                                         >
+                                                            <Flame className="h-2.5 w-2.5 text-orange-400 fill-orange-400" />
                                                             {term}
                                                         </button>
                                                     ))}
@@ -1125,17 +1129,17 @@ export function Navbar() {
                                         </div>
                                     )}                                    {/* Global Search Results (from Gemini API) */}
                                     {isGlobalSearching && (
-                                        <div className="border-t border-emerald-50 px-4 py-3">
-                                            <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold mb-2">
+                                        <div className="border-t border-red-50 px-4 py-3">
+                                            <div className="flex items-center gap-2 text-xs text-red-600 font-semibold mb-2">
                                                 <Globe className="h-3.5 w-3.5 animate-spin" />
                                                 Finding the best prices for you...
                                             </div>
                                             {[1, 2, 3].map(i => (
                                                 <div key={i} className="flex items-center gap-3 p-2.5 animate-pulse">
-                                                    <div className="h-10 w-10 bg-emerald-50 rounded-lg" />
+                                                    <div className="h-10 w-10 bg-red-50 rounded-lg" />
                                                     <div className="flex-1 space-y-1.5">
                                                         <div className="h-3 bg-gray-100 rounded w-3/4" />
-                                                        <div className="h-2.5 bg-emerald-50 rounded w-1/3" />
+                                                        <div className="h-2.5 bg-red-50 rounded w-1/3" />
                                                     </div>
                                                 </div>
                                             ))}
