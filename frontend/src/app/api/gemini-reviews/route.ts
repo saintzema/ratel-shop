@@ -65,19 +65,36 @@ export async function POST(req: Request) {
         - Reviews should vary in length but remain concise.
         `;
 
-        const response = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.8 }
-            })
-        });
+        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
+            const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: 0.8 }
+                })
+            });
+            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 3 times
+            if ((res.status === 429 || res.status === 503) && attempt < 3) {
+                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 500;
+                await new Promise(r => setTimeout(r, backoffMs));
+                return fetchWithRetry(attempt + 1);
+            }
+            return res;
+        };
+
+        const response = await fetchWithRetry();
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Gemini API Error:", errorText);
-            throw new Error(`Gemini API failed with status ${response.status} `);
+            console.error("Gemini API Error:", response.status, errorText);
+            if (response.status === 429) {
+                return NextResponse.json(
+                    { error: "Review generation is rate-limited. Please wait." },
+                    { status: 429 }
+                );
+            }
+            throw new Error(`Gemini API failed with status ${response.status}`);
         }
 
         const data = await response.json();

@@ -411,8 +411,8 @@ export function Navbar() {
     // - toDetail=false (default, used by Enter/Search button): navigate to SRP with hydrated results
     // - toDetail=true (used by result-button clicks): promote clicked product, navigate to its detail page
     const navigateWithResults = (clickedProductId: string, toDetail: boolean = false) => {
-        // 1. Close UI immediately
-        setShowSuggestions(false);
+        // We no longer close UI immediately to prevent "flicker" before navigation.
+        // The unmounting of the Navbar during page transition will handle cleanup.
         try {
 
         // 2. Synchronous mapping and hydration
@@ -699,7 +699,6 @@ export function Navbar() {
             if (suggestions.length > 0 || globalResults.length > 0) {
                 navigateWithResults('');
             } else {
-                setShowSuggestions(false);
                 const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
                 const catValue = catMatch ? catMatch.value : "All";
                 router.push(`/search?q=${encodeURIComponent(searchQuery)}&category=${catValue}`);
@@ -713,7 +712,6 @@ export function Navbar() {
         if (e.key === "Enter") {
             if (activeIndex >= 0 && activeIndex < textSuggestions.length) {
                 // Perform search for text suggestion
-                setShowSuggestions(false);
                 setSearchQuery(textSuggestions[activeIndex]);
                 const catMatch = CATEGORIES.find(c => c.label === selectedCategory);
                 const catValue = catMatch ? catMatch.value : "All";
@@ -721,7 +719,6 @@ export function Navbar() {
             } else if (activeIndex >= textSuggestions.length && activeIndex < totalSuggestionItems) {
                 // Navigate to product
                 const product = suggestions[activeIndex - textSuggestions.length];
-                setShowSuggestions(false);
                 router.push(getProductUrl(product.id, product.name));
             } else {
                 handleSearch();
@@ -989,7 +986,11 @@ export function Navbar() {
                                         return (
                                             <button
                                                 key={product.id}
-                                                onMouseDown={(e) => { e.preventDefault(); navigateWithResults(product.id, false); }}
+                                                onMouseDown={(e) => { 
+                                                    e.preventDefault(); 
+                                                    e.stopPropagation();
+                                                    navigateWithResults(product.id, false); 
+                                                }}
                                                 className={cn(
                                                     "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
                                                     activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"

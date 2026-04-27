@@ -210,9 +210,9 @@ default to NEW from 2024 onwards.
                     tools: [{ google_search: {} }]
                 })
             });
-            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 2 times
-            if ((res.status === 429 || res.status === 503) && attempt < 2) {
-                const backoffMs = Math.pow(2, attempt) * 800 + Math.random() * 500; // 800ms, 1.6s + jitter
+            // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 5 times
+            if ((res.status === 429 || res.status === 503) && attempt < 5) {
+                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000; // 1s, 2s, 4s, 8s, 16s + jitter
                 await new Promise(r => setTimeout(r, backoffMs));
                 return fetchWithRetry(attempt + 1);
             }
@@ -276,8 +276,8 @@ default to NEW from 2024 onwards.
 
                     // ─── VEHICLE HALLUCINATION FLOOR ───
                     const VEHICLE_FLOOR = (itemYear && itemYear >= 2020) ? 12_000_000 : 5_000_000;
-                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
-                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|x[1-7]|[1-8]\s*series|a[1-8]|q[2-8]|tt|r8|e-?tron|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[369]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories|iron|serum|tv|television|smart\s*tv|screen|display|monitor|inverter|battery\s*system|solar|kit)\b/i;
+                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[69]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
 
                     if (price >= VEHICLE_FLOOR) return true;
                     if (PART_KEYWORDS.test(name)) return true;
@@ -285,7 +285,7 @@ default to NEW from 2024 onwards.
                     const isVehicleCategory = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
                     const isWholeVehicle = WHOLE_VEHICLE.test(name);
 
-                    if ((isVehicleCategory || isWholeVehicle) && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
+                    if (isVehicleCategory && isWholeVehicle && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
                         console.warn(`🚫 PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${VEHICLE_FLOOR.toLocaleString()})`);
                         return false;
                     }
@@ -363,7 +363,7 @@ default to NEW from 2024 onwards.
                 where: { query: cacheKey },
                 create: { query: cacheKey, products: parsedData as any },
                 update: { products: parsedData as any },
-            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.code));
+            }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
 
             return NextResponse.json(parsedData, { headers: { "X-Cache": "MISS" } });
         } catch (parseError) {
