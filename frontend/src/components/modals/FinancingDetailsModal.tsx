@@ -103,7 +103,17 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-50">
-                                                {[1, 2, 3].map((years, idx) => {
+                                                 {(() => {
+                                                     let maxYears = 3;
+                                                     if (product.financing_config?.max_tenor_months) {
+                                                         maxYears = Math.floor(product.financing_config.max_tenor_months / 12);
+                                                     } else if (product.category?.toLowerCase().includes('car') || product.category?.toLowerCase().includes('vehicle')) {
+                                                         maxYears = 5;
+                                                     } else if (product.price > 300000) {
+                                                         maxYears = 4;
+                                                     }
+                                                     return [1, 2, 3, 4, 5].slice(0, Math.max(maxYears, 1));
+                                                 })().map((years, idx) => {
                                                     const analysis = calculateProductMonthlyPayment(product, years);
                                                     return (
                                                         <tr key={years} className={`group hover:bg-emerald-50/10 transition-colors ${idx === 0 ? "bg-emerald-50/5" : ""}`}>

@@ -1630,7 +1630,7 @@ export function ZivaChat() {
                                     <X className="h-3 w-3" />
                                 </button>
                                 <p className="text-[11px] font-bold leading-snug">
-                                    Hey! I'm Ziva. I can help you **find deals** or **negotiate prices**! 🧠✨
+                                    Hey! I'm Ziva. I can help you find deals & negotiate prices 😊  
                                 </p>
                                 <div className="absolute bottom-[-8px] right-0 w-4 h-4 bg-emerald-600 rotate-45" style={{ clipPath: 'polygon(100% 0, 0 100%, 100% 100%)' }} />
                             </div>
@@ -1638,6 +1638,6 @@ export function ZivaChat() {
                     )}
                 </AnimatePresence>
             </motion.div>
-        </div >
+        </div>
     );
 }

@@ -76,7 +76,7 @@ export function calculateProductMonthlyPayment(
     
     // Base configuration
     let depositPct = getVehicleDepositPercent(); 
-    let baseTenor = isVeh ? (LOAN_CONSTANTS.TENORS[condition as VehicleCondition] || 4) : 1; 
+    let baseTenor = isVeh ? (LOAN_CONSTANTS.TENORS[condition as VehicleCondition] || 4) : (productObj.price > 300000 ? 2 : 1); 
     let baseMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA;
     let fixedDeposit: number | undefined = productObj.financing_down_payment;
 
@@ -156,7 +156,7 @@ export function getProductPaymentRange(
     if (isVehicle(product)) {
          maxYears = 5;
     } else {
-         maxYears = product?.financing_config?.max_tenor_months ? Math.floor(product.financing_config.max_tenor_months / 12) : 2; 
+         maxYears = product?.financing_config?.max_tenor_months ? Math.floor(product.financing_config.max_tenor_months / 12) : (product.price > 300000 ? 4 : 2); 
     }
     
     maxYears = Math.max(1, maxYears);

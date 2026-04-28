@@ -14,6 +14,7 @@ import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 import { useRouter } from "next/navigation";
+import { RecentlyViewedHorizontal } from "@/components/ui/RecentlyViewedHorizontal";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
@@ -417,6 +418,10 @@ function HomeContent() {
             {/* ═══ Optimized Homepage Sections ═══ */}
             {mounted && sections && (
               <>
+                <section className="container mx-auto px-1 md:px-2 mt-4 mb-2">
+                  <RecentlyViewedHorizontal />
+                </section>
+
                 <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
                   <ProductSlider title="Trending in Nigeria" link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 </section>
