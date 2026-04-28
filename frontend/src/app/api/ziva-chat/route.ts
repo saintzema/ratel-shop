@@ -28,6 +28,8 @@ async function searchCatalog(keywords: string, maxBudget?: number): Promise<any>
         'gaming': ['playstation', 'xbox', 'nintendo', 'ps4', 'ps5', 'gaming laptop', 'gaming phone'],
         'tablet': ['ipad', 'samsung tab', 'galaxy tab', 'fire tablet', 'surface pro'],
         'tv': ['television', 'smart tv', 'led tv', 'oled', 'samsung tv', 'lg tv'],
+        'inverter': ['solar', 'battery', 'hybrid inverter', 'luminous', 'victron', 'must', 'growatt', 'felicity'],
+        'inverters': ['solar', 'battery', 'hybrid inverter', 'luminous', 'victron', 'must', 'growatt', 'felicity'],
     };
 
     // Expand search tokens with synonyms
@@ -60,8 +62,13 @@ async function searchCatalog(keywords: string, maxBudget?: number): Promise<any>
             }
         }
         // Category-level boost: if user asked for "phone" and product category IS "phones"
-        if (cat === 'phones' && (tokens.includes('phone') || tokens.includes('phones'))) s += 20;
-        if (cat === 'laptops' && (tokens.includes('laptop') || tokens.includes('laptops'))) s += 20;
+        if (cat === 'phones' && (tokens.includes('phone') || tokens.includes('phones'))) s += 25;
+        if (cat === 'laptops' && (tokens.includes('laptop') || tokens.includes('laptops'))) s += 25;
+        if ((cat.includes('solar') || cat.includes('energy')) && (tokens.includes('inverter') || tokens.includes('inverters'))) s += 30;
+        
+        // Negative scoring for "kg" when "k" (budget) is requested
+        if (q.match(/\d+k\b/) && name.match(/\d+kg\b/)) s -= 20;
+
         return s;
     };
 
