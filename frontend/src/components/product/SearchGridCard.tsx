@@ -194,9 +194,9 @@ export const SearchGridCard = ({
         )}
 
         {product.price_flag === "fair" && (
-          <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 bg-white/90 backdrop-blur-md rounded-full shadow border border-red-500/20">
-            <ShieldCheck className="h-3 w-3 text-red-600" />
-            <span className="text-[9px] font-black text-red-600 uppercase tracking-widest">
+          <div className="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 bg-white/90 backdrop-blur-md rounded-full shadow border border-emerald-500/20">
+            <ShieldCheck className="h-3 w-3 text-emerald-600" />
+            <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">
               Fair Price
             </span>
           </div>
@@ -268,7 +268,7 @@ export const SearchGridCard = ({
 
       </div>
       <div className="p-3 flex flex-col flex-1 border-t border-gray-50 bg-gradient-to-b from-white to-gray-50/50">
-        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-red-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
+        <h4 className="font-bold text-[13px] text-gray-900 line-clamp-2 group-hover:text-emerald-700 transition-colors mb-0.5 min-h-[36px] leading-tight">
           {product.name}
         </h4>
 
@@ -296,9 +296,9 @@ export const SearchGridCard = ({
         {/* Phase 5: Compact Trust & Negotiation Indicators OR Financing */}
         <div className="flex items-center gap-1.5 mb-2.5">
             {financingResult ? (
-                <div className="flex items-center gap-1 bg-red-50 border border-red-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
-                    <Coins className="h-2 w-2 text-red-600" />
-                    <span className="text-[10px] sm:text-[11px] font-black text-red-700">{formatNaira(financingResult.monthlyPayment)} MONTHLY</span>
+                <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-md" title="Financing Available">
+                    <Coins className="h-2 w-2 text-emerald-600" />
+                    <span className="text-[10px] sm:text-[11px] font-black text-emerald-700">{formatNaira(financingResult.monthlyPayment)} MONTHLY</span>
                 </div>
             ) : (
                 <>
@@ -335,7 +335,7 @@ export const SearchGridCard = ({
             "w-full mt-auto flex items-center justify-center gap-1.5 text-[12px] font-black py-2.5 rounded-xl transition-all shadow-sm active:scale-95 duration-200 border-2",
             added
               ? "bg-black text-white hover:bg-gray-800 border-black"
-              : "bg-red-600 text-white border-red-600 hover:bg-red-700",
+              : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
           )}
           onClick={handleAction}
         >

@@ -1166,17 +1166,6 @@ export function ZivaChat() {
         };
     }, [mounted]);
 
-    // Unread pulse
-    const [hasUnread, setHasUnread] = useState(false);
-    useEffect(() => {
-        if (!isOpen) {
-            const timer = setTimeout(() => setHasUnread(true), 5000);
-            return () => clearTimeout(timer);
-        } else {
-            setHasUnread(false);
-        }
-    }, [isOpen]);
-
     if (!mounted) return null;
 
     // ─── Render Markdown-lite ───────────────────────
@@ -1583,7 +1572,7 @@ export function ZivaChat() {
                 dragConstraints={{ top: -300, bottom: 50, left: -50, right: 50 }}
                 dragElastic={0.1}
                 dragMomentum={false}
-                className="pointer-events-auto transition-opacity duration-200 opacity-100 touch-none"
+                className="relative pointer-events-auto transition-opacity duration-200 opacity-100 touch-none"
             >
                 <motion.button
                     whileTap={{ scale: 0.92 }}
@@ -1613,13 +1602,38 @@ export function ZivaChat() {
                     {/* Unread pulse - top right exterior */}
                     {hasUnread && !isOpen && (
                         <>
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full z-[30] flex items-center justify-center border border-white">
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full z-[30] flex items-center justify-center border border-white">
                                 <span className="text-[8px] font-bold text-white leading-none">1</span>
                             </span>
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full z-20 animate-ping" />
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 rounded-full z-20 animate-ping" />
                         </>
                     )}
                 </motion.button>
+
+                {/* Invitation Chat Bubble — Moved inside motion.div to stay synced with FAB movement */}
+                <AnimatePresence>
+                    {showInviteBubble && !isOpen && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
+                            className="absolute bottom-20 right-2 z-[60] pointer-events-auto"
+                        >
+                            <div className="relative bg-emerald-600 text-white px-4 py-3 rounded-2xl rounded-br-none shadow-2xl border border-emerald-400/30 max-w-[180px]">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setShowInviteBubble(false); }}
+                                    className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                                <p className="text-[11px] font-bold leading-snug">
+                                    Hey! I'm Ziva. I can help you **find deals** or **negotiate prices**! 🧠✨
+                                </p>
+                                <div className="absolute bottom-[-8px] right-0 w-4 h-4 bg-emerald-600 rotate-45" style={{ clipPath: 'polygon(100% 0, 0 100%, 100% 100%)' }} />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </motion.div>
         </div >
     );
