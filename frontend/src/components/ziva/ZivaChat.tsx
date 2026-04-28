@@ -175,10 +175,13 @@ export function ZivaChat() {
     const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
     // kb-height handled globally by KeyboardAware.tsx via CSS variable --kb-height
     const [isWiggling, setIsWiggling] = useState(false);
+    const [showInviteBubble, setShowInviteBubble] = useState(false);
+    const [hasUnread, setHasUnread] = useState(true);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsWiggling(true);
+            setShowInviteBubble(true);
             setTimeout(() => setIsWiggling(false), 2000);
             try {
                 const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
