@@ -39,7 +39,8 @@ import {
     Gamepad,
     Package,
     Plug,
-    AlertTriangle
+    AlertTriangle,
+    Flame
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
