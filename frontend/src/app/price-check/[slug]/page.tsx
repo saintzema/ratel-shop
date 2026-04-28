@@ -310,7 +310,7 @@ export default async function PriceCheckPage({ params }: Props) {
                                     ))}
                                 </div>
                             </div>
-                        </div>   </div>
+                        </div>
                     </div>
                 </div>
             </main>

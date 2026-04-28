@@ -936,7 +936,7 @@ export function Navbar() {
                                                             </div>
                                                         )}
                                                         <div>
-                                                            <h3 className="text-[11px] font-black uppercase tracking-wider text-emerald-500 mb-3 flex items-center gap-1.5">
+                                                            <h3 className="text-[11px] font-black uppercase tracking-wider text-red-500 mb-3 flex items-center gap-1.5">
                                                                 <TrendingUp className="h-3.5 w-3.5" /> Trending Searches
                                                             </h3>
                                                             <div className="flex flex-wrap gap-2">
@@ -953,7 +953,7 @@ export function Navbar() {
                                                                                 searchRef.current?.querySelector<HTMLInputElement>('input[name="globalSearch"]')?.focus();
                                                                             }, 10);
                                                                         }} 
-                                                                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-700 rounded-lg transition-colors flex items-center gap-1.5"
+                                                                        className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-xs font-bold text-red-700 rounded-lg transition-colors flex items-center gap-1.5"
                                                                     >
                                                                         <Zap className="h-3 w-3" />
                                                                         {term}
