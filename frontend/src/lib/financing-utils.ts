@@ -78,6 +78,7 @@ export function calculateProductMonthlyPayment(
     let depositPct = getVehicleDepositPercent(); 
     let baseTenor = isVeh ? (LOAN_CONSTANTS.TENORS[condition as VehicleCondition] || 4) : 1; 
     let baseMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA;
+    let fixedDeposit: number | undefined = productObj.financing_down_payment;
 
     // Apply product-specific overrides if configured
     if (productObj?.financing_config?.enabled) {
@@ -110,15 +111,27 @@ export function calculateProductMonthlyPayment(
         } catch (e) {}
     }
 
-    const totalMarkup = price * annualMarkup * years;
-    const totalAmount = price + totalMarkup;
-    const monthlyPayment = totalAmount / months;
+    // Correct Loan Calculation:
+    // 1. Calculate Deposit
+    const depositAmount = fixedDeposit !== undefined ? fixedDeposit : Math.round(price * depositPct);
+    
+    // 2. Loan Principal is the balance after deposit
+    const loanPrincipal = Math.max(0, price - depositAmount);
+    
+    // 3. Total Interest (Markup) applied to the principal only
+    const totalMarkup = loanPrincipal * annualMarkup * years;
+    
+    // 4. Total Loan Repayment (Principal + Interest)
+    const totalLoanRepayment = loanPrincipal + totalMarkup;
+    
+    // 5. Monthly installment
+    const monthlyPayment = months > 0 ? (totalLoanRepayment / months) : 0;
 
     return {
         monthlyPayment: Math.round(monthlyPayment),
-        deposit: Math.round(price * depositPct),
+        deposit: depositAmount,
         tenorMonths: months,
-        totalAmount: Math.round(totalAmount),
+        totalAmount: Math.round(depositAmount + totalLoanRepayment), // Total cost to customer
         markupAmount: Math.round(totalMarkup),
         interestRate: annualMarkup,
     };

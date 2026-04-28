@@ -244,9 +244,9 @@ const toolDeclarations = [
    ────────────────────────────────────────────────────────── */
 
 export async function POST(req: Request) {
-    try {
-        const { message, history, userName, catalogue, searchCache, browsingHistory } = await req.json();
+    const { message, history, userName, catalogue, searchCache, browsingHistory } = await req.json();
 
+    try {
         const productsToUse = catalogue || SEED_PRODUCTS;
         const cacheToUse = searchCache || [];
 
@@ -409,12 +409,62 @@ After using tools, respond with this JSON structure:
             });
         }
 
-    } catch (error) {
-        console.error("Ziva Chat Error:", error);
-        return NextResponse.json({
-            message: "I'm having a little trouble connecting to my brain right now. 🧠✨ Please try again in a moment.",
-            intent: "error",
-            shouldEscalate: false
-        }, { status: 500 });
+    } catch (error: any) {
+        console.error("Ziva Chat Gemini Error (Falling back to local):", error);
+
+        // FALLBACK LOGIC: If Gemini fails (rate limit, etc.), try to fulfill the request locally
+        try {
+            const lowerMsg = message.toLowerCase();
+            
+            // 1. Simple Intent Detection
+            if (lowerMsg.includes('compare') || (lowerMsg.includes('difference between') && lowerMsg.split(' ').length > 4)) {
+                // Try to extract 2 names
+                const words = lowerMsg.replace('compare', '').replace('difference between', '').split(/and|vs|,/).map((w: string) => w.trim());
+                if (words.length >= 2) {
+                    const result = await comparePrices(words.slice(0, 3));
+                    return NextResponse.json({
+                        message: `I'm currently operating in offline mode, but I've compared those for you! 🧠✨\n\n${result.summary}`,
+                        intent: "comparison",
+                        shouldEscalate: false,
+                        suggestedProducts: result.products.filter((p: any) => !p.notFound).map((p: any) => p.name)
+                    });
+                }
+            }
+
+            if (lowerMsg.includes('price') || lowerMsg.includes('how much') || lowerMsg.includes('cost')) {
+                // Treat as explore or search
+                const query = lowerMsg.replace(/price of|how much is|cost of|what is the price of/g, '').trim();
+                const result = await searchCatalog(query);
+                return NextResponse.json({
+                    message: `I'm having some trouble with my advanced brain, but I've checked our local price list for "${query}". 💰\n\n${result.summary}`,
+                    intent: "price_check",
+                    shouldEscalate: false,
+                    suggestedProducts: result.products.map((p: any) => p.name)
+                });
+            }
+
+            // Default: treat as search
+            const searchResult = await searchCatalog(message);
+            if (searchResult.found > 0) {
+                return NextResponse.json({
+                    message: `My advanced AI is resting, but my catalog access is 100% online! Here's what I found for "${message}":`,
+                    intent: "product_search",
+                    shouldEscalate: false,
+                    suggestedProducts: searchResult.products.map((p: any) => p.name)
+                });
+            }
+
+            return NextResponse.json({
+                message: "I'm having a little trouble connecting to my full brain right now, and I couldn't find a direct match in the catalog. 🧠✨ Please try again in a moment or try searching for something else!",
+                intent: "error",
+                shouldEscalate: false
+            });
+        } catch (fallbackError) {
+            return NextResponse.json({
+                message: "I'm having a little trouble connecting to my brain right now. 🧠✨ Please try again in a moment.",
+                intent: "error",
+                shouldEscalate: false
+            }, { status: 500 });
+        }
     }
 }

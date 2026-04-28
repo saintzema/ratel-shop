@@ -1542,7 +1542,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                         animate={{ opacity: 1, scale: 1 }}
                                                         className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50 shrink-0 mb-1"
                                                     >
-                                                        {calculateMonthlyPayment(product.price).deposit / product.price >= 0.1 ? Math.round((calculateMonthlyPayment(product.price).deposit / product.price) * 100) : 15}% Deposit
+                                                        {loanAnalysis.deposit && product.price > 0 ? Math.round((loanAnalysis.deposit / (product.price * quantity)) * 100) : 15}% Deposit
                                                     </motion.span>
                                                 </div>
                                             </div>

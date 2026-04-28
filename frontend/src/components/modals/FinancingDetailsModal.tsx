@@ -15,7 +15,6 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
     if (!product) return null;
 
     const basePrice = product.price;
-    const depositPct = Math.round(getVehicleDepositPercent() * 100);
 
     return (
         <AnimatePresence>
@@ -99,7 +98,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                             <thead className="bg-gray-50/80 border-b border-gray-100">
                                                 <tr>
                                                     <th className="px-5 py-4 font-black text-gray-400 uppercase tracking-widest text-[10px] w-[30%]">Tenor / Duration</th>
-                                                    <th className="px-5 py-4 font-black text-gray-400 uppercase tracking-widest text-[10px] text-center">Initial Deposit ({depositPct}%)</th>
+                                                    <th className="px-5 py-4 font-black text-gray-400 uppercase tracking-widest text-[10px] text-center">Initial Deposit</th>
                                                     <th className="px-5 py-4 font-black text-gray-400 uppercase tracking-widest text-[10px] text-right">Monthly Installment</th>
                                                 </tr>
                                             </thead>
@@ -114,7 +113,10 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                                                 </span>
                                                             </td>
                                                             <td className="px-5 py-5 text-center">
-                                                                <span className="font-bold text-gray-600 text-sm">{formatPrice(analysis.deposit)}</span>
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="font-bold text-gray-600 text-sm">{formatPrice(analysis.deposit)}</span>
+                                                                    <span className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{Math.round((analysis.deposit / basePrice) * 100)}% Deposit</span>
+                                                                </div>
                                                             </td>
                                                             <td className="px-5 py-5 text-right">
                                                                 <div className="flex flex-col items-end">

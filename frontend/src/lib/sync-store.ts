@@ -469,6 +469,7 @@ class DataSyncServiceService {
                         is_active: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
                         is_sponsored: p.isSponsored || p.is_sponsored || false,
                         original_price: p.originalPrice || p.original_price,
+                        financing_down_payment: p.financingDownPayment || p.financing_down_payment,
                         seller_name: p.sellerName || p.seller_name || "Global Store",
                         tags: p.tags || [],
                         subcategory: p.subcategory || "",
