@@ -303,7 +303,7 @@ default to NEW from 2024 onwards.
             if (response.status === 429) {
                 // If we get a 429 even after retries, it means the daily quota is likely exhausted.
                 return NextResponse.json(
-                    { error: "AI search is currently resting. Please try again later or use the popular searches below." },
+                    { error: "Global Search is completed. Please try again later or use the popular searches above." },
                     { status: 429 }
                 );
             }

@@ -81,6 +81,13 @@ export function ProductImageSlot({
                 value={url}
                 onChange={(e) => onUrlChange(e.target.value)}
                 onBlur={(e) => onUrlChange(wrapInCDN(e.target.value))}
+                onPaste={(e) => {
+                    const pastedText = e.clipboardData.getData('text');
+                    if (pastedText.startsWith('http')) {
+                        // Allow small delay for paste to complete or handle it directly
+                        setTimeout(() => onUrlChange(wrapInCDN(pastedText)), 0);
+                    }
+                }}
                 className="rounded-xl text-xs bg-gray-50 border-gray-100 h-10 focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500"
                 placeholder="Or paste URL..."
             />

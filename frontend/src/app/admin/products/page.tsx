@@ -39,7 +39,7 @@ import { ProductCategory, CATEGORIES } from "@/lib/types";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn, wrapInCDN } from "@/lib/utils";
+import { cn, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
 import Image from "next/image";
 import Link from "next/link";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -738,7 +738,7 @@ export default function CatalogControl() {
                                                 }}
                                             />
                                             <div className="h-16 w-16 rounded-2xl border border-gray-200 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1">
-                                                <img src={p.image_url || '/assets/images/placeholder.png'} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                                <img src={getProxiedImageUrl(p.image_url)} alt={p.name} className="object-contain w-full h-full" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <Link href={`/product/${p.id}`} className="text-sm font-bold text-gray-900 hover:text-indigo-600 transition-colors line-clamp-1">{p.name}</Link>
@@ -806,8 +806,8 @@ export default function CatalogControl() {
                                 <div className="space-y-4 py-2">
                                     <div><label className="text-xs font-bold text-gray-500 mb-1 block">Product Name</label><Input value={cacheEditFields.name} onChange={e => setCacheEditFields(p => ({ ...p, name: e.target.value }))} /></div>
                                     <div><label className="text-xs font-bold text-gray-500 mb-1 block">Price (₦)</label><Input type="text" value={cacheEditFields.price} onChange={e => setCacheEditFields(p => ({ ...p, price: e.target.value }))} /></div>
-                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} placeholder="https://..." /></div>
-                                    {cacheEditFields.image_url && <img src={cacheEditFields.image_url} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
+                                    <div><label className="text-xs font-bold text-gray-500 mb-1 block">Image URL</label><Input value={cacheEditFields.image_url} onChange={e => setCacheEditFields(p => ({ ...p, image_url: e.target.value }))} onBlur={e => setCacheEditFields(p => ({ ...p, image_url: wrapInCDN(e.target.value) }))} onPaste={e => { const txt = e.clipboardData.getData('text'); if (txt.startsWith('http')) setTimeout(() => setCacheEditFields(p => ({ ...p, image_url: wrapInCDN(txt) })), 0); }} placeholder="https://..." /></div>
+                                    {cacheEditFields.image_url && <img src={getProxiedImageUrl(cacheEditFields.image_url)} alt="Preview" className="h-20 w-20 object-contain rounded-lg border" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />}
                                     <div><label className="text-xs font-bold text-gray-500 mb-1 block">Description</label><textarea className="w-full border rounded-lg p-2 text-sm min-h-[80px]" value={cacheEditFields.description} onChange={e => setCacheEditFields(p => ({ ...p, description: e.target.value }))} /></div>
                                 </div>
                                 <DialogFooter className="gap-2">
@@ -892,7 +892,7 @@ export default function CatalogControl() {
                                             <td className="px-6 py-4 align-middle">
                                                 <div className="flex items-center gap-4">
                                                     <div className="h-16 w-16 rounded-2xl border border-gray-100 bg-white overflow-hidden flex-shrink-0 flex items-center justify-center p-1 relative">
-                                                        <img src={p.image_url || undefined} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                        <img src={getProxiedImageUrl(p.image_url)} alt={p.name} className="object-contain w-full h-full mix-blend-multiply" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                         {p.price_flag !== "fair" && (
                                                             <div className="absolute top-1 left-1">
                                                                 <div className="h-2 w-2 rounded-full bg-rose-500 shadow-sm"></div>
@@ -1163,7 +1163,7 @@ export default function CatalogControl() {
                                                         </td>
                                                         <td className="px-5 py-4">
                                                             <div className="flex items-center gap-3">
-                                                                <img src={r.image_url || undefined} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" onError={e => { e.currentTarget.style.display = 'none'; }} />
+                                                                <img src={getProxiedImageUrl(r.image_url)} alt="" className="w-10 h-10 rounded-xl object-contain bg-gray-50 border border-gray-100 p-1" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                                                 <p className="text-xs font-bold text-gray-900 line-clamp-2 max-w-[200px]">{r.name}</p>
                                                             </div>
                                                         </td>

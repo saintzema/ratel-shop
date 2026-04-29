@@ -1622,7 +1622,7 @@ export function ZivaChat() {
                             exit={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
                             className="absolute bottom-20 right-2 z-[60] pointer-events-auto"
                         >
-                            <div className="relative bg-blue-600 text-white px-4 py-3 rounded-2xl rounded-br-none shadow-2xl border border-blue-400/30 max-w-[180px]">
+                            <div className="relative bg-blue-600 text-white pl-6 pr-4 py-3 rounded-2xl rounded-br-none shadow-2xl border border-blue-400/30 max-w-[180px]">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowInviteBubble(false); }}
                                     className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors"

@@ -151,7 +151,7 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
     // Proxy external HTTP(S) links — use ?thumb=1 so the CDN route redirects
     // directly to the source (zero server CPU) instead of running Sharp.
     if (url.startsWith('http') && !isVideoUrl(url)) {
-        return `/api/image-cdn?url=${encodeURIComponent(url)}&thumb=1`;
+        return `/api/image-cdn?url=${encodeURIComponent(url)}`;
     }
 
     return url;
