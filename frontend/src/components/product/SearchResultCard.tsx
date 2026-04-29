@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins, TrendingUp } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl, isVideoUrl, getProxiedImageUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
