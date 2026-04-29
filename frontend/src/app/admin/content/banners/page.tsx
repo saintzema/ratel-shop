@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,7 @@ import {
     Upload
 } from "lucide-react";
 import Link from "next/link";
+import { getProxiedImageUrl } from "@/lib/utils";
 
 interface Banner {
     id: string;
@@ -35,16 +36,41 @@ const INITIAL_BANNERS: Banner[] = [
 ];
 
 export default function BannerManagement() {
-    const [banners, setBanners] = useState<Banner[]>(INITIAL_BANNERS);
+    const [banners, setBanners] = useState<Banner[]>([]);
+    const [mounted, setMounted] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editTitle, setEditTitle] = useState("");
     const [editSubtitle, setEditSubtitle] = useState("");
     const [editLink, setEditLink] = useState("");
+    const [editImageUrl, setEditImageUrl] = useState("");
     const [showAddForm, setShowAddForm] = useState(false);
     const [newTitle, setNewTitle] = useState("");
     const [newSubtitle, setNewSubtitle] = useState("");
     const [newLink, setNewLink] = useState("");
+    const [newImageUrl, setNewImageUrl] = useState("");
     const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+    // Load from localStorage on mount
+    useEffect(() => {
+        const saved = localStorage.getItem("ratel_homepage_banners");
+        if (saved) {
+            try {
+                setBanners(JSON.parse(saved));
+            } catch (e) {
+                setBanners(INITIAL_BANNERS);
+            }
+        } else {
+            setBanners(INITIAL_BANNERS);
+        }
+        setMounted(true);
+    }, []);
+
+    // Save to localStorage when banners change
+    useEffect(() => {
+        if (mounted) {
+            localStorage.setItem("ratel_homepage_banners", JSON.stringify(banners));
+        }
+    }, [banners, mounted]);
 
     const flash = (msg: string) => {
         setStatusMsg(msg);
@@ -61,10 +87,11 @@ export default function BannerManagement() {
         setEditTitle(banner.title);
         setEditSubtitle(banner.subtitle);
         setEditLink(banner.link);
+        setEditImageUrl(banner.image_url);
     };
 
     const saveEdit = () => {
-        setBanners(prev => prev.map(b => b.id === editingId ? { ...b, title: editTitle, subtitle: editSubtitle, link: editLink } : b));
+        setBanners(prev => prev.map(b => b.id === editingId ? { ...b, title: editTitle, subtitle: editSubtitle, link: editLink, image_url: editImageUrl } : b));
         setEditingId(null);
         flash("Banner updated.");
     };
@@ -82,7 +109,7 @@ export default function BannerManagement() {
             id: `b_${Date.now()}`,
             title: newTitle,
             subtitle: newSubtitle,
-            image_url: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800",
+            image_url: newImageUrl || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=800",
             link: newLink || "/",
             active: true,
             position: banners.length + 1,
@@ -92,8 +119,11 @@ export default function BannerManagement() {
         setNewTitle("");
         setNewSubtitle("");
         setNewLink("");
+        setNewImageUrl("");
         flash("Banner added.");
     };
+
+    if (!mounted) return null;
 
     return (
         <div className="space-y-8 max-w-5xl">
@@ -114,12 +144,18 @@ export default function BannerManagement() {
             {showAddForm && (
                 <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm space-y-4">
                     <h3 className="font-bold text-gray-900">New Banner</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <Input placeholder="Title" value={newTitle} onChange={e => setNewTitle(e.target.value)} className="rounded-xl" />
                         <Input placeholder="Subtitle" value={newSubtitle} onChange={e => setNewSubtitle(e.target.value)} className="rounded-xl" />
                         <Input placeholder="Link (e.g. /category/deals)" value={newLink} onChange={e => setNewLink(e.target.value)} className="rounded-xl" />
+                        <Input placeholder="Image URL or GIF Link" value={newImageUrl} onChange={e => setNewImageUrl(e.target.value)} className="rounded-xl" />
                     </div>
-                    <div className="flex gap-2">
+                    {newImageUrl && (
+                        <div className="mt-2 h-32 w-full max-w-md bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                            <img src={getProxiedImageUrl(newImageUrl)} alt="Preview" className="w-full h-full object-cover" />
+                        </div>
+                    )}
+                    <div className="flex gap-2 pt-2">
                         <Button onClick={addBanner} disabled={!newTitle.trim()} className="bg-brand-green-600 hover:bg-brand-green-700 text-white rounded-xl text-xs font-bold px-5">Save</Button>
                         <Button variant="ghost" onClick={() => setShowAddForm(false)} className="rounded-xl text-xs font-bold text-gray-400">Cancel</Button>
                     </div>
@@ -136,17 +172,18 @@ export default function BannerManagement() {
 
                             {/* Image Preview */}
                             <div className="h-16 w-28 bg-gray-50 rounded-xl overflow-hidden border border-gray-100 shrink-0">
-                                <img src={banner.image_url} alt={banner.title} className="w-full h-full object-cover" />
+                                <img src={getProxiedImageUrl(banner.image_url)} alt={banner.title} className="w-full h-full object-cover" />
                             </div>
 
                             {/* Content */}
                             <div className="flex-1 min-w-0">
                                 {editingId === banner.id ? (
                                     <div className="space-y-2">
-                                        <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-8 text-sm rounded-lg" />
-                                        <div className="flex gap-2">
+                                        <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} className="h-8 text-sm rounded-lg" placeholder="Title" />
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                             <Input value={editSubtitle} onChange={e => setEditSubtitle(e.target.value)} className="h-8 text-sm rounded-lg" placeholder="Subtitle" />
                                             <Input value={editLink} onChange={e => setEditLink(e.target.value)} className="h-8 text-sm rounded-lg" placeholder="Link URL" />
+                                            <Input value={editImageUrl} onChange={e => setEditImageUrl(e.target.value)} className="h-8 text-sm rounded-lg" placeholder="Image URL" />
                                         </div>
                                         <div className="flex gap-2">
                                             <Button size="sm" onClick={saveEdit} className="h-7 rounded-lg text-xs bg-gray-900 hover:bg-gray-800 text-white">Save</Button>

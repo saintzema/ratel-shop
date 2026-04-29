@@ -191,7 +191,26 @@ export function wrapInCDN(url: string | null | undefined): string {
 export function isVideoUrl(url: string | null | undefined): boolean {
     if (!url) return false;
     const lower = url.toLowerCase();
-    // Common video extensions and handling URLs with query parameters
+    // Common video extensions
     const extensions = ['.mp4', '.webm', '.ogg', '.mov'];
-    return extensions.some(ext => lower.includes(ext));
+    if (extensions.some(ext => lower.includes(ext))) return true;
+    
+    // Video player pages that need iframes or special handling
+    if (lower.includes('amazon.co.uk/vdp/') || lower.includes('amazon.com/vdp/')) return true;
+    if (lower.includes('temu.com/video/')) return true;
+    if (lower.includes('youtube.com/watch') || lower.includes('youtu.be/')) return true;
+    
+    return false;
+}
+
+export function isIframeVideoUrl(url: string | null | undefined): boolean {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return lower.includes('/vdp/') || 
+           lower.includes('temu.com/video/') || 
+           lower.includes('youtube.com') || 
+           lower.includes('youtu.be') ||
+           lower.includes('tiktok.com') ||
+           lower.includes('instagram.com') ||
+           lower.includes('vimeo.com');
 }

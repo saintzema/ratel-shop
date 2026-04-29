@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Product } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
-import { formatPrice, cn } from "@/lib/utils";
+import { formatPrice, cn, getProxiedImageUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -435,7 +435,7 @@ export default function SellerProducts() {
                             <div className="flex gap-5">
                                 {/* Thumbnail: Elite Style */}
                                 <div className="h-24 w-24 bg-white rounded-[20px] border border-gray-100 shadow-xl overflow-hidden flex items-center justify-center p-2 shrink-0 relative group">
-                                    <img src={product.image_url || "/assets/images/placeholder-product.svg"} alt={product.name} className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" />
+                                    <img src={getProxiedImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" onError={(e) => { e.currentTarget.src = "/assets/images/placeholder-product.svg"; }} />
                                     {product.price_flag === "overpriced" && (
                                         <div className="absolute top-1 right-1 bg-rose-500 rounded-full p-1 shadow-lg">
                                             <AlertTriangle className="h-3 w-3 text-white" />
@@ -555,7 +555,7 @@ export default function SellerProducts() {
                                 <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-6 py-5">
                                         <div className="h-14 w-14 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden flex items-center justify-center p-1 relative">
-                                            <img src={product.image_url || "/assets/images/placeholder-product.svg"} alt={product.name} className="h-full w-full object-contain mix-blend-multiply" />
+                                            <img src={getProxiedImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = "/assets/images/placeholder-product.svg"; }} />
                                             {product.price_flag === "overpriced" && (
                                                 <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full p-0.5">
                                                     <AlertTriangle className="h-2.5 w-2.5 text-white" />
@@ -767,7 +767,7 @@ export default function SellerProducts() {
                         return (
                             <div className="py-2 space-y-4">
                                 <div className="flex items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100 mb-2">
-                                    <img src={dealModalOpen.product.image_url || '/assets/images/placeholder.png'} alt="" className="w-12 h-12 rounded object-contain" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
+                                    <img src={getProxiedImageUrl(dealModalOpen.product.image_url)} alt="" className="w-12 h-12 rounded object-contain" onError={(e) => { e.currentTarget.src = '/assets/images/placeholder.png'; }} />
                                     <div>
                                         <p className="font-bold text-sm text-gray-900 line-clamp-1">{dealModalOpen.product.name}</p>
                                         <p className="text-xs text-gray-500">Current: ₦{dealModalOpen.product.price.toLocaleString()}</p>

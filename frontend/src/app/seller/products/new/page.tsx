@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sparkles, Check, ChevronLeft, Plus, X, Save, TrendingUp, Info, Upload, ImagePlus, Trash2, Globe, Loader2 } from "lucide-react";
-import { formatPrice, wrapInCDN } from "@/lib/utils";
+import { formatPrice, wrapInCDN, getProxiedImageUrl } from "@/lib/utils";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
@@ -496,7 +496,7 @@ export default function NewProduct() {
                                     e.preventDefault();
                                     const val = e.currentTarget.value;
                                     if (!val) return;
-                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean);
+                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean).map(wrapInCDN);
                                     setFormData(prev => {
                                         const current = prev.images.filter(x => x.trim() !== "");
                                         return { ...prev, images: [...current, ...newUrls] };
@@ -511,7 +511,7 @@ export default function NewProduct() {
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         {formData.images.filter(url => url.trim() !== "").map((url, i) => (
                             <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
-                                <img src={url} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
+                                <img src={getProxiedImageUrl(url)} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
                                 
                                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                     <Button variant="ghost" size="icon" onClick={() => {

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Star, Store as StoreIcon, TrendingUp } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
@@ -18,7 +18,7 @@ import { RecentlyViewedHorizontal } from "@/components/ui/RecentlyViewedHorizont
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { useFavorites } from "@/context/FavoritesContext";
 import { useCart } from "@/context/CartContext";
-import { formatPrice, getProductUrl } from "@/lib/utils";
+import { formatPrice, getProductUrl, getProxiedImageUrl, cn } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 
@@ -189,6 +189,8 @@ function HomeContent() {
   const [mounted, setMounted] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
+  const [banners, setBanners] = useState<any[]>([]);
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -214,6 +216,20 @@ function HomeContent() {
       } catch (e) {}
 
       setIsSeller(!!DataSyncService.getCurrentSellerId() || hasSellerRole);
+      
+      // Load Banners
+      try {
+        const savedBanners = localStorage.getItem("ratel_homepage_banners");
+        if (savedBanners) {
+          setBanners(JSON.parse(savedBanners).filter((b: any) => b.active));
+        } else {
+          // Fallback to defaults
+          setBanners([
+            { id: "b1", title: "Mega Sale — Up to 70% Off", subtitle: "Electronics, fashion & more", image_url: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000", link: "/category/deals", active: true },
+            { id: "b2", title: "New Arrivals This Week", subtitle: "Discover trending products", image_url: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=2000", link: "/category/new", active: true }
+          ]);
+        }
+      } catch(e) {}
     };
     const loadGrids = () => {
       try {
@@ -233,6 +249,15 @@ function HomeContent() {
       window.removeEventListener("storage", loadGrids);
     };
   }, []);
+
+  // Slideshow timer
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [banners]);
 
   // ─── Unified Product Memoization Engine ───
   // Consolidating all filtering logic into ONE memoized block to solve the 'Lag' issue.
@@ -345,7 +370,7 @@ function HomeContent() {
       fairPriceProducts,
       followedStoreProducts
     };
-  }, [allProducts]);
+  }, [allProducts, mounted]);
 
   return (
     <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
@@ -355,29 +380,62 @@ function HomeContent() {
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
-          {/* ─── Hero Section ─── */}
-          <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5">
-            <div className="absolute inset-0">
-              <img
-                src="/assets/images/image_v1.png"
-                onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
-                className="w-full h-full object-cover opacity-65"
-                alt="Hero"
-              />
-              <div
-                className="absolute inset-0 transition-colors duration-700"
-                style={{
-                  backgroundImage: 'linear-gradient(to bottom, transparent 0%, transparent 60%, #E3E6E6 100%)'
-                }}
-              />
+          {/* ─── Hero Section (Slideshow) ─── */}
+          <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5 h-[500px] md:h-[650px]">
+            <div className="absolute inset-0 z-0">
+              <AnimatePresence mode="wait">
+                {banners.length > 0 && (
+                  <motion.div
+                    key={banners[currentBannerIndex].id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 1.5, ease: "easeInOut" }}
+                    className="absolute inset-0"
+                  >
+                    <img
+                      src={getProxiedImageUrl(banners[currentBannerIndex].image_url)}
+                      onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                      className="w-full h-full object-cover opacity-65"
+                      alt={banners[currentBannerIndex].title || "Hero"}
+                    />
+                    <div
+                      className="absolute inset-0 transition-colors duration-700"
+                      style={{
+                        backgroundImage: 'linear-gradient(to bottom, transparent 0%, transparent 60%, #E3E6E6 100%)'
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <div className="relative container mx-auto h-full flex flex-col justify-center px-2 py-4 text-center text-white z-10">
+              <AnimatePresence mode="wait">
+                {banners.length > 0 && (
+                  <motion.div
+                    key={`text-${banners[currentBannerIndex].id}`}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.8 }}
+                    className="mb-8"
+                  >
+                    <h1 className="text-4xl md:text-6xl font-black tracking-tight drop-shadow-2xl mb-4">
+                      {banners[currentBannerIndex].title}
+                    </h1>
+                    <p className="text-lg md:text-2xl font-bold opacity-90 max-w-2xl mx-auto drop-shadow-lg">
+                      {banners[currentBannerIndex].subtitle}
+                    </p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.3 }}
-                className="flex flex-col sm:flex-row justify-center items-center gap-4"
+                className="flex flex-col sm:flex-row justify-center items-center gap-4 mt-4"
               >
                 <Button
                   size="lg"
@@ -399,6 +457,22 @@ function HomeContent() {
                   <StoreIcon className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
                 </Button>
               </motion.div>
+
+              {/* Dot Indicators */}
+              {banners.length > 1 && (
+                <div className="flex justify-center gap-2 mt-12">
+                  {banners.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentBannerIndex(i)}
+                      className={cn(
+                        "h-1.5 rounded-full transition-all duration-500",
+                        currentBannerIndex === i ? "w-8 bg-brand-green-500" : "w-2 bg-white/30 hover:bg-white/50"
+                      )}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
