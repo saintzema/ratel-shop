@@ -17,7 +17,7 @@ export async function GET() {
 
         const fetchWithRetry = async (attempt = 0): Promise<Response> => {
             const model = genAI.getGenerativeModel({
-                model: "gemini-1.5-flash",
+                model: "gemini-2.0-flash",
                 tools: [{ googleSearch: {} } as any]
             });
 

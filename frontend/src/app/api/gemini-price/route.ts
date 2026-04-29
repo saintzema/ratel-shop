@@ -8,6 +8,80 @@ const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-
 // because identical queries ("iphone 15", "lexus rx 350") are served from Postgres.
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
+// ─── Server-Side Image Hydration Engine ───
+// Mirrors /api/product-image logic but callable directly without HTTP roundtrip.
+// Priority: Serper.dev → Google Custom Search → Wikipedia
+const SERPER_API_KEY = process.env.SERPER_API_KEY;
+const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
+const GOOGLE_SEARCH_CX = process.env.GOOGLE_SEARCH_CX;
+
+async function hydrateImageServerSide(productName: string, category?: string): Promise<string | null> {
+    const cat = (category || "").toLowerCase();
+    let searchModifier = " official product image high resolution";
+    if (cat.includes("car") || cat.includes("vehicle")) {
+        searchModifier = " professional exterior photo site:cars45.com OR site:jiji.ng";
+    } else if (cat.includes("phone") || cat.includes("electronic") || cat.includes("computing")) {
+        searchModifier = " official white background product shot high resolution";
+    } else if (cat.includes("fashion")) {
+        searchModifier = " high resolution studio fashion photography";
+    }
+
+    // Strategy 1: Serper.dev (best quality, 2500 free/month)
+    if (SERPER_API_KEY) {
+        try {
+            const res = await fetch("https://google.serper.dev/images", {
+                method: "POST",
+                headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify({ q: productName + searchModifier, num: 10 }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const images = (data?.images || [])
+                    .map((img: any) => img.imageUrl)
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar"));
+                if (images.length > 0) return images[0];
+            }
+        } catch (e) { console.warn("Serper hydration failed:", e); }
+    }
+
+    // Strategy 2: Google Custom Search
+    if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_CX) {
+        try {
+            const res = await fetch(
+                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(productName + searchModifier)}&searchType=image&num=3`
+            );
+            if (res.ok) {
+                const data = await res.json();
+                if (data.items?.[0]?.link) return data.items[0].link;
+            }
+        } catch (e) { console.warn("Google CSE hydration failed:", e); }
+    }
+
+    // Strategy 3: Wikipedia (always free)
+    try {
+        const searchRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(productName)}&utf8=&format=json`);
+        if (searchRes.ok) {
+            const searchData = await searchRes.json();
+            const title = searchData?.query?.search?.[0]?.title;
+            if (title) {
+                const imgRes = await fetch(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&format=json&pithumbsize=1000`);
+                if (imgRes.ok) {
+                    const imgData = await imgRes.json();
+                    const pages = imgData?.query?.pages;
+                    if (pages) {
+                        const pageId = Object.keys(pages)[0];
+                        const source = pages[pageId]?.thumbnail?.source;
+                        if (source) return source;
+                    }
+                }
+            }
+        }
+    } catch (e) { console.warn("Wikipedia hydration failed:", e); }
+
+    return null;
+}
+
+
 function makeCacheKey(productName: string, mode: string, category?: string, anchorPrice?: number): string {
     return `v1:${mode}:${(category || 'any').toLowerCase()}:${productName.trim().toLowerCase()}${anchorPrice ? `:a${anchorPrice}` : ''}`;
 }
@@ -349,11 +423,38 @@ default to NEW from 2024 onwards.
                         return item;
                     });
                 } else {
-                    // POWER FIX: If NO images found, try to use a generic manufacturer/press image based on query
-                    // This is a last resort to ensure NO red placeholders.
-                    // (In a real production app, we'd call a dedicated image search API here)
-                    console.log(`⚠️ No images found for query: ${productName}. Propagating placeholder detection.`);
+                    // ─── POWER FIX: Server-Side Image Hydration via Serper/Google CSE ───
+                    // Gemini returned ZERO valid images. Call our image search pipeline
+                    // server-side (no Gemini quota used) to fetch a real product image.
+                    console.log(`🔍 No Gemini images for "${productName}". Hydrating via Serper...`);
+                    try {
+                        const hydratedImage = await hydrateImageServerSide(productName, category);
+                        if (hydratedImage) {
+                            // CDN-wrap the image so it routes through our domain
+                            const cdnImage = hydratedImage.startsWith('http')
+                                ? `/api/image-cdn?url=${encodeURIComponent(hydratedImage)}`
+                                : hydratedImage;
+                            // Propagate to ALL suggestions
+                            parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                                if (!isValidPermanentUrl(item.image_url)) {
+                                    item.image_url = cdnImage;
+                                }
+                                return item;
+                            });
+                            console.log(`✅ Hydrated ${parsedData.suggestions.length} products with image from Serper`);
+                        }
+                    } catch (imgErr) {
+                        console.warn(`⚠️ Server-side image hydration failed:`, imgErr);
+                    }
                 }
+
+                // ─── CDN-WRAP ALL IMAGES (ensure every image routes through our domain) ───
+                parsedData.suggestions = parsedData.suggestions.map((item: any) => {
+                    if (item.image_url && item.image_url.startsWith('http') && !item.image_url.includes('/api/image-cdn')) {
+                        item.image_url = `/api/image-cdn?url=${encodeURIComponent(item.image_url)}`;
+                    }
+                    return item;
+                });
             }
 
             // Post-processing: Clamp prices to anchor if provided (prevents hallucination)
@@ -383,6 +484,27 @@ default to NEW from 2024 onwards.
                 create: { query: cacheKey, products: parsedData as any },
                 update: { products: parsedData as any },
             }).catch((e) => console.warn("[gemini-price] cache write failed:", (e as any)?.message || e));
+
+            // ─── FIRE-AND-FORGET: Backfill DB product images ───
+            // SAFETY: Only updates global-partners products that CURRENTLY have a
+            // placeholder image. Never touches other sellers or manually-updated images.
+            if (mode === "search" && parsedData.suggestions) {
+                for (const item of parsedData.suggestions) {
+                    if (item.image_url && !item.image_url.includes('placeholder')) {
+                        const slug = (item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 80);
+                        const productId = `global-${slug}`;
+                        db.product.updateMany({
+                            where: {
+                                id: { startsWith: productId.slice(0, 30) },
+                                sellerId: 'global-partners',
+                                imageUrl: { contains: 'placeholder' },
+                            },
+                            data: { imageUrl: item.image_url },
+                        }).catch(() => {}); // Silent — best effort
+                    }
+                }
+            }
+
 
             return NextResponse.json(parsedData, { headers: { "X-Cache": "MISS" } });
         } catch (parseError) {

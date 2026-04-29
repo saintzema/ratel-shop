@@ -599,17 +599,9 @@ export function Navbar() {
             }, 10);
         }
 
-        // ─── ELITE REVIEW GENERATION ───
-        // Trigger review generation in background for the promoted global product
-        if (resolvedClickedId && (resolvedClickedId.startsWith('global-') || resolvedClickedId.startsWith('idx-'))) {
-            setTimeout(() => {
-                fetch('/api/gemini-reviews', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ productId: resolvedClickedId })
-                }).catch(() => {});
-            }, 100);
-        }
+        // NOTE: Review generation removed from NavSearch to conserve Gemini quota.
+        // Reviews are now generated on-demand when user views the PDP reviews section.
+
 
         } catch (err) {
             console.error('[NavSearch] navigateWithResults error:', err);
