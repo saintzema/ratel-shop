@@ -84,7 +84,7 @@ export async function GET(req: Request) {
             review_count: p.reviewCount,
             sold_count: p.soldCount,
             created_at: p.createdAt.toISOString(),
-            slug: p.slug,
+            slug: p.slug || undefined,
         }));
 
         // 3. UPDATED: Return 'total' in the response
