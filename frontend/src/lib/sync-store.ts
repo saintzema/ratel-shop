@@ -265,7 +265,7 @@ class DataSyncServiceService {
         // v17: Reset all stats, purge orphaned products/sellers/orders
         // v18: EXTREMELY IMPORTANT - Marketplace consolidation. Reassigned all products to Global Stores and purged demo stores/users.
         // v19: Clean Sweep Synchronization. Forced cache flush after database reset and cascading rules update.
-        const DATA_VERSION = "19";
+        const DATA_VERSION = "20";
         const currentVersion = localStorage.getItem("fairprice_data_version");
 
         if (currentVersion !== DATA_VERSION) {
@@ -483,10 +483,12 @@ class DataSyncServiceService {
                     const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
                     const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
                     
+                    const deletedStubs = this.getDeletedStubs();
+
                     // Apply DB updates (overwrite or add)
                     for (const dbProduct of mappedDbProducts) {
-                        // Skip if recently deleted locally
-                        if (this._deletedProductIds.has(dbProduct.id)) continue;
+                        // Skip if recently deleted locally or in persistent tombstone
+                        if (this._deletedProductIds.has(dbProduct.id) || deletedStubs.includes(dbProduct.id)) continue;
 
                         const localVersion = localMap.get(dbProduct.id);
                         if (localVersion) {
@@ -2087,13 +2089,16 @@ class DataSyncServiceService {
             if (s.userId || s.user_id) sellerMap.set(s.userId || s.user_id, s);
         });
 
-        const derivedProducts = allProducts.map((p: Product) => {
-            const seller = sellerMap.get(p.seller_id);
-            if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
-                return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
-            }
-            return p;
-        });
+        const deletedStubs = this.getDeletedStubs();
+        const derivedProducts = allProducts
+            .filter((p: Product) => !deletedStubs.includes(p.id))
+            .map((p: Product) => {
+                const seller = sellerMap.get(p.seller_id);
+                if (seller && (p.seller_name === "My Store" || !p.seller_name)) {
+                    return { ...p, seller_name: seller.business_name || seller.owner_name || "FairPrice Seller" };
+                }
+                return p;
+            });
 
         if (options?.includeInactiveSellers) return derivedProducts;
 

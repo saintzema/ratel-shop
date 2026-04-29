@@ -130,9 +130,9 @@ export function SearchResultCard({
                 )}
                 {/* Fair Price / Overpriced Badge Overlay */}
                 {product.price_flag === "fair" && (
-                    <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-red-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
-                        <ShieldCheck className="h-3.5 w-3.5 text-red-600" />
-                        <span className="text-[10px] font-black text-red-600 uppercase tracking-widest">Fair Price</span>
+                    <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
+                        <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Fair Price</span>
                     </div>
                 )}
                 {product.price_flag === "overpriced" && (
@@ -204,9 +204,9 @@ export function SearchResultCard({
                     {/* Phase 5: Trust Shield & Acceptance Rate OR Financing */}
                     <div className="flex items-center gap-1.5 ml-1">
                         {financingResult ? (
-                             <div className="flex items-center gap-1.5 bg-red-50 border border-red-100 px-3 py-1 rounded-full shadow-sm" title="Financing Available via FairPrice">
-                                <Coins className="h-3 w-3 text-red-600" />
-                                <span className="text-[11px] font-black text-red-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
+                             <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-100 px-3 py-1 rounded-full shadow-sm" title="Financing Available via FairPrice">
+                                <TrendingUp className="h-3 w-3 text-blue-600" />
+                                <span className="text-[11px] font-black text-blue-700">{formatNaira(financingResult.monthlyPayment)}/mo</span>
                              </div>
                         ) : (
                             <>
@@ -222,7 +222,7 @@ export function SearchResultCard({
                     </div>
 
                     {seller?.verified && (
-                        <Badge variant="outline" className="text-[9px] border-red-200 bg-red-50 text-red-700 py-0 px-1.5 h-4">Verified Seller</Badge>
+                        <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
                     )}
                     {seller?.subscription_plan && seller.subscription_plan !== "Starter" && (
                         <Badge variant="outline" className="text-[9px] border-amber-200 bg-amber-50 text-amber-700 py-0 px-1.5 h-4">Premium Seller</Badge>
@@ -285,7 +285,7 @@ export function SearchResultCard({
                 {/* Action Section */}
                 <div className="flex items-center gap-3">
                     <Button
-                        className="bg-red-600 hover:bg-red-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-full px-6 font-bold text-sm h-9 shadow-sm flex items-center gap-1.5"
                         onClick={(e) => { e.preventDefault(); e.stopPropagation(); addToCart(product); }}
                     >
                         <ShoppingCart className="h-4 w-4" /> Add to cart

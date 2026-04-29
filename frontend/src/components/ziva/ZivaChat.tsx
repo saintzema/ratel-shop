@@ -1590,7 +1590,7 @@ export function ZivaChat() {
                     )}
                     style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(20px)" }}
                 >
-                    <div className="absolute inset-0 bg-gradient-to-tr from-emerald-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
+                    <div className="absolute inset-0 bg-gradient-to-tr from-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-full" />
                     {isOpen ? (
                         <X className="h-6 w-6 text-white z-10" strokeWidth={2.5} />
                     ) : (
@@ -1622,7 +1622,7 @@ export function ZivaChat() {
                             exit={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
                             className="absolute bottom-20 right-2 z-[60] pointer-events-auto"
                         >
-                            <div className="relative bg-emerald-600 text-white px-4 py-3 rounded-2xl rounded-br-none shadow-2xl border border-emerald-400/30 max-w-[180px]">
+                            <div className="relative bg-blue-600 text-white px-4 py-3 rounded-2xl rounded-br-none shadow-2xl border border-blue-400/30 max-w-[180px]">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowInviteBubble(false); }}
                                     className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors"
@@ -1630,9 +1630,9 @@ export function ZivaChat() {
                                     <X className="h-3 w-3" />
                                 </button>
                                 <p className="text-[11px] font-bold leading-snug">
-                                    Hey! I'm Ziva. I can help you find deals & negotiate prices 😊  
+                                    Hey! I'm Ziva. I can help you find best deals & negotiate prices 😊  
                                 </p>
-                                <div className="absolute bottom-[-8px] right-0 w-4 h-4 bg-emerald-600 rotate-45" style={{ clipPath: 'polygon(100% 0, 0 100%, 100% 100%)' }} />
+                                <div className="absolute bottom-[-8px] right-0 w-4 h-4 bg-blue-600 rotate-45" style={{ clipPath: 'polygon(100% 0, 0 100%, 100% 100%)' }} />
                             </div>
                         </motion.div>
                     )}

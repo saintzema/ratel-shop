@@ -1953,13 +1953,13 @@ function PriceHistoryChart({ result }: { result: PriceIntel }) {
             <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2 text-gray-700 text-[10px] font-bold uppercase tracking-wider">
                     {isRising ? (
-                        <TrendingUp className="h-3 w-3 text-red-600" />
+                        <TrendingUp className="h-3 w-3 text-blue-600" />
                     ) : (
                         <TrendingDown className="h-3 w-3 text-emerald-600" />
                     )}
                     6-Month Price Trend
                 </div>
-                <span className={`text-[10px] font-bold ${isRising ? "text-red-600" : "text-emerald-700"}`}>
+                <span className={`text-[10px] font-bold ${isRising ? "text-blue-600" : "text-emerald-700"}`}>
                     {isRising ? "↑ Rising" : "↓ Falling"}
                 </span>
             </div>
