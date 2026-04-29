@@ -2877,6 +2877,16 @@ getAllCachedProducts(): any[] {
         }
 
         const existingIdx = products.findIndex(p => p.id === product.id);
+        
+        // ─── PERSISTENT DELETION BLOCK ───
+        // If this product was explicitly deleted by the user, do NOT allow it to be re-added
+        // via automated search or global discovery.
+        const deletedStubs = this.getDeletedStubs();
+        if (deletedStubs.includes(product.id)) {
+            console.warn(`🛡️ Resilience: Blocked re-addition of deleted product ${product.id}`);
+            return null; 
+        }
+
         if (existingIdx >= 0) {
             const existing = products[existingIdx];
             
@@ -2913,7 +2923,7 @@ getAllCachedProducts(): any[] {
             // 🔥 REAL-TIME GOOGLE INDEXING: Ping Google Indexing API whenever a 
             // brand new product enters the platform (via Seller add or Admin promotion).
             if (typeof window !== "undefined") {
-                const absoluteUrl = getProductUrl(product.id, product.name);
+                const absoluteUrl = getProductUrl(product);
                 fetch("/api/google-index", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -3070,7 +3080,15 @@ getAllCachedProducts(): any[] {
         
         // Mark as deleted so syncWithDB doesn't add it back from stale DB response
         this._deletedProductIds.add(id);
-        setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min tombstone
+        
+        // PERSISTENT TOMBSTONE: Add to DELETED_STUBS so it never comes back via automated discovery
+        const deleted = this.getDeletedStubs();
+        if (!deleted.includes(id)) {
+            deleted.push(id);
+            localStorage.setItem(this.STORAGE_KEYS.DELETED_STUBS, JSON.stringify(deleted));
+        }
+
+        setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min memory tombstone
 
         // Sync deletion to Postgres via POST fallback (more reliable than DELETE method)
         resilientFetch(`/api/products`, { 

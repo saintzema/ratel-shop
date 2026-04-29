@@ -59,7 +59,8 @@ export async function GET(req: Request) {
                 specs: true,
                 financingAvailable: true,
                 createdAt: true,
-            },
+                slug: true,
+            } as any,
             orderBy: { createdAt: "desc" },
         });
 
@@ -67,7 +68,7 @@ export async function GET(req: Request) {
         if (hasMore) products.pop();
         const nextCursor = hasMore ? products[products.length - 1]?.id : null;
 
-        const mappedProducts = products.map(p => ({
+        const mappedProducts = products.map((p: any) => ({
             ...p,
             seller_id: p.sellerId,
             seller_name: p.sellerName,
@@ -83,6 +84,7 @@ export async function GET(req: Request) {
             review_count: p.reviewCount,
             sold_count: p.soldCount,
             created_at: p.createdAt.toISOString(),
+            slug: p.slug,
         }));
 
         // 3. UPDATED: Return 'total' in the response
@@ -217,9 +219,10 @@ export async function POST(req: Request) {
             specs: rawSpecs,
             financingAvailable: body.financing_available || false,
             externalUrl: body.external_url,
-        };
+            slug: body.slug,
+        } as any;
 
-        const product = await db.product.upsert({
+        const product = await (db.product as any).upsert({
             where: { id: productData.id },
             update: productData,
             create: productData,

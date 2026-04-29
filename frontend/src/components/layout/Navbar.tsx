@@ -491,17 +491,25 @@ export function Navbar() {
                 source_url: r.sourceUrl || '',
             };
         })
-        // ─── Vehicle Price Floor Logic (Zero Latency Sanity Check) ───
+        // ─── Vehicle & Premium Phone Price Floor Logic (Zero Latency Sanity Check) ───
         .filter((p: any) => {
-            const VEHICLE_FLOOR = 5_000_000;
-            if (p.price >= VEHICLE_FLOOR) return true;
-            
             const name = p.name.toLowerCase();
             const cat = (p.category || "").toLowerCase();
             
-            // Allow parts/accessories/phones explicitly even if low priced
-            const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|headphone|watch|powerbank|speaker|laptop|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
-            const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+            // 1. Determine floors based on product year/type
+            const itemYearMatch = name.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
+            const itemYear = itemYearMatch ? parseInt(itemYearMatch[0], 10) : null;
+            
+            // 2022+ cars should never be below 18M. 2015-2021 should never be below 8M. Older cars at 5M.
+            const VEHICLE_FLOOR = (itemYear && itemYear >= 2022) ? 18_000_000 : (itemYear && itemYear >= 2015) ? 8_000_000 : 5_000_000;
+            
+            // iPhone 13+, Galaxy S22+
+            const isPremiumPhone = /\b(iphone\s*(13|14|15|16)|galaxy\s*s(22|23|24|25|26))\b/i.test(name);
+            const PHONE_FLOOR = (name.includes("pro max") || name.includes("ultra") || name.includes("fold")) ? 650_000 : 350_000;
+
+            // Allow parts/accessories explicitly even if low priced
+            const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone\s*case|screen\s*protector|cable|toy|scale\s*model|diecast|miniature)\b/i;
+            const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|range\s*rover|defender|discovery|evoque|velar|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7|lexus|rx\s*350|gx\s*460|lx\s*570|lx\s*600|benz|mercedes|bmw|audi|porsche)\b/i;
             
             if (PART_KW.test(name)) return true;
             
@@ -509,7 +517,17 @@ export function Navbar() {
             const isWholeVeh = WHOLE_VEH.test(name);
             
             // Block if looks like a whole vehicle but price is suspiciously low
-            if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false;
+            if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) {
+                console.warn(`🛡️ Navbar: Blocked price hallucination for vehicle "${p.name}" at ${p.price}`);
+                return false;
+            }
+
+            // Block if looks like a premium phone but price is suspiciously low
+            if (isPremiumPhone && p.price < PHONE_FLOOR) {
+                console.warn(`🛡️ Navbar: Blocked price hallucination for phone "${p.name}" at ${p.price}`);
+                return false;
+            }
+
             return true;
         });
 
@@ -566,7 +584,7 @@ export function Navbar() {
             const clickedProd = clickedLocal || clickedCached || clickedGlobal;
             if (clickedProd) {
                 setTimeout(() => {
-                    router.push(getProductUrl(clickedProd.id, clickedProd.name));
+                    router.push(getProductUrl(clickedProd.id, clickedProd.name, clickedProd.slug));
                 }, 10);
             } else {
                 // Fallback to SRP if we can't resolve a product
@@ -748,7 +766,7 @@ export function Navbar() {
             } else if (activeIndex >= textSuggestions.length && activeIndex < totalSuggestionItems) {
                 // Navigate to product
                 const product = suggestions[activeIndex - textSuggestions.length];
-                router.push(getProductUrl(product.id, product.name));
+                router.push(getProductUrl(product.id, product.name, product.slug));
             } else {
                 handleSearch();
             }
@@ -1243,7 +1261,12 @@ export function Navbar() {
                         onMouseLeave={() => {
                             (window as any).__accountMenuTimer = setTimeout(() => setIsAccountMenuOpen(false), 400);
                         }}
-                        onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
+                        onClick={(e) => {
+                            // Only toggle if we're not clicking an item inside
+                            if (e.target === e.currentTarget || (e.target as HTMLElement).closest('.account-menu-trigger-inner')) {
+                                setIsAccountMenuOpen(!isAccountMenuOpen);
+                            }
+                        }}
                     >
                         {/* Desktop View */}
                         <div 
@@ -1341,8 +1364,8 @@ export function Navbar() {
                                         <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/orders"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">My Orders</button>
                                         {mounted && (user?.role === 'admin' ? (
                                             <>
-                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/admin/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-emerald-500">Admin Dashboard</button>
-                                                <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setIsAccountMenuOpen(false); router.push("/admin/products"); }} className="w-full text-left px-4 py-2 hover:bg-emerald-50 text-emerald-700 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-emerald-500">Admin Dashboard</button>
+                                                <button onClick={(e) => { e.stopPropagation(); setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>
                                             </>
                                         ) : isSeller ? (
                                             <button onClick={() => { setIsAccountMenuOpen(false); router.push("/seller/dashboard"); }} className="w-full text-left px-4 py-2 hover:bg-red-50 text-red-600 font-bold cursor-pointer transition-all border-l-4 border-transparent hover:border-red-500">Seller Dashboard</button>

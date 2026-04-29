@@ -145,7 +145,7 @@ export function RecommendedProducts({
                 {displayedProducts.map((product) => (
                     <Link
                         key={product.id}
-                        href={getProductUrl(product.id, product.name)}
+                        href={getProductUrl(product)}
                         onClick={() => onItemClick?.()}
                         className="group relative bg-white flex flex-col hover:shadow-lg transition-all rounded-xl overflow-hidden cursor-pointer border border-gray-100"
                     >

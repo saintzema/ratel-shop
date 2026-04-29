@@ -107,7 +107,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
     return (
         <div className={cn("group relative flex flex-col bg-card text-card-foreground border border-border rounded-2xl overflow-hidden transition-shadow duration-300 hover:shadow-xl h-full cursor-pointer", className)}>
-            <div onClick={() => router.push(getProductUrl(product.id, product.name))} className="flex flex-col flex-1">
+            <div onClick={() => router.push(getProductUrl(product.id, product.name, product.slug))} className="flex flex-col flex-1">
                 <div
                     className="relative aspect-square object-cover bg-muted"
                     onClick={handleDoubleTap}
@@ -257,7 +257,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                             <ShoppingCart className="h-4 w-4 mr-1 lg:mr-1.5 shrink-0" /> <span className="truncate">Buy Now</span>
                         </Button>
                         <Link
-                            href={`${getProductUrl(product.id, product.name)}?negotiate=true`}
+                            href={`${getProductUrl(product.id, product.name, product.slug)}?negotiate=true`}
                             className="relative z-20 flex-1 min-w-0"
                             onClick={(e) => e.stopPropagation()}
                         >

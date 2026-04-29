@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, getProductUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -67,14 +67,14 @@ export default function CartPage() {
                             {cart.map(({ product, quantity }) => (
                                 <div key={product.id} className="flex gap-4 pb-6 border-b border-gray-200 last:border-0 last:pb-0">
                                     {/* Image */}
-                                    <Link href={`/product/${product.id}`} className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
+                                    <Link href={getProductUrl(product)} className="w-32 h-32 flex-shrink-0 bg-gray-100 rounded overflow-hidden">
                                         <img src={product.image_url || "/assets/images/placeholder.png"} alt={product.name} className="w-full h-full object-contain mix-blend-multiply" onError={e => { e.currentTarget.src = "/assets/images/placeholder.png"; }} />
                                     </Link>
 
                                     {/* Details */}
                                     <div className="flex-1">
                                         <div className="flex justify-between items-start">
-                                            <Link href={`/product/${product.id}`} className="font-medium text-lg hover:text-brand-orange hover:underline line-clamp-2">
+                                            <Link href={getProductUrl(product)} className="font-medium text-lg hover:text-brand-orange hover:underline line-clamp-2">
                                                 {product.name}
                                             </Link>
                                             <div className="flex flex-col items-end">
@@ -194,7 +194,7 @@ export default function CartPage() {
                         <div className="space-y-3">
                             {SEED_PRODUCTS.slice(3, 5).map(p => (
                                 <div key={p.id} className="flex gap-2 group items-center">
-                                    <Link href={`/product/${p.id}`} className="flex gap-2 flex-1 min-w-0">
+                                    <Link href={getProductUrl(p)} className="flex gap-2 flex-1 min-w-0">
                                         <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden shrink-0">
                                             <img src={p.image_url} className="w-full h-full object-contain mix-blend-multiply" />
                                         </div>

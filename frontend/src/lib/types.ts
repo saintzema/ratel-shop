@@ -118,6 +118,7 @@ export interface Product {
         phone?: string;
         whatsapp?: string;
     };
+    slug?: string;
 }
 
 export interface Order {

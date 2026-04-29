@@ -1748,7 +1748,7 @@ Estimated Monthly Payment: ${formatPrice(loan.monthlyPayment)}`;
                                     <span>Stock: <strong className={result.matchedProduct.stock > 0 ? "text-emerald-600" : "text-red-500"}>{result.matchedProduct.stock > 0 ? 'Available' : 'Out of stock'}</strong></span>
                                 </div>
                                 <div className="mt-4 flex gap-3">
-                                    <Link href={getProductUrl(result.matchedProduct.id, result.matchedProduct.name)} className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 flex items-center gap-2 shadow-sm transition-all">
+                                    <Link href={getProductUrl(result.matchedProduct)} className="px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100 flex items-center gap-2 shadow-sm transition-all">
                                         View Full Page <ExternalLink className="h-3 w-3" />
                                     </Link>
                                 </div>

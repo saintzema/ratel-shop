@@ -255,7 +255,7 @@ default to NEW from 2024 onwards.
         try {
             const parsedData = JSON.parse(jsonString);
 
-            // ─── INTELLIGENT VEHICLE PRICE HALLUCINATION DEFENSE (zero-latency) ───
+            // ─── INTELLIGENT PRODUCT PRICE HALLUCINATION DEFENSE (zero-latency) ───
             if (mode === "search" && parsedData.suggestions && Array.isArray(parsedData.suggestions)) {
                 const queryYearMatch = productName.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
                 const queryYear = queryYearMatch ? parseInt(queryYearMatch[0], 10) : null;
@@ -268,26 +268,35 @@ default to NEW from 2024 onwards.
                     const itemYearMatch = name.match(/\b(202[0-9]|20[0-1][0-9]|19[0-9]{2})\b/);
                     const itemYear = itemYearMatch ? parseInt(itemYearMatch[0], 10) : null;
 
-                    // ─── YEAR FILTER ───
-                    // Prioritize queryYear, but allow variety on the SRP (Don't auto-block older models)
-                    // if (queryYear && itemYear && itemYear < queryYear) {
-                    //     console.warn(`🚫 YEAR MISMATCH BLOCKED: Query=${queryYear}, Result=${itemYear} for "${item.name}"`);
-                    //     return false;
-                    // }
-
                     // ─── VEHICLE HALLUCINATION FLOOR ───
-                    const VEHICLE_FLOOR = (itemYear && itemYear >= 2020) ? 12_000_000 : 5_000_000;
-                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories|iron|serum|tv|television|smart\s*tv|screen|display|monitor|inverter|battery\s*system|solar|kit)\b/i;
-                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|model\s*3|model\s*y|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|hr-?v|pilot|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|carnival|forte|3008|2008|5008|partner|expert|range\s*rover|defender|discovery|evoque|velar|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|eado|uni-?[tkv]|trumpchi|gs[0-9]|ga[0-9]|m[68]|empow|geely|avatr|zeekr|lynk|nio|es[0-9]|et[0-9]|ec[0-9]|p7|g[69]|g9|xpeng|xiaomi\s*su7|su7|smart\s*#[0-9]|wey|ora|thunder|s7|seres|voyah|dongfeng|jac|foton|tata|mahindra|chery|tiggo|arrizo|omoda|jaecoo|dm-?i|phev|bev|hybrid)\b/i;
+                    // 2022+ cars should never be below 18M. 2015-2021 should never be below 8M. Older cars at 5M.
+                    const VEHICLE_FLOOR = (itemYear && itemYear >= 2022) ? 18_000_000 : (itemYear && itemYear >= 2015) ? 8_000_000 : 5_000_000;
+                    
+                    // ─── PREMIUM PHONE FLOOR (iPhone 13+, Galaxy S22+) ───
+                    const isPremiumPhone = /\b(iphone\s*(13|14|15|16)|galaxy\s*s(22|23|24|25|26))\b/i.test(name);
+                    const PHONE_FLOOR = (name.includes("pro max") || name.includes("ultra") || name.includes("fold")) ? 650_000 : 350_000;
 
-                    if (price >= VEHICLE_FLOOR) return true;
-                    if (PART_KEYWORDS.test(name)) return true;
+                    const PART_KEYWORDS = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|taillight|mirror|sensor|plug|belt|gasket|radiator|alternator|starter|bearing|cable|fuse|relay|wiper|muffler|exhaust|caliper|rotor|hose|seal|cap|cover|mount|arm|link|joint|boot|liner|mat|key|fob|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories|iron|serum|tv|television|smart\s*tv|screen|display|monitor|inverter|battery\s*system|solar|kit|toy|scale\s*model|diecast|miniature)\b/i;
+                    const WHOLE_VEHICLE = /\b(sedan|suv|hatchback|coupe|convertible|pickup|truck|van|minivan|crossover|wagon|limo|limousine|roadster|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|venue|seltos|sportage|sorento|range\s*rover|defender|discovery|evoque|velar|mustang|explorer|escape|bronco|f-?150|ranger|malibu|equinox|trailblazer|tahoe|suburban|silverado|uni-?[tkv]|jetour|dasheng|coolray|emgrand|azkarra|okavango|haval|jolion|cannon|tank|gwm|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7|lexus|rx\s*350|gx\s*460|lx\s*570|lx\s*600|benz|mercedes|bmw|audi|porsche)\b/i;
 
                     const isVehicleCategory = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
                     const isWholeVehicle = WHOLE_VEHICLE.test(name);
 
-                    if (isVehicleCategory && isWholeVehicle && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
+                    // Block suspicious whole vehicle prices
+                    if (isWholeVehicle && !PART_KEYWORDS.test(name) && price < VEHICLE_FLOOR) {
                         console.warn(`🚫 PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${VEHICLE_FLOOR.toLocaleString()})`);
+                        return false;
+                    }
+
+                    // Block suspicious premium phone prices
+                    if (isPremiumPhone && !PART_KEYWORDS.test(name) && price < PHONE_FLOOR) {
+                         console.warn(`🚫 PHONE PRICE HALLUCINATION BLOCKED: "${item.name}" at ₦${price.toLocaleString()} (floor: ₦${PHONE_FLOOR.toLocaleString()})`);
+                         return false;
+                    }
+
+                    // Generic sanity check: Nothing over ₦100,000 should be called a "toy" or "replica" if it's meant to be a real product
+                    if (price > 100_000 && (name.includes("toy") || name.includes("replica") || name.includes("model car"))) {
+                        console.warn(`🚫 TOY/REPLICA BLOCKED: "${item.name}" at ₦${price.toLocaleString()}`);
                         return false;
                     }
 

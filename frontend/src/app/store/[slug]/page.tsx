@@ -422,7 +422,7 @@ export default function StoreProfile() {
                                 ) : (
                                     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
                                         {filteredProducts.map((product) => (
-                                            <Link key={product.id} href={getProductUrl(product.id, product.name)} className="group block">
+                                            <Link key={product.id} href={getProductUrl(product)} className="group block">
                                                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 border border-gray-100 h-full flex flex-col">
                                                     {/* Image */}
                                                     <div className="aspect-square relative bg-[#F5F5F7] p-4 flex items-center justify-center overflow-hidden">

@@ -43,12 +43,12 @@ export async function GET() {
     try {
         const dbProducts = await db.product.findMany({
             where: { isActive: true },
-            select: { id: true, name: true, updatedAt: true },
+            select: { id: true, name: true, slug: true, updatedAt: true } as any,
             take: 5000, // Increased limit for growing catalog
-        });
-        productUrls = dbProducts.map((p) => getProductUrl(p.id, p.name));
+        }) as any[];
+        productUrls = dbProducts.map((p) => getProductUrl(p.id, p.name, p.slug || undefined));
     } catch (e) {
-        productUrls = SEED_PRODUCTS.map((p) => getProductUrl(p.id, p.name));
+        productUrls = SEED_PRODUCTS.map((p) => getProductUrl(p.id, p.name, (p as any).slug));
     }
 
     // Dynamic Store Routes

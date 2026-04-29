@@ -92,6 +92,7 @@ export default function CatalogControl() {
     const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
     const [editFinancingAvailable, setEditFinancingAvailable] = useState(false);
     const [editFinancingDownPayment, setEditFinancingDownPayment] = useState("");
+    const [editSlug, setEditSlug] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
     const [isCalculatingBestPrice, setIsCalculatingBestPrice] = useState(false);
     const [isFetchingImage, setIsFetchingImage] = useState(false);
@@ -373,7 +374,8 @@ export default function CatalogControl() {
                 images: editImages.filter(Boolean),
                 financing_available: editFinancingAvailable,
                 financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
-                financing_config: editFinancingConfig
+                financing_config: editFinancingConfig,
+                slug: editSlug
             });
             setEditingProduct(null);
         }
@@ -1039,6 +1041,7 @@ export default function CatalogControl() {
                                                             setEditFinancingConfig(p.financing_config || { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 });
                                                             setEditFinancingAvailable(p.financing_available ?? false);
                                                             setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
+                                                            setEditSlug(p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""));
                                                         }}
                                                     >
                                                         <Edit2 className="h-4 w-4" />
@@ -1557,13 +1560,28 @@ export default function CatalogControl() {
                                     )}
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Gallery Images (Comma separated URLs)</label>
-                                    <textarea
-                                        value={editImages.join(", ")}
-                                        onChange={(e) => setEditImages(e.target.value.split(",").map(u => u.trim()))}
-                                        className="w-full bg-gray-50 border border-gray-100 rounded-xl p-3 text-sm min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                        placeholder="https://img1.com, https://img2.com..."
+                                    <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest">URL Slug <span className="text-gray-300 normal-case">— SEO clean URL</span></label>
+                                    <Input
+                                        value={editSlug}
+                                        onChange={(e) => {
+                                            const val = e.target.value.toLowerCase()
+                                                .replace(/[^a-z0-9]+/g, "-")
+                                                .replace(/(^-|-$)/g, "");
+                                            setEditSlug(val);
+                                        }}
+                                        onPaste={(e) => {
+                                            // Handle paste specifically for WordPress-like behavior
+                                            setTimeout(() => {
+                                                const val = (e.target as HTMLInputElement).value.toLowerCase()
+                                                    .replace(/[^a-z0-9]+/g, "-")
+                                                    .replace(/(^-|-$)/g, "");
+                                                setEditSlug(val);
+                                            }, 0);
+                                        }}
+                                        className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-medium"
+                                        placeholder="product-name-slug"
                                     />
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">https://fairprice.ng/product/{editingProduct?.id}/{editSlug || 'slug'}</p>
                                 </div>
                             </div>
                         </div>

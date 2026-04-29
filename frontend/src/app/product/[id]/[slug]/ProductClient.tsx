@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, getProxiedImageUrl, cn, isVideoUrl } from "@/lib/utils";
+import { formatPrice, getProxiedImageUrl, getProductUrl, cn, isVideoUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -341,16 +341,13 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                     // Last resort: create a rich placeholder from the URL slug
                     const name = namePart.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-                    // Generate a deterministic realistic price based on the name string
-                    const seed = Array.from(name).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-                    // Price between 5,000 and 150,000 rounded to nearest 500
-                    const generatedPrice = 5000 + (seed % 290) * 500;
-
+                    // DO NOT generate a random price here. This was causing unrealistic prices (like 75k Lexus).
+                    // We will initialize with 0 and let the AI hydration below fetch the real market price.
                     product = {
                         id: decodedId,
                         name,
-                        price: generatedPrice,
-                        original_price: Math.floor(generatedPrice * 1.5),
+                        price: 0, 
+                        original_price: 0,
                         category: "electronics",
                         description: generateDescription(name),
                         image_url: "",
@@ -358,12 +355,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                         seller_id: 'global-partners',
                         seller_name: 'Global Stores',
                         price_flag: 'fair',
-                        sold_count: 50 + (seed % 500),
-                        review_count: 12 + (seed % 100),
-                        avg_rating: 4.5 + ((seed % 5) / 10),
+                        sold_count: 0,
+                        review_count: 0,
+                        avg_rating: 0,
                         is_active: true,
                         created_at: new Date().toISOString(),
-                        recommended_price: generatedPrice,
+                        recommended_price: 0,
                         specs: generateSpecs(name),
                     } as any;
 
@@ -693,8 +690,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         if (product) {
             // Persist global products to DataSyncService AFTER render (avoids setState-during-render)
             const isGlobal = product.id?.startsWith('global-') || product.id?.startsWith('global_') || product.seller_id === 'global-partners';
-            if (isGlobal) {
-                const existing = DataSyncService.getProducts().find(p => p.id === product.id);
+            if (isGlobal && product.price > 0) {
+                const existing = DataSyncService.getProducts().find(p => p.id === product!.id);
                 if (!existing) {
                     DataSyncService.addRawProduct(product as any);
                 }
@@ -1837,7 +1834,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         <div className="space-y-3">
                                             {similarProducts.slice(0, 3).map(accessory => (
                                                 <div key={accessory.id} className="flex items-center gap-3 group relative bg-gray-50 rounded-xl p-2 border border-transparent hover:border-gray-200 hover:bg-white transition-all">
-                                                    <Link href={`/product/${accessory.id}`} className="shrink-0">
+                                                    <Link href={getProductUrl(accessory)} className="shrink-0">
                                                         <div className="w-12 h-12 rounded-lg bg-white border border-gray-100 overflow-hidden relative">
                                                             <img
                                                                 src={accessory.image_url || "/assets/images/placeholder-product.svg"}
@@ -1848,7 +1845,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                         </div>
                                                     </Link>
                                                     <div className="flex-1 min-w-0">
-                                                        <Link href={`/product/${accessory.id}`} className="text-[11px] font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-emerald-600 transition-colors">
+                                                        <Link href={getProductUrl(accessory)} className="text-[11px] font-semibold text-gray-800 line-clamp-2 leading-snug group-hover:text-emerald-600 transition-colors">
                                                             {accessory.name}
                                                         </Link>
                                                         <div className="text-[12px] font-black text-gray-900 mt-0.5">

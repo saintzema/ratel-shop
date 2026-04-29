@@ -627,7 +627,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 })}
                                                 {msg.sender === "ziva" && msg.text.includes("Thanks for the") && msg.text.includes("star rating!") && (
                                                     <div className="mt-3">
-                                                        <a href={`${getProductUrl(product?.id || "", product?.name || "")}#reviews-section`} onClick={onClose} className="block w-full">
+                                                        <a href={`${getProductUrl(product)}#reviews-section`} onClick={onClose} className="block w-full">
                                                             <Button className="w-full h-8 rounded-lg bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
                                                                 Write a Detailed Review
                                                                 <RotateCcw className="w-3 h-3 rotate-180" />
@@ -752,7 +752,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                                 <Star key={star} className={`w-8 h-8 ${star <= reviewRating ? "text-amber-400 fill-amber-400" : "text-gray-200"}`} />
                                             ))}
                                         </div>
-                                        <a href={`${getProductUrl(product?.id || "", product?.name || "")}#reviews-section`} onClick={onClose} className="w-full">
+                                        <a href={`${getProductUrl(product)}#reviews-section`} onClick={onClose} className="w-full">
                                             <Button className="w-full h-12 rounded-xl bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2">
                                                 Write a Detailed Review
                                                 <RotateCcw className="w-4 h-4 rotate-180" />

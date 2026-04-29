@@ -46,23 +46,44 @@ export function getTrustColor(score: number): string {
     return "text-red-500";
 }
 
-export function getProductUrl(id: string | undefined | null, name: string | undefined | null): string {
-    if (!id || String(id) === 'undefined' || String(id) === 'null') return "/";
-    const safeName = (name && String(name) !== 'undefined' && String(name) !== 'null') ? String(name) : String(id);
-    const safeStr = String(safeName);
-    
-    // Strip global AI cache suffix or prefixes if they leak into the name
-    const cleanedName = safeStr.replace(/(-fhpdf3|__global_.*|__cached_.*)/i, "");
+export function getProductUrl(
+    idOrProduct: string | any | undefined | null, 
+    name?: string | undefined | null, 
+    storedSlug?: string
+): string {
+    let id: string | undefined | null;
+    let productName: string | undefined | null;
+    let slugToUse: string | undefined;
 
-    const slug = cleanedName.toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
+    if (idOrProduct && typeof idOrProduct === 'object' && !Array.isArray(idOrProduct)) {
+        id = idOrProduct.id;
+        productName = idOrProduct.name;
+        slugToUse = idOrProduct.slug;
+    } else {
+        id = idOrProduct;
+        productName = name;
+        slugToUse = storedSlug;
+    }
+
+    if (!id || String(id) === 'undefined' || String(id) === 'null') return "/";
+    
+    let slug = "";
+    if (slugToUse && slugToUse.trim().length > 0) {
+        slug = slugToUse;
+    } else {
+        const safeName = (productName && String(productName) !== 'undefined' && String(productName) !== 'null') ? String(productName) : String(id);
+        const safeStr = String(safeName);
+        
+        // Strip global AI cache suffix or prefixes if they leak into the name
+        const cleanedName = safeStr.replace(/(-fhpdf3|__global_.*|__cached_.*)/i, "");
+
+        slug = cleanedName.toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/(^-|-$)/g, "");
+    }
     
     // Strip __global_ or __cached_ from the actual ID if it accidentally routes with it
     let finalId = String(id);
-    if (finalId.startsWith('__global_') || finalId.startsWith('__cached_')) {
-        // Fallback or leave as is if generated properly elsewhere. Just ensure it's robust.
-    }
         
     return `/product/${finalId}/${slug || 'product'}`;
 }

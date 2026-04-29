@@ -182,7 +182,7 @@ export const SearchGridCard = ({
   return (
     <NextLink
       ref={cardRef}
-      href={getProductUrl(product.id, product.name)}
+      href={getProductUrl(product)}
       className="bg-white rounded-2xl border border-gray-100 hover:border-red-200 hover:shadow-xl hover:shadow-red-500/5 transition-all group flex flex-col overflow-hidden h-full"
     >
       <div className="relative aspect-square w-full bg-gray-50 flex items-center justify-center overflow-hidden">

@@ -762,7 +762,7 @@ export function ZivaChat() {
                             role: "assistant",
                             content: `📷 **Image Request Sent!**\n\nI've forwarded your request for real product photos of **${currentProduct.name}** to the seller (**${currentProduct.seller_name || 'the merchant'}**).\n\nThey'll be notified to upload actual photos of the item. You'll receive a notification when the images are available.\n\nIn the meantime, you can view the existing listing photos on the product page.`,
                             quickActions: [
-                                { label: "📦 View Product", query: `__NAV__${getProductUrl(currentProduct.id, currentProduct.name)}`, icon: "" },
+                                { label: "📦 View Product", query: `__NAV__${getProductUrl(currentProduct)}`, icon: "" },
                                 { label: "💬 Ask Something Else", query: "", icon: "" },
                             ]
                         }
@@ -860,8 +860,8 @@ export function ZivaChat() {
                                     role: "assistant",
                                     content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${amount.toLocaleString()}** (${Math.round((1 - amount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
                                     quickActions: [
-                                        { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
-                                        { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
+                                        { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
+                                        { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
                                         { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
                                     ]
                                 }
@@ -1038,8 +1038,8 @@ export function ZivaChat() {
                                 role: "assistant",
                                 content: `✅ **Offer Submitted!**\n\n🛍️ **${matchProduct.name}**\n💰 Listed price: **₦${matchProduct.price.toLocaleString()}**\n🏷️ Your offer: **₦${offerAmount.toLocaleString()}** (${Math.round((1 - offerAmount / matchProduct.price) * 100)}% off)\n\nYour offer has been sent to ${matchProduct.seller_name || 'the seller'}. They'll review and respond within 24 hours.\n\nYou'll receive a notification when they respond with their decision or counter-offer. 📩`,
                                 quickActions: [
-                                    { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
-                                    { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct.id, matchProduct.name)}`, icon: "" },
+                                    { label: "📦 View Product", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
+                                    { label: "🛒 Buy at Listed Price", query: `__NAV__${getProductUrl(matchProduct)}`, icon: "" },
                                     { label: "💬 Negotiate Another", query: "I want to negotiate a price", icon: "" }
                                 ]
                             }
@@ -1368,7 +1368,7 @@ export function ZivaChat() {
                                                             return (
                                                                 <Link
                                                                     key={product.id}
-                                                                    href={getProductUrl(product.id, product.name)}
+                                                                    href={getProductUrl(product)}
                                                                     onClick={() => setIsOpen(false)}
                                                                 >
                                                                     <div className="bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl p-3 flex gap-3 transition-all group cursor-pointer relative">
