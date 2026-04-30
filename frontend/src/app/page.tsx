@@ -405,23 +405,30 @@ function HomeContent() {
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
-          {/* ─── Hero Section (Modern E-commerce Grid) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-1">
-            <div className="container mx-auto px-1 md:px-2">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[80px] md:h-[160px]">
+          {/* ─── Hero Section (Premium E-commerce Carousel) ─── */}
+          <section className="relative w-full bg-[#E3E6E6] pt-[90px] md:pt-[110px] pb-1 overflow-hidden">
+            {/* Ambient background aura */}
+            <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-brand-green-500/10 rounded-full blur-[120px] pointer-events-none" />
+            <div className="absolute bottom-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+            
+            <div className="container mx-auto px-1 md:px-2 relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 min-h-[260px] md:h-[480px]">
                 
-                {/* Main Slider (8/12 on Desktop) */}
-                <div className="lg:col-span-8 relative rounded-xl overflow-hidden group">
+                {/* Main Premium Slider (8/12 on Desktop) */}
+                <div className="lg:col-span-8 relative rounded-2xl md:rounded-[32px] overflow-hidden group shadow-xl">
                   <AnimatePresence mode="wait">
-                    {banners.length > 0 && (
+                    {banners.length > 0 ? (
                       <motion.div
                         key={banners[currentBannerIndex].id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
+                        initial={{ opacity: 0, scale: 1.05 }}
+                        animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
-                        transition={{ duration: 0.8, ease: "easeInOut" }}
+                        transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
                         className="absolute inset-0 cursor-pointer"
-                        onClick={() => banners[currentBannerIndex].link && router.push(banners[currentBannerIndex].link)}
+                        onClick={() => {
+                          const link = banners[currentBannerIndex].link;
+                          if (link) router.push(link);
+                        }}
                       >
                         <img
                           src={getProxiedImageUrl(banners[currentBannerIndex].image_url)}
@@ -429,43 +436,91 @@ function HomeContent() {
                           className="w-full h-full object-cover"
                           alt={banners[currentBannerIndex].title || "Hero Banner"}
                         />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
+                        
+                        {/* Banner Content (Optional overlay text if exists) */}
+                        <div className="absolute bottom-12 md:bottom-20 left-6 md:left-12 z-20 max-w-lg">
+                           <motion.h2 
+                             initial={{ opacity: 0, y: 20 }}
+                             animate={{ opacity: 1, y: 0 }}
+                             transition={{ delay: 0.3 }}
+                             className="text-white text-2xl md:text-5xl font-black mb-2 drop-shadow-lg leading-tight"
+                           >
+                             {banners[currentBannerIndex].title}
+                           </motion.h2>
+                           <motion.p 
+                             initial={{ opacity: 0, y: 10 }}
+                             animate={{ opacity: 1, y: 0 }}
+                             transition={{ delay: 0.5 }}
+                             className="text-white/90 text-sm md:text-lg font-medium drop-shadow-md"
+                           >
+                             {banners[currentBannerIndex].subtitle}
+                           </motion.p>
+                        </div>
                       </motion.div>
+                    ) : (
+                      <div className="absolute inset-0 bg-gray-200 animate-pulse" />
                     )}
                   </AnimatePresence>
+
+                  {/* ─── PERSISTENT ACTION OVERLAY ─── */}
+                  <div className="absolute bottom-6 md:bottom-10 left-6 md:left-12 right-6 md:right-12 z-30 flex flex-wrap items-center gap-3 md:gap-4">
+                    <Button
+                      size="lg"
+                      className="rounded-full px-6 md:px-10 h-11 md:h-14 bg-brand-green-600 hover:bg-brand-green-500 text-white font-black text-[14px] md:text-[16px] shadow-[0_12px_24px_rgba(5,150,105,0.4)] hover:scale-105 active:scale-95 transition-all border-none group"
+                      onClick={(e) => { e.stopPropagation(); setIsPriceModalOpen(true); }}
+                    >
+                      <Sparkles className="mr-2 h-4 w-4 md:h-5 md:w-5 animate-pulse" />
+                      PRICE CHECKER AI
+                      <ChevronRight className="ml-1 h-4 w-4 opacity-0 group-hover:opacity-100 transition-all" />
+                    </Button>
+                    <Button
+                      size="lg"
+                      className="rounded-full px-6 md:px-10 h-11 md:h-14 bg-white/10 backdrop-blur-xl border border-white/30 text-white font-black text-[14px] md:text-[16px] shadow-[0_12px_24px_rgba(0,0,0,0.2)] hover:bg-white/20 hover:scale-105 active:scale-95 transition-all group"
+                      onClick={(e) => { 
+                        e.stopPropagation();
+                        router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding");
+                      }}
+                    >
+                      <StoreIcon className="mr-2 h-4 w-4 md:h-5 md:w-5" />
+                      {isSeller ? "MY STORE" : "START SELLING"}
+                      <ChevronRight className="ml-1 h-4 w-4 opacity-0 group-hover:opacity-100 transition-all" />
+                    </Button>
+                  </div>
                   
-                  {/* Indicators (Smaller & subtle) */}
+                  {/* Indicators (Login Style Bubbles) - Centered */}
                   {banners.length > 1 && (
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+                    <div className="absolute bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-40">
                       {banners.map((_, i) => (
                         <button
                           key={i}
                           onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(i); }}
                           className={cn(
-                            "h-1 rounded-full transition-all duration-300",
-                            currentBannerIndex === i ? "w-4 bg-brand-green-500" : "w-1 bg-white/60 hover:bg-white"
+                            "h-1.5 md:h-2 rounded-full transition-all duration-500",
+                            currentBannerIndex === i ? "w-8 bg-brand-green-400" : "w-1.5 md:w-2 bg-white/40 hover:bg-white/60"
                           )}
                         />
                       ))}
                     </div>
                   )}
 
-                  {/* Subtle Arrows */}
-                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/40">
-                    <ChevronLeft className="h-4 w-4" />
+                  {/* Glass Arrows */}
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length); }} className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-white/30 z-40">
+                    <ChevronLeft className="h-5 w-5 md:h-6 md:w-6" />
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev + 1) % banners.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-white/40">
-                    <ChevronRight className="h-4 w-4" />
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev + 1) % banners.length); }} className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 md:w-12 md:h-12 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-white/30 z-40">
+                    <ChevronRight className="h-5 w-5 md:h-6 md:w-6" />
                   </button>
                 </div>
 
-                {/* Side Ad Grid (4/12 on Desktop, Hidden on Mobile) */}
+                {/* Side Ad Grid (Modern Grid on Desktop) */}
                 <div className="hidden lg:grid lg:col-span-4 grid-cols-2 grid-rows-2 gap-2 h-full">
                   {(heroConfig?.adSlots || DEFAULT_AD_SLOTS).map((ad: any) => (
                     <div 
                       key={ad.id} 
-                      className="relative rounded-xl overflow-hidden cursor-pointer transition-all group"
+                      className="relative rounded-[24px] overflow-hidden cursor-pointer transition-all group shadow-md"
                       onClick={() => {
-                        if (ad.id === 'ad4' && !ad.link?.startsWith('/')) {
+                        if (ad.id === 'ad4' || ad.link === '#') {
                           setIsPriceModalOpen(true);
                         } else if (ad.link) {
                           router.push(ad.link);
@@ -474,42 +529,24 @@ function HomeContent() {
                     >
                       <img 
                         src={getProxiedImageUrl(ad.img)} 
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
                         alt={ad.title} 
                       />
-                      {/* No text overlays per user request */}
+                      <div className="absolute inset-0 bg-black/10 group-hover:bg-black/0 transition-colors" />
                     </div>
                   ))}
                 </div>
 
               </div>
 
-              {/* Quick Action Pill Bar */}
-              <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1 scrollbar-hide no-scrollbar">
-                <Button
-                  size="sm"
-                  variant="apple-glass"
-                  className="rounded-full px-4 md:px-6 h-8 md:h-11 backdrop-blur-xl border border-white/30 bg-brand-green-600/90 text-white font-bold whitespace-nowrap shadow-[0_8px_32px_rgba(5,150,105,0.2)] text-[12px] md:text-[15px] hover:scale-105 active:scale-95 transition-all"
-                  onClick={() => setIsPriceModalOpen(true)}
-                >
-                  <Sparkles className="mr-1.5 h-3.5 w-3.5 md:h-4 md:w-4" />
-                  Price Checker AI
-                </Button>
-                <Button
-                  size="sm"
-                  variant="apple-glass"
-                  className="rounded-full px-4 md:px-6 h-8 md:h-11 backdrop-blur-xl border border-white/30 bg-emerald-600/90 text-white font-bold whitespace-nowrap shadow-[0_8px_32px_rgba(16,185,129,0.2)] text-[12px] md:text-[15px] hover:scale-105 active:scale-95 transition-all"
-                  onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
-                >
-                  <StoreIcon className="mr-1.5 h-3.5 w-3.5 md:h-4 md:w-4" />
-                  {isSeller ? "My Store" : "Start Selling"}
-                </Button>
-                {['Phones', 'Gaming', 'Computers', 'Fashion', 'Cars'].map((cat) => (
+              {/* Secondary Quick Categories Bar */}
+              <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
+                {['Phones', 'Gaming', 'Computers', 'Fashion', 'Cars', 'Grocery', 'Solar'].map((cat) => (
                   <Button
                     key={cat}
                     size="sm"
                     variant="outline"
-                    className="rounded-full px-3 md:px-5 h-8 md:h-11 bg-white border-gray-200 text-gray-700 font-bold hover:bg-gray-50 whitespace-nowrap shadow-sm text-[11px] md:text-[14px] transition-all"
+                    className="rounded-full px-4 md:px-6 h-9 md:h-10 bg-white border-gray-200 text-gray-800 font-bold hover:bg-brand-green-50 hover:border-brand-green-300 hover:text-brand-green-700 whitespace-nowrap shadow-sm text-[12px] md:text-[14px] transition-all"
                     onClick={() => router.push(`/search?category=${cat.toLowerCase()}`)}
                   >
                     {cat}

@@ -43,7 +43,9 @@ export default function CategoryPage() {
         const categoryMatch = slug === "all" || 
                              p.category === slug || 
                              p.subcategory?.toLowerCase() === slug.toLowerCase() ||
-                             (slug === "verified" && p.seller_name.includes("TechHub"));
+                             (slug === "new" && (p.is_new || (p.created_at && new Date(p.created_at).getTime() > Date.now() - 30 * 24 * 60 * 60 * 1000))) ||
+                             (slug === "deals" && (p.original_price && p.original_price > p.price)) ||
+                             (slug === "verified" && (p.price_flag === "fair" || p.seller_name.includes("TechHub")));
         const priceMatch = p.price >= priceMin && p.price <= priceMax;
         return categoryMatch && priceMatch;
     }).sort((a, b) => {
