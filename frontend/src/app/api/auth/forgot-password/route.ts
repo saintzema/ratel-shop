@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { v4 as uuidv4 } from "uuid";
 
 export async function POST(request: Request) {
     try {
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
         }
 
         // Generate token
-        const token = uuidv4();
+        const token = crypto.randomUUID();
         const expires = new Date(Date.now() + 3600000); // 1 hour expiration
 
         // Save to DB
