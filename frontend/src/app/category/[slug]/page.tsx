@@ -49,6 +49,11 @@ export default function CategoryPage() {
         const priceMatch = p.price >= priceMin && p.price <= priceMax;
         return categoryMatch && priceMatch;
     }).sort((a, b) => {
+        // Priority 1: Sponsored products always first
+        if (a.is_sponsored && !b.is_sponsored) return -1;
+        if (!a.is_sponsored && b.is_sponsored) return 1;
+
+        // Priority 2: User selected sort
         switch (sortBy) {
             case "price_asc": return a.price - b.price;
             case "price_desc": return b.price - a.price;
