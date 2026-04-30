@@ -28,7 +28,12 @@ export async function POST(req: Request) {
     if (type === "category") {
       // Check for duplicates
       const existing = await (prisma as any).marketplaceCategory.findFirst({
-        where: { OR: [{ name }, { slug: generatedSlug }] }
+        where: { 
+          OR: [
+            { name: { equals: name, mode: 'insensitive' } }, 
+            { slug: generatedSlug }
+          ] 
+        }
       });
       if (existing) {
         return NextResponse.json({ success: true, category: existing, message: "Category already exists" });
@@ -46,7 +51,10 @@ export async function POST(req: Request) {
       const existing = await (prisma as any).marketplaceSubcategory.findFirst({
         where: { 
           categoryId,
-          OR: [{ name }, { slug: generatedSlug }]
+          OR: [
+            { name: { equals: name, mode: 'insensitive' } }, 
+            { slug: generatedSlug }
+          ]
         }
       });
       if (existing) {

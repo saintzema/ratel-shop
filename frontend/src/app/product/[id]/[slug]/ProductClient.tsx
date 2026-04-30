@@ -348,7 +348,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                         name,
                         price: 0, 
                         original_price: 0,
-                        category: "electronics",
+                        category: DataSyncService.normalizeCategory("electronics").category,
                         description: generateDescription(name),
                         image_url: "",
                         images: [],

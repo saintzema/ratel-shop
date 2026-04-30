@@ -363,10 +363,15 @@ export default function CatalogControl() {
 
     const handleEditSave = async () => {
         if (editingProduct) {
+            const { category: normCat, subcategory: normSub } = DataSyncService.normalizeCategory(
+                editCategory || editingProduct.category,
+                editSubcategory || editingProduct.subcategory || ""
+            );
+
             await DataSyncService.updateProduct(editingProduct.id, {
                 name: editName || editingProduct.name,
-                category: editCategory || editingProduct.category,
-                subcategory: editSubcategory,
+                category: normCat as ProductCategory,
+                subcategory: normSub,
                 tags: editTags,
                 colors: editColors.split(",").map(c => c.trim()).filter(Boolean),
                 description: editDescription || editingProduct.description,
@@ -399,10 +404,17 @@ export default function CatalogControl() {
                 const content = await res.json();
                 if (content.description) setEditDescription(content.description);
                 if (content.specs) setEditSpecs(Object.entries(content.specs).map(([key, value]) => ({ key, value: String(value) })));
-                if (content.subcategory) setEditSubcategory(content.subcategory);
+                
+                // Canonical Taxonomy Normalization
+                const { category: normCat, subcategory: normSub } = DataSyncService.normalizeCategory(
+                    content.category || editCategory, 
+                    content.subcategory
+                );
+                setEditCategory(normCat);
+                setEditSubcategory(normSub);
+
                 if (content.tags && Array.isArray(content.tags)) setEditTags(content.tags);
                 if (content.colors && Array.isArray(content.colors)) setEditColors(content.colors.join(", "));
-                if (content.category) setEditCategory(content.category.toLowerCase());
             } else {
                 const errData = await res.json().catch(() => ({}));
                 setAiError(errData.error || `AI Auto-Fill failed (${res.status}). Check that GEMINI_API_KEY is set.`);
@@ -1397,11 +1409,11 @@ export default function CatalogControl() {
                                         >
                                             <option value="">Select Category</option>
                                             {DataSyncService.getTaxonomy().map(cat => (
-                                                <option key={cat.id} value={cat.name.toLowerCase()}>{cat.name}</option>
+                                                <option key={cat.id} value={cat.name}>{cat.name}</option>
                                             ))}
-                                            {/* Legacy Fallback */}
-                                            {CATEGORIES.filter(c => !DataSyncService.getTaxonomy().some(db => db.name.toLowerCase() === c.value)).map(cat => (
-                                                <option key={cat.value} value={cat.value}>{cat.label}</option>
+                                            {/* Minimal Fallback: Only show hardcoded if DB is totally empty */}
+                                            {DataSyncService.getTaxonomy().length === 0 && CATEGORIES.map(cat => (
+                                                <option key={cat.value} value={cat.label}>{cat.label}</option>
                                             ))}
                                         </select>
                                     </div>
@@ -1435,11 +1447,11 @@ export default function CatalogControl() {
                                             onChange={(e) => setEditSubcategory(e.target.value)}
                                         >
                                             <option value="">Select Subcategory</option>
-                                            {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === editCategory.toLowerCase())?.subcategories.map((sub: any) => (
+                                            {DataSyncService.getTaxonomy().find(c => c.name.toLowerCase() === editCategory.toLowerCase())?.children?.map((sub: any) => (
                                                 <option key={sub.id} value={sub.name}>{sub.name}</option>
                                             ))}
-                                            {/* Legacy Fallback */}
-                                            {CATEGORIES.find(c => c.value === editCategory)?.subcategories.map(sub => (
+                                            {/* Minimal Fallback: Only show hardcoded if DB is totally empty */}
+                                            {DataSyncService.getTaxonomy().length === 0 && CATEGORIES.find(c => c.label.toLowerCase() === editCategory.toLowerCase())?.subcategories.map(sub => (
                                                 <option key={sub} value={sub}>{sub}</option>
                                             ))}
                                         </select>

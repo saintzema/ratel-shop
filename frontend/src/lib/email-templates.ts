@@ -21,6 +21,7 @@ interface EmailPayload {
     customerName?: string;
     message?: string;
     newStatus?: string;
+    resetLink?: string;
 }
 
 const BRAND_COLOR = "#059669";

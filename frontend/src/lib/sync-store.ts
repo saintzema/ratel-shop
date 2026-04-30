@@ -1,6 +1,6 @@
 "use client";
 
-import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal } from "./types";
+import { NegotiationRequest, Order, Product, Seller, KYCSubmission, Complaint, Notification as AppNotification, SupportMessage, Dispute, DisputeReason, Coupon, ReturnRequest, Deal, ProductCategory } from "./types";
 export type { NegotiationRequest };
 import { formatPrice, getProxiedImageUrl, getProductUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
@@ -139,7 +139,7 @@ class DataSyncServiceService {
         SEARCH_CACHE: "fairprice_search_cache",
         CONVERSATIONS: "fp_conversations",
         CHAT_MESSAGES: "fp_chat_messages",
-        CATEGORIES: "fairprice_demo_categories",
+        CATEGORIES: "fp_marketplace_taxonomy",
         TRENDING_CURATION: "fp_trending_ids",
         DEALS: "fairprice_demo_deals",
         PROMOTIONS: "fairprice_demo_promotions",
@@ -974,6 +974,40 @@ class DataSyncServiceService {
         }
     }
 
+    /**
+     * Maps any loose string (from AI, User, or Search) to a canonical 
+     * category/subcategory pair from the synced database taxonomy.
+     */
+    normalizeCategory(category: string, subcategory?: string): { category: ProductCategory; subcategory: string } {
+        const taxonomy = this.getTaxonomy();
+        const normCat = category.trim().toLowerCase();
+        const normSub = subcategory?.trim().toLowerCase();
+
+        // 1. Find canonical category
+        const canonicalCat = taxonomy.find((c: Category) => 
+            c.name.toLowerCase() === normCat || 
+            c.slug.toLowerCase() === normCat
+        );
+
+        if (!canonicalCat) {
+            // Fallback: return original lowercase if not found
+            return { category: normCat as ProductCategory, subcategory: normSub || "" };
+        }
+
+        // 2. Find canonical subcategory if provided
+        if (normSub && canonicalCat.children) {
+            const canonicalSub = canonicalCat.children.find((s: Category) => 
+                s.name.toLowerCase() === normSub || 
+                s.slug.toLowerCase() === normSub
+            );
+            if (canonicalSub) {
+                return { category: canonicalCat.name as ProductCategory, subcategory: canonicalSub.name };
+            }
+        }
+
+        return { category: canonicalCat.name as ProductCategory, subcategory: normSub || "" };
+    }
+
     setCategories(categories: Category[]) {
         localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(categories));
         window.dispatchEvent(new Event("sync-store-update"));
@@ -986,7 +1020,12 @@ class DataSyncServiceService {
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
-                    localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(data.categories));
+                    // Map backend 'subcategories' to frontend 'children' for consistency
+                    const mapped = (data.categories || []).map((cat: any) => ({
+                        ...cat,
+                        children: cat.subcategories || []
+                    }));
+                    localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(mapped));
                     if (!silent) {
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
@@ -1028,23 +1067,34 @@ class DataSyncServiceService {
     }
 
     // Helper to migrate hardcoded categories to DB if DB is empty
+    // Helper to migrate hardcoded categories to DB if DB is empty
     async migrateTaxonomyIfNeeded(hardcodedCategories: any[]) {
         const current = this.getTaxonomy();
+        
+        // If we have some categories but significantly fewer than the hardcoded list,
+        // we might be in a partial state. But for now, 0 is the safest trigger.
         if (current.length === 0) {
-            console.log("🛠️ Migrating hardcoded categories to database...");
+            console.log("🛠️ Taxonomy: Database is empty. Migrating hardcoded categories...");
             for (const cat of hardcodedCategories) {
-                // Use silent=true for intermediate steps
-                await this.createPersistentCategory(cat.label, true);
-                const refreshed = this.getTaxonomy();
-                const dbCat = refreshed.find(c => c.name === cat.label);
-                if (dbCat && cat.subcategories) {
-                    for (const sub of cat.subcategories) {
-                        await this.createPersistentSubcategory(dbCat.id, sub, true);
+                try {
+                    await this.createPersistentCategory(cat.label, true);
+                    const refreshed = this.getTaxonomy();
+                    // Case-insensitive search for the category we just created/found
+                    const dbCat = refreshed.find(c => c.name.toLowerCase() === cat.label.toLowerCase());
+                    
+                    if (dbCat && cat.subcategories) {
+                        for (const sub of cat.subcategories) {
+                            await this.createPersistentSubcategory(dbCat.id, sub, true);
+                        }
                     }
+                } catch (e) {
+                    console.error(`🛠️ Taxonomy Migration Failed for "${cat.label}":`, e);
                 }
             }
-            // Final dispatch once everything is migrated
+            // Final sync and dispatch once everything is migrated
+            await this.syncTaxonomy();
             window.dispatchEvent(new Event("sync-store-update"));
+            console.log("🛠️ Taxonomy: Migration complete.");
         }
     }
 
@@ -1057,7 +1107,9 @@ class DataSyncServiceService {
         if (!categoryName || typeof window === "undefined") return;
 
         try {
-            const categories = this.getCategories();
+            const categories = this.getTaxonomy(); // Use getTaxonomy which is synced from DB
+            if (categories.length === 0) return; // Wait for sync
+
             const catIndex = categories.findIndex(c => c && c.name && c.name.toLowerCase() === categoryName.toLowerCase());
 
             if (catIndex === -1) {
@@ -1068,10 +1120,11 @@ class DataSyncServiceService {
             const parent = categories[catIndex];
             if (!parent) return;
             
+            // Increment local count for UI responsiveness
             parent.product_count = (parent.product_count || 0) + 1;
 
-            if (subCategoryName && parent.children && Array.isArray(parent.children)) {
-                const subIndex = parent.children.findIndex(c => c && c.name && c.name.toLowerCase() === subCategoryName.toLowerCase());
+            if (subCategoryName && parent.children) {
+                const subIndex = parent.children.findIndex((c: Category) => c && c.name && c.name.toLowerCase() === subCategoryName.toLowerCase());
                 if (subIndex !== -1) {
                     parent.children[subIndex].product_count = (parent.children[subIndex].product_count || 0) + 1;
                 } else {
@@ -2868,6 +2921,13 @@ getAllCachedProducts(): any[] {
     }
 
     addRawProduct(product: Product, persist: boolean = true) {
+        if (typeof window === "undefined") return;
+
+        // Canonical Taxonomy Normalization
+        const { category, subcategory } = this.normalizeCategory(product.category, product.subcategory || "");
+        product.category = category as ProductCategory;
+        product.subcategory = subcategory;
+
         // Enforce 50-character limit for GMC compliance on all newly added products
         if (product.id.length > 50) {
             product.id = product.id.slice(0, 50).replace(/-+$/, "");
@@ -2971,6 +3031,20 @@ getAllCachedProducts(): any[] {
     }
 
     async updateProduct(id: string, updates: Partial<Product>) {
+        if (typeof window === "undefined") return;
+
+        // Canonical Taxonomy Normalization
+        if (updates.category) {
+            const { category, subcategory } = this.normalizeCategory(
+                updates.category, 
+                updates.subcategory || ""
+            );
+            updates.category = category as ProductCategory;
+            if (updates.subcategory !== undefined) {
+                updates.subcategory = subcategory;
+            }
+        }
+
         const products = this.getProducts();
         const existingProduct = products.find(p => p.id === id);
 
