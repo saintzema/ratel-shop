@@ -283,119 +283,36 @@ function HomeContent() {
   }, [banners]);
 
   // ─── Unified Product Memoization Engine ───
-  // Consolidating all filtering logic into ONE memoized block to solve the 'Lag' issue.
-  // This prevents recalculating thousands of filters on every scroll/state update.
   const sections = useMemo(() => {
-    // Critical: Use SEED_PRODUCTS as a persistent fallback pool to prevent infinite skeletons/whiteness
-    const pool: Product[] = allProducts.length > 0 ? allProducts : SEED_PRODUCTS;
+    if (!mounted) return null;
+    const pool = allProducts.length > 0 ? allProducts : SEED_PRODUCTS;
     if (pool.length === 0) return null;
 
-    const usedIds = new Set<string>();
-    const sponsoredIds = new Set(pool.filter(p => p.is_sponsored).map(p => p.id));
-
-    const takeUnique = (pool: Product[], count: number, shuffle: boolean = false): Product[] => {
-      const result: Product[] = [];
-      const shuffledPool = shuffle ? [...pool].sort(() => 0.5 - Math.random()) : pool;
-      for (const p of shuffledPool) {
-        if (result.length >= count) break;
-        if (usedIds.has(p.id) && !sponsoredIds.has(p.id)) continue;
-        result.push(p);
-        usedIds.add(p.id);
-      }
-      return result;
-    };
-
-    // 1. Trending
-    const trendingPool = [...pool].sort((a, b) => {
-      const aTrending = !!a.is_trending;
-      const bTrending = !!b.is_trending;
-      if (aTrending && !bTrending) return -1;
-      if (!aTrending && bTrending) return 1;
-      return (b.sold_count || 0) - (a.sold_count || 0);
-    });
-    const topPicks = takeUnique(trendingPool, 20);
-
-    // 2. Sponsored
-    const sponsoredProducts = pool.filter(p => p.is_sponsored).slice(0, 15);
-
-    // 3. Deals
-    const now = new Date();
-    const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
-    const activeDeals = allDeals
-      .filter(d => d.is_active && new Date(d.end_at) > now)
-      .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
-      .map(deal => {
-        const product = pool.find(p => p.id === deal.product_id);
-        if (!product) return null;
-        const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
-        return {
-          ...product,
-          price: discountedPrice,
-          original_price: product.price,
-          dealEndTime: deal.end_at,
-          dealDiscountText: `${deal.discount_pct}% OFF`
-        };
-      })
-      .filter(Boolean) as Product[];
-
-    const dealProductIds = new Set(activeDeals.map(a => a.id));
-    const priceDrop = pool
-        .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
-        .map(p => ({
-            ...p,
-            dealDiscountText: `Save ${formatPrice(p.original_price! - p.price)}`
-        }))
-        .sort((a,b) => ((b.original_price! - b.price) / b.original_price!) - ((a.original_price! - a.price) / a.original_price!));
-
-    const dealProducts = [...activeDeals, ...priceDrop].slice(0, 30);
-
-    // 4. Category sections
-    const phonesProducts = takeUnique(pool.filter(p => ["phones"].includes(p.category || "")), 12);
-    const gamingProducts = takeUnique(pool.filter(p => ["gaming"].includes(p.category || "")), 12);
-    const computerProducts = takeUnique(pool.filter(p => ["computers"].includes(p.category || "")), 12);
-    const carProducts = takeUnique(pool.filter(p => ["cars", "vehicles"].includes(p.category || "")), 12);
-    const fashionProducts = takeUnique(pool.filter(p => ["fashion"].includes(p.category || "")), 12);
-    const beautyProducts = takeUnique(pool.filter(p => ["beauty"].includes(p.category || "")), 12);
-    const homeProducts = takeUnique(pool.filter(p => ["home"].includes(p.category || "")), 12);
-    const electronicsProducts = takeUnique(pool.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
-    const applianceProducts = takeUnique(pool.filter(p => ["appliances"].includes(p.category || "")), 12);
-    const fitnessProducts = takeUnique(pool.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
-    const healthProducts = takeUnique(pool.filter(p => ["health", "medical"].includes(p.category || "")), 12);
-    const groceryProducts = takeUnique(pool.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
-
-    // 5. Verified Fair Prices (Shuffled for Equal Visibility)
-    const fairPriceProducts = takeUnique(pool.filter(p => p.price_flag === "fair"), 30, true);
-
-    // 6. From Stores You Follow
-    let followedStoreProducts: Product[] = [];
-    const favoriteStoresStr = typeof window !== "undefined" ? localStorage.getItem("fp_favorites_stores") : null;
-    const favoriteStores = favoriteStoresStr ? JSON.parse(favoriteStoresStr) : [];
-    
-    if (favoriteStores.length > 0) {
-      const followedSellerIds = new Set(favoriteStores);
-      followedStoreProducts = pool.filter(p => followedSellerIds.has(p.seller_id)).slice(0, 12);
-    }
+    const getByCategory = (cat: string) => pool.filter(p => p.category === cat).slice(0, 15);
 
     return {
-      topPicks,
-      sponsoredProducts,
-      dealProducts,
-      phonesProducts,
-      gamingProducts,
-      computerProducts,
-      carProducts,
-      fashionProducts,
-      beautyProducts,
-      homeProducts,
-      electronicsProducts,
-      applianceProducts,
-      fitnessProducts,
-      healthProducts,
-      groceryProducts,
-      fairPriceProducts,
-      followedStoreProducts
+      topPicks: pool.slice(0, 20),
+      sponsoredProducts: pool.filter(p => p.is_sponsored).slice(0, 15),
+      dealProducts: pool.filter(p => p.original_price && p.original_price > p.price).slice(0, 30),
+      phonesProducts: getByCategory("Phones"),
+      gamingProducts: getByCategory("Gaming"),
+      computerProducts: getByCategory("Computers"),
+      carProducts: getByCategory("Vehicles"),
+      fashionProducts: getByCategory("Fashion"),
+      beautyProducts: getByCategory("Beauty"),
+      homeProducts: getByCategory("Home"),
+      electronicsProducts: getByCategory("Electronics"),
+      applianceProducts: getByCategory("Appliances"),
+      fitnessProducts: getByCategory("Sports"),
+      healthProducts: getByCategory("Health"),
+      groceryProducts: getByCategory("Grocery"),
+      fairPriceProducts: pool.filter(p => p.price_flag === "fair").slice(0, 20),
+      followedStoreProducts: []
     };
   }, [allProducts, mounted]);
+
+  // Prevent hydration hanging by waiting for mount
+  if (!mounted) return <div className="min-h-screen bg-[#E3E6E6]" />;
 
   return (
     <div data-app-ready className="min-h-screen bg-[#E3E6E6] text-foreground transition-all duration-700 flex flex-col overflow-x-hidden font-sans">
@@ -405,96 +322,95 @@ function HomeContent() {
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
-          {/* ─── Hero Section (Stabilized & Optimized) ─── */}
+          {/* ─── Hero Section (Stabilized & Compact) ─── */}
           <section className="relative w-full bg-[#E3E6E6] pt-[90px] md:pt-[110px] pb-1 overflow-hidden">
             <div className="container mx-auto px-1 md:px-2 relative z-10">
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[200px] md:h-[300px]">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
                 {/* Main Premium Slider (8/12 on Desktop) */}
-                <div className="lg:col-span-8 relative rounded-2xl md:rounded-[24px] overflow-hidden group shadow-lg bg-gray-200">
+                <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden group shadow-lg bg-gray-200">
                   <div className="absolute inset-0">
-                    <AnimatePresence>
-                      {banners.length > 0 ? (
-                        <motion.div
-                          key={banners[currentBannerIndex].id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 1.2, ease: [0.4, 0, 0.2, 1] }}
-                          className="absolute inset-0 cursor-pointer"
+                    {banners.length > 0 ? (
+                      banners.map((banner, index) => (
+                        <div
+                          key={banner.id}
+                          className={cn(
+                            "absolute inset-0 transition-opacity duration-1000 cursor-pointer",
+                            index === currentBannerIndex ? "opacity-100 z-10" : "opacity-0 z-0"
+                          )}
                           onClick={() => {
-                            const link = banners[currentBannerIndex].link;
-                            if (link) router.push(link);
+                            if (banner.link) router.push(banner.link);
                           }}
                         >
                           <img
-                            src={getProxiedImageUrl(banners[currentBannerIndex].image_url)}
+                            src={getProxiedImageUrl(banner.image_url)}
                             onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
                             className="w-full h-full object-cover"
-                            alt={banners[currentBannerIndex].title || "Hero Banner"}
+                            alt={banner.title || "Hero Banner"}
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-                        </motion.div>
-                      ) : (
-                        <div className="absolute inset-0 bg-gray-200 animate-pulse" />
-                      )}
-                    </AnimatePresence>
+                          {/* Subtle gradient for buttons visibility */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="absolute inset-0 bg-gray-300 animate-pulse" />
+                    )}
                   </div>
 
-                  {/* ─── PERSISTENT ACTION OVERLAY ─── */}
-                  <div className="absolute bottom-4 md:bottom-8 left-4 md:left-10 right-4 md:right-10 z-30 flex flex-wrap items-center gap-2 md:gap-4">
+                  {/* ─── EXACT ORIGINAL BUTTONS OVERLAY ─── */}
+                  <div className="absolute bottom-4 md:bottom-6 left-4 md:left-8 right-4 md:right-8 z-30 flex flex-wrap items-center gap-2 md:gap-4">
                     <Button
                       size="lg"
-                      className="rounded-full px-5 md:px-8 h-10 md:h-12 bg-brand-green-800/90 hover:bg-brand-green-700 text-white font-bold text-[13px] md:text-[15px] shadow-lg border-none flex items-center gap-2 transition-all active:scale-95"
+                      className="rounded-full px-5 md:px-8 h-10 md:h-12 bg-[#047857] hover:bg-[#065f46] text-white font-bold text-[13px] md:text-[15px] shadow-lg border-none flex items-center gap-2 transition-all"
                       onClick={(e) => { e.stopPropagation(); setIsPriceModalOpen(true); }}
                     >
-                      <Sparkles className="h-4 w-4" />
+                      <Sparkles className="h-4 w-4 md:h-5 md:w-5" />
                       PRICE CHECKER AI
                     </Button>
                     <Button
                       size="lg"
-                      className="rounded-full px-5 md:px-8 h-10 md:h-12 bg-black/40 backdrop-blur-md border border-white/20 text-white font-bold text-[13px] md:text-[15px] shadow-lg hover:bg-black/60 transition-all active:scale-95"
+                      className="rounded-full px-5 md:px-8 h-10 md:h-12 bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/10 text-white font-bold text-[13px] md:text-[15px] shadow-lg flex items-center gap-2 transition-all"
                       onClick={(e) => { 
                         e.stopPropagation();
                         router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding");
                       }}
                     >
-                      <StoreIcon className="h-4 w-4" />
-                      {isSeller ? "MY STORE" : "START SELLING"}
+                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5" />
+                      START SELLING
                     </Button>
                   </div>
                   
                   {/* Indicators (Centered Bubbles) */}
                   {banners.length > 1 && (
-                    <div className="absolute bottom-3 md:bottom-5 left-1/2 -translate-x-1/2 flex gap-1.5 z-40">
+                    <div className="absolute bottom-2 md:bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-40">
                       {banners.map((_, i) => (
                         <button
                           key={i}
                           onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(i); }}
                           className={cn(
-                            "h-1.5 rounded-full transition-all duration-300",
-                            currentBannerIndex === i ? "w-6 bg-brand-green-400" : "w-1.5 bg-white/40 hover:bg-white"
+                            "h-1.5 rounded-full transition-all duration-300 shadow-sm",
+                            currentBannerIndex === i ? "w-6 bg-[#047857]" : "w-1.5 bg-white/60 hover:bg-white"
                           )}
                         />
                       ))}
                     </div>
                   )}
 
-                  {/* Glass Arrows */}
-                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-white/30 z-40">
+                  {/* Navigation Arrows */}
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/20 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-black/40 z-40">
                     <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev + 1) % banners.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-white/10 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-white/30 z-40">
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev + 1) % banners.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/20 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-black/40 z-40">
                     <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
                   </button>
                 </div>
 
-                {/* Side Ad Grid (Modern Grid on Desktop) */}
+                {/* Side Ad Grid */}
                 <div className="hidden lg:grid lg:col-span-4 grid-cols-2 grid-rows-2 gap-2 h-full">
                   {(heroConfig?.adSlots || DEFAULT_AD_SLOTS).map((ad: any) => (
                     <div 
                       key={ad.id} 
-                      className="relative rounded-[20px] overflow-hidden cursor-pointer transition-all group shadow-md"
+                      className="relative rounded-xl md:rounded-[20px] overflow-hidden cursor-pointer transition-all group shadow-md bg-gray-200"
                       onClick={() => {
                         if (ad.id === 'ad4' || ad.link === '#') {
                           setIsPriceModalOpen(true);
@@ -506,28 +422,32 @@ function HomeContent() {
                       <img 
                         src={getProxiedImageUrl(ad.img)} 
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
-                        alt={ad.title} 
+                        alt={ad.title || "Ad slot"} 
                       />
-                      <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors" />
+                      <div className="absolute inset-0 bg-black/5 group-hover:bg-black/0 transition-colors pointer-events-none" />
                     </div>
                   ))}
                 </div>
 
               </div>
 
-              {/* Secondary Quick Categories Bar */}
+              {/* Secondary Quick Categories Bar (Pills) */}
               <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
                 {[
                   'Phones', 'Gaming', 'Computers', 'Fashion', 'Cars', 
-                  'Grocery', 'Solar', 'EVs', 'Streaming Kits', 
-                  'Home Office', 'Work From Home'
+                  'Grocery', 'Streaming Kits', 'Home Office', 
+                  'Work From Home', 'Solar', 'EVs'
                 ].map((cat) => (
                   <Button
                     key={cat}
                     size="sm"
                     variant="outline"
                     className="rounded-full px-4 md:px-5 h-8 md:h-9 bg-white border-gray-200 text-gray-800 font-bold hover:bg-brand-green-50 hover:border-brand-green-300 hover:text-brand-green-700 whitespace-nowrap shadow-sm text-[11px] md:text-[13px] transition-all"
-                    onClick={() => router.push(`/category/${cat.toLowerCase().replace(/ /g, '-')}`)}
+                    onClick={() => {
+                       // Format strictly to match standard slugs
+                       const slug = cat.toLowerCase().replace(/ /g, '-');
+                       router.push(`/category/${slug}`);
+                    }}
                   >
                     {cat}
                   </Button>

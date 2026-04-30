@@ -113,6 +113,8 @@ model Seller {
   joinedAt       DateTime             @default(now())
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
+  whatsappEnabled Boolean             @default(false)
+  whatsappNumber String?
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")
@@ -241,6 +243,7 @@ model NegotiationRequest {
   proposedPrice  Float
   message        String?
   status         NegotiationStatus  @default(pending)
+  customerWhatsapp String?
   counterPrice   Float?
   counterMessage String?
   counterStatus  NegotiationStatus?
