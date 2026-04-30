@@ -71,7 +71,8 @@ import {
     Banknote,
     CreditCard,
     TrendingUp,
-    X
+    X,
+    QrCode
 } from "lucide-react";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
 import { LocationModal } from "@/components/modals/LocationModal";
@@ -159,6 +160,7 @@ export default function ProductDetailPage() {
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
     const [aiReviews, setAiReviews] = useState<any[]>([]);
+    const [showQrModal, setShowQrModal] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -1762,6 +1764,16 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         </p>
                                     </div>
 
+                                    <Button
+                                        variant="outline"
+                                        className="w-full rounded-full border-gray-200 text-gray-700 hover:bg-gray-50 font-black py-6 text-base transition-all hover:scale-[1.02] shadow-sm flex items-center justify-center gap-3"
+                                        onClick={() => setShowQrModal(true)}
+                                    >
+                                        <QrCode className="h-5 w-5 text-gray-400" /> 
+                                        <span>Scan to Pay</span>
+                                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 text-[10px] font-black py-0 px-1.5 border-none">WECHAT STYLE</Badge>
+                                    </Button>
+
                                     {/* Seller Contact Info */}
                                     {product.contact_info?.show && (product.contact_info?.phone || product.contact_info?.whatsapp) && (
                                         <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
@@ -2352,6 +2364,62 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 onClose={() => setIsFinancingModalOpen(false)}
                 product={product}
             />
+
+            {/* QR Payment Modal */}
+            <AnimatePresence>
+                {showQrModal && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+                            onClick={() => setShowQrModal(false)}
+                        />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                            className="relative z-[201] w-full max-w-sm bg-white rounded-[40px] shadow-2xl overflow-hidden p-8 text-center border border-gray-100"
+                        >
+                            <button 
+                                onClick={() => setShowQrModal(false)}
+                                className="absolute top-6 right-6 p-2 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <X className="h-5 w-5 text-gray-400" />
+                            </button>
+                            
+                            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-6 shadow-inner">
+                                <QrCode className="h-8 w-8 text-emerald-600" />
+                            </div>
+                            
+                            <h2 className="text-2xl font-black text-gray-900 mb-2">Scan to Pay</h2>
+                            <p className="text-gray-500 mb-8 text-sm font-medium leading-tight">
+                                Fast, secure, and touchless payment. <br/> 
+                                Scan with your phone camera.
+                            </p>
+
+                            <div className="bg-gray-50 p-6 rounded-[32px] border-4 border-white shadow-inner mb-8">
+                                <img 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}` : '')}`}
+                                    alt="Payment QR" 
+                                    className="w-48 h-48 mx-auto mix-blend-multiply"
+                                />
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-center gap-2 text-xs font-black text-emerald-600 uppercase tracking-widest">
+                                    <ShieldCheck className="h-4 w-4" /> Secure Paystack Gateway
+                                </div>
+                                <Button
+                                    onClick={() => setShowQrModal(false)}
+                                    className="w-full h-14 rounded-2xl bg-black hover:bg-gray-800 text-white font-bold text-lg"
+                                >
+                                    Done
+                                </Button>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

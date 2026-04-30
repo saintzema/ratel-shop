@@ -23,7 +23,9 @@ import {
     Image as ImageIcon,
     Sparkles,
     MousePointer2,
-    Target
+    Target,
+    MessageCircle,
+    Layout
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";
@@ -58,6 +60,11 @@ export default function AdminPushNotifications() {
     const [broadcastSuccess, setBroadcastSuccess] = useState(false);
     const [showProductSearch, setShowProductSearch] = useState(false);
     const [productSearchQuery, setProductSearchQuery] = useState("");
+
+    // Tabs
+    const [activeTab, setActiveTab] = useState<"push" | "whatsapp">("push");
+    const [isWhatsAppBroadcasting, setIsWhatsAppBroadcasting] = useState(false);
+    const [whatsappSuccess, setWhatsappSuccess] = useState(false);
 
     // Automation Templates State
     const [templates, setTemplates] = useState<NotificationTemplate[]>(DEFAULT_TEMPLATES);
@@ -145,6 +152,35 @@ export default function AdminPushNotifications() {
         window.dispatchEvent(new Event("fp-templates-updated"));
     };
 
+    const handleWhatsAppBroadcast = async () => {
+        if (!broadcastBody.trim() && !selectedProduct) return;
+        
+        setIsWhatsAppBroadcasting(true);
+        try {
+            const res = await fetch("/api/admin/whatsapp-broadcast", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    product: selectedProduct,
+                    message: broadcastBody,
+                    targetUsers: "all"
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setWhatsappSuccess(true);
+                setBroadcastTitle("");
+                setBroadcastBody("");
+                setSelectedProduct(null);
+                setTimeout(() => setWhatsappSuccess(false), 3000);
+            }
+        } catch (e) {
+            console.error("WhatsApp Broadcast Error:", e);
+        } finally {
+            setIsWhatsAppBroadcasting(false);
+        }
+    };
+
     const applyTemplate = (title: string, body: string, link: string = "/") => {
         setBroadcastTitle(title);
         setBroadcastBody(body);
@@ -183,6 +219,30 @@ export default function AdminPushNotifications() {
                     </div>
                 </div>
             </motion.div>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-2xl w-fit">
+                <button 
+                    onClick={() => setActiveTab("push")}
+                    className={cn(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm transition-all",
+                        activeTab === "push" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-400 hover:text-gray-600"
+                    )}
+                >
+                    <Bell className="w-4 h-4" />
+                    Push Alerts
+                </button>
+                <button 
+                    onClick={() => setActiveTab("whatsapp")}
+                    className={cn(
+                        "flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm transition-all",
+                        activeTab === "whatsapp" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-200" : "text-gray-400 hover:text-gray-600"
+                    )}
+                >
+                    <MessageCircle className="w-4 h-4" />
+                    WhatsApp Broadcast
+                </button>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 {/* Main Configuration Panel */}
@@ -298,28 +358,53 @@ export default function AdminPushNotifications() {
 
                             {/* Broadcast Button */}
                             <div className="pt-6">
-                                <button
-                                    onClick={handleMassBroadcast}
-                                    disabled={isBroadcasting || !broadcastTitle.trim() || !broadcastBody.trim()}
-                                    className="w-full relative group overflow-hidden rounded-[24px] h-16 px-8 font-black text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 group-hover:scale-110 transition-transform duration-700" />
-                                    <div className="relative flex items-center justify-center gap-3 text-lg tracking-tight">
-                                        {isBroadcasting ? (
-                                            <div className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                                        ) : broadcastSuccess ? (
-                                            <>
-                                                <CheckCircle2 className="w-6 h-6 text-emerald-300" />
-                                                Sent to All Devices!
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Sparkles className="w-6 h-6 text-yellow-300 fill-yellow-300" />
-                                                Dispatch Mass Broadcast
-                                            </>
-                                        )}
-                                    </div>
-                                </button>
+                                {activeTab === "push" ? (
+                                    <button
+                                        onClick={handleMassBroadcast}
+                                        disabled={isBroadcasting || !broadcastTitle.trim() || !broadcastBody.trim()}
+                                        className="w-full relative group overflow-hidden rounded-[24px] h-16 px-8 font-black text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 group-hover:scale-110 transition-transform duration-700" />
+                                        <div className="relative flex items-center justify-center gap-3 text-lg tracking-tight">
+                                            {isBroadcasting ? (
+                                                <div className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : broadcastSuccess ? (
+                                                <>
+                                                    <CheckCircle2 className="w-6 h-6 text-emerald-300" />
+                                                    Sent to All Devices!
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-6 h-6 text-yellow-300 fill-yellow-300" />
+                                                    Dispatch Mass Broadcast
+                                                </>
+                                            )}
+                                        </div>
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={handleWhatsAppBroadcast}
+                                        disabled={isWhatsAppBroadcasting || (!broadcastBody.trim() && !selectedProduct)}
+                                        className="w-full relative group overflow-hidden rounded-[24px] h-16 px-8 font-black text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
+                                    >
+                                        <div className="absolute inset-0 bg-emerald-600 group-hover:scale-110 transition-transform duration-700" />
+                                        <div className="relative flex items-center justify-center gap-3 text-lg tracking-tight">
+                                            {isWhatsAppBroadcasting ? (
+                                                <div className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : whatsappSuccess ? (
+                                                <>
+                                                    <CheckCircle2 className="w-6 h-6 text-emerald-300" />
+                                                    WhatsApp Messages Sent!
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <MessageCircle className="w-6 h-6 text-white" />
+                                                    Send WhatsApp Broadcast
+                                                </>
+                                            )}
+                                        </div>
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </section>
@@ -388,40 +473,79 @@ export default function AdminPushNotifications() {
                                     <motion.div 
                                         initial={{ y: -20, opacity: 0 }}
                                         animate={{ y: 0, opacity: 1 }}
-                                        className="w-full bg-white/95 backdrop-blur-2xl rounded-[32px] p-5 shadow-2xl border border-white/20"
+                                        key={activeTab}
+                                        className={cn(
+                                            "w-full backdrop-blur-2xl p-5 shadow-2xl border",
+                                            activeTab === "push" 
+                                                ? "bg-white/95 rounded-[32px] border-white/20" 
+                                                : "bg-[#e5ddd5] rounded-3xl border-emerald-900/10"
+                                        )}
                                     >
-                                        <div className="flex items-center gap-4">
-                                            {selectedProduct ? (
-                                                <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center p-2 border border-gray-100">
-                                                    <img src={getProxiedImageUrl(selectedProduct.image_url)} alt="" className="w-full h-full object-contain" />
+                                        {activeTab === "push" ? (
+                                            <div className="flex items-center gap-4">
+                                                {selectedProduct ? (
+                                                    <div className="w-14 h-14 rounded-2xl bg-white shadow-sm flex items-center justify-center p-2 border border-gray-100">
+                                                        <img src={getProxiedImageUrl(selectedProduct.image_url)} alt="" className="w-full h-full object-contain" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                                                        <Bell className="w-7 h-7 text-white fill-white/20" />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className="text-[11px] font-black uppercase tracking-[0.1em] text-emerald-600">FairPrice.ng</span>
+                                                        <span className="text-[10px] text-gray-400 font-bold">now</span>
+                                                    </div>
+                                                    <p className="text-gray-900 text-[15px] font-black truncate leading-tight">
+                                                        {broadcastTitle || "Your Alert Title Here"}
+                                                    </p>
+                                                    <p className="text-gray-600 text-[13px] font-medium line-clamp-2 mt-0.5 leading-snug">
+                                                        {broadcastBody || "Type your message in the builder to see it previewed here in real-time."}
+                                                    </p>
                                                 </div>
-                                            ) : (
-                                                <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                                                    <Bell className="w-7 h-7 text-white fill-white/20" />
-                                                </div>
-                                            )}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <span className="text-[11px] font-black uppercase tracking-[0.1em] text-emerald-600">FairPrice.ng</span>
-                                                    <span className="text-[10px] text-gray-400 font-bold">now</span>
-                                                </div>
-                                                <p className="text-gray-900 text-[15px] font-black truncate leading-tight">
-                                                    {broadcastTitle || "Your Alert Title Here"}
-                                                </p>
-                                                <p className="text-gray-600 text-[13px] font-medium line-clamp-2 mt-0.5 leading-snug">
-                                                    {broadcastBody || "Type your message in the builder to see it previewed here in real-time."}
-                                                </p>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-white">
+                                                        <MessageCircle className="w-4 h-4" />
+                                                    </div>
+                                                    <span className="text-xs font-black text-gray-700">FairPrice Official</span>
+                                                </div>
+                                                
+                                                <div className="bg-white rounded-2xl rounded-tl-none p-3 shadow-sm border border-emerald-100 relative max-w-[90%]">
+                                                    {selectedProduct && (
+                                                        <div className="mb-2 rounded-lg overflow-hidden bg-gray-50 border border-gray-100 aspect-video">
+                                                            <img src={getProxiedImageUrl(selectedProduct.image_url)} alt="" className="w-full h-full object-contain" />
+                                                        </div>
+                                                    )}
+                                                    <p className="text-[13px] font-medium text-gray-800 whitespace-pre-wrap leading-relaxed">
+                                                        {broadcastBody || "Hello! Check out this special offer from FairPrice.ng..."}
+                                                    </p>
+                                                    <div className="flex justify-end mt-1">
+                                                        <span className="text-[10px] text-gray-400">09:41 AM</span>
+                                                    </div>
+                                                </div>
+
+                                                {selectedProduct && (
+                                                    <div className="w-full bg-white rounded-xl border border-gray-100 py-2.5 text-center text-blue-600 font-black text-xs uppercase tracking-widest shadow-sm">
+                                                        Buy Now
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                         
-                                        <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-                                            <div className="h-10 flex-1 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-[11px] font-black uppercase tracking-widest">
-                                                View Product
+                                        {activeTab === "push" && (
+                                            <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
+                                                <div className="h-10 flex-1 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-[11px] font-black uppercase tracking-widest">
+                                                    View Product
+                                                </div>
+                                                <div className="h-10 w-10 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400">
+                                                    <X className="w-4 h-4" />
+                                                </div>
                                             </div>
-                                            <div className="h-10 w-10 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400">
-                                                <X className="w-4 h-4" />
-                                            </div>
-                                        </div>
+                                        )}
                                     </motion.div>
                                 </div>
                                 

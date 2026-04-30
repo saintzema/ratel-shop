@@ -21,7 +21,8 @@ import {
     Users,
     Tag,
     Blocks,
-    Store
+    Store,
+    QrCode
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
@@ -215,6 +216,7 @@ export default function SellerLayout({
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
         { label: "Wallet & Payouts", href: "/seller/wallet", icon: Wallet },
+        { label: "QR Payments", href: "/seller/dashboard/payments", icon: QrCode },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
     ];

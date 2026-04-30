@@ -2,7 +2,9 @@ import { db } from "./db";
 
 const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
-const API_VERSION = "v21.0";
+const WABA_ID = process.env.WHATSAPP_WABA_ID;
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const API_VERSION = "v25.0";
 
 export class WhatsAppService {
     /**
@@ -67,5 +69,77 @@ export class WhatsAppService {
     }) {
         const message = `Negotiation Started! Your offer of ₦${data.proposedPrice.toLocaleString()} for *${data.productName}* has been sent to the seller.\n\nYou'll receive updates here on WhatsApp when the seller responds.`;
         return this.sendMessage(to, message);
+    }
+
+    /**
+     * Sends a marketing message via the new /marketing_messages endpoint
+     * This uses Meta's automatic delivery optimizations
+     */
+    static async sendMarketingMessage(to: string, templateName: string, components: any[]) {
+        if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+            console.warn("WhatsApp credentials missing. Marketing message suppressed.");
+            return null;
+        }
+
+        const cleanTo = to.replace(/\D/g, "");
+
+        try {
+            const response = await fetch(
+                `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/marketing_messages`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        messaging_product: "whatsapp",
+                        to: cleanTo,
+                        type: "template",
+                        template: {
+                            name: templateName,
+                            language: { code: "en_US" },
+                            components: components
+                        },
+                    }),
+                }
+            );
+
+            const data = await response.json();
+            if (data.error) {
+                console.error("WhatsApp Marketing API Error:", data.error);
+            }
+            return data;
+        } catch (error) {
+            console.error("WhatsApp Marketing Send Error:", error);
+            return null;
+        }
+    }
+
+    /**
+     * Sends a direct product offer with a Buy Now link
+     */
+    static async sendProductOffer(to: string, product: { name: string, price: number, url: string, imageUrl?: string }) {
+        const components = [
+            {
+                type: "header",
+                parameters: product.imageUrl ? [{ type: "image", image: { link: product.imageUrl } }] : []
+            },
+            {
+                type: "body",
+                parameters: [
+                    { type: "text", text: product.name },
+                    { type: "text", text: `₦${product.price.toLocaleString()}` }
+                ]
+            },
+            {
+                type: "button",
+                sub_type: "url",
+                index: "0",
+                parameters: [{ type: "text", text: product.url.split('/').pop() }]
+            }
+        ];
+
+        return this.sendMarketingMessage(to, "product_offer_v1", components);
     }
 }
