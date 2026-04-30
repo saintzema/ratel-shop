@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"; // REBUILD_TRIGGER_ENV_FIX
 import { db } from "@/lib/db";
 import { broadcast } from "../realtime/route";
+import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export const runtime = "nodejs";
 
@@ -127,9 +128,19 @@ export async function POST(request: Request) {
                 proposedPrice: body.proposed_price,
                 message: body.message || null,
                 status: 'pending',
+                customerWhatsapp: body.customer_whatsapp || null,
                 chatMessages: body.chat_messages || []
-            }
+            } as any
         });
+
+        // Trigger WhatsApp Confirmation
+        if (body.customer_whatsapp) {
+            await WhatsAppService.sendNegotiationStarted(body.customer_whatsapp, {
+                productName: product.name,
+                proposedPrice: body.proposed_price,
+                negotiationId: newNeg.id
+            }).catch(e => console.error("WhatsApp Notification Error:", e));
+        }
 
         // Broadcast update for real-time sync
         broadcast({ type: "negotiation_updated", id: newNeg.id });
@@ -194,7 +205,7 @@ export async function PATCH(request: Request) {
             include: { 
                 product: true, 
                 customer: true,
-                seller: { select: { userId: true } }
+                seller: { select: { businessName: true, userId: true } }
             }
         });
 
@@ -225,6 +236,17 @@ export async function PATCH(request: Request) {
                          }
                      })
                  }).catch(e => console.error("Failed to trigger counter-offer email:", e));
+             }
+
+             // --- WhatsApp Notification for Counter ---
+             const customerNum = (updated as any).customerWhatsapp;
+             if (customerNum) {
+                 await WhatsAppService.sendNegotiationUpdate(customerNum, {
+                     productName: updated.product?.name || "Product",
+                     newPrice: counterPrice,
+                     sellerName: (updated.seller as any)?.businessName || "Seller",
+                     negotiationId: updated.id
+                 }).catch(e => console.error("WhatsApp Counter-Offer Alert Error:", e));
              }
         }
 

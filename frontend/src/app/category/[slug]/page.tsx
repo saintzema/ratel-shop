@@ -227,15 +227,6 @@ export default function CategoryPage() {
                 </div>
             </main>
 
-                    <div className="mt-16 mb-8">
-                        <YouMayAlsoLike
-                            cartCategories={slug !== 'all' && slug !== 'verified' ? [slug] : []}
-                            title="More Suggestions For You"
-                        />
-                    </div>
-                </div>
-            </main>
-
             <Footer />
         </div>
     );

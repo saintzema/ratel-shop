@@ -62,6 +62,7 @@ export default function AdminSettings() {
     const [supportWhatsapp, setSupportWhatsapp] = useState("2348162816305");
     const [supportOffice, setSupportOffice] = useState("Victoria Island, Lagos, Nigeria");
     const [supportHours, setSupportHours] = useState("Mon - Sat: 8am - 10pm WAT");
+    const [whatsappNegotiationBridge, setWhatsappNegotiationBridge] = useState(true);
     const [serviceCenters, setServiceCenters] = useState<{name: string, address: string, phone: string}[]>([]);
     const [heroConfig, setHeroConfig] = useState<any>(null);
 
@@ -141,6 +142,7 @@ export default function AdminSettings() {
                     if (initialData.escrowRelease !== undefined) setEscrowRelease(initialData.escrowRelease);
                     if (initialData.strictSeller !== undefined) setStrictSeller(initialData.strictSeller);
                     if (initialData.globalSearchCaching !== undefined) setGlobalSearchCaching(initialData.globalSearchCaching);
+                    if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
                         setMaxNegotiationDiscount(initialData.maxNegotiationDiscount.toString());
@@ -238,7 +240,7 @@ export default function AdminSettings() {
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
-        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching
+        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
@@ -662,6 +664,13 @@ export default function AdminSettings() {
                                     <p className="text-xs text-gray-400 mt-0.5">Auto-capture and add AI-generated products from Navbar & Modal Search into the public catalogue</p>
                                 </div>
                                 <Switch checked={globalSearchCaching} onCheckedChange={setGlobalSearchCaching} />
+                            </div>
+                            <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+                                <div className="max-w-md">
+                                    <h4 className="text-sm font-bold text-gray-900">Ziva AI-WhatsApp Bridge</h4>
+                                    <p className="text-xs text-gray-400 mt-0.5">Enable real-time negotiations and alerts via WhatsApp Cloud API</p>
+                                </div>
+                                <Switch checked={whatsappNegotiationBridge} onCheckedChange={setWhatsappNegotiationBridge} />
                             </div>
                         </div>
 

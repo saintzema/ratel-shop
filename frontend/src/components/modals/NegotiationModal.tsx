@@ -104,6 +104,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         }
     };
 
+    const [whatsappNumber, setWhatsappNumber] = useState<string>("");
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
@@ -123,14 +125,11 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         let currentUserId = user?.id;
 
         if (typeof window !== "undefined") {
-            // Priority 1: Use specific guest name if set (e.g. from a form field in the future)
-            // Priority 2: Use the globally persistent fp_guest_name
             const savedGuestName = localStorage.getItem("fp_guest_name");
             if (savedGuestName) {
                 tempGuestName = savedGuestName;
             }
 
-            // Ensure we have a stable guest ID if not logged in
             if (!currentUserId) {
                 currentUserId = DataSyncService.getOrInitializeGuestId();
             }
@@ -141,7 +140,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         // Create a conversation thread message string
         const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
 
-        // Create new negotiation with the initial message bundled in so it hot renders in the seller inbox
+        // Create new negotiation
         const newNegotiation = {
             id: `neg_${Date.now()}`,
             product_id: product.id,
@@ -149,6 +148,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             customer_name: user?.name || tempGuestName,
             proposed_price: Number(proposedPrice),
             message: message,
+            customer_whatsapp: whatsappNumber || undefined,
             status: "pending" as const,
             created_at: new Date().toISOString(),
             chat_messages: [{
@@ -168,9 +168,8 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             product.seller_name || "Global Store"
         );
 
-        playDingSound(); // Play the sweet glass chime on successful negotiation request
+        playDingSound(); 
         
-        // Show push opt-in if permission is not already granted/denied
         if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
             setTimeout(() => {
                 setShowPushOptIn(true);
@@ -184,6 +183,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const handleReset = () => {
         setProposedPrice("");
         setMessage("");
+        setWhatsappNumber("");
         setSubmitted(false);
         setIsAnalyzing(false);
         setAnalysisStep(0);
@@ -216,7 +216,6 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             </div>
                         </div>
 
-                        {/* Market Analysis Button */}
                         <div className="space-y-2 shrink-0">
                             {isAnalyzing ? (
                                 <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 space-y-2">
@@ -282,7 +281,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     type="text"
                                     inputMode="numeric"
                                     placeholder="e.g. 45,000"
-                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-brand-green-600 focus:border-brand-green-600 font-medium ${error ? "border-red-500 focus:border-red-500 focus:ring-red-500" : ""}`}
+                                    className={`pl-8 bg-zinc-50 border-zinc-200 rounded-lg focus:ring-brand-green-600 focus:border-brand-green-600 font-medium ${error ? "border-red-500" : ""}`}
                                     value={proposedPrice ? Number(proposedPrice).toLocaleString() : ""}
                                     onChange={(e) => {
                                         const rawValue = e.target.value.replace(/,/g, "").replace(/\D/g, "");
@@ -293,15 +292,25 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                     required
                                 />
                             </div>
-                            {error && (
-                                <div className="flex items-start gap-1 text-xs text-red-600 mt-1 animate-in fade-in slide-in-from-top-1">
-                                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                    <span>{error}</span>
-                                </div>
-                            )}
-                            <p className="text-[10px] text-zinc-400">
-                                Minimum offer ({maxDiscountPct}% off): {formatPrice(minAllowedPrice)}
-                            </p>
+                        </div>
+
+                        <div className="space-y-2 shrink-0">
+                            <Label htmlFor="whatsapp" className="text-sm font-bold flex items-center gap-2">
+                                WhatsApp for Updates
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black uppercase">Ziva AI</span>
+                            </Label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-bold">+234</span>
+                                <Input
+                                    id="whatsapp"
+                                    type="tel"
+                                    placeholder="8012345678"
+                                    className="pl-12 bg-emerald-50/30 border-emerald-100 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium"
+                                    value={whatsappNumber}
+                                    onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ""))}
+                                />
+                            </div>
+                            <p className="text-[9px] text-zinc-400">Receive instant price alerts and counter-offers via WhatsApp.</p>
                         </div>
 
                         <div className="space-y-2 shrink-0">
@@ -309,7 +318,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             <Textarea
                                 id="message"
                                 placeholder="Explain why you are suggesting this price..."
-                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[60px] focus:ring-brand-green-600 focus:border-brand-green-600"
+                                className="bg-zinc-50 border-zinc-200 rounded-lg min-h-[60px] focus:ring-brand-green-600 focus:border-brand-green-600 text-sm"
                                 value={message}
                                 onChange={(e) => setMessage(e.target.value)}
                             />

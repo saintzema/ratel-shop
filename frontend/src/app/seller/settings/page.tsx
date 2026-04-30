@@ -23,8 +23,10 @@ import {
     Lock,
     Check,
     Wallet,
-    Badge
+    Badge,
+    MessageCircle
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -50,7 +52,9 @@ export default function SellerSettingsPage() {
         weekly_orders: "",
         staff_count: "",
         physical_stores: "",
-        currencies: [] as string[]
+        currencies: [] as string[],
+        whatsapp_enabled: false,
+        whatsapp_number: ""
     });
 
     useEffect(() => {
@@ -71,7 +75,9 @@ export default function SellerSettingsPage() {
             weekly_orders: s.weekly_orders || "",
             staff_count: s.staff_count || "",
             physical_stores: s.physical_stores || "",
-            currencies: s.currencies || ["NGN (₦)"]
+            currencies: s.currencies || ["NGN (₦)"],
+            whatsapp_enabled: (s as any).whatsapp_enabled ?? false,
+            whatsapp_number: (s as any).whatsapp_number || ""
         });
         setLoading(false);
     }, [router]);
@@ -447,6 +453,42 @@ export default function SellerSettingsPage() {
                         </div>
                     </div>
                 </div >
+
+                {/* WhatsApp Negotiation Bridge Section */}
+                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-[24px] border border-emerald-100 p-6 sm:p-8 shadow-sm">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-2 text-emerald-700">
+                            <MessageCircle className="h-5 w-5" />
+                            <h2 className="font-bold uppercase tracking-widest text-xs">Ziva AI-WhatsApp Negotiation Bridge</h2>
+                        </div>
+                        <Switch 
+                            checked={formData.whatsapp_enabled} 
+                            onCheckedChange={(val) => setFormData({ ...formData, whatsapp_enabled: val })} 
+                        />
+                    </div>
+                    
+                    <div className="space-y-4">
+                        <p className="text-sm text-emerald-800 font-medium">
+                            Enable real-time negotiations on WhatsApp. When a customer suggests a price, you'll be notified instantly. You can counter-offer or accept deals directly from WhatsApp.
+                        </p>
+                        
+                        {formData.whatsapp_enabled && (
+                            <div className="space-y-2 max-w-sm animate-in fade-in slide-in-from-top-2">
+                                <label className="text-xs font-black uppercase tracking-widest text-emerald-900 flex items-center gap-1.5">Business WhatsApp Number</label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-600 text-xs font-bold">+234</span>
+                                    <Input
+                                        value={formData.whatsapp_number}
+                                        onChange={e => setFormData({ ...formData, whatsapp_number: e.target.value.replace(/\D/g, '') })}
+                                        placeholder="8012345678"
+                                        className="h-12 bg-white border-emerald-200 rounded-xl focus-visible:ring-emerald-500 focus-visible:border-emerald-500 text-emerald-900 pl-12 font-bold"
+                                    />
+                                </div>
+                                <p className="text-[10px] text-emerald-600 font-medium">This is where you'll receive customer offers and Ziva AI alerts.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
 
                 {/* Payout & Bank Settings Quick Link */}
                 <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">

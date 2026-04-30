@@ -206,6 +206,7 @@ export interface NegotiationRequest {
     proposed_price: number;
     message?: string;
     status: "pending" | "accepted" | "rejected" | "countered" | "purchased";
+    customer_whatsapp?: string;
     counter_price?: number;
     counter_message?: string;
     counter_status?: "pending" | "accepted" | "rejected" | "purchased";
