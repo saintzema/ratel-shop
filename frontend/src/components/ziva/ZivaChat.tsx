@@ -1237,7 +1237,7 @@ export function ZivaChat() {
 
     return (
         <div
-            className="fixed left-4 lg:left-8 z-[50] pointer-events-none transition-all duration-300 ease-out"
+            className="fixed left-6 lg:left-12 z-[50] pointer-events-none transition-all duration-300 ease-out"
             style={{
                 bottom: containerBottom
             }}
@@ -1620,16 +1620,16 @@ export function ZivaChat() {
                             initial={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
                             animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
                             exit={{ opacity: 0, scale: 0.5, x: 20, y: 10 }}
-                            className="absolute bottom-20 left-2 z-[60] pointer-events-auto"
+                            className="absolute bottom-[70px] left-[15px] md:left-[30px] z-[60] pointer-events-auto"
                         >
-                            <div className="relative bg-blue-600 text-white pl-8 pr-6 py-3.5 rounded-2xl rounded-bl-none shadow-2xl border border-blue-400/30 max-w-[220px]">
+                            <div className="relative bg-blue-600 text-white px-5 py-3.5 rounded-2xl rounded-bl-none shadow-2xl border border-blue-400/30 w-[240px] md:w-[280px]">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowInviteBubble(false); }}
                                     className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors shadow-lg"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>
-                                <p className="text-[11px] font-extrabold leading-tight tracking-tight">
+                                <p className="text-[11px] md:text-xs font-extrabold leading-tight tracking-tight">
                                     Hey! I'm Ziva. I can help you find best deals & negotiate prices 😊  
                                 </p>
                                 <div className="absolute bottom-[-8px] left-0 w-4 h-4 bg-blue-600 rotate-45" style={{ clipPath: 'polygon(100% 0, 0 100%, 0 0)' }} />

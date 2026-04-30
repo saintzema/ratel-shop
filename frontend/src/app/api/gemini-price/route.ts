@@ -276,20 +276,30 @@ default to NEW from 2024 onwards.
         }
 
         // Retry with exponential backoff for Gemini 429 (free tier: 15 RPM)
-        const fetchWithRetry = async (attempt = 0): Promise<Response> => {
+        const fetchWithRetry = async (attempt = 0, useGrounding = true): Promise<Response> => {
+            const body: any = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            
+            // Only use grounding if specified (to allow fallback when grounding hits limits)
+            if (useGrounding) {
+                body.tools = [{ google_search: {} }];
+            }
+
             const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    tools: [{ google_search: {} }]
-                })
+                body: JSON.stringify(body)
             });
+
             // Retry on 429 (Gemini rate limit) or 503 (overloaded) up to 5 times
             if ((res.status === 429 || res.status === 503) && attempt < 5) {
-                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000; // 1s, 2s, 4s, 8s, 16s + jitter
+                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 await new Promise(r => setTimeout(r, backoffMs));
-                return fetchWithRetry(attempt + 1);
+                
+                // If we've hit 429 multiple times with grounding, try one without grounding as a last resort
+                const nextUseGrounding = (attempt >= 3 && res.status === 429) ? false : useGrounding;
+                return fetchWithRetry(attempt + 1, nextUseGrounding);
             }
             return res;
         };
@@ -299,11 +309,10 @@ default to NEW from 2024 onwards.
         if (!response.ok) {
             const errorText = await response.text();
             console.error("Gemini API Error:", response.status, errorText);
-            // Surface Gemini's rate limit clearly to the client so the UI can show a helpful message
+            // Surface Gemini's rate limit clearly to the client
             if (response.status === 429) {
-                // If we get a 429 even after retries, it means the daily quota is likely exhausted.
                 return NextResponse.json(
-                    { error: "Global Search is completed. Please try again later or use the popular searches above." },
+                    { error: "AI search is currently busy. Please try again in 30 seconds." },
                     { status: 429 }
                 );
             }

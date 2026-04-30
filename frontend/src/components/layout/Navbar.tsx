@@ -328,6 +328,15 @@ export function Navbar() {
                     if (!aStarts && bStarts) return 1;
                     return a.length - b.length;
                 })
+                .map(name => {
+                    // Enrich with category for Amazon-style descriptive suggestions
+                    const p = allSearchProducts.find(prod => prod.name === name);
+                    if (p && p.category) {
+                        const catLabel = CATEGORIES.find(c => c.value === p.category)?.label || p.category;
+                        return `${name} in ${catLabel}`;
+                    }
+                    return name;
+                })
                 .slice(0, 6);
             
             setTextSuggestions(sortedText);

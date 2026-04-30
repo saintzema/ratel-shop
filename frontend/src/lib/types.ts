@@ -328,6 +328,7 @@ export interface Notification {
     timestamp: string;
     link?: string;
     userId?: string;
+    imageUrl?: string;
 }
 
 // ─── Categories ─────────────────────────────────────────────

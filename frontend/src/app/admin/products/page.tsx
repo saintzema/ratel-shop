@@ -325,9 +325,9 @@ export default function CatalogControl() {
             if (res.ok) {
                 const data = await res.json();
                 if (data.imageUrl) {
-                    setEditImage(data.imageUrl);
+                    setEditImage(wrapInCDN(data.imageUrl));
                     if (data.imageUrls && Array.isArray(data.imageUrls) && data.imageUrls.length > 0) {
-                        setEditImages(data.imageUrls.slice(0, 8));
+                        setEditImages(data.imageUrls.slice(0, 8).map(wrapInCDN));
                     }
                     return;
                 }
@@ -341,7 +341,7 @@ export default function CatalogControl() {
             if (geminiRes.ok) {
                 const geminiData = await geminiRes.json();
                 if (geminiData.image_url && geminiData.image_url.startsWith('http')) {
-                    setEditImage(geminiData.image_url);
+                    setEditImage(wrapInCDN(geminiData.image_url));
                     return;
                 }
             }
@@ -373,9 +373,9 @@ export default function CatalogControl() {
                 specs: editSpecs.reduce((acc, curr) => { if (curr.key) acc[curr.key] = curr.value; return acc; }, {} as Record<string, string>),
                 price: parseFloat(editPrice.replace(/,/g, '')) || editingProduct.price,
                 original_price: editOriginalPrice ? parseFloat(editOriginalPrice.replace(/,/g, '')) : editingProduct.original_price,
-                image_url: editImage || editingProduct.image_url,
+                image_url: wrapInCDN(editImage || editingProduct.image_url),
                 external_url: editExternalUrl || editingProduct.external_url,
-                images: editImages.filter(Boolean),
+                images: editImages.filter(Boolean).map(wrapInCDN),
                 financing_available: editFinancingAvailable,
                 financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
                 financing_config: editFinancingConfig,

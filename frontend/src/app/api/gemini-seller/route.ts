@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 const RL_MAP = new Map<string, { count: number; reset: number }>();
-const RL_MAX = 10;
+const RL_MAX = 15;
 const RL_WINDOW_MS = 60_000;
+
+// Cache TTL: 30 days for product content (rarely changes)
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function checkRateLimit(req: Request): boolean {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
@@ -35,6 +39,17 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Product name is required" }, { status: 400 });
         }
 
+        // ─── CACHE CHECK ───
+        const cacheKey = `seller:${productName.trim().toLowerCase()}`;
+        try {
+            const cached = await db.searchCache.findUnique({ where: { query: cacheKey } });
+            if (cached && Date.now() - cached.updatedAt.getTime() < CACHE_TTL_MS) {
+                return NextResponse.json(cached.products as any, { headers: { "X-Cache": "HIT" } });
+            }
+        } catch (e) {
+            console.warn("[gemini-seller] cache read failed");
+        }
+
         const prompt = `
         You are an expert e-commerce copywriter for FairPrice Nigeria — Africa's most trusted marketplace.
         Product Name: "${productName}"
@@ -44,43 +59,19 @@ export async function POST(req: Request) {
         
         Output MUST be valid JSON matching this exact structure:
         {
-            "description": "A compelling, 3-4 paragraph product description. FIRST PARAGRAPH MUST START IMMEDIATELY WITH FACTUAL DETAILS about material, build, and durability. STRICTLY AVOID generic intros, marketing fluff, or phrases like 'Unlock cinematic-quality...'. Second paragraph: detailed features and technical specs. Third paragraph: use cases and who it's perfect for. Fourth paragraph: what's in the box and why it's a great value. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
-            "highlights": [
-                "Key selling point 1 — be specific with numbers/specs where possible",
-                "Key selling point 2",
-                "Key selling point 3",
-                "Key selling point 4",
-                "Key selling point 5",
-                "Key selling point 6"
-            ],
-            "specs": {
-                "Brand": "...",
-                "Model": "...",
-                "Material": "...",
-                "Dimensions": "...",
-                "Weight": "...",
-                "Color Options": "...",
-                "Power/Battery": "...",
-                "Warranty": "...",
-                "Package Contents": "...",
-                "Care Instructions": "..."
-            },
-            "subcategory": "A specific subcategory string (e.g. 'Smartphones', 'Men's Running Shoes', 'Wireless Earbuds')",
-            "tags": ["5-8 descriptive, high-intent search tags relevant to the product, e.g. 'wireless', 'noise-cancelling', 'bluetooth 5.3', 'long battery life'"],
-            "colors": ["Color 1", "Color 2", "Color 3"]
+            "description": "A compelling, 3-4 paragraph product description. Write like a top Amazon listing — authoritative, benefit-driven, and trust-building.",
+            "highlights": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5", "Point 6"],
+            "specs": { "Brand": "...", "Model": "...", "...": "..." },
+            "subcategory": "string",
+            "tags": ["tag1", "tag2", "tag3"],
+            "colors": ["Color 1", "Color 2"]
         }
         
         CRITICAL RULES:
-        - Output ONLY raw, valid JSON. NO markdown formatting. NO conversational text.
-        - The JSON must begin with { and end with }.
-        - Description must be 3-4 rich paragraphs, totaling at least 150 words. Write like you're selling on Amazon.
-        - Generate 6 punchy, benefit-driven highlights.
-        - Generate 8 to 12 relevant key-value pairs for the specs based on the actual product type. Include dimensions, weight, materials, package contents, and care instructions where applicable.
-        - Suggest 2-4 standard colors if applicable to the product type, otherwise empty array.
-        - Do NOT include any image URLs in the JSON.
+        - Output ONLY raw, valid JSON. NO markdown.
+        - Description must be at least 150 words.
         `;
 
-        // Retry with exponential backoff on 429/503 (up to 2 retries)
         const fetchWithRetry = async (attempt = 0): Promise<Response> => {
             const res = await fetch(`${API_URL}?key=${GEMINI_API_KEY}`, {
                 method: "POST",
@@ -90,8 +81,8 @@ export async function POST(req: Request) {
                     generationConfig: { temperature: 0.7 }
                 })
             });
-            if ((res.status === 429 || res.status === 503) && attempt < 2) {
-                const backoffMs = Math.pow(2, attempt) * 800 + Math.random() * 400;
+            if ((res.status === 429 || res.status === 503) && attempt < 5) {
+                const backoffMs = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
                 await new Promise(r => setTimeout(r, backoffMs));
                 return fetchWithRetry(attempt + 1);
             }
@@ -102,14 +93,14 @@ export async function POST(req: Request) {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("Gemini API Error:", errorText);
+            console.error("Gemini API Error:", response.status, errorText);
             if (response.status === 429) {
                 return NextResponse.json(
-                    { error: "AI is busy right now — please wait a moment and try again." },
+                    { error: "AI service is currently at capacity. Please try again in 30 seconds." },
                     { status: 429 }
                 );
             }
-            throw new Error(`Gemini API failed with status ${response.status} `);
+            throw new Error(`Gemini API failed with status ${response.status}`);
         }
 
         const data = await response.json();
@@ -122,7 +113,14 @@ export async function POST(req: Request) {
         const cleanText = text.replace(/```json\s?/g, "").replace(/```/g, "").trim();
         const parsed = JSON.parse(cleanText);
 
-        return NextResponse.json(parsed);
+        // WRITE TO CACHE
+        db.searchCache.upsert({
+            where: { query: cacheKey },
+            create: { query: cacheKey, products: parsed as any },
+            update: { products: parsed as any },
+        }).catch(() => {});
+
+        return NextResponse.json(parsed, { headers: { "X-Cache": "MISS" } });
 
     } catch (error) {
         console.error("Error in gemini-seller route:", error);
