@@ -980,14 +980,16 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("storage"));
     }
 
-    async syncTaxonomy() {
+    async syncTaxonomy(silent: boolean = false) {
         try {
             const res = await fetch("/api/admin/taxonomy");
             if (res.ok) {
                 const data = await res.json();
                 if (data.success) {
                     localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(data.categories));
-                    window.dispatchEvent(new Event("sync-store-update"));
+                    if (!silent) {
+                        window.dispatchEvent(new Event("sync-store-update"));
+                    }
                 }
             }
         } catch (e) {
@@ -999,27 +1001,27 @@ class DataSyncServiceService {
         return this.getCategories();
     }
 
-    async createPersistentCategory(name: string) {
+    async createPersistentCategory(name: string, silent: boolean = false) {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ type: "category", name })
             });
-            if (res.ok) await this.syncTaxonomy();
+            if (res.ok) await this.syncTaxonomy(silent);
         } catch (e) {
             console.error("Failed to create category:", e);
         }
     }
 
-    async createPersistentSubcategory(categoryId: string, name: string) {
+    async createPersistentSubcategory(categoryId: string, name: string, silent: boolean = false) {
         try {
             const res = await fetch("/api/admin/taxonomy", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ type: "subcategory", categoryId, name })
             });
-            if (res.ok) await this.syncTaxonomy();
+            if (res.ok) await this.syncTaxonomy(silent);
         } catch (e) {
             console.error("Failed to create subcategory:", e);
         }
@@ -1031,16 +1033,18 @@ class DataSyncServiceService {
         if (current.length === 0) {
             console.log("🛠️ Migrating hardcoded categories to database...");
             for (const cat of hardcodedCategories) {
-                await this.createPersistentCategory(cat.label);
-                // After creating category, find its ID in the newly synced list
+                // Use silent=true for intermediate steps
+                await this.createPersistentCategory(cat.label, true);
                 const refreshed = this.getTaxonomy();
                 const dbCat = refreshed.find(c => c.name === cat.label);
                 if (dbCat && cat.subcategories) {
                     for (const sub of cat.subcategories) {
-                        await this.createPersistentSubcategory(dbCat.id, sub);
+                        await this.createPersistentSubcategory(dbCat.id, sub, true);
                     }
                 }
             }
+            // Final dispatch once everything is migrated
+            window.dispatchEvent(new Event("sync-store-update"));
         }
     }
 
@@ -1050,29 +1054,35 @@ class DataSyncServiceService {
      * Taxonomy should be managed via the Admin Category page.
      */
     ensureCategoryExists(categoryName: string, subCategoryName?: string) {
-        if (!categoryName) return;
+        if (!categoryName || typeof window === "undefined") return;
 
-        const categories = this.getCategories();
-        const catIndex = categories.findIndex(c => c.name.toLowerCase() === categoryName.toLowerCase());
+        try {
+            const categories = this.getCategories();
+            const catIndex = categories.findIndex(c => c && c.name && c.name.toLowerCase() === categoryName.toLowerCase());
 
-        if (catIndex === -1) {
-            console.warn(`🛡️ Data Integrity: Product uses unknown category "${categoryName}". Auto-creation skipped.`);
-            return;
-        }
-
-        const parent = categories[catIndex];
-        parent.product_count = (parent.product_count || 0) + 1;
-
-        if (subCategoryName) {
-            const subIndex = parent.children.findIndex(c => c.name.toLowerCase() === subCategoryName.toLowerCase());
-            if (subIndex !== -1) {
-                parent.children[subIndex].product_count = (parent.children[subIndex].product_count || 0) + 1;
-            } else {
-                console.warn(`🛡️ Data Integrity: Product uses unknown subcategory "${subCategoryName}" in "${categoryName}".`);
+            if (catIndex === -1) {
+                console.warn(`🛡️ Data Integrity: Product uses unknown category "${categoryName}". Auto-creation skipped.`);
+                return;
             }
-        }
 
-        this.setCategories(categories);
+            const parent = categories[catIndex];
+            if (!parent) return;
+            
+            parent.product_count = (parent.product_count || 0) + 1;
+
+            if (subCategoryName && parent.children && Array.isArray(parent.children)) {
+                const subIndex = parent.children.findIndex(c => c && c.name && c.name.toLowerCase() === subCategoryName.toLowerCase());
+                if (subIndex !== -1) {
+                    parent.children[subIndex].product_count = (parent.children[subIndex].product_count || 0) + 1;
+                } else {
+                    console.warn(`🛡️ Data Integrity: Product uses unknown subcategory "${subCategoryName}" in "${categoryName}".`);
+                }
+            }
+
+            this.setCategories(categories);
+        } catch (e) {
+            console.error("🛡️ ensureCategoryExists error:", e);
+        }
     }
 
     // --- Negotiations ---
@@ -3079,13 +3089,15 @@ getAllCachedProducts(): any[] {
     }
 
     deleteProduct(id: string) {
-        const products = this.getProducts();
-        const updated = products.filter(p => p.id !== id);
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        if (typeof window === "undefined") return;
         
-        // Mark as deleted so syncWithDB doesn't add it back from stale DB response
+        // 1. Local cleanup
+        const products = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || "[]");
+        const filtered = products.filter((p: any) => p.id !== id);
+        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(filtered));
+        
+        // 2. Persistent Tombstone (Prevents re-syncing from DB in current session)
         this._deletedProductIds.add(id);
-        
         // PERSISTENT TOMBSTONE: Add to DELETED_STUBS so it never comes back via automated discovery
         const deleted = this.getDeletedStubs();
         if (!deleted.includes(id)) {
@@ -3823,23 +3835,16 @@ getAllCachedProducts(): any[] {
     }
 
     markAsRead(id: string) {
-        if (typeof window === "undefined") return;
-        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
-        if (!stored) return;
-        const all: AppNotification[] = JSON.parse(stored);
-        const updated = all.map(n => n.id === id ? { ...n, read: true } : n);
-        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
-        window.dispatchEvent(new Event("storage"));
+        this.markNotificationRead(id);
     }
 
     markAllAsRead() {
-        if (typeof window === "undefined") return;
-        const stored = localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS);
-        if (!stored) return;
-        const all: AppNotification[] = JSON.parse(stored);
-        const updated = all.map(n => ({ ...n, read: true }));
-        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(updated));
-        window.dispatchEvent(new Event("storage"));
+        const user = this.getCurrentUser();
+        if (user?.email) {
+            this.markAllNotificationsRead(user.email);
+        } else if (user?.id) {
+            this.markAllNotificationsRead(user.id);
+        }
     }
 
     // --- User & Premium ---

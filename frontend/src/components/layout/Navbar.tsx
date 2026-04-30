@@ -111,6 +111,7 @@ export function Navbar() {
     const [globalResults, setGlobalResults] = useState<{ name: string; category: string; approxPrice: number; sourceUrl?: string; id?: string; image_url?: string }[]>([]);
     const [isGlobalSearching, setIsGlobalSearching] = useState(false);
     const [autocompleteSuggestions, setAutocompleteSuggestions] = useState<string[]>([]);
+    const [matchingBrands, setMatchingBrands] = useState<string[]>([]);
     const [cachedResults, setCachedResults] = useState<any[]>([]);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
     const { location, setLocation } = useLocation();
@@ -268,89 +269,71 @@ export function Navbar() {
         if (searchQuery.trim().length > 0) {
           try {
             const q = searchQuery.toLowerCase();
-            // Local product matches — only STRONG matches initially, but we allow slightly lower scores for explicitly globally-sourced products saved to catalogue.
             const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
-            // Guard: filter out any products with null/undefined names (can happen with old localStorage data)
             const allSearchProducts = [...storeProducts, ...SEED_PRODUCTS.filter(p => !storeProducts.some(sp => sp.id === p.id))]
                 .filter(p => p && p.name);
+
+            // 1. Local product matches (The "PRODUCTS" section)
             const scored = allSearchProducts
                 .map(p => {
                     let score = scoreProduct(p, q);
-                    // Boost global products added from search
                     if (p.seller_id === 'global-partners' || p.seller_name?.toLowerCase().includes('global')) {
                         score += 15;
                     }
                     return { product: p, score };
                 })
-                .filter(s => s.score > 40) // slightly lowered threshold to capture more inventory overlaps
+                .filter(s => s.score > 40)
                 .sort((a, b) => b.score - a.score)
-                .slice(0, 2); // Show only top 2 closely related local results
+                .slice(0, 5); 
             setSuggestions(scored.map(s => s.product));
 
-            // Generate smart, context-aware autocomplete suggestions (no API)
-            const pool = new Set<string>();
+            // 2. Text Suggestions (The "SUGGESTIONS" section)
+            const textPool = new Set<string>();
+            const brandsPool = new Set<string>();
+            
             allSearchProducts.forEach(p => {
-                if (p.name.toLowerCase().includes(q)) pool.add(p.name);
-                // Smart combination (First two words)
-                const words = p.name.split(' ');
-                if (words.length > 1 && words[0].toLowerCase().includes(q)) {
-                    pool.add(`${words[0]} ${words[1] || ''}`.trim());
+                const name = p.name;
+                const brand = (p.specs?.Brand || "").toString();
+                
+                if (name.toLowerCase().includes(q)) {
+                    // Favor long, descriptive names for the text suggestions
+                    textPool.add(name);
+                }
+                
+                if (brand && brand.toLowerCase().includes(q) && brand.toLowerCase() !== q) {
+                    brandsPool.add(brand);
+                }
+                
+                // If query is a brand, add its most popular product types
+                if (brand && q.includes(brand.toLowerCase())) {
+                    textPool.add(`${brand} ${p.category || ''}`.trim());
                 }
             });
 
-            const sortedSuggestions = Array.from(pool)
-                .sort((a, b) => {
-                    const aStartsWith = a.toLowerCase().startsWith(q) ? -1 : 1;
-                    const bStartsWith = b.toLowerCase().startsWith(q) ? -1 : 1;
-                    if (aStartsWith !== bStartsWith) return aStartsWith - bStartsWith;
-                    return a.length - b.length;
-                })
-                .slice(0, 5); // Increased from 3 to 5 for better autocomplete coverage
-            
-            // Add smart semantic permutations for the query
-            const semanticSuggs: string[] = [];
-            const trimQ = searchQuery.trim();
-            if (trimQ.length >= 2) {
-                const qLower = trimQ.toLowerCase();
-                const isCarQuery = /\b(car|suv|sedan|truck|van|toyota|lexus|benz|bmw|honda|hyundai|kia|jetour|avatr|tesla|range rover|land cruiser|camry|corolla|rav4|highlander|prado|gwm|changan|geely|byd)\b/i.test(qLower);
-                const isPhoneQuery = /\b(phone|iphone|samsung|galaxy|pixel|xiaomi|redmi|tecno|infinix|oppo|vivo|realme|oneplus|huawei)\b/i.test(qLower);
-                const isComputeQuery = /\b(macbook|laptop|hp|dell|lenovo|asus|acer|pc|computer|desktop)\b/i.test(qLower);
-
-                // Helper to add suggestions only if not already present
-                const addUniqueSuffix = (base: string, suffix: string) => {
-                    const cleanSuffix = suffix.trim();
-                    const bLower = base.toLowerCase();
-                    const sLower = cleanSuffix.toLowerCase();
-                    
-                    // Simple exclusion list for redundant terms in vehicle/electronic queries
-                    const redundantTerms = ['tokunbo', 'used', 'new', 'refurbished', 'foreign'];
-                    const hasRedundant = redundantTerms.some(term => bLower.includes(term) && sLower.includes(term));
-                    
-                    if (!bLower.includes(sLower) && !hasRedundant) {
-                        semanticSuggs.push(`${base} ${cleanSuffix}`);
+            // Fallback: If pool is small, add smart combinations
+            if (textPool.size < 5) {
+                allSearchProducts.forEach(p => {
+                    const words = p.name.split(' ');
+                    if (words.length > 2 && words[0].toLowerCase().includes(q)) {
+                        textPool.add(`${words[0]} ${words[1]} ${words[2]}`.trim());
                     }
-                };
-
-                if (isCarQuery) {
-                    addUniqueSuffix(trimQ, `2024 Model`);
-                    addUniqueSuffix(trimQ, `Tokunbo (Foreign Used)`);
-                    addUniqueSuffix(trimQ, `Nigerian Used`);
-                    semanticSuggs.push(`Cheap ${trimQ}`);
-                } else if (isPhoneQuery || isComputeQuery) {
-                    addUniqueSuffix(trimQ, `Brand New`);
-                    addUniqueSuffix(trimQ, `UK Used`);
-                    addUniqueSuffix(trimQ, `Refurbished`);
-                    semanticSuggs.push(`Cheap ${trimQ}`);
-                } else {
-                    addUniqueSuffix(trimQ, `Brand New`);
-                    addUniqueSuffix(trimQ, `Used`);
-                    addUniqueSuffix(trimQ, `Refurbished`);
-                    semanticSuggs.push(`Best ${trimQ} Brands`);
-                }
+                });
             }
 
-            setTextSuggestions([...sortedSuggestions, ...semanticSuggs].slice(0, 5));
-            // Instantly show fuzzy-matched cached results from past searches
+            const sortedText = Array.from(textPool)
+                .sort((a, b) => {
+                    const aStarts = a.toLowerCase().startsWith(q);
+                    const bStarts = b.toLowerCase().startsWith(q);
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+                    return a.length - b.length;
+                })
+                .slice(0, 6);
+            
+            setTextSuggestions(sortedText);
+            setMatchingBrands(Array.from(brandsPool).slice(0, 3));
+
+            // 3. Cached Results
             const scoredIds = new Set(scored.map(s => s.product.id));
             const cached = DataSyncService.searchCacheFuzzyMatch(searchQuery);
             setCachedResults(cached.filter(c => !scoredIds.has(c.id)));
@@ -362,6 +345,7 @@ export function Navbar() {
           }
         } else {
             setSuggestions([]);
+            setMatchingBrands([]);
             setGlobalResults([]);
             setIsGlobalSearching(false);
             setCachedResults([]);
@@ -993,7 +977,12 @@ export function Navbar() {
                                         </div>
                                     )}
 
-                                    {/* Text Suggestions (Autocomplete) */}
+                                    {/* Text Suggestions (The "SUGGESTIONS" section) */}
+                                    {textSuggestions.length > 0 && (
+                                        <div className="border-b border-gray-50 bg-gray-50/30">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Suggestions
+                                            </div>
                                             {textSuggestions.map((suggestion, idx) => (
                                                 <button
                                                     key={`sug-${idx}`}
@@ -1002,65 +991,97 @@ export function Navbar() {
                                                         e.stopPropagation();
                                                         setSearchQuery(suggestion);
                                                         setShowSuggestions(true);
-                                                        // Keep focus on the input to prevent it from closing
                                                         setTimeout(() => {
                                                             searchRef.current?.querySelector('input')?.focus();
                                                         }, 10);
                                                     }}
-                                                    className="w-full text-left px-4 py-2.5 hover:bg-emerald-50 active:bg-emerald-100 active:scale-[0.99] cursor-pointer text-[13px] md:text-sm text-gray-700 transition-all flex items-center justify-between group"
+                                                    className="w-full text-left px-4 py-2.5 hover:bg-white active:bg-gray-100 cursor-pointer text-[13px] text-gray-700 transition-all flex items-center justify-between group"
                                                 >
                                                     <div className="flex items-center gap-2">
-                                                        <Search className="h-3.5 w-3.5 text-emerald-600 group-hover:scale-110 transition-transform" />
+                                                        <Search className="h-3.5 w-3.5 text-gray-400 group-hover:text-brand-green-600 transition-colors" />
                                                         <span dangerouslySetInnerHTML={{
                                                             __html: suggestion.replace(new RegExp(searchQuery.trim(), 'gi'), match => `<strong class="text-gray-900">${match}</strong>`)
                                                         }} />
                                                     </div>
-                                                    <ChevronRight className="h-3.5 w-3.5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                 </button>
                                             ))}
+                                        </div>
+                                    )}
 
-                                    {/* Product Suggestions */}
-                                    {suggestions.map((product, i) => {
-                                        const idx = textSuggestions.length + i;
-                                        return (
-                                            <button
-                                                key={product.id}
-                                                onMouseDown={(e) => { 
-                                                    e.preventDefault(); 
-                                                    e.stopPropagation();
-                                                    navigateWithResults(product.id, false); 
-                                                }}
-                                                className={cn(
-                                                    "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
-                                                    activeIndex === idx ? "bg-blue-50" : "hover:bg-gray-50"
-                                                )}
-                                            >
-                                                <div className="relative h-12 w-12 shrink-0 bg-gray-50 rounded-lg p-1 overflow-hidden">
-                                                    <img
-                                                        src={getProxiedImageUrl(product.images?.[0] || product.image_url)}
-                                                        alt={product.name}
-                                                        className="w-full h-full object-contain"
-                                                        onError={(e) => {
-                                                            e.currentTarget.src = '/assets/images/placeholder.png';
+                                    {/* Product Suggestions (The "PRODUCTS" section) */}
+                                    {suggestions.length > 0 && (
+                                        <div className="border-b border-gray-50">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Products
+                                            </div>
+                                            {suggestions.map((product, i) => {
+                                                const idx = textSuggestions.length + i;
+                                                return (
+                                                    <button
+                                                        key={product.id}
+                                                        onMouseDown={(e) => { 
+                                                            e.preventDefault(); 
+                                                            e.stopPropagation();
+                                                            navigateWithResults(product.id, false); 
                                                         }}
-                                                    />
-                                                </div>
-                                                <div className="flex flex-col flex-1 min-w-0">
-                                                    <span className="text-sm font-medium text-gray-900 line-clamp-1">{product.name}</span>
-                                                    <div className="flex items-center gap-2 mt-0.5">
-                                                        <span className="text-xs font-bold text-green-600">₦{product.price.toLocaleString()}</span>
-                                                        <span className="text-[10px] text-gray-400">·</span>
-                                                        <span className="text-[10px] text-gray-400">⭐ {product.avg_rating}</span>
-                                                        <span className="text-[10px] text-gray-400">·</span>
-                                                        <span className="text-[10px] text-gray-400">{product.seller_name}</span>
-                                                    </div>
-                                                </div>
-                                                {product.price_flag === "fair" && (
-                                                    <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full uppercase shrink-0">Fair</span>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
+                                                        className={cn(
+                                                            "w-full flex items-center gap-4 p-3 transition-all border-b border-gray-50/50 last:border-0 text-left cursor-pointer active:scale-[0.99] active:bg-gray-100",
+                                                            activeIndex === idx ? "bg-emerald-50" : "hover:bg-gray-50"
+                                                        )}
+                                                    >
+                                                        <div className="relative h-12 w-12 shrink-0 bg-white border border-gray-100 rounded-lg p-1 overflow-hidden">
+                                                            <img
+                                                                src={getProxiedImageUrl(product.images?.[0] || product.image_url)}
+                                                                alt={product.name}
+                                                                className="w-full h-full object-contain"
+                                                                onError={(e) => {
+                                                                    e.currentTarget.src = '/assets/images/placeholder.png';
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col flex-1 min-w-0">
+                                                            <span className="text-sm font-bold text-gray-900 line-clamp-1">{product.name}</span>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <span className="text-xs font-black text-emerald-600">₦{product.price.toLocaleString()}</span>
+                                                                <span className="text-[10px] text-gray-400">·</span>
+                                                                <span className="text-[10px] text-gray-400">⭐ {product.avg_rating}</span>
+                                                                <span className="text-[10px] text-gray-400">·</span>
+                                                                <span className="text-[10px] text-gray-400">{product.seller_name}</span>
+                                                            </div>
+                                                        </div>
+                                                        {product.price_flag === "fair" && (
+                                                            <span className="text-[8px] font-black text-white bg-brand-green-600 px-1.5 py-0.5 rounded uppercase shrink-0">Fair</span>
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+
+                                    {/* Matching Brands (The "MATCHING BRANDS" section) */}
+                                    {matchingBrands.length > 0 && (
+                                        <div className="border-b border-gray-50">
+                                            <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                                                Matching Brands
+                                            </div>
+                                            <div className="p-2 flex flex-wrap gap-2">
+                                                {matchingBrands.map(brand => (
+                                                    <button
+                                                        key={brand}
+                                                        onMouseDown={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setSearchQuery(brand);
+                                                            setShowSuggestions(true);
+                                                        }}
+                                                        className="px-4 py-1.5 bg-gray-100 hover:bg-gray-200 text-xs font-bold text-gray-700 rounded-md transition-colors uppercase tracking-wider"
+                                                    >
+                                                        {brand}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Cached Results from Past Searches (instant) */}
                                     {cachedResults.length > 0 && (

@@ -301,7 +301,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 32px 0;">If you made this request, click the button below to securely update your credentials:</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/login" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Reset Password</a>
+    <a href="${payload.resetLink || 'https://fairprice.ng/login'}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Reset Password</a>
 </div>
 
 <p style="margin:32px 0 0 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">If you didn't request a password change, please ignore this email or contact support immediately.</p>

@@ -140,12 +140,16 @@ export default function CatalogControl() {
             setTrendingIds(trending);
             setSponsoredIds(sponsored);
             setDealProductIds(deals);
-            
-            // Sync Taxonomy and migrate if needed
-            DataSyncService.syncTaxonomy();
-            DataSyncService.migrateTaxonomyIfNeeded(CATEGORIES);
         };
+
+        // Initial load
         load();
+
+        // Run taxonomy management once separately to avoid event loops
+        DataSyncService.syncTaxonomy().then(() => {
+            DataSyncService.migrateTaxonomyIfNeeded(CATEGORIES);
+        });
+
         window.addEventListener("storage", load);
         window.addEventListener("sync-store-update", load);
         return () => {

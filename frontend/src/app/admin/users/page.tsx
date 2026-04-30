@@ -55,8 +55,10 @@ export default function UserDirectory() {
 
     const [loading, setLoading] = useState(true);
 
-    // Bulk Action State
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+    const [isBroadcastDialogOpen, setIsBroadcastDialogOpen] = useState(false);
+    const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", link: "/" });
+    const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -264,6 +266,41 @@ export default function UserDirectory() {
         }
     };
 
+    const handleBulkBroadcast = () => {
+        if (!broadcastForm.title.trim() || !broadcastForm.body.trim() || selectedUserIds.length === 0) return;
+        
+        setIsBroadcasting(true);
+        
+        setTimeout(() => {
+            selectedUserIds.forEach(userId => {
+                // Add to notification history for each selected user
+                DataSyncService.addNotification({
+                    userId,
+                    type: "system",
+                    message: broadcastForm.body,
+                    link: broadcastForm.link,
+                });
+            });
+
+            // Dispatch global event for immediate online feedback
+            const event = new CustomEvent("fp-admin-broadcast", {
+                detail: { 
+                    title: broadcastForm.title, 
+                    body: broadcastForm.body, 
+                    link: broadcastForm.link,
+                    targetUserIds: selectedUserIds
+                }
+            });
+            window.dispatchEvent(event);
+
+            setIsBroadcasting(false);
+            setIsBroadcastDialogOpen(false);
+            setBroadcastForm({ title: "", body: "", link: "/" });
+            setSelectedUserIds([]);
+            alert(`Broadcast sent successfully to ${selectedUserIds.length} users.`);
+        }, 1000);
+    };
+
     const handleSaveEdit = async () => {
         if (!editingUser) return;
         setEditLoading(true);
@@ -390,6 +427,12 @@ export default function UserDirectory() {
                     <div className="px-6 py-4 border-b border-white/40 bg-emerald-50/70 z-20 flex items-center justify-between">
                         <h3 className="text-sm font-black text-emerald-900">{selectedUserIds.length} Users Selected</h3>
                         <div className="flex gap-2">
+                            <Button
+                                onClick={() => setIsBroadcastDialogOpen(true)}
+                                className="h-8 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg"
+                            >
+                                <Mail className="mr-2 h-3.5 w-3.5" /> Send Broadcast
+                            </Button>
                             <Button
                                 onClick={async () => {
                                     if (confirm(`Suspend ${selectedUserIds.length} selected users?`)) {
@@ -734,6 +777,74 @@ export default function UserDirectory() {
                             disabled={editLoading}
                         >
                             {editLoading ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bulk Broadcast Dialog */}
+            <Dialog open={isBroadcastDialogOpen} onOpenChange={setIsBroadcastDialogOpen}>
+                <DialogContent className="sm:max-w-[500px] backdrop-blur-3xl bg-white/90">
+                    <DialogHeader>
+                        <DialogTitle className="font-black text-gray-900 text-xl flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+                                <Mail className="w-5 h-5" />
+                            </div>
+                            Targeted Broadcast
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="py-6 space-y-6">
+                        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4">
+                            <p className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-1">Target Audience</p>
+                            <p className="text-sm font-medium text-indigo-700">
+                                Sending to <strong>{selectedUserIds.length} selected users</strong>. 
+                                This will appear in their notification history and as a live alert if they are online.
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Alert Title</Label>
+                                <Input 
+                                    placeholder="e.g. Exclusive Offer Just For You! 🎁" 
+                                    value={broadcastForm.title}
+                                    onChange={e => setBroadcastForm({...broadcastForm, title: e.target.value})}
+                                    className="h-12 rounded-xl border-gray-200 focus:bg-white font-bold"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Message Body</Label>
+                                <textarea 
+                                    placeholder="Enter your personalized message here..." 
+                                    value={broadcastForm.body}
+                                    onChange={e => setBroadcastForm({...broadcastForm, body: e.target.value})}
+                                    rows={4}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium focus:ring-4 focus:ring-indigo-500/5 outline-none resize-none transition-all"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-gray-400 uppercase tracking-widest pl-1">Destination Link</Label>
+                                <Input 
+                                    placeholder="/account/offers" 
+                                    value={broadcastForm.link}
+                                    onChange={e => setBroadcastForm({...broadcastForm, link: e.target.value})}
+                                    className="h-12 rounded-xl border-gray-200 focus:bg-white font-bold"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-3 pb-2">
+                        <Button variant="outline" className="h-12 px-6 rounded-xl font-bold bg-white" onClick={() => setIsBroadcastDialogOpen(false)}>Cancel</Button>
+                        <Button 
+                            className="h-12 px-8 rounded-xl font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-100 disabled:opacity-50"
+                            onClick={handleBulkBroadcast}
+                            disabled={isBroadcasting || !broadcastForm.title.trim() || !broadcastForm.body.trim()}
+                        >
+                            {isBroadcasting ? (
+                                <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                                "Send Broadcast Now"
+                            )}
                         </Button>
                     </div>
                 </DialogContent>

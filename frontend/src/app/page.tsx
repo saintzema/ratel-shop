@@ -191,6 +191,7 @@ function HomeContent() {
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
   const [banners, setBanners] = useState<any[]>([]);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [heroConfig, setHeroConfig] = useState<any>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -237,16 +238,31 @@ function HomeContent() {
         if (saved) setCategoryGrids(JSON.parse(saved));
       } catch (e) { }
     };
+    const loadHeroConfig = async () => {
+      try {
+        const res = await fetch("/api/settings");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.heroConfig) setHeroConfig(data.heroConfig);
+        }
+      } catch (e) {
+        console.error("Failed to load hero config", e);
+      }
+    };
+
     refresh(); // Initial load on client
     loadGrids();
+    loadHeroConfig();
     setMounted(true);
     window.addEventListener("storage", refresh);
     window.addEventListener("sync-store-update", refresh);
     window.addEventListener("storage", loadGrids);
+    window.addEventListener("hero-config-update", loadHeroConfig);
     return () => {
       window.removeEventListener("storage", refresh);
       window.removeEventListener("sync-store-update", refresh);
       window.removeEventListener("storage", loadGrids);
+      window.removeEventListener("hero-config-update", loadHeroConfig);
     };
   }, []);
 
@@ -381,98 +397,121 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Slideshow) ─── */}
-          <section className="relative w-full overflow-hidden bg-black pt-[110px] md:pt-[150px] pb-1.5 h-[500px] md:h-[650px]">
-            <div className="absolute inset-0 z-0">
-              <AnimatePresence mode="wait">
-                {banners.length > 0 && (
-                  <motion.div
-                    key={banners[currentBannerIndex].id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 1.5, ease: "easeInOut" }}
-                    className="absolute inset-0"
-                  >
-                    <img
-                      src={getProxiedImageUrl(banners[currentBannerIndex].image_url)}
-                      onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
-                      className="w-full h-full object-cover opacity-65"
-                      alt={banners[currentBannerIndex].title || "Hero"}
-                    />
-                    <div
-                      className="absolute inset-0 transition-colors duration-700"
-                      style={{
-                        backgroundImage: 'linear-gradient(to bottom, transparent 0%, transparent 60%, #E3E6E6 100%)'
+          {/* ─── Hero Section (Modern E-commerce Grid) ─── */}
+          <section className="relative w-full bg-black pt-[110px] md:pt-[140px] pb-4">
+            <div className="container mx-auto px-1 md:px-2">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 h-[180px] md:h-[380px]">
+                
+                {/* Main Slider (8/12 on Desktop) */}
+                <div className="lg:col-span-8 relative rounded-xl overflow-hidden shadow-lg group">
+                  <AnimatePresence mode="wait">
+                    {banners.length > 0 && (
+                      <motion.div
+                        key={banners[currentBannerIndex].id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1, ease: "easeInOut" }}
+                        className="absolute inset-0 cursor-pointer"
+                        onClick={() => banners[currentBannerIndex].link && router.push(banners[currentBannerIndex].link)}
+                      >
+                        <img
+                          src={getProxiedImageUrl(banners[currentBannerIndex].image_url)}
+                          onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                          className="w-full h-full object-cover"
+                          alt={banners[currentBannerIndex].title || "Hero"}
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  {/* Indicators */}
+                  {banners.length > 1 && (
+                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                      {banners.map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(i); }}
+                          className={cn(
+                            "h-1.5 rounded-full transition-all duration-300",
+                            currentBannerIndex === i ? "w-6 bg-brand-green-500" : "w-1.5 bg-white/40 hover:bg-white/60"
+                          )}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Glass Arrows */}
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-black/40">
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev + 1) % banners.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/20 backdrop-blur-md rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white hover:bg-black/40">
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {/* Side Ad Grid (4/12 on Desktop, Hidden on Mobile) */}
+                <div className="hidden lg:grid lg:col-span-4 grid-cols-2 grid-rows-2 gap-3 h-full">
+                  {(heroConfig?.adSlots || [
+                    { id: 'ad1', title: 'Flash Sales', img: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=400', link: '/deals' },
+                    { id: 'ad2', title: 'New Arrivals', img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400', link: '/category/new' },
+                    { id: 'ad3', title: 'Best Sellers', img: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400', link: '/search?sort=popular' },
+                    { id: 'ad4', title: 'Price Checker', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400', link: '#', action: () => setIsPriceModalOpen(true) }
+                  ]).map((ad: any) => (
+                    <div 
+                      key={ad.id} 
+                      className="relative rounded-xl overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition-all group"
+                      onClick={() => {
+                        if (ad.id === 'ad4' && !ad.link?.startsWith('/')) {
+                          setIsPriceModalOpen(true);
+                        } else if (ad.link) {
+                          router.push(ad.link);
+                        }
                       }}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            <div className="relative container mx-auto h-full flex flex-col justify-center px-2 py-4 text-center text-white z-10">
-              <AnimatePresence mode="wait">
-                {banners.length > 0 && (
-                  <motion.div
-                    key={`text-${banners[currentBannerIndex].id}`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.8 }}
-                    className="mb-8"
-                  >
-                    <h1 className="text-4xl md:text-6xl font-black tracking-tight drop-shadow-2xl mb-4">
-                      {banners[currentBannerIndex].title}
-                    </h1>
-                    <p className="text-lg md:text-2xl font-bold opacity-90 max-w-2xl mx-auto drop-shadow-lg">
-                      {banners[currentBannerIndex].subtitle}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3 }}
-                className="flex flex-col sm:flex-row justify-center items-center gap-4 mt-4"
-              >
-                <Button
-                  size="lg"
-                  variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-brand-green-400 bg-brand-green-500/30 text-white hover:bg-brand-green-500/50 hover:scale-[1.02] shadow-[0_0_20px_rgba(16,185,129,0.45)] transition-all duration-300 ring-2 ring-brand-green-400 ring-offset-1 ring-offset-transparent group animate-pulse-grow"
-                  onClick={() => setIsPriceModalOpen(true)}
-                >
-                  <span className="font-extrabold tracking-wide cursor-pointer">Price Checker AI</span>
-                  <Sparkles className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
-                </Button>
-
-                <Button
-                  size="lg"
-                  variant="apple-glass"
-                  className="rounded-full px-6 py-4 text-sm md:px-10 md:py-3 md:text-xl backdrop-blur-md border border-emerald-400 bg-white/10 text-white hover:bg-emerald-600/30 hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.35)] transition-all duration-300 group ring-2 ring-emerald-400/60 ring-offset-1 ring-offset-transparent"
-                  onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
-                >
-                  <span className="font-extrabold tracking-wide">{isSeller ? "View Store" : "Start Selling"}</span>
-                  <StoreIcon className="ml-2 h-5 w-5 opacity-90 transition-transform group-hover:scale-110" />
-                </Button>
-              </motion.div>
-
-              {/* Dot Indicators */}
-              {banners.length > 1 && (
-                <div className="flex justify-center gap-2 mt-12">
-                  {banners.map((_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentBannerIndex(i)}
-                      className={cn(
-                        "h-1.5 rounded-full transition-all duration-500",
-                        currentBannerIndex === i ? "w-8 bg-brand-green-500" : "w-2 bg-white/30 hover:bg-white/50"
-                      )}
-                    />
+                    >
+                      <img src={getProxiedImageUrl(ad.img)} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" alt={ad.title} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-80" />
+                      <div className="absolute bottom-2 left-3">
+                        <span className="text-[11px] font-black text-white uppercase tracking-wider bg-brand-green-600 px-1.5 py-0.5 rounded shadow-sm">{ad.title}</span>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              )}
+
+              </div>
+
+              {/* Quick Action Pill Bar (Replacement for big buttons) */}
+              <div className="flex items-center gap-2 mt-4 overflow-x-auto pb-2 scrollbar-hide">
+                <Button
+                  size="sm"
+                  variant="apple-glass"
+                  className="rounded-full px-4 h-9 backdrop-blur-md border border-brand-green-400 bg-brand-green-500/20 text-brand-green-900 font-bold whitespace-nowrap shadow-sm"
+                  onClick={() => setIsPriceModalOpen(true)}
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                  Price Checker AI
+                </Button>
+                <Button
+                  size="sm"
+                  variant="apple-glass"
+                  className="rounded-full px-4 h-9 backdrop-blur-md border border-emerald-400 bg-emerald-500/10 text-emerald-900 font-bold whitespace-nowrap shadow-sm"
+                  onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
+                >
+                  <StoreIcon className="mr-1.5 h-3.5 w-3.5" />
+                  {isSeller ? "My Store" : "Sell on Ratel"}
+                </Button>
+                {['Phones', 'Gaming', 'Computers', 'Fashion', 'Cars'].map((cat) => (
+                  <Button
+                    key={cat}
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full px-4 h-9 bg-white border-gray-200 text-gray-700 font-bold hover:bg-gray-50 whitespace-nowrap shadow-sm"
+                    onClick={() => router.push(`/search?category=${cat.toLowerCase()}`)}
+                  >
+                    {cat}
+                  </Button>
+                ))}
+              </div>
             </div>
           </section>
 

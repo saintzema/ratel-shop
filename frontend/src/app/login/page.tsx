@@ -833,18 +833,30 @@ export default function UnifiedAuthPage() {
                                             </label>
                                             <button
                                                 type="button"
-                                                onClick={(e) => {
+                                                onClick={async (e) => {
                                                     e.preventDefault();
-                                                    fetch("/api/email", {
-                                                        method: "POST",
-                                                        headers: { "Content-Type": "application/json" },
-                                                        body: JSON.stringify({
-                                                            to: identifier.includes("@") ? identifier : `${identifier}@example.com`,
-                                                            type: "CHANGE_PASSWORD",
-                                                            payload: { name: identifier.split("@")[0] }
-                                                        })
-                                                    }).catch(console.error);
-                                                    alert("A password reset link has been sent to your email!");
+                                                    if (!identifier) {
+                                                        setError("Please enter your email first.");
+                                                        return;
+                                                    }
+                                                    setIsLoading(true);
+                                                    try {
+                                                        const res = await fetch("/api/auth/forgot-password", {
+                                                            method: "POST",
+                                                            headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ email: identifier.trim() })
+                                                        });
+                                                        const data = await res.json();
+                                                        if (data.success) {
+                                                            alert("A password reset link has been sent to your email!");
+                                                        } else {
+                                                            setError(data.error || "Failed to send reset link.");
+                                                        }
+                                                    } catch (err) {
+                                                        setError("Failed to send reset link. Please try again.");
+                                                    } finally {
+                                                        setIsLoading(false);
+                                                    }
                                                 }}
                                                 className="text-[13px] font-bold text-brand-green-600 hover:underline"
                                             >

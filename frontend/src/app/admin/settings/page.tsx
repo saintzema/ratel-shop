@@ -18,11 +18,13 @@ import {
     Truck,
     Brain,
     TrendingUp,
-    Sparkles
+    Sparkles,
+    LayoutGrid
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { HeroManager } from "@/components/admin/HeroManager";
 
 export default function AdminSettings() {
     const [platformMargin, setPlatformMargin] = useState("15");
@@ -61,6 +63,7 @@ export default function AdminSettings() {
     const [supportOffice, setSupportOffice] = useState("Victoria Island, Lagos, Nigeria");
     const [supportHours, setSupportHours] = useState("Mon - Sat: 8am - 10pm WAT");
     const [serviceCenters, setServiceCenters] = useState<{name: string, address: string, phone: string}[]>([]);
+    const [heroConfig, setHeroConfig] = useState<any>(null);
 
     const [isSavingCommission, setIsSavingCommission] = useState(false);
     const [isSavingShipping, setIsSavingShipping] = useState(false);
@@ -159,6 +162,7 @@ export default function AdminSettings() {
                         if (sc.hours) setSupportHours(sc.hours);
                         if (sc.serviceCenters) setServiceCenters(sc.serviceCenters);
                     }
+                    if (initialData.heroConfig) setHeroConfig(initialData.heroConfig);
                 }
             } catch (err) {
                 console.error("Failed to load settings from DB", err);
@@ -246,6 +250,8 @@ export default function AdminSettings() {
             serviceCenters
         }
     }, setIsSavingSupport);
+
+    const handleSaveHero = (config: any) => saveSection({ heroConfig: config }, () => {});
 
     const handleReset = () => {
         setAiMonitoring(true);
@@ -702,6 +708,16 @@ export default function AdminSettings() {
                             </div>
                         </div>
                     </div>
+
+                    {/* Homepage Hero Grid Management */}
+                    <HeroManager 
+                        config={heroConfig} 
+                        onSave={async (config) => {
+                            setHeroConfig(config);
+                            await handleSaveHero(config);
+                        }}
+                        isLoading={isLoading}
+                    />
 
                     {/* Support & Contact Management */}
                     <div className="bg-white p-8 rounded-[32px] border border-gray-100 shadow-sm mt-8 xl:col-span-2">

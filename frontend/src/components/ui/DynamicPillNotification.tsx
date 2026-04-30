@@ -213,14 +213,47 @@ export function DynamicPillNotification() {
             }
         };
 
+        const handleAdminBroadcast = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const detail = customEvent.detail;
+            if (!detail) return;
+
+            // Check if this is a targeted broadcast
+            if (detail.targetUserIds && Array.isArray(detail.targetUserIds)) {
+                const currentUser = DataSyncService.getCurrentUser();
+                const sellerId = DataSyncService.getCurrentSellerId();
+                const currentId = sellerId || currentUser?.id;
+                
+                if (!currentId || !detail.targetUserIds.includes(currentId)) {
+                    return; // Not for this user
+                }
+            }
+
+            setCustomNotification({
+                id: `broadcast_${Date.now()}`,
+                text: detail.body,
+                isNegotiation: false,
+                isSellerAction: false,
+                hasImage: !!detail.imageUrl,
+                imageUrl: detail.imageUrl,
+                route: detail.link || "/"
+            });
+            
+            // Immediately play sound and show (the useEffect will handle the rest)
+            setVisible(true);
+            playDingSound();
+        };
+
         window.addEventListener("sync-store-update", checkGlobalNotifications);
         window.addEventListener("storage", checkGlobalNotifications);
         window.addEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
+        window.addEventListener("fp-admin-broadcast", handleAdminBroadcast);
         
         return () => {
             window.removeEventListener("sync-store-update", checkGlobalNotifications);
             window.removeEventListener("storage", checkGlobalNotifications);
             window.removeEventListener("negotiation-updated-remote", handleRemoteNegotiationUpdate);
+            window.removeEventListener("fp-admin-broadcast", handleAdminBroadcast);
         };
     }, []);
 

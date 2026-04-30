@@ -392,6 +392,7 @@ model SystemSetting {
   escrowRelease               Boolean  @default(true)
   strictSeller                Boolean  @default(true)
   categoryMargins             Json?
+  heroConfig                  Json?
   updatedAt                   DateTime @updatedAt
   codAllowExpensiveCategories Boolean  @default(true)
   codEnabled                  Boolean  @default(true)
