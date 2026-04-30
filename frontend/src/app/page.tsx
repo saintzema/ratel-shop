@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { SEED_DEALS } from "@/lib/data";
+import { SEED_DEALS, SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
@@ -192,7 +192,7 @@ function HomeContent() {
   const productSectionRef = useRef<HTMLDivElement>(null);
 
   // Live products from DataSyncService — load only on client to avoid SSR hydration mismatch
-  const [allProducts, setAllProducts] = useState<import("@/lib/types").Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [mounted, setMounted] = useState(false);
   const [isSeller, setIsSeller] = useState(false);
   const [categoryGrids, setCategoryGrids] = useState(CATEGORY_CARDS_ROW_1);
@@ -286,10 +286,12 @@ function HomeContent() {
   // Consolidating all filtering logic into ONE memoized block to solve the 'Lag' issue.
   // This prevents recalculating thousands of filters on every scroll/state update.
   const sections = useMemo(() => {
-    if (!mounted || allProducts.length === 0) return null;
+    // Critical: Use SEED_PRODUCTS from data.ts as a persistent fallback pool to prevent infinite skeletons
+    const pool: Product[] = allProducts.length > 0 ? allProducts : (mounted ? SEED_PRODUCTS : []);
+    if (!mounted || pool.length === 0) return null;
 
     const usedIds = new Set<string>();
-    const sponsoredIds = new Set(allProducts.filter(p => p.is_sponsored).map(p => p.id));
+    const sponsoredIds = new Set(pool.filter(p => p.is_sponsored).map(p => p.id));
 
     const takeUnique = (pool: Product[], count: number, shuffle: boolean = false): Product[] => {
       const result: Product[] = [];
@@ -304,7 +306,7 @@ function HomeContent() {
     };
 
     // 1. Trending
-    const trendingPool = [...allProducts].sort((a, b) => {
+    const trendingPool = [...pool].sort((a, b) => {
       const aTrending = !!a.is_trending;
       const bTrending = !!b.is_trending;
       if (aTrending && !bTrending) return -1;
@@ -314,7 +316,7 @@ function HomeContent() {
     const topPicks = takeUnique(trendingPool, 20);
 
     // 2. Sponsored
-    const sponsoredProducts = allProducts.filter(p => p.is_sponsored).slice(0, 15);
+    const sponsoredProducts = pool.filter(p => p.is_sponsored).slice(0, 15);
 
     // 3. Deals
     const now = new Date();
@@ -323,7 +325,7 @@ function HomeContent() {
       .filter(d => d.is_active && new Date(d.end_at) > now)
       .sort((a, b) => (a.deal_priority || 999) - (b.deal_priority || 999))
       .map(deal => {
-        const product = allProducts.find(p => p.id === deal.product_id);
+        const product = pool.find(p => p.id === deal.product_id);
         if (!product) return null;
         const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
         return {
@@ -337,7 +339,7 @@ function HomeContent() {
       .filter(Boolean) as Product[];
 
     const dealProductIds = new Set(activeDeals.map(a => a.id));
-    const priceDrop = allProducts
+    const priceDrop = pool
         .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
         .map(p => ({
             ...p,
@@ -348,21 +350,21 @@ function HomeContent() {
     const dealProducts = [...activeDeals, ...priceDrop].slice(0, 30);
 
     // 4. Category sections
-    const phonesProducts = takeUnique(allProducts.filter(p => ["phones"].includes(p.category || "")), 12);
-    const gamingProducts = takeUnique(allProducts.filter(p => ["gaming"].includes(p.category || "")), 12);
-    const computerProducts = takeUnique(allProducts.filter(p => ["computers"].includes(p.category || "")), 12);
-    const carProducts = takeUnique(allProducts.filter(p => ["cars", "vehicles"].includes(p.category || "")), 12);
-    const fashionProducts = takeUnique(allProducts.filter(p => ["fashion"].includes(p.category || "")), 12);
-    const beautyProducts = takeUnique(allProducts.filter(p => ["beauty"].includes(p.category || "")), 12);
-    const homeProducts = takeUnique(allProducts.filter(p => ["home"].includes(p.category || "")), 12);
-    const electronicsProducts = takeUnique(allProducts.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
-    const applianceProducts = takeUnique(allProducts.filter(p => ["appliances"].includes(p.category || "")), 12);
-    const fitnessProducts = takeUnique(allProducts.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
-    const healthProducts = takeUnique(allProducts.filter(p => ["health", "medical"].includes(p.category || "")), 12);
-    const groceryProducts = takeUnique(allProducts.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
+    const phonesProducts = takeUnique(pool.filter(p => ["phones"].includes(p.category || "")), 12);
+    const gamingProducts = takeUnique(pool.filter(p => ["gaming"].includes(p.category || "")), 12);
+    const computerProducts = takeUnique(pool.filter(p => ["computers"].includes(p.category || "")), 12);
+    const carProducts = takeUnique(pool.filter(p => ["cars", "vehicles"].includes(p.category || "")), 12);
+    const fashionProducts = takeUnique(pool.filter(p => ["fashion"].includes(p.category || "")), 12);
+    const beautyProducts = takeUnique(pool.filter(p => ["beauty"].includes(p.category || "")), 12);
+    const homeProducts = takeUnique(pool.filter(p => ["home"].includes(p.category || "")), 12);
+    const electronicsProducts = takeUnique(pool.filter(p => ["electronics", "energy", "solar"].includes(p.category || "")), 12);
+    const applianceProducts = takeUnique(pool.filter(p => ["appliances"].includes(p.category || "")), 12);
+    const fitnessProducts = takeUnique(pool.filter(p => ["fitness", "sports"].includes(p.category || "")), 12);
+    const healthProducts = takeUnique(pool.filter(p => ["health", "medical"].includes(p.category || "")), 12);
+    const groceryProducts = takeUnique(pool.filter(p => ["grocery", "baby"].includes(p.category || "")), 12);
 
     // 5. Verified Fair Prices (Shuffled for Equal Visibility)
-    const fairPriceProducts = takeUnique(allProducts.filter(p => p.price_flag === "fair"), 30, true);
+    const fairPriceProducts = takeUnique(pool.filter(p => p.price_flag === "fair"), 30, true);
 
     // 6. From Stores You Follow
     let followedStoreProducts: Product[] = [];
@@ -371,7 +373,7 @@ function HomeContent() {
     
     if (favoriteStores.length > 0) {
       const followedSellerIds = new Set(favoriteStores);
-      followedStoreProducts = allProducts.filter(p => followedSellerIds.has(p.seller_id)).slice(0, 12);
+      followedStoreProducts = pool.filter(p => followedSellerIds.has(p.seller_id)).slice(0, 12);
     }
 
     return {
@@ -404,7 +406,7 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Modern E-commerce Grid) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[70px] md:pt-[100px] pb-1">
+          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-1">
             <div className="container mx-auto px-1 md:px-2">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[80px] md:h-[160px]">
                 
@@ -487,27 +489,27 @@ function HomeContent() {
                 <Button
                   size="sm"
                   variant="apple-glass"
-                  className="rounded-full px-3 h-8 backdrop-blur-md border border-brand-green-400 bg-brand-green-500/20 text-brand-green-900 font-bold whitespace-nowrap shadow-sm text-[11px]"
+                  className="rounded-full px-4 md:px-6 h-8 md:h-11 backdrop-blur-xl border border-white/30 bg-brand-green-600/90 text-white font-bold whitespace-nowrap shadow-[0_8px_32px_rgba(5,150,105,0.2)] text-[12px] md:text-[15px] hover:scale-105 active:scale-95 transition-all"
                   onClick={() => setIsPriceModalOpen(true)}
                 >
-                  <Sparkles className="mr-1 h-3 w-3" />
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5 md:h-4 md:w-4" />
                   Price Checker AI
                 </Button>
                 <Button
                   size="sm"
                   variant="apple-glass"
-                  className="rounded-full px-3 h-8 backdrop-blur-md border border-emerald-400 bg-emerald-500/10 text-emerald-900 font-bold whitespace-nowrap shadow-sm text-[11px]"
+                  className="rounded-full px-4 md:px-6 h-8 md:h-11 backdrop-blur-xl border border-white/30 bg-emerald-600/90 text-white font-bold whitespace-nowrap shadow-[0_8px_32px_rgba(16,185,129,0.2)] text-[12px] md:text-[15px] hover:scale-105 active:scale-95 transition-all"
                   onClick={() => router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding")}
                 >
-                  <StoreIcon className="mr-1 h-3 w-3" />
-                  {isSeller ? "My Store" : "Sell on Ratel"}
+                  <StoreIcon className="mr-1.5 h-3.5 w-3.5 md:h-4 md:w-4" />
+                  {isSeller ? "My Store" : "Start Selling"}
                 </Button>
                 {['Phones', 'Gaming', 'Computers', 'Fashion', 'Cars'].map((cat) => (
                   <Button
                     key={cat}
                     size="sm"
                     variant="outline"
-                    className="rounded-full px-3 h-8 bg-white border-gray-200 text-gray-700 font-bold hover:bg-gray-50 whitespace-nowrap shadow-sm text-[11px]"
+                    className="rounded-full px-3 md:px-5 h-8 md:h-11 bg-white border-gray-200 text-gray-700 font-bold hover:bg-gray-50 whitespace-nowrap shadow-sm text-[11px] md:text-[14px] transition-all"
                     onClick={() => router.push(`/search?category=${cat.toLowerCase()}`)}
                   >
                     {cat}
