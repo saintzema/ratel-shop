@@ -382,28 +382,56 @@ export default function AdminPushNotifications() {
                                         </div>
                                     </button>
                                 ) : (
-                                    <button
-                                        onClick={handleWhatsAppBroadcast}
-                                        disabled={isWhatsAppBroadcasting || (!broadcastBody.trim() && !selectedProduct)}
-                                        className="w-full relative group overflow-hidden rounded-[24px] h-16 px-8 font-black text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
-                                    >
-                                        <div className="absolute inset-0 bg-emerald-600 group-hover:scale-110 transition-transform duration-700" />
-                                        <div className="relative flex items-center justify-center gap-3 text-lg tracking-tight">
-                                            {isWhatsAppBroadcasting ? (
-                                                <div className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                                            ) : whatsappSuccess ? (
-                                                <>
-                                                    <CheckCircle2 className="w-6 h-6 text-emerald-300" />
-                                                    WhatsApp Messages Sent!
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <MessageCircle className="w-6 h-6 text-white" />
-                                                    Send WhatsApp Broadcast
-                                                </>
-                                            )}
-                                        </div>
-                                    </button>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <button
+                                            onClick={handleWhatsAppBroadcast}
+                                            disabled={isWhatsAppBroadcasting || (!broadcastBody.trim() && !selectedProduct)}
+                                            className="w-full relative group overflow-hidden rounded-[24px] h-16 px-8 font-black text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:scale-100"
+                                        >
+                                            <div className="absolute inset-0 bg-emerald-600 group-hover:scale-110 transition-transform duration-700" />
+                                            <div className="relative flex items-center justify-center gap-3 text-lg tracking-tight">
+                                                {isWhatsAppBroadcasting ? (
+                                                    <div className="h-6 w-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                                                ) : whatsappSuccess ? (
+                                                    <>
+                                                        <CheckCircle2 className="w-6 h-6 text-emerald-300" />
+                                                        WhatsApp Messages Sent!
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <MessageCircle className="w-6 h-6 text-white" />
+                                                        Send WhatsApp Broadcast
+                                                    </>
+                                                )}
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            onClick={async () => {
+                                                setIsWhatsAppBroadcasting(true);
+                                                try {
+                                                    const res = await fetch("/api/admin/whatsapp-broadcast", {
+                                                        method: "POST",
+                                                        headers: { "Content-Type": "application/json" },
+                                                        body: JSON.stringify({ isTest: true })
+                                                    });
+                                                    const data = await res.json();
+                                                    if (data.success) {
+                                                        setWhatsappSuccess(true);
+                                                        setTimeout(() => setWhatsappSuccess(false), 3000);
+                                                    }
+                                                } catch (e) {
+                                                    console.error(e);
+                                                } finally {
+                                                    setIsWhatsAppBroadcasting(false);
+                                                }
+                                            }}
+                                            className="w-full h-16 rounded-[24px] border-2 border-emerald-500 text-emerald-600 font-black hover:bg-emerald-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                        >
+                                            <Sparkles className="w-5 h-5" />
+                                            Send Connection Test
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>

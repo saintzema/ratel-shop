@@ -142,4 +142,11 @@ export class WhatsAppService {
 
         return this.sendMarketingMessage(to, "product_offer_v1", components);
     }
+
+    /**
+     * Sends the default 'hello_world' template for initial connection testing
+     */
+    static async sendTestMessage(to: string) {
+        return this.sendMarketingMessage(to, "hello_world", []);
+    }
 }

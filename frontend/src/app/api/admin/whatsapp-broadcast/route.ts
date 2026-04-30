@@ -12,7 +12,14 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { product, message, targetUsers } = body;
+        const { product, message, targetUsers, isTest } = body;
+
+        if (isTest) {
+            // For a connection test, we only send to the admin/test number
+            const testNumber = "2348162816305"; // Default test number
+            const result = await WhatsAppService.sendTestMessage(testNumber);
+            return NextResponse.json({ success: !!result && !result.error, test: true });
+        }
 
         // Fetch users with WhatsApp numbers
         // targetUsers can be 'all' or specific IDs
