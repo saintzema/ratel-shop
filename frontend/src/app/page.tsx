@@ -322,87 +322,45 @@ function HomeContent() {
         <main className="flex-1 flex flex-col relative">
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
-          {/* ─── Hero Section (Stabilized & Compact) ─── */}
+          {/* ─── Hero Section (Restored Single Image) ─── */}
           <section className="relative w-full bg-[#E3E6E6] pt-[90px] md:pt-[110px] pb-1 overflow-hidden">
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
-                {/* Main Premium Slider (8/12 on Desktop) */}
+                {/* Main Premium Banner (8/12 on Desktop) */}
                 <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden group shadow-lg bg-gray-200">
                   <div className="absolute inset-0">
-                    {banners.length > 0 ? (
-                      banners.map((banner, index) => (
-                        <div
-                          key={banner.id}
-                          className={cn(
-                            "absolute inset-0 transition-opacity duration-1000 cursor-pointer",
-                            index === currentBannerIndex ? "opacity-100 z-10" : "opacity-0 z-0"
-                          )}
-                          onClick={() => {
-                            if (banner.link) router.push(banner.link);
-                          }}
-                        >
-                          <img
-                            src={getProxiedImageUrl(banner.image_url)}
-                            onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
-                            className="w-full h-full object-cover"
-                            alt={banner.title || "Hero Banner"}
-                          />
-                          {/* Subtle gradient for buttons visibility */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-                        </div>
-                      ))
-                    ) : (
-                      <div className="absolute inset-0 bg-gray-300 animate-pulse" />
-                    )}
+                    <img
+                      src={getProxiedImageUrl(banners[0]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
+                      onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                      className="w-full h-full object-cover"
+                      alt="Hero Banner"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
                   </div>
 
-                  {/* ─── EXACT ORIGINAL BUTTONS OVERLAY ─── */}
-                  <div className="absolute bottom-4 md:bottom-6 left-4 md:left-8 right-4 md:right-8 z-30 flex flex-wrap items-center gap-2 md:gap-4">
+                  {/* ─── BEZEL BUTTONS OVERLAY ─── */}
+                  <div className="absolute bottom-5 md:bottom-8 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-10 z-30 flex flex-wrap items-center gap-3 md:gap-5">
                     <Button
                       size="lg"
-                      className="rounded-full px-5 md:px-8 h-10 md:h-12 bg-[#047857] hover:bg-[#065f46] text-white font-bold text-[13px] md:text-[15px] shadow-lg border-none flex items-center gap-2 transition-all"
+                      className="rounded-full px-6 md:px-10 h-11 md:h-14 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[14px] md:text-[17px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-2.5 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
                       onClick={(e) => { e.stopPropagation(); setIsPriceModalOpen(true); }}
                     >
-                      <Sparkles className="h-4 w-4 md:h-5 md:w-5" />
-                      PRICE CHECKER AI
+                      PRICE CHECKER AI 
+                      <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-[#10b981]" />
                     </Button>
                     <Button
                       size="lg"
-                      className="rounded-full px-5 md:px-8 h-10 md:h-12 bg-black/60 hover:bg-black/80 backdrop-blur-md border border-white/10 text-white font-bold text-[13px] md:text-[15px] shadow-lg flex items-center gap-2 transition-all"
+                      className="rounded-full px-6 md:px-10 h-11 md:h-14 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[14px] md:text-[17px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-2.5 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
                       onClick={(e) => { 
                         e.stopPropagation();
                         router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding");
                       }}
                     >
-                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5" />
+                      <StoreIcon className="h-5 w-5 md:h-6 md:w-6 text-[#10b981]" />
                       START SELLING
                     </Button>
                   </div>
-                  
-                  {/* Indicators (Centered Bubbles) */}
-                  {banners.length > 1 && (
-                    <div className="absolute bottom-2 md:bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 z-40">
-                      {banners.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(i); }}
-                          className={cn(
-                            "h-1.5 rounded-full transition-all duration-300 shadow-sm",
-                            currentBannerIndex === i ? "w-6 bg-[#047857]" : "w-1.5 bg-white/60 hover:bg-white"
-                          )}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Navigation Arrows */}
-                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev - 1 + banners.length) % banners.length); }} className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/20 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-black/40 z-40">
-                    <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); setCurrentBannerIndex(prev => (prev + 1) % banners.length); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 md:w-10 md:h-10 bg-black/20 backdrop-blur-md border border-white/20 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white hover:bg-black/40 z-40">
-                    <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
-                  </button>
                 </div>
 
                 {/* Side Ad Grid */}

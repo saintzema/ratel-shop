@@ -82,7 +82,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
     try {
         const body = await request.json();
-        const { id, status } = body;
+        const { id, status, finalAmount } = body;
 
         if (!id || !status) {
             return NextResponse.json(
@@ -93,7 +93,10 @@ export async function PATCH(request: Request) {
 
         const payout = await db.payout.update({
             where: { id },
-            data: { status },
+            data: { 
+                status,
+                ...(finalAmount !== undefined && { amount: finalAmount })
+            },
         });
 
         // If approved/completed, trigger Paystack transfer and mark orders as paid out

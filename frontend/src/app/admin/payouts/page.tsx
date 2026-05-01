@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Pagination } from "@/components/ui/Pagination";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 export default function PayoutRequestsDirectory() {
     const [searchTerm, setSearchTerm] = useState("");
@@ -16,6 +17,11 @@ export default function PayoutRequestsDirectory() {
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(25);
+
+    // Override State
+    const [selectedPayout, setSelectedPayout] = useState<any>(null);
+    const [overrideAmount, setOverrideAmount] = useState<string>("");
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useEffect(() => {
         const load = () => {
@@ -39,6 +45,41 @@ export default function PayoutRequestsDirectory() {
     useEffect(() => {
         setCurrentPage(1);
     }, [searchTerm, view]);
+
+    const handleApprovePayout = async () => {
+        if (!selectedPayout) return;
+        setIsProcessing(true);
+        try {
+            const finalAmount = parseFloat(overrideAmount) || selectedPayout.amount;
+            
+            // Call API to trigger Paystack
+            const res = await fetch("/api/payouts", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: selectedPayout.id,
+                    status: "completed",
+                    finalAmount: finalAmount
+                })
+            });
+            
+            const data = await res.json();
+            if (data.success || res.status === 202) {
+                // Update local state and sync store
+                DataSyncService.updatePayoutStatus(selectedPayout.id, "completed", finalAmount);
+                window.dispatchEvent(new Event("storage"));
+            } else {
+                alert(`Error processing payout: ${data.error}`);
+            }
+        } catch (e) {
+            console.error("Payout error", e);
+            alert("Network error processing payout");
+        } finally {
+            setIsProcessing(false);
+            setSelectedPayout(null);
+            setOverrideAmount("");
+        }
+    };
 
     return (
         <div className="space-y-8">
@@ -146,8 +187,8 @@ export default function PayoutRequestsDirectory() {
                                                 size="sm"
                                                 className="h-8 rounded-xl bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-600 font-bold text-[10px] uppercase tracking-wider transition-all"
                                                 onClick={() => {
-                                                    DataSyncService.updatePayoutStatus(p.id, "completed");
-                                                    window.dispatchEvent(new Event("storage"));
+                                                    setSelectedPayout(p);
+                                                    setOverrideAmount(p.amount.toString());
                                                 }}
                                             >
                                                 <CheckCircle2 className="mr-1 h-3 w-3" /> Mark Paid
@@ -184,6 +225,64 @@ export default function PayoutRequestsDirectory() {
                     type="payouts"
                 />
             </div>
+
+            {/* Payout Approval Modal */}
+            <Dialog open={!!selectedPayout} onOpenChange={(open) => !open && setSelectedPayout(null)}>
+                <DialogContent className="sm:max-w-md bg-white rounded-3xl p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-black">Approve Payout</DialogTitle>
+                        <DialogDescription className="text-gray-500 text-sm font-medium mt-1">
+                            Review and override the final disbursement amount before triggering the Paystack transfer.
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    {selectedPayout && (
+                        <div className="space-y-4 my-4">
+                            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                <div className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Seller</div>
+                                <div className="font-black text-gray-900">{selectedPayout.seller_name}</div>
+                                <div className="text-xs text-gray-500 mt-0.5">{selectedPayout.bank} • {selectedPayout.account_last4}</div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Calculated Amount</label>
+                                <div className="font-black text-gray-400">₦{selectedPayout.amount.toLocaleString()}</div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-xs font-bold text-gray-900 uppercase tracking-widest">Final Disbursed Amount (Override)</label>
+                                <div className="relative">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
+                                    <Input
+                                        type="number"
+                                        className="pl-8 h-12 bg-white border-gray-200 rounded-xl font-black text-lg"
+                                        value={overrideAmount}
+                                        onChange={(e) => setOverrideAmount(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <DialogFooter className="flex gap-2 sm:justify-between mt-4">
+                        <Button 
+                            variant="ghost" 
+                            className="rounded-xl font-bold uppercase tracking-wider text-xs"
+                            onClick={() => setSelectedPayout(null)}
+                            disabled={isProcessing}
+                        >
+                            Cancel
+                        </Button>
+                        <Button 
+                            className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-xs"
+                            onClick={handleApprovePayout}
+                            disabled={isProcessing}
+                        >
+                            {isProcessing ? "Processing..." : "Confirm & Transfer"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

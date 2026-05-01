@@ -1182,10 +1182,11 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 {/* Buy Now Button Below Image */}
                                 <div className="px-4 pb-4 pt-2">
                                     <Button 
-                                        className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black h-12 shadow-md active:scale-[0.98] transition-all text-sm uppercase tracking-widest"
-                                        onClick={(e) => { e.stopPropagation(); handleBuyNow(); }}
+                                        className="w-full rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-black h-12 shadow-md active:scale-[0.98] transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+                                        onClick={(e) => { e.stopPropagation(); setShowQrModal(true); }}
                                     >
-                                        Buy Now
+                                        <QrCode className="h-5 w-5" />
+                                        Scan to Pay
                                     </Button>
                                 </div>
                             </div>
@@ -1771,7 +1772,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     >
                                         <QrCode className="h-5 w-5 text-gray-400" /> 
                                         <span>Scan to Pay</span>
-                                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 text-[10px] font-black py-0 px-1.5 border-none">WECHAT STYLE</Badge>
+                                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 text-[10px] font-black py-0 px-1.5 border-none">FAST & SECURE</Badge>
                                     </Button>
 
                                     {/* Seller Contact Info */}

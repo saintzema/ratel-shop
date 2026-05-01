@@ -366,7 +366,7 @@ class DataSyncServiceService {
         try {
             const fetchWithTimeout = async (url: string, options: any = {}) => {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s hard timeout
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s hard timeout for 6k+ products
                 try {
                     const response = await fetch(url, { ...options, signal: controller.signal });
                     clearTimeout(timeoutId);
@@ -4377,9 +4377,9 @@ getAllCachedProducts(): any[] {
         return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PAYOUTS) || "[]");
     }
 
-    updatePayoutStatus(id: string, status: string) {
+    updatePayoutStatus(id: string, status: string, finalAmount?: number) {
         const payouts = this.getPayouts();
-        const updated = payouts.map(p => p.id === id ? { ...p, status } : p);
+        const updated = payouts.map(p => p.id === id ? { ...p, status, amount: finalAmount !== undefined ? finalAmount : p.amount } : p);
         localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(updated));
 
         // If completed, update the orders that were cashed out
