@@ -323,41 +323,61 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Restored Single Image) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[90px] md:pt-[110px] pb-1 overflow-hidden">
+          <section className="relative w-full bg-[#E3E6E6] pt-[80px] md:pt-[100px] pb-0 overflow-hidden">
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
                 {/* Main Premium Banner (8/12 on Desktop) */}
                 <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden group shadow-lg bg-gray-200">
                   <div className="absolute inset-0">
-                    <img
-                      src={getProxiedImageUrl(banners[0]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
-                      onError={(e) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
-                      className="w-full h-full object-cover"
-                      alt="Hero Banner"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+                    <AnimatePresence mode="wait">
+                      <motion.img
+                        key={currentBannerIndex}
+                        initial={{ opacity: 0, scale: 1.05 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 1 }}
+                        src={getProxiedImageUrl(banners[currentBannerIndex]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
+                        onError={(e: any) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        alt={banners[currentBannerIndex]?.title || "Hero Banner"}
+                      />
+                    </AnimatePresence>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
+                  </div>
+
+                  {/* Carousel Indicators (Green Slider) */}
+                  <div className="absolute bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 md:gap-2">
+                    {banners.map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "h-1.5 md:h-2 rounded-full transition-all duration-300",
+                          idx === currentBannerIndex ? "w-6 md:w-8 bg-[#10b981]" : "w-2 bg-white/40"
+                        )}
+                      />
+                    ))}
                   </div>
 
                   {/* ─── BEZEL BUTTONS OVERLAY ─── */}
-                  <div className="absolute bottom-5 md:bottom-8 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-10 z-30 flex flex-wrap items-center gap-3 md:gap-5">
+                  <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-8 z-30 flex flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-4 w-[90%] md:w-auto">
                     <Button
                       size="lg"
-                      className="rounded-full px-6 md:px-10 h-11 md:h-14 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[14px] md:text-[17px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-2.5 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
+                      className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[11px] md:text-[14px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-1.5 md:gap-2 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
                       onClick={(e) => { e.stopPropagation(); setIsPriceModalOpen(true); }}
                     >
                       PRICE CHECKER AI 
-                      <Sparkles className="h-5 w-5 md:h-6 md:w-6 text-[#10b981]" />
+                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#10b981]" />
                     </Button>
                     <Button
                       size="lg"
-                      className="rounded-full px-6 md:px-10 h-11 md:h-14 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[14px] md:text-[17px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-2.5 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
+                      className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[11px] md:text-[14px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-1.5 md:gap-2 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
                       onClick={(e) => { 
                         e.stopPropagation();
                         router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding");
                       }}
                     >
-                      <StoreIcon className="h-5 w-5 md:h-6 md:w-6 text-[#10b981]" />
+                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-[#10b981]" />
                       START SELLING
                     </Button>
                   </div>
@@ -431,7 +451,7 @@ function HomeContent() {
             {/* ═══ Optimized Homepage Sections ═══ */}
             {mounted && sections && (
               <>
-                <section className="container mx-auto px-1 md:px-2 mt-4 mb-2">
+                <section className="container mx-auto px-1 md:px-2 mt-2 mb-1">
                   <RecentlyViewedHorizontal />
                 </section>
 
