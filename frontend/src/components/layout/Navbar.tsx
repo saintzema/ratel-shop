@@ -1292,11 +1292,16 @@ export function Navbar() {
                     >
                         {/* Desktop View */}
                         <div 
-                            className="flex flex-col relative py-2"
+                            className="flex flex-col relative py-2 cursor-pointer account-menu-trigger-inner"
                             onMouseEnter={() => setIsAccountMenuOpen(true)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (user) router.push('/account');
+                                else router.push('/login');
+                            }}
                         >
                             <span className="text-white text-[11px] opacity-80 leading-none">Hello, {user ? user.name.split(" ")[0] : "Sign in"}</span>
-                            <span className="font-bold text-white flex items-center gap-1">My Account & Lists <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", isAccountMenuOpen && "rotate-180")} /></span>
+                            <span className="font-bold text-white flex items-center gap-1 hover:underline">My Account & Lists <ChevronDown className={cn("h-3 w-3 transition-transform duration-300", isAccountMenuOpen && "rotate-180")} /></span>
                         </div>
 
                         {/* Dropdown Menu */}

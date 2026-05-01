@@ -398,7 +398,15 @@ export default function SellerLayout({
                                     <DropdownMenuItem
                                         className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors font-medium text-xs"
                                         onClick={() => {
-                                            if (currentSeller.subscription_plan === "Starter" || !currentSeller.subscription_plan) {
+                                            const limits: Record<string, number> = {
+                                                "Starter": 1,
+                                                "Pro": 2,
+                                                "Growth": 3,
+                                                "Scale": 10
+                                            };
+                                            const currentLimit = limits[currentSeller?.subscription_plan || "Starter"] || 1;
+                                            
+                                            if (allUserStores.length >= currentLimit) {
                                                 router.push("/seller/settings/billing");
                                             } else {
                                                 router.push("/seller/onboarding");
@@ -474,7 +482,15 @@ export default function SellerLayout({
                                 className="w-full mt-4 h-12 rounded-xl border-dashed border-2 font-bold text-gray-500 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors border-gray-200"
                                 onClick={() => {
                                     setIsSwitchModalOpen(false);
-                                    if (currentSeller.subscription_plan === "Starter" || !currentSeller.subscription_plan) {
+                                    const limits: Record<string, number> = {
+                                        "Starter": 1,
+                                        "Pro": 2,
+                                        "Growth": 3,
+                                        "Scale": 10
+                                    };
+                                    const currentLimit = limits[currentSeller?.subscription_plan || "Starter"] || 1;
+                                    
+                                    if (allUserStores.length >= currentLimit) {
                                         router.push("/seller/settings/billing");
                                     } else {
                                         router.push("/seller/onboarding");

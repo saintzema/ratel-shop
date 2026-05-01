@@ -14,7 +14,7 @@ export async function POST(request: Request) {
         // Find user in database
         const user = await db.user.findUnique({
             where: { email: email.toLowerCase().trim() },
-            include: { seller: true },
+            include: { sellers: true },
         });
 
         if (!user) {

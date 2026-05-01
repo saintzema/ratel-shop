@@ -110,7 +110,7 @@ export default function SellerSettingsPage() {
         }));
     };
 
-    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'cover') => {
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'cover') => {
         const file = e.target.files?.[0];
         if (file) {
             // Check plan for cover upload
@@ -119,19 +119,40 @@ export default function SellerSettingsPage() {
                 return;
             }
 
-            const url = URL.createObjectURL(file);
-            if (type === 'cover') {
-                const currentUrls = seller?.cover_image_urls || (formData.cover_image_url ? [formData.cover_image_url] : []);
-                const maxImages = (seller?.subscription_plan === "Growth" || seller?.subscription_plan === "Scale") ? 3 : 1;
+            setSaving(true);
+            try {
+                const uploadFormData = new FormData();
+                uploadFormData.append("file", file);
+
+                const res = await fetch("/api/upload", {
+                    method: "POST",
+                    body: uploadFormData
+                });
                 
-                if (currentUrls.length >= maxImages && maxImages > 1) {
-                    const newUrls = [...currentUrls, url].slice(-maxImages);
-                    setFormData(prev => ({ ...prev, cover_image_urls: newUrls, cover_image_url: newUrls[0] }));
-                } else {
-                    setFormData(prev => ({ ...prev, cover_image_url: url, cover_image_urls: [url] }));
+                const data = await res.json();
+                if (!data.success || !data.url) {
+                    throw new Error(data.error || "Upload failed");
                 }
-            } else {
-                setFormData(prev => ({ ...prev, logo_url: url }));
+
+                const url = data.url;
+                if (type === 'cover') {
+                    const currentUrls = (formData as any).cover_image_urls || (formData.cover_image_url ? [formData.cover_image_url] : []);
+                    const maxImages = (seller?.subscription_plan === "Growth" || seller?.subscription_plan === "Scale") ? 3 : 1;
+                    
+                    if (currentUrls.length >= maxImages && maxImages > 1) {
+                        const newUrls = [...currentUrls, url].slice(-maxImages);
+                        setFormData(prev => ({ ...prev, cover_image_urls: newUrls, cover_image_url: newUrls[0] }));
+                    } else {
+                        setFormData(prev => ({ ...prev, cover_image_url: url, cover_image_urls: [url] }));
+                    }
+                } else {
+                    setFormData(prev => ({ ...prev, logo_url: url }));
+                }
+            } catch (err: any) {
+                console.error("Upload error:", err);
+                alert(err.message || "Failed to upload image. Please try again.");
+            } finally {
+                setSaving(false);
             }
         }
     };

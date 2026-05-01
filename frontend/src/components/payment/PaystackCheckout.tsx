@@ -23,7 +23,14 @@ interface PaystackCheckoutProps {
     autoStart?: boolean;
 }
 
-const PAYSTACK_PUBLIC_KEY = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || "";
+const PAYSTACK_PUBLIC_KEY = 
+    process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 
+    process.env.NEXT_PUBLIC_PAYSTACK_KEY || 
+    "";
+
+// Helper to check if we are in live mode based on the key prefix
+const IS_LIVE_MODE = PAYSTACK_PUBLIC_KEY.startsWith("pk_live_");
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 function loadPaystackScript(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -234,7 +241,12 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
                             </div>
                             <div>
                                 <h3 className="text-gray-900 font-bold leading-none">Secure Checkout</h3>
-                                <p className="text-gray-400 text-[10px] uppercase tracking-widest mt-1 font-bold">Paystack Verified</p>
+                                <p className={cn(
+                                    "text-[10px] uppercase tracking-widest mt-1 font-bold",
+                                    IS_LIVE_MODE ? "text-emerald-500" : "text-amber-500"
+                                )}>
+                                    Paystack {IS_LIVE_MODE ? "Live" : "Test Mode"}
+                                </p>
                             </div>
                         </div>
                         <button

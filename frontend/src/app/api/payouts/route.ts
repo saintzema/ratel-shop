@@ -1,16 +1,42 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export const runtime = "nodejs";
 
 // GET /api/payouts?sellerId=xxx
 export async function GET(request: Request) {
     try {
+        const user = getUserFromRequest(request);
+        if (!user) {
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        }
+
         const { searchParams } = new URL(request.url);
         const sellerId = searchParams.get("sellerId");
 
         const whereClause: any = {};
-        if (sellerId) whereClause.sellerId = sellerId;
+        
+        if (user.role !== "admin") {
+            // Regular user can only see payouts for their own businesses
+            if (sellerId) {
+                const seller = await db.seller.findFirst({ 
+                    where: { id: sellerId, userId: user.userId } 
+                });
+                if (!seller) {
+                    return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
+                }
+                whereClause.sellerId = sellerId;
+            } else {
+                const userSellers = await db.seller.findMany({ 
+                    where: { userId: user.userId }, 
+                    select: { id: true } 
+                });
+                whereClause.sellerId = { in: userSellers.map(s => s.id) };
+            }
+        } else if (sellerId) {
+            whereClause.sellerId = sellerId;
+        }
 
         const payouts = await db.payout.findMany({
             where: whereClause,
@@ -20,9 +46,8 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, payouts });
     } catch (error: any) {
         console.error("Payouts GET Error:", error);
-        return NextResponse.json({ success: true, payouts: [] }, {
-            status: 503,
-            headers: { "X-DB-Status": "offline" },
+        return NextResponse.json({ success: false, error: "Database error" }, {
+            status: 500,
         });
     }
 }
@@ -30,6 +55,11 @@ export async function GET(request: Request) {
 // POST /api/payouts — Create a new payout request
 export async function POST(request: Request) {
     try {
+        const user = getUserFromRequest(request);
+        if (!user) {
+            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        }
+
         const body = await request.json();
 
         const {
@@ -40,6 +70,22 @@ export async function POST(request: Request) {
             account_name,
             order_ids,
         } = body;
+
+        if (!seller_id || !amount || !bank_name || !account_number) {
+            return NextResponse.json(
+                { success: false, error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        // Ownership check
+        const seller = await db.seller.findFirst({
+            where: { id: seller_id, userId: user.userId }
+        });
+        
+        if (!seller && user.role !== "admin") {
+            return NextResponse.json({ success: false, error: "Forbidden: Not your store" }, { status: 403 });
+        }
 
         if (!seller_id || !amount || !bank_name || !account_number) {
             return NextResponse.json(
@@ -81,6 +127,11 @@ export async function POST(request: Request) {
 // PATCH /api/payouts — Update payout status (admin approval)
 export async function PATCH(request: Request) {
     try {
+        const user = getUserFromRequest(request);
+        if (!user || user.role !== "admin") {
+            return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 });
+        }
+
         const body = await request.json();
         const { id, status, finalAmount } = body;
 

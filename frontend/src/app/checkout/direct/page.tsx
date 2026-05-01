@@ -36,10 +36,12 @@ function DirectCheckoutContent() {
         const amount = Number(searchParams.get("amount")) || 0;
         const image = searchParams.get("image") || "/assets/images/placeholder.png";
         const category = searchParams.get("category") || "general";
+        const sellerId = searchParams.get("sellerId") || "";
+        const label = searchParams.get("label") || "";
 
-        if (!productId && !name) {
+        if (!productId && !name && !sellerId) {
             setStatus("error");
-            setErrorMsg("Missing product information. Please scan a valid QR code.");
+            setErrorMsg("Missing payment information. Please scan a valid QR code.");
             return;
         }
 
@@ -55,7 +57,37 @@ function DirectCheckoutContent() {
                 );
             }
 
-            // Strategy 3: Reconstruct from URL parameters (for global/external products)
+            // Strategy 3: Handle Direct Payment (No specific product, just amount + seller)
+            if (!product && sellerId) {
+                const sellers = DataSyncService.getSellers();
+                const seller = sellers.find(s => s.id === sellerId);
+                
+                const reconstructed: Product = {
+                    id: productId || `qr-pay-${Date.now()}`,
+                    name: label || (name ? name : `Payment to ${seller?.business_name || "Verified Seller"}`),
+                    price: amount,
+                    original_price: amount,
+                    category: (category || "services") as ProductCategory,
+                    description: label || `Direct QR payment secured by FairPrice Escrow.`,
+                    image_url: seller?.logo_url || image,
+                    images: [seller?.logo_url || image],
+                    stock: 9999,
+                    seller_id: sellerId,
+                    seller_name: seller?.business_name || "Verified Seller",
+                    price_flag: "fair",
+                    sold_count: 0,
+                    review_count: 0,
+                    avg_rating: 5.0,
+                    is_active: true,
+                    created_at: new Date().toISOString(),
+                };
+
+                // For direct payments, we don't necessarily need to persist to global catalogue
+                // but we need it for the cart/checkout to work.
+                product = reconstructed;
+            }
+
+            // Strategy 4: Fallback reconstruction (if no sellerId but has productId/name)
             if (!product) {
                 const reconstructed: Product = {
                     id: productId || `qr-${Date.now()}`,
@@ -77,16 +109,19 @@ function DirectCheckoutContent() {
                     created_at: new Date().toISOString(),
                 };
 
-                // Persist to local catalogue so PDP works after checkout
-                try {
-                    DataSyncService.addRawProduct(reconstructed, false);
-                } catch { /* best effort */ }
-
                 product = reconstructed;
             }
 
+            // Ensure product is in local sync for PDP fallbacks if user clicks it
+            try {
+                DataSyncService.addRawProduct(product, false);
+            } catch { /* best effort */ }
+
             // Check if already in cart (prevent double-adds from QR re-scans)
-            const alreadyInCart = cart.some(item => item.product.id === product!.id);
+            const alreadyInCart = cart.some(item => 
+                item.product.id === product!.id && item.product.price === product!.price
+            );
+            
             if (!alreadyInCart) {
                 addToCart(product);
             }
@@ -96,7 +131,7 @@ function DirectCheckoutContent() {
             // Small delay so the user sees the confirmation before redirect
             setTimeout(() => {
                 router.replace("/checkout");
-            }, 1200);
+            }, 1500);
 
         } catch (err) {
             console.error("[DirectCheckout] Error:", err);

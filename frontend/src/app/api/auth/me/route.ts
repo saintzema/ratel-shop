@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     try {
         const user = await db.user.findUnique({
             where: { id: payload.userId },
-            include: { seller: true },
+            include: { sellers: true },
         });
 
         if (!user) {

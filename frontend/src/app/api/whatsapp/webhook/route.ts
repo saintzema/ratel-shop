@@ -90,7 +90,7 @@ export async function POST(req: Request) {
         const upperText = text.toUpperCase();
 
         if (upperText === "ACCEPT") {
-            await db.negotiationRequest.update({
+            await (db as any).negotiationRequest.update({
                 where: { id: negotiation.id },
                 data: { status: "accepted" }
             });
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
                 `Deal Finalized! 🤝 Your offer for *${negotiation.product.name}* at ₦${negotiation.proposedPrice.toLocaleString()} was accepted.\n\nGo to your FairPrice account to complete payment.`
             );
         } else if (upperText === "REJECT" || upperText === "CANCEL") {
-            await db.negotiationRequest.update({
+            await (db as any).negotiationRequest.update({
                 where: { id: negotiation.id },
                 data: { status: "rejected" }
             });
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
             
             if (!isNaN(numericValue) && numericValue > 0) {
                 // Update the negotiation with the new proposed price
-                await db.negotiationRequest.update({
+                await (db as any).negotiationRequest.update({
                     where: { id: negotiation.id },
                     data: { 
                         proposedPrice: numericValue,
@@ -144,7 +144,7 @@ async function handleCommand(from: string, text: string) {
     const args = parts.slice(1).join(" ");
 
     // Log the interaction intent
-    await db.whatsAppInteraction.create({
+    await (db as any).whatsAppInteraction.create({
         data: { phoneNumber: from, interaction_type: "command", payload: command }
     });
 
@@ -176,7 +176,7 @@ async function handleCommand(from: string, text: string) {
 
 async function handleIceBreaker(from: string, text: string) {
     // Log the interaction intent
-    await db.whatsAppInteraction.create({
+    await (db as any).whatsAppInteraction.create({
         data: { phoneNumber: from, interaction_type: "ice_breaker", payload: text }
     });
 

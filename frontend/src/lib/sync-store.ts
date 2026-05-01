@@ -3198,7 +3198,7 @@ getAllCachedProducts(): any[] {
      * Automated Full Sync: Pulls all relevant entities from the DB and merges them locally.
      * Designed to be called on page mount or periodically.
      */
-    async autoSync() {
+    async autoSync(forceRefresh: boolean = false) {
         if (typeof window === "undefined") return;
         
         const sellerId = this.getCurrentSellerId();
@@ -3207,6 +3207,21 @@ getAllCachedProducts(): any[] {
 
         if (!identity) return;
 
+        if (forceRefresh) {
+            console.log(`🧹 Clearing stale local cache for ${identity} before refresh...`);
+            // We don't wipe everything, just items matching this identity to avoid affecting other accounts
+            if (sellerId) {
+                const orders = this.getOrders().filter(o => o.seller_id !== sellerId);
+                localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+                const negs = this.getNegotiationsRaw().filter((n: any) => n.seller_id !== sellerId);
+                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+            } else if (userId) {
+                const orders = this.getOrders().filter(o => o.customer_id !== userId);
+                localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+                const negs = this.getNegotiationsRaw().filter((n: any) => n.customer_id !== userId);
+                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+            }
+        }
         try {
             console.log(`🔄 AutoSync started for ${identity}...`);
             

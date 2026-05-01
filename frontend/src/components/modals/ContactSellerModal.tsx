@@ -97,10 +97,44 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
 
         const orderId = `inquiry_${seller.id}`;
         const catLabel = categories.find(c => c.value === category)?.label || category;
-        const initialMsg = `[${catLabel}] ${message.trim()}`;
+        const initialMsg = `${message.trim()}\n\n— Inquiry Type: ${catLabel}`;
 
         const newConvId = startConversation(orderId, seller.business_name, seller.logo_url, initialMsg);
         setConvId(newConvId);
+
+        // Notify seller via in-app dashboard
+        try {
+            const { DataSyncService } = await import("@/lib/sync-store");
+            DataSyncService.addNotification({
+                userId: seller.user_id || seller.id,
+                type: "negotiation", // Use message icon context
+                message: `💬 New inquiry from a customer: "${message.trim().substring(0, 40)}${message.length > 40 ? '...' : ''}"`,
+                link: "/seller/dashboard?tab=messages"
+            });
+        } catch (e) {
+            console.warn("Failed to trigger in-app notification", e);
+        }
+
+        // Send email notification to seller
+        try {
+            await fetch("/api/email", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    to: seller.owner_email || "hello@fairprice.ng",
+                    subject: `New Message: ${catLabel}`,
+                    type: "NEGOTIATION_REQUEST", // Using existing template with better styling
+                    payload: {
+                        name: seller.business_name,
+                        customerName: user?.name || "A Customer",
+                        productName: catLabel,
+                        amount: message.trim()
+                    }
+                })
+            });
+        } catch (error) {
+            console.error("Failed to send notification email", error);
+        }
 
         await new Promise(r => setTimeout(r, 800));
         setSending(false);
@@ -149,8 +183,12 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                     <div className="space-y-4 py-2">
                         {/* Seller info */}
                         <div className="flex items-center gap-3 p-3 bg-zinc-50 rounded-xl border border-zinc-100">
-                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-sm">
-                                {seller.business_name.charAt(0)}
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-green-500 to-emerald-600 flex items-center justify-center text-gray-900 font-bold text-sm overflow-hidden shrink-0 border border-zinc-200">
+                                {seller.logo_url ? (
+                                    <img src={seller.logo_url} alt={seller.business_name} className="w-full h-full object-cover" />
+                                ) : (
+                                    seller.business_name.charAt(0)
+                                )}
                             </div>
                             <div className="flex-1">
                                 <p className="font-bold text-sm">{seller.business_name}</p>
@@ -209,7 +247,7 @@ export function ContactSellerModal({ isOpen, onClose, seller }: ContactSellerMod
                         <Button
                             onClick={handleSend}
                             disabled={!message.trim() || sending || !!filterWarning}
-                            className="w-full rounded-xl h-11 bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold"
+                            className="w-full rounded-2xl h-14 text-lg bg-brand-green-600 hover:bg-brand-green-700 text-white font-black tracking-wide shadow-lg shadow-brand-green-600/20"
                         >
                             {sending ? (
                                 <>Sending...</>

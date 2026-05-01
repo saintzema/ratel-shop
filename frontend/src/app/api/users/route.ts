@@ -98,7 +98,7 @@ export async function POST(req: Request) {
             create: createData,
             include: {
                 addresses: true, // Returns the addresses in the response
-                seller: true
+                sellers: true
             }
         });
 

@@ -29,7 +29,7 @@ model User {
   notifications   Notification[]
   orders          Order[]
   reviews         Review[]
-  seller          Seller?
+  sellers         Seller[]
   sessions        Session[]
   supportMessages SupportMessage[]
   discountUsages  UserDiscountUsage[]
@@ -84,7 +84,7 @@ model Address {
 
 model Seller {
   id             String               @id @default(cuid())
-  userId         String               @unique
+  userId         String
   businessName   String
   ownerName      String?
   ownerEmail     String?
@@ -125,6 +125,8 @@ model Seller {
   priceAlerts    PriceAlert[]
   products       Product[]
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Product {

@@ -28,7 +28,8 @@ import {
     Copy,
     Globe,
     ExternalLink,
-    Crown
+    Crown,
+    Zap
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
@@ -215,27 +216,26 @@ export default function SellerDashboard() {
     };
 
     // We remove the blocking 'Syncing your store...' loader as requested by user.
-    // Instead, we use a safe fallback so the dashboard hot-renders immediately,
-    // and then dynamically hot-updates once the real seller data drops down from DB.
-    const safeSeller = currentSeller || {
-        id: user?.id || "temp-seller",
-        userId: user?.id || "temp-user",
-        business_name: "Loading Store...",
-        owner_email: user?.email || "",
-        description: "",
-        category: "General",
-        status: "active",
-        verified: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        rating: 5.0,
-        trust_score: 90,
-        followers: 0,
-        following: 0,
-        sales_count: 0,
-        commission_rate: 0.05,
-        store_url: ""
-    };
+    // Instead, we use a skeleton loader if the currentSeller isn't available yet,
+    // avoiding the "Loading Store..." hallucination.
+    if (!currentSeller) {
+        return (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 animate-pulse space-y-8">
+                <div className="h-32 bg-gray-100/50 rounded-[32px]" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[1, 2, 3, 4].map(i => (
+                        <div key={i} className="h-32 bg-gray-50 rounded-2xl border border-gray-100" />
+                    ))}
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="h-96 bg-gray-50 rounded-2xl border border-gray-100" />
+                    <div className="h-96 bg-gray-50 rounded-2xl border border-gray-100" />
+                </div>
+            </div>
+        );
+    }
+
+    const safeSeller = currentSeller;
 
     // Computed financials
     const EARNINGS_ELIGIBLE_STATES = ["released", "buyer_confirmed", "auto_release_eligible"];
@@ -260,7 +260,9 @@ export default function SellerDashboard() {
 
     const pendingNegs = negotiations.filter(n => n.status === "pending");
     const disputedOrders = orders.filter(o => o.escrow_status === "disputed");
-    const newOrders = orders.filter(o => o.status === "pending");
+    // "Pending" for a seller means they need to take action (Awaiting Shipment). 
+    // This includes both "pending" (unpaid/COD) and "processing" (paid via Paystack).
+    const newOrders = orders.filter(o => o.status === "pending" || o.status === "processing");
     const returnedOrders = orders.filter(o => o.status === "returned");
 
     // Success rate logic
@@ -296,37 +298,67 @@ export default function SellerDashboard() {
                 </div>
 
                 {/* Current Store Link */}
-                <div className="flex items-center gap-2 bg-gray-50 rounded-xl p-3 border border-gray-100">
-                    <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Live Store URL</p>
-                        <p className="text-sm font-bold text-indigo-700 truncate">
-                            fairprice.ng/store/{safeSeller.store_url || safeSeller.id}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${
-                                copiedStoreLink
-                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                                    : 'border-gray-200 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
-                            }`}
-                            onClick={() => {
-                                const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
-                                navigator.clipboard.writeText(url);
-                                setCopiedStoreLink(true);
-                                setTimeout(() => setCopiedStoreLink(false), 2000);
-                            }}
-                        >
-                            <Copy className="h-3.5 w-3.5 mr-1" />
-                            {copiedStoreLink ? 'Copied!' : 'Copy'}
-                        </Button>
-                        <Link href={`/store/${safeSeller.store_url || safeSeller.id}`} target="_blank">
-                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
-                                <ExternalLink className="h-3.5 w-3.5" />
+                <div className="flex flex-col gap-3 bg-gray-50 rounded-xl p-4 border border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Live Store URL</p>
+                            <p className="text-sm font-bold text-indigo-700 truncate">
+                                fairprice.ng/store/{safeSeller.store_url || safeSeller.id}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className={`h-8 px-3 rounded-lg text-xs font-bold transition-all ${
+                                    copiedStoreLink
+                                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                        : 'border-gray-200 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
+                                }`}
+                                onClick={() => {
+                                    const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
+                                    navigator.clipboard.writeText(url);
+                                    setCopiedStoreLink(true);
+                                    setTimeout(() => setCopiedStoreLink(false), 2000);
+                                }}
+                            >
+                                <Copy className="h-3.5 w-3.5 mr-1" />
+                                {copiedStoreLink ? 'Copied!' : 'Copy'}
                             </Button>
-                        </Link>
+                            <Link href={`/store/${safeSeller.store_url || safeSeller.id}`} target="_blank">
+                                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50">
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                </Button>
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-gray-200/60 pt-3 flex flex-col gap-2">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Share your store link to get more customers</p>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                size="sm"
+                                className="h-8 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-lg flex items-center gap-1.5 px-3 border-none shadow-sm"
+                                onClick={() => {
+                                    const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
+                                    window.open(`https://wa.me/?text=${encodeURIComponent(`Check out my store on FairPrice: ${url}`)}`, '_blank');
+                                }}
+                            >
+                                <MessageSquare className="h-3.5 w-3.5" />
+                                <span className="text-[11px] font-bold">WhatsApp</span>
+                            </Button>
+                            <Button
+                                size="sm"
+                                className="h-8 bg-[#1877F2] hover:bg-[#166fe5] text-white rounded-lg flex items-center gap-1.5 px-3 border-none shadow-sm"
+                                onClick={() => {
+                                    const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
+                                    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, '_blank');
+                                }}
+                            >
+                                <Globe className="h-3.5 w-3.5" />
+                                <span className="text-[11px] font-bold">Facebook</span>
+                            </Button>
+                        </div>
                     </div>
                 </div>
 
@@ -372,7 +404,7 @@ export default function SellerDashboard() {
                         className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold px-5 h-10 transition-all hover:scale-105 active:scale-95"
                         onClick={async () => {
                             setIsRefreshing(true);
-                            await DataSyncService.autoSync();
+                            await DataSyncService.autoSync(true); // Force clear stale local cache
                             setIsRefreshing(false);
                         }}
                     >
@@ -824,6 +856,8 @@ function PayoutStep({ label, amount, status, icon, description, active }: Payout
 
 // ─── StatCard ───
 function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, tooltip }: { icon: React.ReactNode; label: string; value: string; trend?: string; color?: string; href?: string; delay?: number; tooltip?: string }) {
+    const [showTooltip, setShowTooltip] = useState(false);
+    
     const colors: Record<string, string> = {
         emerald: "bg-emerald-50 text-emerald-600 border border-emerald-100",
         amber: "bg-amber-50 text-amber-600 border border-amber-100",
@@ -836,6 +870,13 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay, type: "spring", stiffness: 300, damping: 25 }}
+            onClick={(e) => {
+                if (tooltip) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowTooltip(!showTooltip);
+                }
+            }}
             className={`bg-white p-5 rounded-3xl border border-zinc-100 shadow-sm transition-all relative overflow-hidden group ${href ? 'cursor-pointer hover:border-emerald-200 hover:shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-1' : ''}`}
         >
             {/* Subtle Gold Pulse for positive trends */}
@@ -858,12 +899,13 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
             <h3 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-2">{value}</h3>
             <div className="flex items-center gap-2 relative">
                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">{label}</p>
-                {href && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
+                {href && !tooltip && <ChevronRight className="h-3 w-3 text-zinc-300 group-hover:text-emerald-500 transition-colors" />}
                 
-                {tooltip && (
-                    <div className="absolute left-0 bottom-full mb-2 w-48 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-2.5 rounded-xl translate-y-0 transition-all duration-300 z-50 shadow-2xl leading-relaxed">
-                        <div className="flex items-center gap-1.5 mb-1 text-gray-400">
-                            <span className="font-bold text-white uppercase tracking-wider text-[9px]">Insight</span>
+                {tooltip && showTooltip && (
+                    <div className="absolute left-0 bottom-full mb-2 w-52 bg-gray-900 border border-gray-700 text-white text-[11px] font-medium p-3 rounded-2xl z-50 shadow-2xl leading-relaxed animate-in fade-in slide-in-from-bottom-2">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                            <Zap className="h-3 w-3 text-amber-400" />
+                            <span className="font-black text-white uppercase tracking-widest text-[9px]">Insight</span>
                         </div>
                         {tooltip}
                         <div className="absolute left-6 -bottom-1 w-2 h-2 bg-gray-900 border-b border-r border-gray-700 rotate-45" />
@@ -873,5 +915,5 @@ function StatCard({ icon, label, value, trend, color = "blue", href, delay = 0, 
         </motion.div>
     );
 
-    return href ? <Link href={href} className="group outline-none">{content}</Link> : <div className="group">{content}</div>;
+    return href && !tooltip ? <Link href={href} className="group outline-none">{content}</Link> : <div className="group">{content}</div>;
 }

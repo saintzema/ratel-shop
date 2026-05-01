@@ -400,9 +400,10 @@ const ChatInputBar = React.memo(({
                     className="flex-1 rounded-full h-10 text-sm bg-white border-0 shadow-sm focus-visible:ring-1 focus-visible:ring-emerald-300 px-4"
                 />
                 <Button
-                    className="rounded-full h-10 w-10 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shrink-0 flex items-center justify-center"
+                    onClick={onSend}
+                    className="rounded-full h-11 w-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-500/20 shrink-0 flex items-center justify-center transition-all active:scale-95"
                 >
-                    <Send className="h-4 w-4" />
+                    <Send className="h-5 w-5" />
                 </Button>
             </div>
         </div>

@@ -1,14 +1,31 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "../realtime/route";
+import { getUserFromRequest } from "@/lib/jwt";
 
 export async function GET(req: Request) {
     try {
+        const user = getUserFromRequest(req);
         const { searchParams } = new URL(req.url);
         const includeInactive = searchParams.get("all") === "true";
         const updatedAfter = searchParams.get("updated_after");
 
-        const whereClause: any = includeInactive ? {} : { status: "active" as const };
+        let whereClause: any = includeInactive ? {} : { status: "active" as const };
+
+        // Security: Filter by userId if NOT an admin
+        if (!user || user.role !== "admin") {
+            // If logged in as a seller/customer, only show their own stores
+            if (user) {
+                whereClause.userId = user.userId;
+            } else {
+                // Not logged in -> Only show active public stores
+                whereClause.status = "active";
+                // If they are asking for "all=true" but not logged in, reject or ignore
+                if (includeInactive) {
+                    // For now, just ignore it and keep status active
+                }
+            }
+        }
 
         if (updatedAfter) {
             whereClause.updatedAt = { gte: new Date(updatedAfter) };
@@ -76,9 +93,15 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
         const userId = body.user_id || body.userId;
+        const userPayload = getUserFromRequest(req);
 
         if (!userId) {
             return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+        }
+
+        // Security check: cannot create store for someone else unless admin
+        if (userPayload && userId !== userPayload.userId && userPayload.role !== "admin") {
+            return NextResponse.json({ error: "Forbidden: Unauthorized access" }, { status: 403 });
         }
 
         const user = await db.user.upsert({
@@ -107,7 +130,7 @@ export async function POST(req: Request) {
         }
 
         const sellerData = {
-            id: body.id,
+            id: body.id || `s_${Date.now()}`,
             userId: user.id,
             businessName: body.business_name,
             description: body.description || "",
@@ -132,8 +155,39 @@ export async function POST(req: Request) {
             ownerEmail: body.owner_email || user.email,
         };
 
+        // Enforce Subscription Limits for NEW sellers
+        const existingSellers = await db.seller.findMany({
+            where: { userId: user.id }
+        });
+
+        const isNew = !existingSellers.find(s => s.id === sellerData.id);
+        
+        if (isNew) {
+            // Get the subscription plan of the primary seller or user
+            // For now, we'll check the first seller's plan as the "account plan"
+            const primarySeller = existingSellers[0];
+            const plan = primarySeller?.subscriptionPlan || "Starter";
+            
+            const limits: Record<string, number> = {
+                "Starter": 1,
+                "Pro": 2,
+                "Growth": 3,
+                "Scale": 10
+            };
+            
+            const limit = limits[plan] || 1;
+            
+            if (existingSellers.length >= limit) {
+                return NextResponse.json({ 
+                    error: "Limit Reached", 
+                    message: `Your current ${plan} plan allows up to ${limit} business(es). Please upgrade to add more.`,
+                    code: "PLAN_LIMIT_REACHED"
+                }, { status: 403 });
+            }
+        }
+
         const seller = await db.seller.upsert({
-            where: { userId: sellerData.userId },
+            where: { id: sellerData.id },
             update: {
                 ...sellerData,
                 id: undefined,

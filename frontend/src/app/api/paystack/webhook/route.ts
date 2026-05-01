@@ -128,17 +128,17 @@ async function handleChargeSuccess(data: any) {
                         where: { id: userId },
                         data: { role: "seller" }
                     });
-                    // Then update the seller plan
-                    await db.seller.update({
+                    // Then update all sellers for this user to the new plan
+                    await db.seller.updateMany({
                         where: { userId: userId },
                         data: { 
-                            // @ts-ignore - Field added in pending schema migration
+                            // @ts-ignore
                             subscriptionPlan: plan as any,
-                            // @ts-ignore - Field added in pending schema migration
+                            // @ts-ignore
                             planExpiryDate: expiry,
                             status: "active"
                         }
-                    }).catch(err => console.warn(`Seller record not found for user ${userId}, might be first upgrade.`));
+                    });
                 }
                 
                 broadcast({ type: "user_updated", id: userId });
