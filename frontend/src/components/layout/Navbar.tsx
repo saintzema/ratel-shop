@@ -768,7 +768,7 @@ export function Navbar() {
 
     return (
         <>
-            <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 9999, transform: 'translateZ(0)' }}>
+            <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 9999 }}>
                 {/* Top Bar — Liquid Glass */}
                 <div className="flex w-full items-center justify-between gap-1 md:gap-3 lg:gap-4 liquid-glass px-1 md:px-2 lg:px-4 py-2.5 md:py-3 text-white relative z-10">
                     <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0">

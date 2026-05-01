@@ -2379,7 +2379,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             initial={{ opacity: 0, scale: 0.9, y: 20 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                            className="relative z-[201] w-full max-w-sm bg-white rounded-[40px] shadow-2xl overflow-hidden p-8 text-center border border-gray-100"
+                            className="relative z-[201] w-full max-w-sm max-h-[90vh] overflow-y-auto bg-white rounded-[40px] shadow-2xl p-6 md:p-8 text-center border border-gray-100 scrollbar-hide"
                         >
                             <button 
                                 onClick={() => setShowQrModal(false)}
@@ -2388,30 +2388,48 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 <X className="h-5 w-5 text-gray-400" />
                             </button>
                             
-                            <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-6 shadow-inner">
-                                <QrCode className="h-8 w-8 text-emerald-600" />
+                            <div className="mx-auto w-12 h-12 md:w-16 md:h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-4 md:mb-6 shadow-inner">
+                                <QrCode className="h-6 w-6 md:h-8 md:w-8 text-emerald-600" />
                             </div>
                             
-                            <h2 className="text-2xl font-black text-gray-900 mb-2">Scan to Pay</h2>
-                            <p className="text-gray-500 mb-8 text-sm font-medium leading-tight">
+                            <h2 className="text-xl md:text-2xl font-black text-gray-900 mb-2">Scan to Pay</h2>
+                            <p className="text-gray-500 mb-4 md:mb-8 text-xs md:text-sm font-medium leading-tight">
                                 Fast, secure, and touchless payment. <br/> 
                                 Scan with your phone camera.
                             </p>
 
-                            <div className="bg-gray-50 p-6 rounded-[32px] border-4 border-white shadow-inner mb-6">
+                            <div className="bg-gray-50 p-4 md:p-6 rounded-[32px] border-4 border-white shadow-inner mb-6">
                                 <img 
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '')}`}
                                     alt="Payment QR" 
-                                    className="w-48 h-48 mx-auto mix-blend-multiply mb-4"
+                                    className="w-40 h-40 md:w-48 md:h-48 mx-auto mix-blend-multiply mb-4"
                                 />
                                 <div className="text-center">
                                     <p className="text-xs text-gray-500 mb-2 font-medium">Or pay directly on this device:</p>
-                                    <a 
-                                        href={typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '#'}
-                                        className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-200 transition-colors"
-                                    >
-                                        Tap to Checkout
-                                    </a>
+                                    <div className="flex flex-row items-center justify-center gap-3">
+                                        <a 
+                                            href={typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '#'}
+                                            className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-200 transition-colors shrink-0"
+                                        >
+                                            Tap to Checkout
+                                        </a>
+                                        <div className="flex items-center justify-center gap-1.5 opacity-80 shrink-0">
+                                            {/* Mastercard SVG */}
+                                            <svg className="w-6 h-4" viewBox="0 0 36 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <circle cx="12" cy="12" r="12" fill="#EB001B"/>
+                                                <circle cx="24" cy="12" r="12" fill="#F79E1B"/>
+                                                <path d="M18 20.4853C20.6698 18.6702 22.5 15.5422 22.5 12C22.5 8.45778 20.6698 5.32982 18 3.51472C15.3302 5.32982 13.5 8.45778 13.5 12C13.5 15.5422 15.3302 18.6702 18 20.4853Z" fill="#FF5F00"/>
+                                            </svg>
+                                            {/* Visa SVG */}
+                                            <svg className="w-8 h-4 rounded-sm bg-blue-800 flex items-center justify-center px-1" viewBox="0 0 36 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M14.6548 0.625366L9.61334 11.3752H6.26257L3.95544 3.12565C3.81848 2.50285 3.65588 2.2155 3.19702 1.95679C2.42255 1.51737 1.15112 1.0504 0 0.825226V0.625366H5.21045C5.86792 0.625366 6.45288 1.04543 6.61157 1.83186L7.91528 8.63229L11.3533 0.625366H14.6548ZM26.3779 7.64716C26.3989 4.79374 22.464 4.6346 22.4854 3.32832C22.4922 2.92345 22.8804 2.49352 23.7549 2.37895C24.1956 2.3168 25.4377 2.27453 26.4302 2.73463L27.0176 0.111816C26.4819 0.00976562 25.5459 0 24.4379 0C21.4324 0 19.4175 1.54719 19.3958 3.75087C19.3765 5.37839 20.9163 6.28822 22.072 6.83763C23.2644 7.40445 23.6655 7.765 23.6624 8.27211C23.6565 9.04753 22.6953 9.39558 21.8491 9.39558C20.3013 9.39558 19.4121 8.98036 18.7842 8.68205L18.1729 11.3653C18.7905 11.6462 20.071 11.875 21.4019 11.875C24.5886 11.875 26.3572 10.3343 26.3779 7.64716ZM34.2144 11.3752H37.0503L34.1866 0.625366H31.5496C30.9824 0.625366 30.5093 0.94101 30.292 1.45564L25.8601 11.3752H29.3093L29.9978 9.53535H34.2144V11.3752ZM30.9839 6.80531L32.656 2.36894L33.623 6.80531H30.9839ZM18.4233 11.3752L15.4243 0.625366H12.3552L15.3523 11.3752H18.4233Z" fill="white"/>
+                                            </svg>
+                                            {/* OPay Stylized Text */}
+                                            <div className="h-4 px-1.5 flex items-center justify-center bg-emerald-500 rounded-sm">
+                                                <span className="text-[10px] font-black text-white italic tracking-tighter">OPay</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2421,7 +2439,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 </div>
                                 <Button
                                     onClick={() => setShowQrModal(false)}
-                                    className="w-full h-14 rounded-2xl bg-black hover:bg-gray-800 text-white font-bold text-lg"
+                                    className="w-full h-12 md:h-14 rounded-2xl bg-black hover:bg-gray-800 text-white font-bold text-base md:text-lg"
                                 >
                                     Done
                                 </Button>
