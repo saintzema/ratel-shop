@@ -375,7 +375,7 @@ function HomeContent() {
                   </div>
 
                   {/* ─── BEZEL BUTTONS OVERLAY ─── */}
-                  <div className="absolute bottom-10 md:bottom-12 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-8 z-30 flex flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-4 w-[90%] md:w-auto">
+                  <div className="absolute bottom-16 md:bottom-16 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-8 z-30 flex flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-4 w-[90%] md:w-auto">
                     <Button
                       size="lg"
                       className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[11px] md:text-[14px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-1.5 md:gap-2 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
