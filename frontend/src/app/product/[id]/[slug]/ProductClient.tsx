@@ -5,6 +5,7 @@ import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { formatPrice, getProxiedImageUrl, getProductUrl, cn, isVideoUrl } from "@/lib/utils";
+import { QRCodeCanvas } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
@@ -373,6 +374,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     }
 
     let seller = allSellers.find((s) => s.id === product?.seller_id) || SEED_SELLERS.find((s) => s.id === product?.seller_id);
+    const isPremium = ["Pro", "Growth", "Scale"].includes(seller?.subscription_plan || "");
+    const logoToUse = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/assets/images/logo.png";
 
     // Fallback for global sourcing products if global-partners isn't in older localStorage DataSyncService caches
     if (!seller && product?.seller_id === "global-partners") {
@@ -1709,48 +1712,66 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 <div className="space-y-3 pt-2">
 
 
-                                    <Button
-                                        className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/20"
-                                        onClick={() => {
-                                            if (product) {
-                                                // Vehicle specific checkout logic is handled inside checkout page based on product category
-                                                for (let i = 0; i < quantity; i++) addToCart(product);
-                                                window.location.href = '/checkout';
-                                            }
-                                        }}
-                                    >
-                                        {hasFinancing(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
-                                    </Button>
+                                    {product.stock === 0 ? (
+                                        <Button
+                                            className="w-full rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 font-black py-6 text-lg transition-all cursor-not-allowed shadow-none"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                if (!user) {
+                                                    router.push("/login?from=" + encodeURIComponent(window.location.pathname));
+                                                    return;
+                                                }
+                                                DataSyncService.addRestockSubscription(product.id, user.id, user.email);
+                                                alert("You're on the list! We'll notify you the moment this is restocked.");
+                                            }}
+                                        >
+                                            <AlertTriangle className="h-5 w-5 mr-2" /> Notify on Restock
+                                        </Button>
+                                    ) : (
+                                        <>
+                                            <Button
+                                                className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/20"
+                                                onClick={() => {
+                                                    if (product) {
+                                                        // Vehicle specific checkout logic is handled inside checkout page based on product category
+                                                        for (let i = 0; i < quantity; i++) addToCart(product);
+                                                        window.location.href = '/checkout';
+                                                    }
+                                                }}
+                                            >
+                                                {hasFinancing(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
+                                            </Button>
 
-
-                                    <Button
-                                        variant="outline"
-                                        className={`w-full rounded-full font-black py-6 text-base shadow-sm transition-all duration-300 relative overflow-hidden ${addedToCart ? 'bg-black text-white hover:bg-gray-800 border-black' : 'border-emerald-200 text-emerald-800 hover:bg-emerald-50 bg-emerald-50/50'}`}
-                                        disabled={isAdding}
-                                        onClick={() => {
-                                            if (addedToCart) {
-                                                router.push('/cart');
-                                            } else {
-                                                setIsAdding(true);
-                                                setTimeout(() => {
-                                                    for (let i = 0; i < quantity; i++) addToCart(product);
-                                                    setIsAdding(false);
-                                                    setAddedToCart(true);
-                                                }, 600);
-                                            }
-                                        }}
-                                    >
-                                        <div className="absolute inset-0 flex items-center justify-center transition-transform duration-300" style={{ transform: isAdding ? 'translateY(0)' : 'translateY(100%)' }}>
-                                            <div className="flex flex-col items-center justify-center h-full gap-2 text-emerald-600">
-                                                <div className="h-5 w-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
-                                            </div>
-                                        </div>
-                                        <div className={`transition-transform duration-300 flex items-center justify-center gap-2 ${isAdding ? 'translate-y-[-100%] opacity-0' : 'translate-y-0 opacity-100'}`}>
-                                            {addedToCart ? (
-                                                <><Check className="h-5 w-5" /> View Cart</>
-                                            ) : "Add to cart"}
-                                        </div>
-                                    </Button>
+                                            <Button
+                                                variant="outline"
+                                                className={`w-full rounded-full font-black py-6 text-base shadow-sm transition-all duration-300 relative overflow-hidden ${addedToCart ? 'bg-black text-white hover:bg-gray-800 border-black' : 'border-emerald-200 text-emerald-800 hover:bg-emerald-50 bg-emerald-50/50'}`}
+                                                disabled={isAdding}
+                                                onClick={() => {
+                                                    if (addedToCart) {
+                                                        router.push('/cart');
+                                                    } else {
+                                                        setIsAdding(true);
+                                                        setTimeout(() => {
+                                                            for (let i = 0; i < quantity; i++) addToCart(product!);
+                                                            setIsAdding(false);
+                                                            setAddedToCart(true);
+                                                        }, 600);
+                                                    }
+                                                }}
+                                            >
+                                                <div className="absolute inset-0 flex items-center justify-center transition-transform duration-300" style={{ transform: isAdding ? 'translateY(0)' : 'translateY(100%)' }}>
+                                                    <div className="flex flex-col items-center justify-center h-full gap-2 text-emerald-600">
+                                                        <div className="h-5 w-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+                                                    </div>
+                                                </div>
+                                                <div className={`transition-transform duration-300 flex items-center justify-center gap-2 ${isAdding ? 'translate-y-[-100%] opacity-0' : 'translate-y-0 opacity-100'}`}>
+                                                    {addedToCart ? (
+                                                        <><Check className="h-5 w-5" /> View Cart</>
+                                                    ) : "Add to cart"}
+                                                </div>
+                                            </Button>
+                                        </>
+                                    )}
                                     <div className="flex flex-col items-center">
                                         <Button
                                             variant="outline"
@@ -2178,25 +2199,44 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 }}
             >
                 <div className="flex gap-3 max-w-lg mx-auto">
-                    <Button
-                        className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
-                        onClick={handleBuyNow}
-                    >
-                        Buy Now
-                    </Button>
-                    <Button
-                        className="flex-1 rounded-full bg-gray-900 hover:bg-black text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
-                        onClick={() => {
-                            setIsAdding(true);
-                            setTimeout(() => {
-                                for (let i = 0; i < quantity; i++) addToCart(product);
-                                setIsAdding(false);
-                                setAddedToCart(true);
-                            }, 500);
-                        }}
-                    >
-                        {isAdding ? "Adding..." : addedToCart ? "Added!" : "Add to Cart"}
-                    </Button>
+                    {product?.stock === 0 ? (
+                        <Button
+                            className="flex-1 rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 font-black h-14 shadow-none cursor-not-allowed"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (!user) {
+                                    router.push("/login?from=" + encodeURIComponent(window.location.pathname));
+                                    return;
+                                }
+                                DataSyncService.addRestockSubscription(product.id, user.id, user.email);
+                                alert("You're on the list! We'll notify you the moment this is restocked.");
+                            }}
+                        >
+                            <AlertTriangle className="h-5 w-5 mr-2" /> Notify on Restock
+                        </Button>
+                    ) : (
+                        <>
+                            <Button
+                                className="flex-1 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
+                                onClick={handleBuyNow}
+                            >
+                                Buy Now
+                            </Button>
+                            <Button
+                                className="flex-1 rounded-full bg-gray-900 hover:bg-black text-white font-black h-14 shadow-lg active:scale-95 transition-transform"
+                                onClick={() => {
+                                    setIsAdding(true);
+                                    setTimeout(() => {
+                                        for (let i = 0; i < quantity; i++) addToCart(product!);
+                                        setIsAdding(false);
+                                        setAddedToCart(true);
+                                    }, 500);
+                                }}
+                            >
+                                {isAdding ? "Adding..." : addedToCart ? "Added!" : "Add to Cart"}
+                            </Button>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -2398,13 +2438,26 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 Scan with your phone camera.
                             </p>
 
-                            <div className="bg-gray-50 p-4 md:p-6 rounded-[32px] border-4 border-white shadow-inner mb-6">
-                                <img 
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '')}`}
-                                    alt="Payment QR" 
-                                    className="w-40 h-40 md:w-48 md:h-48 mx-auto mix-blend-multiply mb-4"
-                                />
-                                <div className="text-center">
+                            <div className="bg-gray-50 p-4 md:p-6 rounded-[32px] border-4 border-white shadow-inner mb-6 flex flex-col items-center">
+                                <div className="relative p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
+                                    <QRCodeCanvas 
+                                        id="product-payment-qr"
+                                        value={typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : ''}
+                                        size={180}
+                                        level="H"
+                                        imageSettings={{
+                                            src: logoToUse,
+                                            x: undefined,
+                                            y: undefined,
+                                            height: 40,
+                                            width: 40,
+                                            excavate: true,
+                                        }}
+                                        fgColor="#000000"
+                                        className="mx-auto"
+                                    />
+                                </div>
+                                <div className="mt-4 text-center">
                                     <p className="text-xs text-gray-500 mb-2 font-medium">Or pay directly on this device:</p>
                                     <div className="flex flex-row items-center justify-center gap-3">
                                         <a 

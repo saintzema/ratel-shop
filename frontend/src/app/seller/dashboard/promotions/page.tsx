@@ -84,7 +84,7 @@ export default function PromotionsPage() {
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 relative z-10 pb-20">
-            {/* Header / Wallet Section */}
+            {/* Header / Balance Section */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div>
                     <h1 className="text-3xl md:text-4xl font-black text-gray-900 tracking-tight flex items-center gap-3">
@@ -255,7 +255,7 @@ export default function PromotionsPage() {
                 </div>
             </div>
 
-            {/* Wallet Top-up Modal */}
+            {/* Balance Top-up Modal */}
             <Dialog open={showTopUp} onOpenChange={setShowTopUp}>
                 <DialogContent className="sm:max-w-[425px] overflow-hidden rounded-[32px] p-0 border-0 shadow-2xl">
                     <div className="p-8 pb-6 bg-gradient-to-br from-indigo-600 to-indigo-900 text-white relative">
@@ -265,10 +265,10 @@ export default function PromotionsPage() {
 
                         <DialogHeader>
                             <DialogTitle className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-                                <CreditCard className="h-6 w-6 opacity-80" /> Top Up Wallet
+                                <CreditCard className="h-6 w-6 opacity-80" /> Top Up Balance
                             </DialogTitle>
                             <DialogDescription className="text-indigo-100/70 font-medium pt-2">
-                                Add funds to your advertising wallet to keep your sponsored campaigns running.
+                                Add funds to your advertising balance to keep your sponsored campaigns running.
                             </DialogDescription>
                         </DialogHeader>
                     </div>

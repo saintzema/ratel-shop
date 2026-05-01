@@ -1092,9 +1092,12 @@ export default function UniversalMessagesPage() {
                                                 <div className="w-full sm:w-[150px] relative">
                                                     <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
                                                     <Input
-                                                        type="number"
-                                                        value={counterPrice}
-                                                        onChange={(e) => setCounterPrice(e.target.value)}
+                                                        type="text"
+                                                        value={counterPrice ? Number(counterPrice.replace(/,/g, '').replace(/\D/g, '')).toLocaleString() : ""}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.replace(/,/g, '').replace(/\D/g, '');
+                                                            setCounterPrice(val);
+                                                        }}
                                                         className="pl-8 bg-white border-gray-200 rounded-xl h-11 font-black text-gray-900 shadow-sm"
                                                         placeholder="Price"
                                                         required

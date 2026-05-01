@@ -30,7 +30,7 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
 
   useEffect(() => {
     if (loadMoreInView && displayCount < allFiltered.length) {
-      setDisplayCount(prev => prev + 20);
+      setDisplayCount(prev => prev + 15);
     }
   }, [loadMoreInView, allFiltered.length, displayCount]);
 
@@ -43,7 +43,7 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
           
           if (!allData || allData.length === 0) {
               // Fallback to API if sync store is empty
-              const res = await fetch(`/api/products?category=${encodeURIComponent(category.toLowerCase())}&limit=20`);
+              const res = await fetch(`/api/products?category=${encodeURIComponent(category.toLowerCase())}&limit=50`);
               if (res.ok) {
                   const json = await res.json();
                   allData = json.data || [];
@@ -72,29 +72,44 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
           
           const searchTerms = categoryMappings[catLower] || [catLower];
 
-          // Filter by category or search terms
-          let filtered = allData.filter(p => {
-              if (catLower === "all") return true;
-              if (catLower === "trending") return p.is_trending === true;
-              if (catLower === "best-selling") return (p.sold_count && p.sold_count > 10) || p.is_trending === true;
+          // Filter with Match Strength
+          let filtered = allData.map(p => {
+              if (catLower === "all") return { product: p, score: 100 };
+              if (catLower === "trending") return { product: p, score: p.is_trending ? 100 : 0 };
+              if (catLower === "best-selling") {
+                  let score = 0;
+                  if (p.sold_count && p.sold_count > 50) score = 100;
+                  else if (p.is_trending) score = 80;
+                  else if (p.sold_count && p.sold_count > 10) score = 50;
+                  return { product: p, score };
+              }
               
               const pCat = p.category?.toLowerCase() || "";
               const pSub = p.subcategory?.toLowerCase() || "";
               const pName = p.name.toLowerCase();
               const pDesc = p.description?.toLowerCase() || "";
               
-              return searchTerms.some(term => 
-                  pCat.includes(term) || 
-                  pSub.includes(term) || 
-                  pName.includes(term) ||
-                  pDesc.includes(term)
-              );
-          });
+              let score = 0;
+              for (const term of searchTerms) {
+                  // Direct category/subcategory match is high priority
+                  if (pCat === term || pSub === term) score = Math.max(score, 100);
+                  else if (pCat.includes(term) || pSub.includes(term)) score = Math.max(score, 80);
+                  // Name match is medium priority
+                  else if (pName.includes(term)) score = Math.max(score, 60);
+                  // Description match is lowest priority
+                  else if (pDesc.includes(term)) score = Math.max(score, 30);
+              }
+              
+              return { product: p, score };
+          })
+          .filter(item => item.score > 0)
+          .sort((a, b) => b.score - a.score || (b.product.sold_count || 0) - (a.product.sold_count || 0))
+          .map(item => item.product);
           
-          // Randomize initially but keep consistent
-          const randomized = filtered.sort(() => 0.5 - Math.random());
-          setAllFiltered(randomized);
-          setProducts(randomized.slice(0, displayCount));
+          setAllFiltered(filtered);
+          // Initial slice: show at least 15 (requested 12, but 15 fits 5-col grid better)
+          setProducts(filtered.slice(0, 15));
+          setDisplayCount(15);
         } catch (error) {
           console.error(`Failed to load category ${category}:`, error);
         } finally {
@@ -112,7 +127,16 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
   return (
     <div ref={ref} className="w-full min-h-[500px] py-4 px-1 md:px-2 flex-shrink-0 snap-center">
       <div className="container mx-auto">
-        <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-4 px-2">{category} Top Picks</h2>
+        <div className="flex items-center justify-between mb-4 px-2">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 flex items-center gap-2">
+                {category === "all" ? <Sparkles className="h-5 w-5 text-brand-green-500" /> : null}
+                {category} Top Picks
+            </h2>
+            {allFiltered.length > products.length && (
+                <span className="text-xs text-gray-400 font-medium">{allFiltered.length} items available</span>
+            )}
+        </div>
+
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4">
             {[...Array(10)].map((_, i) => (
@@ -126,13 +150,17 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
                 <ProductCard key={p.id} product={p} />
               ))}
             </div>
-            {/* Infinite Scroll Trigger */}
+            
+            {/* Infinite Scroll / Loading More Trigger */}
             {displayCount < allFiltered.length && (
-              <div ref={loadMoreRef} className="h-20 w-full flex items-center justify-center mt-4">
-                 <div className="animate-pulse flex space-x-2">
+              <div ref={loadMoreRef} className="py-12 w-full flex flex-col items-center justify-center gap-4">
+                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4 w-full">
+                    {[...Array(5)].map((_, i) => (
+                        <ProductCardSkeleton key={`skeleton-${i}`} />
+                    ))}
+                 </div>
+                 <div className="animate-bounce mt-4">
                     <div className="w-2 h-2 bg-brand-green-400 rounded-full"></div>
-                    <div className="w-2 h-2 bg-brand-green-400 rounded-full animation-delay-200"></div>
-                    <div className="w-2 h-2 bg-brand-green-400 rounded-full animation-delay-400"></div>
                  </div>
               </div>
             )}

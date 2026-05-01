@@ -1384,7 +1384,7 @@ export function Navbar() {
                                         <div className="px-4 py-2 text-[11px] font-black text-gray-400 uppercase tracking-wider">Your Account</div>
                                         <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">My Account</button>
                                         <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/payments"); }} className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">
-                                            My Wallet
+                                            My Balance
                                             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] h-4">Active</Badge>
                                         </button>
                                         <button onClick={() => { setIsAccountMenuOpen(false); router.push("/account/addresses"); }} className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-gray-800 font-bold cursor-pointer transition-all active:bg-gray-100">Delivery Address</button>

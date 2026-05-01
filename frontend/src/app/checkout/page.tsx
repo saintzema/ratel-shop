@@ -886,6 +886,8 @@ function CheckoutContent() {
                     customer_phone: `${countryCode} ${address.phone}`,
                     customer_whatsapp: showWhatsappField ? `${whatsappCountryCode} ${whatsappPhone}` : undefined,
                     discount_id: appliedCoupon?.id,
+                    // @ts-ignore - Flag for off-platform payment tracking
+                    off_listing: (item.product as any).off_listing || false,
                     // Attach full financing breakdown for vehicle orders
                     ...(isVehicleProduct && loanCalc ? {
                         financing: {

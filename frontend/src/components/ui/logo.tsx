@@ -19,8 +19,8 @@ export function Logo({ className, variant = "light", hideTextMobile = false, isA
                 <span className={cn("text-xl font-black tracking-tight leading-none", variant === "light" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" : "text-green-700")}>
                     {isAdmin ? "Admin Portal" : "FairPrice.ng"}
                 </span>
-                <span className={cn("text-[10px] font-bold italic py-1.5 uppercase tracking-widest opacity-80", variant === "light" ? "text-yellow-300" : "text-yellow-700")}>
-                    {isAdmin ? "Marketplace Engine" : "Never overpay again"}
+                <span className={cn("text-[8.5px] font-black uppercase tracking-widest opacity-90", variant === "light" ? "text-emerald-400" : "text-emerald-700")}>
+                    {isAdmin ? "Marketplace Engine" : "The Transactional OS for Africa"}
                 </span>
             </div>
         </Link>

@@ -19,6 +19,7 @@ import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { QRCodeCanvas } from "qrcode.react";
+import { getProxiedImageUrl } from "@/lib/utils";
 
 export default function QRPaymentsPage() {
     const seller = DataSyncService.getCurrentSeller();
@@ -27,7 +28,11 @@ export default function QRPaymentsPage() {
     const [isGenerating, setIsGenerating] = useState(false);
     const [qrValue, setQrValue] = useState("");
     const [copied, setCopied] = useState(false);
+    const [history, setHistory] = useState<any[]>(DataSyncService.getOffListingInvoices());
     const qrRef = useRef<HTMLDivElement>(null);
+
+    const isPremium = ["Pro", "Growth", "Scale"].includes(seller?.subscription_plan || "");
+    const logoToUse = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/assets/images/logo.png";
 
     const storeUrl = typeof window !== "undefined" 
         ? `${window.location.origin}/store/${seller?.store_url || seller?.id}`
@@ -41,6 +46,18 @@ export default function QRPaymentsPage() {
         const paymentLink = `${window.location.origin}/checkout/direct?sellerId=${seller?.id}&amount=${amount}&label=${encodeURIComponent(label)}`;
         
         setTimeout(() => {
+            const invoice = {
+                id: `inv_${Date.now()}`,
+                seller_id: seller?.id || "",
+                amount: Number(amount),
+                label: label || `Payment to ${seller?.business_name}`,
+                status: "pending" as const,
+                created_at: new Date().toISOString()
+            };
+            
+            DataSyncService.addOffListingInvoice(invoice);
+            setHistory(DataSyncService.getOffListingInvoices());
+            
             setQrValue(paymentLink);
             setIsGenerating(false);
         }, 600);
@@ -104,7 +121,7 @@ export default function QRPaymentsPage() {
                                 size={240}
                                 level="H"
                                 imageSettings={{
-                                    src: "/assets/images/logo.png",
+                                    src: logoToUse,
                                     x: undefined,
                                     y: undefined,
                                     height: 48,
@@ -158,6 +175,26 @@ export default function QRPaymentsPage() {
                             </div>
                         </div>
 
+                        {!isPremium && (
+                            <div className="mb-10 p-6 bg-amber-50 rounded-[32px] border border-amber-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-amber-500 shadow-sm">
+                                        <ImageIcon className="h-6 w-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-black text-gray-900 text-sm">Add Your Logo to QR Codes</h4>
+                                        <p className="text-xs font-medium text-gray-500">Upgrade to the #5k Plan to replace the FairPrice logo with your brand logo.</p>
+                                    </div>
+                                </div>
+                                <Button 
+                                    onClick={() => window.location.href = "/seller/settings/billing"}
+                                    className="h-12 px-6 rounded-xl bg-gray-900 text-white font-black text-xs uppercase tracking-widest hover:bg-black transition-all"
+                                >
+                                    Upgrade to Pro
+                                </Button>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                             <div className="space-y-6">
                                 <div className="space-y-2">
@@ -209,7 +246,7 @@ export default function QRPaymentsPage() {
                                                         size={180}
                                                         level="H"
                                                         imageSettings={{
-                                                            src: "/assets/images/logo.png",
+                                                            src: logoToUse,
                                                             x: undefined,
                                                             y: undefined,
                                                             height: 36,
@@ -262,6 +299,39 @@ export default function QRPaymentsPage() {
                         </div>
                     </section>
 
+                    {/* Invoice History */}
+                    {history.length > 0 && (
+                        <section className="bg-white rounded-[40px] p-8 border border-gray-100 shadow-sm">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-xl font-black text-gray-900 tracking-tight">Recent Payment Links</h3>
+                                <div className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-wider">Tracked</div>
+                            </div>
+                            <div className="space-y-4">
+                                {history.slice(0, 5).map((inv) => (
+                                    <div key={inv.id} className="flex items-center justify-between p-5 bg-gray-50 rounded-[24px] border border-gray-100 group hover:border-emerald-200 transition-all">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-gray-400 border border-gray-100 shadow-sm">
+                                                <ArrowRightLeft className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-gray-900">₦{inv.amount.toLocaleString()}</p>
+                                                <p className="text-[11px] font-bold text-gray-500 line-clamp-1">{inv.label}</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${inv.status === 'paid' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {inv.status}
+                                            </span>
+                                            <p className="text-[10px] text-gray-400 font-bold mt-1.5 opacity-60">
+                                                {new Date(inv.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
                     {/* How it works */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex items-start gap-5 hover:border-emerald-100 transition-colors">
@@ -282,7 +352,7 @@ export default function QRPaymentsPage() {
                             <div>
                                 <h4 className="font-black text-gray-900 text-sm">Instant Sync</h4>
                                 <p className="text-xs font-medium text-gray-500 mt-1 leading-relaxed">
-                                    Payment is credited to your wallet instantly upon success.
+                                    Payment is credited to your balance instantly upon success.
                                 </p>
                             </div>
                         </div>

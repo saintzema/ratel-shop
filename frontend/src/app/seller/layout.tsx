@@ -12,7 +12,7 @@ import {
     Bell,
     Menu,
     X,
-    Wallet,
+    Landmark,
     ChevronRight,
     ChevronDown,
     Settings,
@@ -215,7 +215,7 @@ export default function SellerLayout({
         { label: "Analytics", href: "/seller/analytics", icon: BarChart3 },
         { label: "Discounts", href: "/seller/discounts", icon: Tag },
         { label: "App Integrations", href: "/seller/integrations", icon: Blocks },
-        { label: "Wallet & Payouts", href: "/seller/wallet", icon: Wallet },
+        { label: "Balance & Settlements", href: "/seller/balance", icon: Landmark },
         { label: "QR Payments", href: "/seller/dashboard/payments", icon: QrCode },
         { label: "Store Settings", href: "/seller/settings", icon: Settings },
         { label: "Plans & Billing", href: "/seller/settings/billing", icon: Crown },
@@ -370,9 +370,9 @@ export default function SellerLayout({
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuItem asChild className="rounded-xl cursor-pointer py-2.5 px-3 focus:bg-gray-50 focus:text-gray-900 transition-colors">
-                                        <Link href="/seller/dashboard/payouts" className="w-full flex items-center font-medium">
-                                            <Wallet className="mr-3 h-4 w-4 text-gray-400" />
-                                            Settings / Setup Payout
+                                        <Link href="/seller/balance" className="w-full flex items-center font-medium">
+                                            <Landmark className="mr-3 h-4 w-4 text-gray-400" />
+                                            Balance & Settlements
                                         </Link>
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator className="bg-gray-100 opacity-50 my-1" />

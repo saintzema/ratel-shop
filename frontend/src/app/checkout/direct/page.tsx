@@ -80,6 +80,8 @@ function DirectCheckoutContent() {
                     avg_rating: 5.0,
                     is_active: true,
                     created_at: new Date().toISOString(),
+                    // @ts-ignore - Dynamic metadata for tracking
+                    off_listing: true
                 };
 
                 // For direct payments, we don't necessarily need to persist to global catalogue

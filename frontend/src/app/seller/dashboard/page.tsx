@@ -16,7 +16,7 @@ import {
     AlertTriangle,
     CheckCircle,
     XCircle,
-    Wallet,
+    Landmark,
     ShieldCheck,
     Lock,
     ArrowUpRight,
@@ -29,7 +29,9 @@ import {
     Globe,
     ExternalLink,
     Crown,
-    Zap
+    Zap,
+    Link as LinkIcon,
+    QrCode
 } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
@@ -41,6 +43,7 @@ export default function SellerDashboard() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [currentSeller, setCurrentSeller] = useState<Seller | undefined>(undefined);
+    const [offListingInvoices, setOffListingInvoices] = useState<any[]>([]);
     const [cashoutSuccess, setCashoutSuccess] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [copiedStoreLink, setCopiedStoreLink] = useState(false);
@@ -87,6 +90,10 @@ export default function SellerDashboard() {
                 // deduplicate just in case 
                 const uniqueProducts = Array.from(new Map(combinedProducts.map(p => [p.id, p])).values());
                 setProducts(uniqueProducts.filter(p => p.seller_id === seller.id));
+
+                // Load off-listing invoices
+                const allInvoices = DataSyncService.getOffListingInvoices();
+                setOffListingInvoices(allInvoices.filter(inv => inv.seller_id === seller.id));
 
                 // Onboarding Verification Notification Logic
                 if (seller.verified) {
@@ -190,7 +197,7 @@ export default function SellerDashboard() {
             userId: currentSeller?.id || "",
             type: "system",
             message: `💰 Cashout request of ${formatPrice(availableBalance)} submitted! Funds will be transferred within 24-48 hours.`,
-            link: "/seller/wallet"
+            link: "/seller/balance"
         });
 
         // 2. Write payout to PostgreSQL database
@@ -586,19 +593,19 @@ export default function SellerDashboard() {
                 {/* Available Balance */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
-                        <Wallet className="h-4 w-4 text-emerald-600" />
-                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Payout</span>
+                        <Landmark className="h-4 w-4 text-emerald-600" />
+                        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Available Balance</span>
                     </div>
                     <h3 className="text-3xl font-black text-gray-900 mt-2">
                         {formatPrice(availableBalance)}
                     </h3>
                     <p className="text-[11px] text-gray-500 mt-1 mb-4">After {COMMISSION_RATE * 100}% platform commission fees</p>
-                    <Link href="/seller/wallet">
+                    <Link href="/seller/balance">
                         <Button
                             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-10 shadow-sm"
                         >
                             <ArrowUpRight className="h-4 w-4 mr-2" />
-                            Manage Wallet & Payout
+                            Manage Balance & Settlements
                         </Button>
                     </Link>
                 </div>
@@ -654,7 +661,7 @@ export default function SellerDashboard() {
                 <div className="flex items-center justify-between mb-8 relative">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
-                            <Wallet className="h-5 w-5 text-white" />
+                            <Landmark className="h-5 w-5 text-white" />
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-zinc-900 leading-none">Payout Lifecycle</h3>
@@ -819,6 +826,88 @@ export default function SellerDashboard() {
                     </div>
                 );
             })()}
+            {/* Direct Checkout Activity Ledger */}
+            <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm overflow-hidden mt-8">
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <LinkIcon className="h-4 w-4 text-emerald-600" />
+                            Direct Checkout Activity
+                        </h2>
+                        <p className="text-sm text-gray-500 font-medium mt-1">History of off-platform payment links generated.</p>
+                    </div>
+                    <Link href="/seller/dashboard/payments">
+                        <Button size="sm" variant="outline" className="rounded-xl border-gray-200 text-gray-600 font-bold h-9">
+                            Generate New Link
+                        </Button>
+                    </Link>
+                </div>
+                
+                <div className="overflow-x-auto">
+                    {offListingInvoices.length === 0 ? (
+                        <div className="p-12 flex flex-col items-center justify-center text-center bg-gray-50/30">
+                            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4">
+                                <QrCode className="h-8 w-8 text-gray-300" />
+                            </div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">No Direct Links Yet</h3>
+                            <p className="text-sm text-gray-500 max-w-sm">When you generate direct checkout links or QR codes, they will appear here for tracking.</p>
+                        </div>
+                    ) : (
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-gray-50/50">
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Ref ID</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Customer</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Amount</th>
+                                    <th className="px-6 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {offListingInvoices.slice(0, 5).map((inv) => (
+                                    <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-bold text-gray-900">
+                                                {new Date(inv.created_at).toLocaleDateString()}
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">
+                                                {new Date(inv.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">
+                                            #{inv.id.substring(0, 8)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-bold text-gray-900">{inv.customer_name || "Guest Customer"}</div>
+                                            <div className="text-[10px] text-gray-400 font-bold truncate max-w-[150px]">{inv.customer_email || "No email provided"}</div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                                            <div className="text-sm font-black text-gray-900">
+                                                {formatPrice(inv.amount)}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            <Badge className={`
+                                                ${inv.status === 'paid' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}
+                                                border-none justify-center font-black text-[10px] uppercase tracking-wider px-2 py-0.5
+                                            `}>
+                                                {inv.status}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+                {offListingInvoices.length > 5 && (
+                    <div className="p-4 border-t border-gray-100 text-center bg-gray-50/30">
+                        <Link href="/seller/dashboard/payments" className="text-xs font-bold text-emerald-600 hover:text-emerald-700">
+                            View all {offListingInvoices.length} invoices
+                        </Link>
+                    </div>
+                )}
+            </div>
         </motion.div>
     );
 }

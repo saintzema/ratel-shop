@@ -2,14 +2,18 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ChevronRight, ChevronLeft, History } from "lucide-react";
+import { ChevronRight, ChevronLeft, History, Plus } from "lucide-react";
 import { formatPrice, getProductUrl } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { useCart } from "@/context/CartContext";
+import { useRouter } from "next/navigation";
 
 export function RecentlyViewedHorizontal() {
     const [history, setHistory] = useState<any[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [mounted, setMounted] = useState(false);
+    const { addToCart } = useCart();
+    const router = useRouter();
 
     useEffect(() => {
         setMounted(true);
@@ -66,23 +70,41 @@ export function RecentlyViewedHorizontal() {
                     className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 px-1"
                 >
                     {history.map((product) => (
-                        <Link 
+                        <div 
                             key={product.id}
-                            href={getProductUrl(product)}
-                            className="flex flex-col items-center min-w-[100px] max-w-[100px] group/item"
+                            className="flex flex-col items-center min-w-[100px] max-w-[100px] group/item relative"
                         >
-                            <div className="w-full aspect-square rounded-xl bg-gray-50 overflow-hidden mb-2 border border-gray-100 transition-all group-hover/item:border-emerald-200 group-hover/item:shadow-sm">
-                                <img 
-                                    src={product.image_url} 
-                                    alt={product.name}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110"
-                                    loading="lazy"
-                                />
-                            </div>
-                            <span className="text-[11px] font-black text-gray-900 truncate w-full text-center">
-                                {formatPrice(product.price)}
-                            </span>
-                        </Link>
+                            <Link 
+                                href={getProductUrl(product)}
+                                className="w-full flex flex-col items-center"
+                            >
+                                <div className="w-full aspect-square rounded-xl bg-gray-50 overflow-hidden mb-2 border border-gray-100 transition-all group-hover/item:border-emerald-200 group-hover/item:shadow-sm">
+                                    <img 
+                                        src={product.image_url} 
+                                        alt={product.name}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover/item:scale-110"
+                                        loading="lazy"
+                                    />
+                                </div>
+                                <span className="text-[11px] font-black text-gray-900 truncate w-full text-center">
+                                    {formatPrice(product.price)}
+                                </span>
+                            </Link>
+                            
+                            {/* Quick Add to Cart Button */}
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    addToCart(product);
+                                    router.push("/cart");
+                                }}
+                                className="absolute top-1 right-1 w-7 h-7 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg transform scale-0 group-hover/item:scale-100 transition-all duration-200 hover:bg-emerald-700 active:scale-90 z-20"
+                                title="Add to cart and checkout"
+                            >
+                                <Plus className="w-4 h-4" />
+                            </button>
+                        </div>
                     ))}
                 </div>
             </div>

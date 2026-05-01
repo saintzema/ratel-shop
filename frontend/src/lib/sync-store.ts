@@ -5,6 +5,7 @@ export type { NegotiationRequest };
 import { formatPrice, getProxiedImageUrl, getProductUrl } from "./utils";
 import { resilientFetch } from "./offline-queue";
 import { TEMU_PRODUCTS } from "./demo-data-temu";
+import { SEED_PRODUCTS, SEED_SELLERS } from "./data";
 
 export interface Category {
     id: string;
@@ -102,9 +103,17 @@ class DataSyncServiceService {
         
         const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
         if (currentProducts.length === 0) {
-            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding TEMU_PRODUCTS fallback.");
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(TEMU_PRODUCTS));
+            console.log("🛠️ Resilience: Database unreachable and store empty. Seeding full SEED_PRODUCTS catalog.");
+            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
             
+            // Also seed sellers to ensure getApprovedProducts works
+            const currentSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
+            if (currentSellers.length === 0) {
+                // Ensure all seeded sellers are marked as verified/active for the demo
+                const verifiedSellers = SEED_SELLERS.map(s => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
+                localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
+            }
+
             // Trigger UI update
             window.dispatchEvent(new Event("storage"));
             window.dispatchEvent(new Event("sync-store-update"));
@@ -147,7 +156,9 @@ class DataSyncServiceService {
         DELETED_STUBS: "fp_deleted_stubs",
         PENDING_NEGOTIATIONS: "fp_pending_negotiations",
         PLATFORM_SETTINGS: "fp_platform_settings",
-        TAXONOMY: "fp_marketplace_taxonomy"
+        TAXONOMY: "fp_marketplace_taxonomy",
+        OFF_LISTING_INVOICES: "fairprice_demo_off_listing_invoices",
+        RESTOCK_SUBSCRIPTIONS: "fairprice_restock_subscriptions"
     };
 
     private selfHeal() {
@@ -311,6 +322,13 @@ class DataSyncServiceService {
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS)) {
             localStorage.setItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
+        }
+        
+        if (!localStorage.getItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES)) {
+            localStorage.setItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES, "[]");
+        }
+        if (!localStorage.getItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS)) {
+            localStorage.setItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, "[]");
         }
         
         // Start auto-release worker
@@ -2082,7 +2100,27 @@ class DataSyncServiceService {
     // --- Deals Management ---
     getDeals(): Deal[] {
         if (typeof window === "undefined") return [];
-        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.DEALS) || "[]");
+        const stored = localStorage.getItem(this.STORAGE_KEYS.DEALS);
+        if (!stored) return [];
+        
+        try {
+            const deals: Deal[] = JSON.parse(stored);
+            const now = new Date().getTime();
+            
+            // Auto-cleanup expired deals
+            const validDeals = deals.filter(d => {
+                if (!d.end_at) return true;
+                return new Date(d.end_at).getTime() > now;
+            });
+            
+            if (validDeals.length !== deals.length) {
+                localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(validDeals));
+            }
+            
+            return validDeals;
+        } catch {
+            return [];
+        }
     }
 
     addDeal(deal: Omit<Deal, "id">) {
@@ -2130,6 +2168,28 @@ class DataSyncServiceService {
         const updated = current.map(d => d.id === dealId ? { ...d, ...updates } : d);
         localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
+    }
+
+    // --- Restock Subscriptions ---
+    getRestockSubscriptions(): { productId: string, userId: string, userEmail?: string, timestamp: string }[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS) || "[]");
+    }
+
+    addRestockSubscription(productId: string, userId: string, userEmail?: string) {
+        if (typeof window === "undefined") return;
+        const subs = this.getRestockSubscriptions();
+        if (!subs.some(s => s.productId === productId && s.userId === userId)) {
+            subs.push({ productId, userId, userEmail, timestamp: new Date().toISOString() });
+            localStorage.setItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
+            window.dispatchEvent(new Event("sync-store-update"));
+        }
+    }
+
+    removeRestockSubscriptionsByProduct(productId: string) {
+        if (typeof window === "undefined") return;
+        const subs = this.getRestockSubscriptions().filter(s => s.productId !== productId);
+        localStorage.setItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
     }
 
     // --- Getters ---
@@ -2240,7 +2300,19 @@ class DataSyncServiceService {
 
     getTrendingIds(): string[] {
         if (typeof window === "undefined") return [];
-        return this.getProducts().filter(p => p.is_trending).map(p => p.id);
+        const products = this.getProducts();
+        
+        // 1. Admin Curated (Fire Button)
+        const curated = products.filter(p => p.is_trending);
+        
+        // 2. Intelligent Organically Trending (High Demand, High Sold Count/Reviews)
+        const organic = products
+            .filter(p => !p.is_trending && p.is_active && (p.sold_count > 10 || p.review_count > 5))
+            .sort((a, b) => (b.sold_count * 2 + b.review_count) - (a.sold_count * 2 + a.review_count))
+            .slice(0, 15); // Top 15 organic trending
+            
+        // Combine and map to IDs
+        return [...curated, ...organic].map(p => p.id);
     }
 
     async toggleTrending(productId: string): Promise<boolean> {
@@ -2741,6 +2813,59 @@ getAllCachedProducts(): any[] {
             })
         }).catch(() => {});
 
+        // ─── STOCK DEDUCTION & RESTOCK ALERTS ───
+        const orderQty = (order as any).quantity || 1;
+        const currentStock = product.stock ?? 999;
+        const newStock = Math.max(0, currentStock - orderQty);
+        this.updateProduct(product.id, { stock: newStock, sold_count: (product.sold_count || 0) + orderQty });
+
+        // Low stock alert (≤ 3 remaining)
+        if (newStock > 0 && newStock <= 3 && seller) {
+            this.addNotification({
+                userId: seller.owner_email || seller.id,
+                type: "order",
+                message: `⚠️ Low Stock Alert: "${product.name}" has only ${newStock} unit${newStock > 1 ? 's' : ''} left. Consider restocking soon.`,
+                link: "/seller/dashboard"
+            });
+        }
+
+        // Out of stock alert (0 remaining)
+        if (newStock === 0 && seller) {
+            this.addNotification({
+                userId: seller.owner_email || seller.id,
+                type: "order",
+                message: `🚨 Out of Stock: "${product.name}" is now sold out (0 units). Restock immediately to avoid lost sales.`,
+                link: "/seller/dashboard"
+            });
+
+            // Email seller about restock
+            if (seller.owner_email) {
+                fetch("/api/email", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        to: seller.owner_email,
+                        type: "SELLER_NEW_ORDER",
+                        payload: {
+                            orderId: orderId,
+                            productName: `⚠️ RESTOCK NEEDED: ${product.name}`,
+                            businessName: seller.business_name || "Seller",
+                            amount: 0,
+                            dashboardUrl: `https://fairprice.ng/seller/dashboard`
+                        }
+                    })
+                }).catch(console.error);
+            }
+
+            // Notify admin
+            this.addNotification({
+                userId: "admin",
+                type: "order",
+                message: `📦 Stock Depleted: "${product.name}" from ${seller?.business_name} is now at 0 units.`,
+                link: "/admin/products"
+            });
+        }
+
         window.dispatchEvent(new Event("storage"));
         // Custom event so we can listen specifically for this
         window.dispatchEvent(new Event("sync-store-update"));
@@ -3071,6 +3196,87 @@ getAllCachedProducts(): any[] {
             sessionStorage.removeItem('nav_search_results');
             sessionStorage.removeItem('nav_search_clicked_id');
         } catch { /* ignore */ }
+
+        // ─── RESTOCK NOTIFICATION ───
+        // If stock was 0 and is now > 0, notify all subscribed users
+        if (existingProduct && existingProduct.stock === 0 && updates.stock !== undefined && updates.stock > 0) {
+            const subs = this.getRestockSubscriptions().filter(s => s.productId === id);
+            if (subs.length > 0) {
+                subs.forEach(sub => {
+                    // Bell Notification
+                    this.addNotification({
+                        userId: sub.userId,
+                        type: "order",
+                        message: `🔔 Good News! "${mergedProduct.name}" is back in stock. Order now before it runs out again!`,
+                        link: `/product/${mergedProduct.id}/${(mergedProduct.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+                    });
+                    
+                    // Simulate Push / Email Notification
+                    console.log(`[Push/Email Triggered] To: ${sub.userEmail || sub.userId} | Subject: "${mergedProduct.name}" is Back in Stock! | Link: /product/${mergedProduct.id}/${(mergedProduct.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+                    
+                    if (sub.userEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: sub.userEmail,
+                                type: 'RESTOCK_ALERT',
+                                payload: {
+                                    name: "Customer",
+                                    productName: mergedProduct.name,
+                                    productLink: `/product/${mergedProduct.id}/${(mergedProduct.name || 'product').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+                                }
+                            })
+                        }).catch(e => console.error("Restock email dispatch failed", e));
+                    }
+                });
+                // Clear subscriptions for this product since they have been notified
+                this.removeRestockSubscriptionsByProduct(id);
+            }
+        }
+
+        // ─── PRICE DROP DETECTION & AUTO-DEAL ───
+        // When a seller reduces price by 10%+, auto-add to Best Deals & notify interested buyers
+        if (existingProduct && updates.price && updates.price < existingProduct.price) {
+            const dropPct = Math.round(((existingProduct.price - updates.price) / existingProduct.price) * 100);
+            
+            if (dropPct >= 10) {
+                // Auto-create a deal for the Best Deals section (48hr visibility)
+                const existingDeals = this.getDeals();
+                const alreadyHasDeal = existingDeals.some(d => d.product_id === id && d.is_active);
+                
+                if (!alreadyHasDeal) {
+                    this.addDeal({
+                        product_id: id,
+                        product: mergedProduct,
+                        discount_pct: dropPct,
+                        start_at: new Date().toISOString(),
+                        end_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(), // 48 hours
+                        is_active: true,
+                        deal_priority: dropPct >= 30 ? 1 : dropPct >= 20 ? 2 : 3
+                    });
+                }
+
+                // Notify seller their product is now in Best Deals
+                const seller = this.getSellers().find(s => s.id === mergedProduct.seller_id || s.user_id === mergedProduct.seller_id);
+                if (seller) {
+                    this.addNotification({
+                        userId: seller.owner_email || seller.id,
+                        type: "promo",
+                        message: `🔥 Price Drop! "${mergedProduct.name}" (-${dropPct}%) has been auto-promoted to Best Deals for 48 hours.`,
+                        link: "/deals"
+                    });
+                }
+
+                // Notify buyers who may have viewed similar products (push notification simulation)
+                this.addNotification({
+                    userId: "all_buyers",
+                    type: "promo",
+                    message: `💰 Price Drop Alert: "${mergedProduct.name}" is now ₦${(updates.price).toLocaleString()} (-${dropPct}% off!)`,
+                    link: `/product/${id}/${mergedProduct.slug || id}`
+                });
+            }
+        }
 
         // Dispatch events IMMEDIATELY — UI resolves at this point, DB write is fire-and-forget
         window.dispatchEvent(new Event("storage"));
@@ -3768,6 +3974,20 @@ getAllCachedProducts(): any[] {
 
         // Sync to backend
         fetch(`/api/notifications?id=${notifId}`, { method: "PATCH" }).catch(() => {});
+    }
+
+    public getOffListingInvoices(): any[] {
+        if (typeof window === "undefined") return [];
+        return JSON.parse(localStorage.getItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES) || "[]");
+    }
+
+    public addOffListingInvoice(invoice: { id: string; seller_id: string; amount: number; label: string; status: "pending" | "paid"; created_at: string }) {
+        if (typeof window === "undefined") return;
+        const invoices = this.getOffListingInvoices();
+        invoices.unshift(invoice);
+        localStorage.setItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES, JSON.stringify(invoices));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     markAllNotificationsRead(userId: string) {

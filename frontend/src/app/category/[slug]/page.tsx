@@ -74,15 +74,24 @@ export default function CategoryPage() {
         const priceMatch = p.price >= priceMin && p.price <= priceMax;
         return isMatch && priceMatch;
     }).sort((a, b) => {
-        if (a.is_sponsored && !b.is_sponsored) return -1;
-        if (!a.is_sponsored && b.is_sponsored) return 1;
-
         switch (sortBy) {
             case "price_asc": return a.price - b.price;
             case "price_desc": return b.price - a.price;
             case "rating": return b.avg_rating - a.avg_rating;
             case "newest": return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            default: return 0;
+            default: {
+                // "featured" sort: loose relevancy boost for sponsored/trending
+                let scoreA = a.sold_count * 2 + a.review_count;
+                let scoreB = b.sold_count * 2 + b.review_count;
+                if (a.is_sponsored) scoreA += 500;
+                if (b.is_sponsored) scoreB += 500;
+                if (a.is_trending) scoreA += 200;
+                if (b.is_trending) scoreB += 200;
+                // Add a small randomization factor to make it feel organic
+                const randA = (a.id.charCodeAt(0) || 0) % 10;
+                const randB = (b.id.charCodeAt(0) || 0) % 10;
+                return (scoreB + randB) - (scoreA + randA);
+            }
         }
     });
 

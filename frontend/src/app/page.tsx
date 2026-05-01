@@ -374,12 +374,12 @@ function HomeContent() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
                   </div>
 
-                  {/* ─── BEZEL BUTTONS OVERLAY ─── */}
-                  <div className="absolute bottom-2 md:bottom-4 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-8 z-30 flex flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-4 w-[90%] md:w-auto mb-1">
+                  {/* Buttons Overlay */}
+                  <div className="absolute bottom-4 md:bottom-8 left-4 md:left-8 z-20 flex flex-wrap items-center gap-3 md:gap-4">
                     <Button
                       size="lg"
-                      className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[11px] md:text-[14px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-1.5 md:gap-2 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
-                      onClick={(e) => { e.stopPropagation();  setIsPriceModalOpen(true); }}
+                      className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-black/30 hover:bg-black/50 backdrop-blur-xl border border-white/20 text-white font-black text-[11px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2 transition-all active:scale-95"
+                      onClick={() => setIsPriceModalOpen(true)}
                     >
                       PRICE CHECKER AI 
                       <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#10b981]" />

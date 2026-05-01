@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT';
 
 interface EmailPayload {
     name?: string;
@@ -22,6 +22,7 @@ interface EmailPayload {
     message?: string;
     newStatus?: string;
     resetLink?: string;
+    productLink?: string;
 }
 
 const BRAND_COLOR = "#059669";
@@ -646,6 +647,19 @@ ${payload.daysRemaining === 0 ? `
 
 <div style="text-align:center;">
     <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Review Dispute</a>
+</div>
+            `);
+            break;
+
+        case 'RESTOCK_ALERT':
+            subject = `🔔 Good News! ${payload.productName} is Back in Stock!`;
+            html = BaseTemplate("Back in Stock!", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">You asked us to notify you when <strong>${payload.productName}</strong> became available again.</p>
+<p style="margin:0 0 24px 0;">Great news! It's back in stock and ready to be ordered. Hurry before it runs out again!</p>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng${payload.productLink}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Order Now</a>
 </div>
             `);
             break;

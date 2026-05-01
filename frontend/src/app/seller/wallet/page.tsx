@@ -27,7 +27,7 @@ import {
     RefreshCw
 } from "lucide-react";
 
-export default function SellerWalletPage() {
+export default function SellerBalancePage() {
     const router = useRouter();
     const [orders, setOrders] = useState<Order[]>([]);
     const [payouts, setPayouts] = useState<any[]>([]);
@@ -156,8 +156,8 @@ export default function SellerWalletPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Wallet & Payouts</h1>
-                    <p className="text-sm text-gray-500 font-medium mt-1">Manage your earnings and settlements securely.</p>
+                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Balance & Settlements</h1>
+                    <p className="text-sm text-gray-500 font-medium mt-1">Manage your store balance and bank settlements securely.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <Button 
@@ -189,7 +189,7 @@ export default function SellerWalletPage() {
                 {/* Available for Withdrawal */}
                 <div className="bg-emerald-600 rounded-[24px] p-6 text-white shadow-xl shadow-emerald-600/20 relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4 group-hover:scale-110 transition-transform duration-500">
-                        <Wallet className="w-32 h-32" />
+                        <Landmark className="w-32 h-32" />
                     </div>
                     <div className="relative z-10 flex flex-col h-full">
                         <div className="flex items-center gap-2 mb-2">
@@ -265,7 +265,7 @@ export default function SellerWalletPage() {
                 <div className="flex items-center justify-between mb-8 relative">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-200">
-                            <Wallet className="h-5 w-5 text-white" />
+                            <Landmark className="h-5 w-5 text-white" />
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-zinc-900 leading-none">Payout Lifecycle</h3>
@@ -326,7 +326,7 @@ export default function SellerWalletPage() {
                     <div className="flex items-center gap-2 p-2 px-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
                         <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
                         <span className="text-[10px] text-amber-900 font-bold">
-                            Wallet Security: Settlements are processed directly via Paystack
+                            Balance Security: Settlements are processed directly via Paystack
                         </span>
                     </div>
                 </div>

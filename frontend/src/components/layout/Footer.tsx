@@ -308,19 +308,23 @@ export function Footer() {
           <p>
             &copy; {new Date().getFullYear()} FairPrice. All rights reserved.
           </p>
-          <p className="mt-1">
-            FairPrice.ng is a product of{" "}
+          <p className="mt-1 text-gray-300 font-bold tracking-tight">
+            The Transactional OS for Africa’s Informal Economy.
+          </p>
+          <p className="mt-2">
+            A{" "}
             <a
               href="https://zemaai.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-emerald-400 hover:text-emerald-300 hover:underline transition-colors font-semibold"
+              className="text-emerald-400 hover:text-emerald-300 hover:underline transition-colors font-bold"
             >
-              Zema AI Labs
-            </a>
+              Zema Technologies Group
+            </a>{" "}
+            Venture | CEO: Emmanuel Ezeji
             </p>
             <p className="mt-2 text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
-              FairPrice.ng is an escrow-based marketplace operated by Zema AI Labs. <br />
+              FairPrice.ng is an escrow-based marketplace operated by Zema Technologies Group. <br />
               Registration Address: 12 New Market Road, Onitsha, Anambra State, Nigeria. <br />
               For support, contact hello@fairprice.ng or +234 816 281 6305.
             </p>
