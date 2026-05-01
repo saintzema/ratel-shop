@@ -327,8 +327,7 @@ function HomeContent() {
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
-                {/* Main Premium Banner (8/12 on Desktop) */}
-                <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden group shadow-lg bg-gray-200">
+                <div className="lg:col-span-8 relative rounded-xl md:rounded-[24px] overflow-hidden shadow-lg bg-gray-200">
                   <div className="absolute inset-0">
                     <AnimatePresence mode="wait">
                       <motion.img
@@ -346,21 +345,8 @@ function HomeContent() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
                   </div>
 
-                  {/* Carousel Indicators (Green Slider) */}
-                  <div className="absolute bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 md:gap-2">
-                    {banners.map((_, idx) => (
-                      <div
-                        key={idx}
-                        className={cn(
-                          "h-1.5 md:h-2 rounded-full transition-all duration-300",
-                          idx === currentBannerIndex ? "w-6 md:w-8 bg-[#10b981]" : "w-2 bg-white/40"
-                        )}
-                      />
-                    ))}
-                  </div>
-
                   {/* ─── BEZEL BUTTONS OVERLAY ─── */}
-                  <div className="absolute bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-8 z-30 flex flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-4 w-[90%] md:w-auto">
+                  <div className="absolute bottom-10 md:bottom-12 left-1/2 -translate-x-1/2 md:translate-x-0 md:left-8 z-30 flex flex-nowrap items-center justify-center md:justify-start gap-2 md:gap-4 w-[90%] md:w-auto">
                     <Button
                       size="lg"
                       className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[11px] md:text-[14px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-1.5 md:gap-2 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
@@ -380,6 +366,19 @@ function HomeContent() {
                       <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-[#10b981]" />
                       START SELLING
                     </Button>
+                  </div>
+
+                  {/* Carousel Indicators (Green Slider) */}
+                  <div className="absolute bottom-4 md:bottom-5 left-1/2 -translate-x-1/2 z-20 flex gap-1.5 md:gap-2">
+                    {banners.map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "h-1.5 md:h-2 rounded-full transition-all duration-300",
+                          idx === currentBannerIndex ? "w-6 md:w-8 bg-[#10b981]" : "w-2 bg-white/40"
+                        )}
+                      />
+                    ))}
                   </div>
                 </div>
 
@@ -406,11 +405,15 @@ function HomeContent() {
                     </div>
                   ))}
                 </div>
-
               </div>
+            </div>
+          </section>
 
-              {/* Secondary Quick Categories Bar (Pills) */}
-              <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
+          {/* ─── Content Body ─── */}
+          <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
+            {/* Secondary Quick Categories Bar (Pills) Moved Here for Reliable Desktop Rendering */}
+            <div className="container mx-auto px-1 md:px-2 pt-3 pb-1">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar">
                 {[
                   'Phones', 'Gaming', 'Computers', 'Fashion', 'Cars', 
                   'Grocery', 'Streaming Kits', 'Home Office', 
@@ -420,9 +423,8 @@ function HomeContent() {
                     key={cat}
                     size="sm"
                     variant="outline"
-                    className="rounded-full px-4 md:px-5 h-8 md:h-9 bg-white border-gray-200 text-gray-800 font-bold hover:bg-brand-green-50 hover:border-brand-green-300 hover:text-brand-green-700 whitespace-nowrap shadow-sm text-[11px] md:text-[13px] transition-all"
+                    className="rounded-full px-4 md:px-5 h-8 md:h-9 bg-white border-gray-200 text-gray-800 font-bold hover:bg-brand-green-50 hover:border-brand-green-300 hover:text-brand-green-700 whitespace-nowrap shadow-sm text-[11px] md:text-[13px] transition-all flex-shrink-0"
                     onClick={() => {
-                       // Format strictly to match standard slugs
                        const slug = cat.toLowerCase().replace(/ /g, '-');
                        router.push(`/category/${slug}`);
                     }}
@@ -432,11 +434,6 @@ function HomeContent() {
                 ))}
               </div>
             </div>
-          </section>
-
-
-          {/* ─── Content Body ─── */}
-          <div ref={productSectionRef} className="relative z-20">
 
             {/* ═══ Initial Hydration Skeletons (show while DB is preparing) ═══ */}
             {(!mounted || !sections) && (
