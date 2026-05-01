@@ -2398,12 +2398,21 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 Scan with your phone camera.
                             </p>
 
-                            <div className="bg-gray-50 p-6 rounded-[32px] border-4 border-white shadow-inner mb-8">
+                            <div className="bg-gray-50 p-6 rounded-[32px] border-4 border-white shadow-inner mb-6">
                                 <img 
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '')}`}
                                     alt="Payment QR" 
-                                    className="w-48 h-48 mx-auto mix-blend-multiply"
+                                    className="w-48 h-48 mx-auto mix-blend-multiply mb-4"
                                 />
+                                <div className="text-center">
+                                    <p className="text-xs text-gray-500 mb-2 font-medium">Or pay directly on this device:</p>
+                                    <a 
+                                        href={typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '#'}
+                                        className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-200 transition-colors"
+                                    >
+                                        Tap to Checkout
+                                    </a>
+                                </div>
                             </div>
 
                             <div className="space-y-4">

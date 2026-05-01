@@ -50,12 +50,46 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
               }
           }
 
+          // Enhanced filtering mapping
+          const catLower = category.toLowerCase();
+          
+          // Map UI tab names to possible internal DB variants
+          const categoryMappings: Record<string, string[]> = {
+              "all": [],
+              "trending": ["trending"],
+              "best-selling": ["best_selling", "best-selling"],
+              "automotive": ["automotive", "cars", "vehicles"],
+              "cars": ["cars", "vehicles", "automotive"],
+              "computers": ["computers", "laptops"],
+              "phones": ["phones", "smartphones"],
+              "health": ["health", "medical"],
+              "fashion": ["fashion", "clothing", "shoes", "women", "men", "kids"],
+              "solar": ["solar", "energy", "inverter", "battery"],
+              "evs": ["evs", "electric", "tesla"],
+              "grocery": ["grocery", "food", "beverages"],
+              "home office": ["home_office", "office", "desk", "chair"]
+          };
+          
+          const searchTerms = categoryMappings[catLower] || [catLower];
+
           // Filter by category or search terms
-          let filtered = allData.filter(p => 
-            p.category?.toLowerCase().includes(category.toLowerCase()) || 
-            p.name.toLowerCase().includes(category.toLowerCase()) ||
-            p.description?.toLowerCase().includes(category.toLowerCase())
-          );
+          let filtered = allData.filter(p => {
+              if (catLower === "all") return true;
+              if (catLower === "trending") return p.is_trending === true;
+              if (catLower === "best-selling") return (p.sold_count && p.sold_count > 10) || p.is_trending === true;
+              
+              const pCat = p.category?.toLowerCase() || "";
+              const pSub = p.subcategory?.toLowerCase() || "";
+              const pName = p.name.toLowerCase();
+              const pDesc = p.description?.toLowerCase() || "";
+              
+              return searchTerms.some(term => 
+                  pCat.includes(term) || 
+                  pSub.includes(term) || 
+                  pName.includes(term) ||
+                  pDesc.includes(term)
+              );
+          });
           
           // Randomize initially but keep consistent
           const randomized = filtered.sort(() => 0.5 - Math.random());
