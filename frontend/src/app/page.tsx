@@ -323,7 +323,7 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Restored Single Image) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-2">
+          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-6 md:pb-8">
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
@@ -413,7 +413,7 @@ function HomeContent() {
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
             {/* Secondary Quick Categories Bar (Pills) Moved Here for Reliable Desktop Rendering */}
             <div className="container mx-auto px-1 md:px-2 pt-3 pb-1">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar py-2">
                 {[
                   'Phones', 'Gaming', 'Computers', 'Fashion', 'Cars', 
                   'Grocery', 'Streaming Kits', 'Home Office', 
