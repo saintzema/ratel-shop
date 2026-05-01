@@ -26,7 +26,7 @@ async function hydrateImageServerSide(productName: string, category?: string): P
         searchModifier = " high resolution studio fashion photography";
     }
 
-    // Strategy 1: Serper.dev (best quality, 2500 free/month)
+    // ─── PASS 1: Serper.dev with strict modifier ───
     if (SERPER_API_KEY) {
         try {
             const res = await fetch("https://google.serper.dev/images", {
@@ -38,17 +38,36 @@ async function hydrateImageServerSide(productName: string, category?: string): P
                 const data = await res.json();
                 const images = (data?.images || [])
                     .map((img: any) => img.imageUrl)
-                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar"));
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && url.startsWith("http"));
                 if (images.length > 0) return images[0];
             }
-        } catch (e) { console.warn("Serper hydration failed:", e); }
+        } catch (e) { console.warn("Serper hydration pass 1 failed:", e); }
+
+        // ─── PASS 2: Serper.dev with RELAXED query (just the product name) ───
+        try {
+            const res = await fetch("https://google.serper.dev/images", {
+                method: "POST",
+                headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
+                body: JSON.stringify({ q: productName + " product photo", num: 10 }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const images = (data?.images || [])
+                    .map((img: any) => img.imageUrl)
+                    .filter((url: string) => url && !url.toLowerCase().includes("placeholder") && !url.endsWith(".svg") && !url.includes("avatar") && !url.includes("icon") && url.startsWith("http"));
+                if (images.length > 0) {
+                    console.log(`✅ Serper pass 2 (relaxed) found image for "${productName}"`);
+                    return images[0];
+                }
+            }
+        } catch (e) { console.warn("Serper hydration pass 2 failed:", e); }
     }
 
     // Strategy 2: Google Custom Search
     if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_CX) {
         try {
             const res = await fetch(
-                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(productName + searchModifier)}&searchType=image&num=3`
+                `https://www.googleapis.com/customsearch/v1?key=${GOOGLE_SEARCH_API_KEY}&cx=${GOOGLE_SEARCH_CX}&q=${encodeURIComponent(productName + " product")}&searchType=image&num=3`
             );
             if (res.ok) {
                 const data = await res.json();
@@ -78,7 +97,31 @@ async function hydrateImageServerSide(productName: string, category?: string): P
         }
     } catch (e) { console.warn("Wikipedia hydration failed:", e); }
 
-    return null;
+    // Strategy 4: Category-aware premium fallback (never return null → never show grey placeholder)
+    const CATEGORY_FALLBACKS: Record<string, string> = {
+        phone: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&q=80",
+        electronic: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&q=80",
+        computing: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&q=80",
+        car: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&q=80",
+        vehicle: "https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=400&q=80",
+        fashion: "https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=400&q=80",
+        beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=400&q=80",
+        energy: "https://images.unsplash.com/photo-1509391366360-2e959784a276?w=400&q=80",
+        home: "https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&q=80",
+        fitness: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400&q=80",
+        gaming: "https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=400&q=80",
+        health: "https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&q=80",
+        satellite: "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=400&q=80",
+    };
+    const fallbackKey = Object.keys(CATEGORY_FALLBACKS).find(k => cat.includes(k) || productName.toLowerCase().includes(k));
+    if (fallbackKey) {
+        console.log(`📷 Using category fallback image for "${productName}" (category: ${fallbackKey})`);
+        return CATEGORY_FALLBACKS[fallbackKey];
+    }
+
+    // Ultimate fallback: generic tech product
+    console.log(`📷 Using generic fallback image for "${productName}"`);
+    return "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&q=80";
 }
 
 

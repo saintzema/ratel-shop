@@ -1300,7 +1300,8 @@ function SearchContent() {
             {combinedCurrentResults.length === 0 && isGlobalSearching && (
               <div className="flex flex-col items-center justify-center py-16">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
-                <p className="text-gray-600 text-sm">Finding similar products...</p>
+                <p className="text-gray-600 text-sm font-medium">Finding products across global suppliers...</p>
+                <p className="text-gray-400 text-xs mt-1">This usually takes 5-10 seconds</p>
               </div>
             )}
 
@@ -1310,7 +1311,7 @@ function SearchContent() {
                   {globalSearchError && (
                     <div className="flex items-center gap-2 mb-4 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-xl text-sm text-amber-700 font-medium">
                       <span>⚠️</span>
-                      <span>Global AI search is temporarily unavailable. Showing matching products from our catalogue.</span>
+                      <span>{globalSearchError}</span>
                     </div>
                   )}
                   <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1418,9 +1419,8 @@ function SearchContent() {
                   </div>
                 ))}
 
-                {/* Phase 5: High-Fidelity Discovery & Personalization */}
+                {/* Phase 5: Personalization */}
                 <div className="mt-6 space-y-6">
-                   <StoreDiscoveryRail />
                    <RecommendedProducts 
                       title="Recommended For You" 
                       products={allProducts}
@@ -1428,6 +1428,9 @@ function SearchContent() {
                 </div>
               </div>
             )}
+
+            {/* Store Discovery Rail — ALWAYS visible, renders instantly */}
+            <StoreDiscoveryRail />
 
             {/* RELATED SEARCHES (Temu Style) */}
             {combinedCurrentResults.length > 0 && query && (

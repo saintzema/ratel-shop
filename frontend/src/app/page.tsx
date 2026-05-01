@@ -21,6 +21,9 @@ import { useCart } from "@/context/CartContext";
 import { formatPrice, getProductUrl, getProxiedImageUrl, cn } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
+import { CategoryPanel } from "@/components/ui/CategoryPanel";
+
+export const TEMU_CATEGORIES = ['All', 'Trending', 'Best-Selling', 'Solar', 'Streaming Kits', 'Phones', 'Gaming', 'Computers', 'Fashion', 'Cars', 'Grocery', 'Home Office', 'EVs', 'Industrial', 'Health', 'Automotive', 'Bags', 'Women', 'Jewelry', 'Household', 'Toy', 'Crafts', 'Men', 'Sports', 'Kids', 'Beauty', 'Office', 'Baby', 'Garden', 'Pets', 'Musical', 'Appliances', 'Food', 'Books'];
 
 // ─── Amazon-Style 2×2 Category Grid Card Data ────────────────
 
@@ -201,6 +204,32 @@ function HomeContent() {
   const [heroConfig, setHeroConfig] = useState<any>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Tab State for swipeable categories
+  const [activeTab, setActiveTab] = useState("All");
+
+  const handleTabChange = (cat: string) => {
+    setActiveTab(cat);
+    const pill = document.getElementById(`pill-${cat}`);
+    const container = document.getElementById('pills-container');
+    if (pill && container) {
+        container.scrollTo({
+            left: pill.offsetLeft - container.offsetWidth / 2 + pill.offsetWidth / 2,
+            behavior: 'smooth'
+        });
+    }
+  };
+
+  const handleDragEnd = (event: any, info: any) => {
+    const swipeThreshold = 50;
+    const currentIndex = TEMU_CATEGORIES.indexOf(activeTab);
+    
+    if (info.offset.x < -swipeThreshold && currentIndex < TEMU_CATEGORIES.length - 1) {
+        handleTabChange(TEMU_CATEGORIES[currentIndex + 1]);
+    } else if (info.offset.x > swipeThreshold && currentIndex > 0) {
+        handleTabChange(TEMU_CATEGORIES[currentIndex - 1]);
+    }
+  };
 
   // ─── Referral Tracking System ───
   useEffect(() => {
@@ -411,27 +440,29 @@ function HomeContent() {
 
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
-            {/* Secondary Quick Categories Bar (Pills) Moved Here for Reliable Desktop Rendering */}
-            <div className="container mx-auto px-1 md:px-2 pt-3 pb-1">
-              <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar py-2">
-                {[
-                  'Streaming Kits', 'Phones', 'Gaming', 'Work From Home', 
-                  'Computers', 'Fashion', 'Cars', 'Grocery', 
-                  'Home Office', 'Solar', 'EVs'
-                ].map((cat) => (
-                  <Button
-                    key={cat}
-                    size="sm"
-                    variant="outline"
-                    className="rounded-full px-4 md:px-5 h-8 md:h-9 bg-white border-gray-200 text-gray-800 font-bold hover:bg-brand-green-50 hover:border-brand-green-300 hover:text-brand-green-700 whitespace-nowrap shadow-sm text-[11px] md:text-[13px] transition-all flex-shrink-0"
-                    onClick={() => {
-                       const slug = cat.toLowerCase().replace(/ /g, '-');
-                       router.push(`/category/${slug}`);
-                    }}
-                  >
-                    {cat}
-                  </Button>
-                ))}
+            {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
+            <div className="sticky top-[60px] md:top-[68px] z-[40] bg-[#F5F5F7] border-b border-gray-200 shadow-sm transition-all pb-1">
+              <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-3 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
+                {TEMU_CATEGORIES.map((cat) => {
+                  const isActive = activeTab === cat;
+                  return (
+                    <Button
+                      id={`pill-${cat}`}
+                      key={cat}
+                      size="sm"
+                      variant="outline"
+                      className={cn(
+                        "rounded-full px-4 md:px-5 h-8 md:h-9 whitespace-nowrap shadow-sm text-[11px] md:text-[13px] transition-all flex-shrink-0 font-bold border",
+                        isActive 
+                          ? "bg-black text-white border-black hover:bg-gray-800 hover:text-white" 
+                          : "bg-white border-gray-200 text-gray-800 hover:bg-gray-50"
+                      )}
+                      onClick={() => handleTabChange(cat)}
+                    >
+                      {cat}
+                    </Button>
+                  );
+                })}
               </div>
             </div>
 
@@ -446,8 +477,23 @@ function HomeContent() {
             )}
 
             {/* ═══ Optimized Homepage Sections ═══ */}
-            {mounted && sections && (
-              <>
+            <div className="overflow-hidden w-full relative min-h-[600px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                  drag="x"
+                  dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  onDragEnd={handleDragEnd}
+                  className="w-full"
+                >
+                  {activeTab === "All" ? (
+                    mounted && sections && (
+                      <>
                 <section className="container mx-auto px-1 md:px-2 mt-2 mb-1">
                   <RecentlyViewedHorizontal />
                 </section>
@@ -477,82 +523,44 @@ function HomeContent() {
                   </section>
                 )}
 
-                {/* ══ Lazy Hydrated Category Sections ══ */}
+                {/* ══ Category Sections ══ */}
                 <section className="container mx-auto px-1 md:px-2 space-y-3 mb-1">
-                  <LazySection height={340} skeletonTitle="Verified Fair Prices">
-                    <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Phones & Tablets">
-                    <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Best in Gaming">
-                    <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="PCs & Laptops">
-                    <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Electronics & Audio">
-                    <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Verified Cars">
-                    <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Fashion & Style">
-                    <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Beauty & Skincare">
-                    <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Home & Living">
-                    <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Appliances">
-                    <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Gym & Fitness">
-                    <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="left" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Health & Medical">
-                    <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} autoScroll direction="right" />
-                  </LazySection>
-
-                  <LazySection height={340} skeletonTitle="Groceries & Baby Essentials">
-                    <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
-                  </LazySection>
+                  <ProductSlider title="Verified Fair Prices" link="/search?verified=true" products={sections.fairPriceProducts} icon={<ShieldCheck className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                  <ProductSlider title="Phones & Tablets" link="/search?category=phones" products={sections.phonesProducts} icon={<Smartphone className="h-5 w-5 text-blue-500" />} autoScroll direction="right" />
+                  <ProductSlider title="Best in Gaming" link="/search?category=gaming" products={sections.gamingProducts} icon={<Gamepad2 className="h-5 w-5 text-purple-500" />} autoScroll direction="left" />
+                  <ProductSlider title="PCs & Laptops" link="/search?category=computers" products={sections.computerProducts} icon={<Monitor className="h-5 w-5 text-gray-700" />} autoScroll direction="right" />
+                  <ProductSlider title="Electronics & Audio" link="/search?category=electronics" products={sections.electronicsProducts} icon={<Plug className="h-5 w-5 text-yellow-600" />} autoScroll direction="left" />
+                  <ProductSlider title="Verified Cars" link="/search?category=cars" products={sections.carProducts} icon={<Car className="h-5 w-5 text-red-500" />} autoScroll direction="right" />
+                  <ProductSlider title="Fashion & Style" link="/search?category=fashion" products={sections.fashionProducts} icon={<Shirt className="h-5 w-5 text-pink-500" />} autoScroll direction="left" />
+                  <ProductSlider title="Beauty & Skincare" link="/search?category=beauty" products={sections.beautyProducts} icon={<Sparkles className="h-5 w-5 text-rose-400" />} autoScroll direction="right" />
+                  <ProductSlider title="Home & Living" link="/category/home" products={sections.homeProducts} icon={<HomeIcon className="h-5 w-5 text-amber-600" />} autoScroll direction="left" />
+                  <ProductSlider title="Appliances" link="/category/appliances" products={sections.applianceProducts} icon={<Plug className="h-5 w-5 text-orange-500" />} autoScroll direction="right" />
+                  <ProductSlider title="Gym & Fitness" link="/category/fitness" products={sections.fitnessProducts} icon={<Dumbbell className="h-5 w-5 text-emerald-600" />} autoScroll direction="left" />
+                  <ProductSlider title="Health & Medical" link="/category/health" products={sections.healthProducts} icon={<ShieldCheck className="h-5 w-5 text-blue-600" />} autoScroll direction="right" />
+                  <ProductSlider title="Groceries & Baby Essentials" link="/category/grocery" products={sections.groceryProducts} icon={<ShoppingBasket className="h-5 w-5 text-green-600" />} autoScroll direction="left" />
                 </section>
 
-                <LazySection height={400} skeletonTitle="Explore Categories">
-                  <section className="container mx-auto px-1 md:px-2 my-6 pt-2 border-t border-gray-100">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      {categoryGrids.map((card, i) => (
-                        <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
-                      ))}
-                    </div>
-                  </section>
-                </LazySection>
+                <section className="container mx-auto px-1 md:px-2 my-2 pt-2 border-t border-gray-100">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {categoryGrids.map((card, i) => (
+                      <CategoryGridCard key={card.title} card={card} delay={i * 0.1} />
+                    ))}
+                  </div>
+                </section>
 
-                <LazySection height={200}>
-                  <StoreDiscoveryRail />
-                </LazySection>
+                <StoreDiscoveryRail />
 
-                <LazySection height={800} skeletonTitle="Recommended For You">
-                  <section className="w-full px-1 md:px-2 mb-8">
-                    <RecommendedProducts products={allProducts} title="Recommended For You" />
-                  </section>
-                </LazySection>
-              </>
-            )}
+                <section className="w-full px-1 md:px-2 mb-8">
+                  <RecommendedProducts products={allProducts} title="Recommended For You" />
+                </section>
+                      </>
+                    )
+                  ) : (
+                    <CategoryPanel category={activeTab} />
+                  )}
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </main>
       </div>

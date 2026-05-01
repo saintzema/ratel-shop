@@ -2400,7 +2400,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                             <div className="bg-gray-50 p-6 rounded-[32px] border-4 border-white shadow-inner mb-8">
                                 <img 
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}` : '')}`}
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '')}`}
                                     alt="Payment QR" 
                                     className="w-48 h-48 mx-auto mix-blend-multiply"
                                 />

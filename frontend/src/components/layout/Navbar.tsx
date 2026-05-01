@@ -1171,7 +1171,7 @@ export function Navbar() {
                                     )}                                    {/* Global Search Results (from Gemini API) */}
                                     {isGlobalSearching && (
                                         <div className="border-t border-blue-50 px-4 py-3">
-                                            <div className="flex items-center gap-2 text-xs text-blue-600 font-semibold mb-2">
+                                            <div className="flex items-center gap-2 text-xs text-green-600 font-semibold mb-2">
                                                 <Globe className="h-3.5 w-3.5 animate-spin" />
                                                 Finding the best prices for you...
                                             </div>
