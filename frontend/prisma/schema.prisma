@@ -579,3 +579,11 @@ enum IDType {
   voters_card
   passport
 }
+
+model WhatsAppInteraction {
+  id               String   @id @default(cuid())
+  phoneNumber      String
+  interaction_type String
+  payload          String?
+  createdAt        DateTime @default(now())
+}

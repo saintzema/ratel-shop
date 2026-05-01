@@ -60,6 +60,18 @@ export async function POST(req: Request) {
         }) as any;
 
         if (!negotiation) {
+            // NEW: Conversational Components (Ice Breakers & Commands)
+            if (text.startsWith("/")) {
+                await handleCommand(from, text);
+                return NextResponse.json({ ok: true });
+            }
+
+            const iceBreakers = ["Check Real Market Price", "Negotiate a Deal", "Find a Verified Seller", "Apply for Financing"];
+            if (iceBreakers.includes(text)) {
+                await handleIceBreaker(from, text);
+                return NextResponse.json({ ok: true });
+            }
+
             // Optional: Log or send a generic help message
             return NextResponse.json({ ok: true });
         }
@@ -111,5 +123,50 @@ export async function POST(req: Request) {
     } catch (error) {
         console.error("WhatsApp Webhook Error:", error);
         return NextResponse.json({ ok: true }); // Always return 200 to Meta to avoid retries on error
+    }
+}
+
+// --- HELPER FUNCTIONS FOR CONVERSATIONAL COMPONENTS --- //
+
+async function handleCommand(from: string, text: string) {
+    const parts = text.split(" ");
+    const command = parts[0].toLowerCase();
+    const args = parts.slice(1).join(" ");
+
+    // Log the interaction intent
+    await db.whatsAppInteraction.create({
+        data: { phoneNumber: from, interaction_type: "command", payload: command }
+    });
+
+    if (command === "/price") {
+        await WhatsAppService.sendMessage(from, `Looking up verified market prices for: ${args || "that item"}. Please wait a moment...`);
+    } else if (command === "/haggle") {
+        const targetPrice = parseFloat(args.replace(/[^0-9.]/g, ""));
+        await WhatsAppService.sendMessage(from, `Starting ZIVA-mediated negotiation at ₦${targetPrice ? targetPrice.toLocaleString() : 'your proposed price'}. We'll notify the seller!`);
+    } else if (command === "/pay") {
+        await WhatsAppService.sendMessage(from, "Generating your secure payment link...\n\n🔗 https://fairprice.ng/checkout/direct");
+    } else if (command === "/verify") {
+        await WhatsAppService.sendMessage(from, `Checking trust score for seller ID: ${args || "unknown"}. Please wait...`);
+    } else if (command === "/help") {
+        await WhatsAppService.sendMessage(from, "A FairPrice human agent will be with you shortly. How can we help?");
+    } else {
+        await WhatsAppService.sendMessage(from, "Unknown command. Try /price, /haggle, /verify, or /pay.");
+    }
+}
+
+async function handleIceBreaker(from: string, text: string) {
+    // Log the interaction intent
+    await db.whatsAppInteraction.create({
+        data: { phoneNumber: from, interaction_type: "ice_breaker", payload: text }
+    });
+
+    if (text === "Check Real Market Price") {
+        await WhatsAppService.sendMessage(from, "Welcome to FairPrice! What product would you like to check the real market price for? Reply with the product name.");
+    } else if (text === "Negotiate a Deal") {
+        await WhatsAppService.sendMessage(from, "Ready to haggle? Paste the product link or name and let's get you a deal!");
+    } else if (text === "Find a Verified Seller") {
+        await WhatsAppService.sendMessage(from, "Looking for trusted sellers? Tell us what category you are shopping in (e.g. Electronics, Fashion).");
+    } else if (text === "Apply for Financing") {
+        await WhatsAppService.sendMessage(from, "Want to Buy Now and Pay Later? Let's check your financing eligibility. Please provide your email address.");
     }
 }
