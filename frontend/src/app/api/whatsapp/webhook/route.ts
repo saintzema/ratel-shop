@@ -45,6 +45,32 @@ export async function POST(req: Request) {
 
         if (!text) return NextResponse.json({ ok: true });
 
+        // --- NEW: LOGIN VERIFICATION HANDLING ---
+        if (text.toLowerCase().startsWith("verify fairprice:")) {
+            const code = text.split(":")[1]?.trim();
+            if (code) {
+                const verification = await db.whatsAppVerification.findUnique({
+                    where: { code }
+                });
+
+                if (verification && new Date() < verification.expiresAt) {
+                    await db.whatsAppVerification.update({
+                        where: { id: verification.id },
+                        data: { status: "verified" }
+                    });
+
+                    await WhatsAppService.sendMessage(from, 
+                        `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\nYou can now return to the website to continue your login. You're now locked into the FairPrice conversational ecosystem! 🚀`
+                    );
+                    return NextResponse.json({ ok: true });
+                } else {
+                    await WhatsAppService.sendMessage(from, `❌ *Invalid or Expired Code.* Please request a new login link from the website.`);
+                    return NextResponse.json({ ok: true });
+                }
+            }
+        }
+        // ------------------------------------------
+
         // FIND ACTIVE NEGOTIATION
         // We look for the most recent negotiation that isn't already closed
         const negotiation = await (db.negotiationRequest as any).findFirst({

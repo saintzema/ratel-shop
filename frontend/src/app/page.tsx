@@ -352,7 +352,7 @@ function HomeContent() {
           <PriceIntelModal isOpen={isPriceModalOpen} onClose={() => setIsPriceModalOpen(false)} />
 
           {/* ─── Hero Section (Restored Single Image) ─── */}
-          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-10 md:pb-12">
+          <section className="relative w-full bg-[#E3E6E6] pt-[110px] md:pt-[130px] pb-5 md:pb-8">
             <div className="container mx-auto px-1 md:px-2 relative z-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 h-[160px] md:h-[240px]">
                 
@@ -374,25 +374,26 @@ function HomeContent() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
                   </div>
 
-                  {/* Buttons Overlay */}
-                  <div className="absolute bottom-4 md:bottom-8 left-4 md:left-8 z-20 flex flex-wrap items-center gap-3 md:gap-4">
+                  {/* Buttons Overlay — Centered Bottom on Mobile, Top-Left on Desktop */}
+                  <div className="absolute z-30 flex items-center gap-2 md:gap-4 bottom-6 md:top-10 md:bottom-auto left-0 right-0 md:left-10 md:right-auto justify-center md:justify-start px-4 md:px-0">
                     <Button
                       size="lg"
-                      className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-black/30 hover:bg-black/50 backdrop-blur-xl border border-white/20 text-white font-black text-[11px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2 transition-all active:scale-95"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/10 hover:bg-white/20 backdrop-blur-2xl border border-white/30 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
                       onClick={() => setIsPriceModalOpen(true)}
                     >
+                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       PRICE CHECKER AI 
-                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#10b981]" />
+                      <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#34d399] animate-pulse" />
                     </Button>
                     <Button
                       size="lg"
-                      className="rounded-full px-4 md:px-6 h-9 md:h-12 bg-gradient-to-b from-[#10b981]/20 to-[#10b981]/5 hover:from-[#10b981]/30 hover:to-[#10b981]/10 backdrop-blur-xl border-[2px] border-t-[#047857] border-b-[#34d399] border-x-[#10b981] text-white font-black text-[11px] md:text-[14px] shadow-[inset_0px_4px_10px_rgba(0,0,0,0.5),_0px_8px_20px_rgba(0,0,0,0.4)] flex items-center gap-1.5 md:gap-2 transition-all active:scale-95 active:shadow-[inset_0px_8px_16px_rgba(0,0,0,0.7)]"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-gradient-to-b from-[#10b981] to-[#059669] hover:from-[#34d399] hover:to-[#10b981] text-white font-black text-[10px] md:text-[14px] shadow-[0_10px_25px_-5px_rgba(16,185,129,0.5)] border border-emerald-400/50 flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 active:translate-y-0.5"
                       onClick={(e) => { 
                         e.stopPropagation();
                         router.push(isSeller ? "/seller/dashboard" : "/seller/onboarding");
                       }}
                     >
-                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-[#10b981]" />
+                      <StoreIcon className="h-4 w-4 md:h-5 md:w-5 text-white" />
                       START SELLING
                     </Button>
                   </div>
@@ -442,7 +443,7 @@ function HomeContent() {
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
             {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
             <div className="sticky top-[60px] md:top-[68px] z-[40] bg-[#F5F5F7] border-b border-gray-200 shadow-sm transition-all pb-1">
-              <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-3 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
+              <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {TEMU_CATEGORIES.map((cat) => {
                   const isActive = activeTab === cat;
                   return (
@@ -735,7 +736,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="flex items-center justify-between mb-1.5">
-        <h2 className="text-lg font-extrabold text-gray-900 tracking-tight flex items-center gap-2">
+        <h2 className="text-[16px] sm:text-lg font-extrabold text-gray-900 tracking-tight flex items-center gap-2 whitespace-nowrap">
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
         </h2>
@@ -867,7 +868,7 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
       onTouchEnd={() => setTimeout(() => setIsPaused(false), 3000)}
     >
       <div className="flex items-center gap-4 mb-2 md:mb-2">
-        <h2 className="text-lg md:text-xl font-extrabold tracking-tight text-gray-900 line-clamp-1 flex items-center gap-2">
+        <h2 className="text-[16px] sm:text-lg md:text-xl font-extrabold tracking-tight text-gray-900 flex items-center gap-2 whitespace-nowrap">
           {icon && <span className="shrink-0">{icon}</span>}
           {title}
         </h2>

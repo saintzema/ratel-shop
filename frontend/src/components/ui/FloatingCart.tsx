@@ -49,7 +49,7 @@ export function FloatingCart() {
                     }
                 }}
                 // Make it visible on all screens by removing md:hidden
-                className="fixed z-[999] right-4 md:right-8 top-[55%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5 hover:scale-105 transition-transform"
+                className="fixed z-[1015] right-4 md:right-8 top-[55%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5 hover:scale-105 transition-transform"
                 style={{ WebkitTapHighlightColor: "transparent", touchAction: "none" }}
             >
                 <motion.div

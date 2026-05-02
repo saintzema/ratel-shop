@@ -1237,7 +1237,7 @@ export function ZivaChat() {
 
     return (
         <div
-            className="fixed left-6 lg:left-12 z-[50] pointer-events-none transition-all duration-300 ease-out"
+            className="fixed left-6 lg:left-12 z-[1020] w-fit h-fit pointer-events-none transition-all duration-300 ease-out"
             style={{
                 bottom: containerBottom
             }}

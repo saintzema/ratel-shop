@@ -160,4 +160,11 @@ export class WhatsAppService {
     static async sendTestMessage(to: string) {
         return this.sendMarketingMessage(to, "hello_world", []);
     }
+
+    /**
+     * Generates a unique 6-digit verification code
+     */
+    static generateVerificationCode(): string {
+        return Math.floor(100000 + Math.random() * 900000).toString();
+    }
 }

@@ -1129,24 +1129,29 @@ function CheckoutContent() {
                 {/* Left Column: Checkout steps */}
                 <div className="flex-1 space-y-6">
 
-                    {/* Review Items */}
-                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${isReviewExpanded ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
+                    {/* Step 1: Review Items */}
+                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
                         <div 
-                            className={`p-6 border-b border-gray-100 flex justify-between items-center cursor-pointer transition-colors ${isReviewExpanded ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}
-                            onClick={() => setIsReviewExpanded(!isReviewExpanded)}
+                            className={`p-6 border-b border-gray-100 flex justify-between items-center cursor-pointer transition-colors ${checkoutStep === 1 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}
+                            onClick={() => { if (checkoutStep > 1) setCheckoutStep(1); }}
                         >
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${isReviewExpanded ? 'text-gray-900' : 'text-gray-400'}`}>
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center bg-brand-green-100 text-brand-green-600">
-                                    <Package className="h-4 w-4" />
-                                </div>
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                    {checkoutStep > 1 ? <Check className="h-4 w-4" /> : '1'}
+                                </span>
                                 Review Items ({checkoutItems.length})
                             </h2>
-                            <button className="text-gray-400 hover:text-gray-600">
-                                <ChevronDown className={cn("h-5 w-5 transition-transform duration-300", (isReviewExpanded) && "rotate-180")} />
-                            </button>
+                            {checkoutStep > 1 && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(1); }}
+                                    className="text-xs font-bold text-blue-600 hover:text-brand-orange"
+                                >
+                                    VIEW
+                                </button>
+                            )}
                         </div>
 
-                        {(isReviewExpanded) && (
+                        {checkoutStep === 1 && (
                             <div className="p-6">
                                 {/* Group items by seller */}
                                 {(() => {
@@ -1251,18 +1256,27 @@ function CheckoutContent() {
                                         </div>
                                     ));
                                 })()}
+
+                                <div className="mt-8 flex justify-end">
+                                    <Button 
+                                        onClick={() => setCheckoutStep(2)}
+                                        className="rounded-xl h-12 px-8 bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold"
+                                    >
+                                        Confirm Items & Continue
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </section>
 
-                    {/* Step 1: Shipping Address */}
-                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => { if (checkoutStep > 1) setCheckoutStep(1); }}>
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                    {checkoutStep > 1 ? <Check className="h-4 w-4" /> : '1'}
+                    {/* Step 2: Shipping & Delivery Info */}
+                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep === 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => { if (checkoutStep > 2) setCheckoutStep(2); else if (checkoutStep === 1) setCheckoutStep(2); }}>
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 2 ? 'text-gray-900' : 'text-gray-500'}`}>
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 2 ? 'bg-black text-white' : checkoutStep > 2 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                                    {checkoutStep > 2 ? <Check className="h-4 w-4" /> : '2'}
                                 </span>
-                                Shipping Address
+                                Shipping & Delivery Info
                             </h2>
                             {addressError && (
                                 <p className="text-sm text-red-500 font-semibold">Please enter your delivery address</p>
@@ -1277,41 +1291,70 @@ function CheckoutContent() {
                             )}
                         </div>
 
-                        {checkoutStep === 1 ? (
+                        {checkoutStep === 2 ? (
                             <div className="p-6">
-                                {/* Saved address picker */}
-                                {savedAddresses.length > 0 && isEditingAddress && (
-                                    <div className="mb-4">
-                                        <button
-                                            onClick={() => setShowAddressPicker(!showAddressPicker)}
-                                            className="w-full flex items-center justify-between p-3 rounded-xl border border-dashed border-gray-300 hover:border-brand-orange/50 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                <MapPin className="h-4 w-4" />
-                                                Use a saved address ({savedAddresses.length})
-                                            </span>
-                                            <ChevronDown className={`h-4 w-4 transition-transform ${showAddressPicker ? "rotate-180" : ""}`} />
-                                        </button>
-                                        {showAddressPicker && (
-                                            <div className="mt-2 border border-gray-200 rounded-xl overflow-hidden divide-y divide-gray-100">
-                                                {savedAddresses.map(addr => (
-                                                    <div key={addr.id} className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer group">
-                                                        <div onClick={() => selectSavedAddress(addr)} className="flex-1">
-                                                            <p className="font-semibold text-sm text-gray-900">{addr.firstName} {addr.lastName}</p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {addr.method === "pickup" ? `Pickup: ${addr.station}, ${addr.city}` : `${addr.street}, ${addr.city}`} · {addr.phone}
-                                                            </p>
+                                {/* Saved Address Card List - ALWAYS RENDER AT TOP */}
+                                {savedAddresses.length > 0 && (
+                                    <div className="mb-8">
+                                        <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 flex items-center gap-2">
+                                            <Sparkles className="h-3 w-3 text-brand-orange" />
+                                            Saved Delivery Addresses
+                                        </h3>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {savedAddresses.map(addr => (
+                                                <div 
+                                                    key={addr.id} 
+                                                    onClick={() => selectSavedAddress(addr)}
+                                                    className={cn(
+                                                        "relative p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md group",
+                                                        (!isEditingAddress && address.street === addr.street) 
+                                                            ? "border-brand-green-500 bg-brand-green-50/30" 
+                                                            : "border-gray-100 bg-white hover:border-brand-green-200"
+                                                    )}
+                                                >
+                                                    {(!isEditingAddress && address.street === addr.street) && (
+                                                        <div className="absolute top-3 right-3">
+                                                            <CheckCircle2 className="h-5 w-5 text-brand-green-600" />
                                                         </div>
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); deleteSavedAddress(addr.id); }}
-                                                            className="p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-red-50 text-gray-300 hover:text-red-500 transition-all"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </button>
+                                                    )}
+                                                    <p className="font-black text-[13px] text-gray-900 mb-1">{addr.firstName} {addr.lastName}</p>
+                                                    <p className="text-[12px] text-gray-500 leading-snug line-clamp-2 mb-2">
+                                                        {addr.method === "pickup" ? `Pickup: ${addr.station}` : addr.street}, {addr.city}
+                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-auto">
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 uppercase">
+                                                            {addr.method}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-400 font-medium">
+                                                            {addr.phone}
+                                                        </span>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); deleteSavedAddress(addr.id); }}
+                                                        className="absolute bottom-3 right-3 p-1.5 rounded-lg bg-gray-50 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            
+                                            <button
+                                                onClick={() => {
+                                                    setAddress({
+                                                        firstName: "", lastName: "", street: "", city: "Lagos", state: "Lagos", phone: "", email: user?.email || ""
+                                                    });
+                                                    setDeliveryMethod("doorstep");
+                                                    setIsEditingAddress(true);
+                                                }}
+                                                className="p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-brand-green-300 hover:bg-gray-50 flex flex-col items-center justify-center gap-2 transition-all group"
+                                            >
+                                                <div className="w-8 h-8 rounded-full bg-gray-100 group-hover:bg-brand-green-100 flex items-center justify-center transition-colors">
+                                                    <Plus className="h-4 w-4 text-gray-400 group-hover:text-brand-green-600" />
+                                                </div>
+                                                <span className="text-xs font-bold text-gray-500 group-hover:text-brand-green-600">Add New Address</span>
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
@@ -1733,7 +1776,7 @@ function CheckoutContent() {
                                         )}
                                         <div className="mt-6 flex justify-end">
                                             <Button
-                                                onClick={() => setCheckoutStep(2)}
+                                                onClick={() => setCheckoutStep(3)}
                                                 className="w-full md:w-auto bg-brand-green-600 hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 text-white rounded-xl font-bold px-8"
                                             >
                                                 PROCEED TO PAYMENT
@@ -1749,7 +1792,6 @@ function CheckoutContent() {
                                     <p className="text-sm font-bold text-gray-900">{address.firstName} {address.lastName}</p>
                                     <p className="text-xs text-gray-500 mt-0.5">
                                         {deliveryMethod === "doorstep"
-                                            ? `${address.street}, ${address.city}`
                                             : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}`
                                         }
                                     </p>
@@ -1758,26 +1800,25 @@ function CheckoutContent() {
                         )}
                     </section>
 
-                    {/* Step 2: Payment Method */}
-                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 2 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`} onClick={() => checkoutStep > 2 ? setCheckoutStep(2) : checkoutStep === 1 && address.street.trim() && setCheckoutStep(2)}>
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 2 ? 'text-gray-900' : 'text-gray-400'}`}>
-                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 2 ? 'bg-black text-white' : checkoutStep > 2 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
-                                    {checkoutStep > 2 ? <Check className="h-4 w-4" /> : '2'}
+                    {/* Step 3: Payment Method */}
+                    <section className={`bg-white rounded-2xl shadow-sm border ${checkoutStep === 3 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center ${checkoutStep === 3 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`} onClick={() => checkoutStep > 3 ? setCheckoutStep(3) : checkoutStep === 2 && address.street.trim() && setCheckoutStep(3)}>
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 3 ? 'text-gray-900' : 'text-gray-400'}`}>
+                                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 3 ? 'bg-black text-white' : checkoutStep > 3 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                                    {checkoutStep > 3 ? <Check className="h-4 w-4" /> : '3'}
                                 </div>
                                 Payment Method
                             </h2>
-                            {checkoutStep > 2 && (
+                            {checkoutStep > 3 && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(2); }}
+                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(3); }}
                                     className="text-xs font-bold text-blue-600 hover:text-brand-orange"
                                 >
                                     CHANGE
                                 </button>
                             )}
                         </div>
-
-                        {checkoutStep === 2 && (
+                        {checkoutStep === 3 && (
                             <div className="p-6 space-y-3">
                                 {/* Paystack (Card Payment) */}
                                 <label className={`flex items-center gap-4 p-4 border rounded-xl cursor-pointer transition-all ${paymentMethod === 'paystack' ? 'border-brand-orange/50 bg-orange-50/50' : 'border-gray-200 hover:border-gray-300'}`}>
