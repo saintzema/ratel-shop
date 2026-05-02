@@ -28,20 +28,41 @@ const GOOGLE_SEARCH_CX = process.env.GOOGLE_SEARCH_CX;
  * Core image search logic shared between GET and POST handlers.
  * Tries Serper → Google CSE → Wikipedia in priority order.
  */
+/**
+ * Core image search logic shared between GET and POST handlers.
+ * Tries Serper → Google CSE → Wikipedia in priority order.
+ */
 async function searchProductImage(query: string, category?: string): Promise<{ imageUrl: string | null; imageUrls?: string[]; source?: string }> {
     const cat = category?.toLowerCase() || "";
     let searchModifier = " official product image high resolution";
     
     // ─── Category-Specific Source Prioritization ───
     if (cat.includes("car") || cat.includes("vehicle") || cat.includes("automotive")) {
-        searchModifier = " professional clean exterior photo high res site:cars45.com OR site:jiji.ng OR site:autochek.africa";
+        searchModifier = " professional clean exterior photo high res site:cars45.com OR site:jiji.ng OR site:autochek.africa OR site:netcarshow.com";
     } else if (cat.includes("machinery") || cat.includes("industrial") || cat.includes("tool")) {
-        searchModifier = " industrial high quality clean photo site:alibaba.com OR site:directindustry.com";
+        searchModifier = " industrial high quality clean photo site:alibaba.com OR site:directindustry.com OR site:made-in-china.com";
     } else if (cat.includes("electronics") || cat.includes("computing") || cat.includes("phone")) {
-        searchModifier = " official white background high resolution product shot";
+        searchModifier = " official high resolution product shot site:apple.com OR site:samsung.com OR site:gsmarena.com OR site:amazon.com";
     } else if (cat.includes("fashion") || cat.includes("clothing")) {
-        searchModifier = " high resolution studio fashion photography";
+        searchModifier = " high resolution studio fashion photography site:zara.com OR site:asos.com OR site:jumia.com.ng";
     }
+
+    const isValidImage = (url: string) => {
+        if (!url) return false;
+        const lower = url.toLowerCase();
+        return !lower.includes("placeholder") &&
+               !lower.includes("no-image") &&
+               !lower.includes("no_image") &&
+               !lower.includes("default.") &&
+               !lower.includes("x-icon") &&
+               !lower.includes("logo") &&
+               !lower.includes("avatar") &&
+               !lower.includes("transparent") &&
+               !lower.includes("clear.png") &&
+               !lower.endsWith(".svg") &&
+               !lower.endsWith(".gif") &&
+               lower.startsWith("http");
+    };
 
     // ─── Strategy 1: Serper.dev Google Image Search (best quality) ───
     if (SERPER_API_KEY) {
@@ -54,29 +75,42 @@ async function searchProductImage(query: string, category?: string): Promise<{ i
                 },
                 body: JSON.stringify({
                     q: query + searchModifier,
-                    num: 15, // Increase pool for better filtering
+                    num: 20, // Increase pool for better filtering
                 }),
             });
 
             if (response.ok) {
                 const data = await response.json();
                 if (data?.images?.length > 0) {
-                    // Filter out tiny thumbnails or placeholder-looking URLs
                     const images = data.images
                         .map((img: any) => img.imageUrl)
-                        .filter((url: string) => {
-                            if (!url) return false;
-                            const lower = url.toLowerCase();
-                            return !lower.includes("placeholder") &&
-                                   !lower.includes("no-image") &&
-                                   !lower.includes("no_image") &&
-                                   !lower.includes("default.") &&
-                                   !lower.includes("x-icon") &&
-                                   !lower.endsWith(".svg") &&
-                                   !lower.includes("avatar");
-                        });
+                        .filter(isValidImage);
                     if (images.length > 0) {
                         return { imageUrl: images[0], imageUrls: images, source: "serper" };
+                    }
+                }
+            }
+
+            // Fallback: Relaxed search if specific search failed
+            const responseRelaxed = await fetch("https://google.serper.dev/images", {
+                method: "POST",
+                headers: {
+                    "X-API-KEY": SERPER_API_KEY,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    q: query + " product",
+                    num: 10,
+                }),
+            });
+            if (responseRelaxed.ok) {
+                const data = await responseRelaxed.json();
+                if (data?.images?.length > 0) {
+                    const images = data.images
+                        .map((img: any) => img.imageUrl)
+                        .filter(isValidImage);
+                    if (images.length > 0) {
+                        return { imageUrl: images[0], imageUrls: images, source: "serper_relaxed" };
                     }
                 }
             }
@@ -94,8 +128,10 @@ async function searchProductImage(query: string, category?: string): Promise<{ i
             if (response.ok) {
                 const data = await response.json();
                 if (data.items?.length > 0) {
-                    const images = data.items.map((item: any) => item.link).filter(Boolean);
-                    return { imageUrl: images[0], imageUrls: images, source: "google_cse" };
+                    const images = data.items.map((item: any) => item.link).filter(isValidImage);
+                    if (images.length > 0) {
+                        return { imageUrl: images[0], imageUrls: images, source: "google_cse" };
+                    }
                 }
             }
         } catch (e) {

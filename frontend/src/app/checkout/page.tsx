@@ -1790,11 +1790,12 @@ function CheckoutContent() {
                                 {deliveryMethod === "pickup" ? <MapPin className="h-5 w-5 text-gray-400" /> : <Truck className="h-5 w-5 text-gray-400" />}
                                 <div>
                                     <p className="text-sm font-bold text-gray-900">{address.firstName} {address.lastName}</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">
-                                        {deliveryMethod === "doorstep"
-                                            : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}`
-                                        }
-                                    </p>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {deliveryMethod === "doorstep"
+                                                    ? `${address.street}${address.street ? ", " : ""}${address.city}`
+                                                    : `Pickup: ${pickupDetails.station}, ${pickupDetails.city}`
+                                                }
+                                            </p>
                                 </div>
                             </div>
                         )}

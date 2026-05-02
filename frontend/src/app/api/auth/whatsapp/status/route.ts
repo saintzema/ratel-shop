@@ -11,10 +11,7 @@ export async function GET(req: Request) {
         }
 
         const verification = await db.whatsAppVerification.findUnique({
-            where: { code },
-            include: {
-                // In a real scenario, we might want to include the user here if already linked
-            }
+            where: { code }
         });
 
         if (!verification) {
