@@ -66,7 +66,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
     const isCar = product.category === "cars" || product.category === "vehicles" || product.category === "automotive";
     const cardSeller = product.seller_id ? DataSyncService.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id) : null;
-    const showTenureBadge = isCar && cardSeller?.status === "approved";
+    const showTenureBadge = isCar && cardSeller?.status === "active";
     
     let sellerYears = 1;
     if (cardSeller?.created_at) {

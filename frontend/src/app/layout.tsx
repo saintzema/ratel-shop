@@ -28,6 +28,7 @@ import { Analytics } from "@vercel/analytics/next";
 // Standalone component to handle popup closing without forcing the whole layout to be client-side
 import { PopupCloser } from "@/components/auth/PopupCloser";
 import { CurrencyBanner } from "@/components/ui/CurrencyBanner";
+import { FloatingWhatsApp } from "@/components/ui/FloatingWhatsApp";
 
 export const metadata: Metadata = {
   title: {
@@ -210,6 +211,7 @@ export default function RootLayout({
                           <CurrencyBanner />
                           {children}
                           <ZivaChat />
+                          <FloatingWhatsApp />
                           <DynamicPillNotification />
                           <MessageBox />
                         </NotificationProvider>

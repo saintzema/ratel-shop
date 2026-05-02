@@ -61,6 +61,7 @@ export default function AdminSettings() {
     // Support Configuration
     const [supportEmail, setSupportEmail] = useState("hello@fairprice.ng");
     const [supportWhatsapp, setSupportWhatsapp] = useState("2348162816305");
+    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2349131767484");
     const [supportOffice, setSupportOffice] = useState("Victoria Island, Lagos, Nigeria");
     const [supportHours, setSupportHours] = useState("Mon - Sat: 8am - 10pm WAT");
     const [whatsappNegotiationBridge, setWhatsappNegotiationBridge] = useState(true);
@@ -162,6 +163,7 @@ export default function AdminSettings() {
                         const sc = initialData.supportConfig;
                         if (sc.email) setSupportEmail(sc.email);
                         if (sc.whatsapp) setSupportWhatsapp(sc.whatsapp);
+                        if (sc.whatsappOrderNumber) setWhatsappOrderNumber(sc.whatsappOrderNumber);
                         if (sc.office) setSupportOffice(sc.office);
                         if (sc.hours) setSupportHours(sc.hours);
                         if (sc.serviceCenters) setServiceCenters(sc.serviceCenters);
@@ -250,6 +252,7 @@ export default function AdminSettings() {
         supportConfig: {
             email: supportEmail,
             whatsapp: supportWhatsapp,
+            whatsappOrderNumber: whatsappOrderNumber,
             office: supportOffice,
             hours: supportHours,
             serviceCenters
@@ -756,9 +759,17 @@ export default function AdminSettings() {
                                     <Input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} placeholder="hello@fairprice.ng" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">WhatsApp Target (Format: 234...)</label>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">WhatsApp Support (Format: 234...)</label>
                                     <Input value={supportWhatsapp} onChange={(e) => setSupportWhatsapp(e.target.value)} placeholder="2348162816305" className="h-12 bg-gray-50 border-none rounded-xl font-medium" />
                                     <p className="text-[10px] text-gray-400 pl-1">Don't include '+', spaces, or hyphens</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">WhatsApp Order Number</label>
+                                        <InfoTooltip content="This is the WhatsApp Business number used for the 'Order via WhatsApp' checkout flow. Customers will send their order summary to this number." />
+                                    </div>
+                                    <Input value={whatsappOrderNumber} onChange={(e) => setWhatsappOrderNumber(e.target.value)} placeholder="2349131767484" className="h-12 bg-gray-50 border-none rounded-xl font-medium border-emerald-200 ring-2 ring-emerald-50" />
+                                    <p className="text-[10px] text-gray-400 pl-1">Format: 234... (no +, spaces, or hyphens). This powers the checkout WhatsApp button.</p>
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Head Office Address</label>

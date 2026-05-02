@@ -82,7 +82,80 @@ export async function POST(req: Request) {
                 return NextResponse.json({ ok: true });
             }
 
-            // Optional: Log or send a generic help message
+            // Check if this is an order message from WhatsApp checkout (ignore, admin will handle)
+            if (text.includes("NEW ORDER") && text.includes("fairprice.ng")) {
+                return NextResponse.json({ ok: true });
+            }
+
+            const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+
+            // Smart product search — if the message looks like a product query (3+ chars, not a greeting),
+            // search our catalog and return PDP links with prices
+            const greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "sup", "yo", "start", "menu"];
+            const isGreeting = greetings.includes(text.toLowerCase()) || text.length < 3;
+
+            if (!isGreeting) {
+                try {
+                    // Search for matching products in the database
+                    const products = await (db.product as any).findMany({
+                        where: {
+                            OR: [
+                                { name: { contains: text, mode: "insensitive" } },
+                                { description: { contains: text, mode: "insensitive" } },
+                                { category: { contains: text, mode: "insensitive" } },
+                            ],
+                            status: "approved"
+                        },
+                        take: 5,
+                        orderBy: { createdAt: "desc" },
+                        select: { id: true, name: true, price: true, slug: true, category: true }
+                    });
+
+                    if (products && products.length > 0) {
+                        // Build a product listing message with PDP links
+                        let msg = `🔍 *Found ${products.length} result${products.length > 1 ? 's' : ''} for "${text}":*\n\n`;
+                        
+                        products.forEach((p: any, i: number) => {
+                            const slug = p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+                            const pdpUrl = `${APP_URL}/product/${p.id}/${slug}`;
+                            msg += `${i + 1}. *${p.name}*\n`;
+                            msg += `   💰 ₦${Number(p.price).toLocaleString()}\n`;
+                            msg += `   🛒 ${pdpUrl}\n\n`;
+                        });
+
+                        msg += `_Tap any link to view details and order directly!_\n`;
+                        msg += `_Or type another product name to search again._`;
+
+                        await WhatsAppService.sendMessage(from, msg);
+                        return NextResponse.json({ ok: true });
+                    }
+                } catch (searchErr) {
+                    console.error("WhatsApp product search error:", searchErr);
+                    // Fall through to welcome message if search fails
+                }
+
+                // No products found — send search link so they can try on the site
+                await WhatsAppService.sendMessage(from,
+                    `We couldn't find *"${text}"* in our catalog right now.\n\n` +
+                    `Try searching on our website for more options:\n` +
+                    `🔗 ${APP_URL}/search?q=${encodeURIComponent(text)}\n\n` +
+                    `_Our AI-powered search can find products from across Nigeria!_`
+                );
+                return NextResponse.json({ ok: true });
+            }
+
+            // Welcome message for greetings and short messages
+            await WhatsAppService.sendMessage(from, 
+                `Welcome to *FairPrice Shopping!* 🛍️\n\n` +
+                `We help you find the best deals with verified prices across Nigeria.\n\n` +
+                `🔗 *Browse our store:*\n${APP_URL}\n\n` +
+                `Just tap the link above to browse, search for any product, and place your order — all right here inside WhatsApp!\n\n` +
+                `You can also:\n` +
+                `• Type a product name to search (e.g. "iPhone 15")\n` +
+                `• Type /price [product] to check market prices\n` +
+                `• Type /help for human assistance\n\n` +
+                `_Powered by FairPrice.ng — Nigeria's trusted marketplace_ ✅`
+            );
             return NextResponse.json({ ok: true });
         }
 
