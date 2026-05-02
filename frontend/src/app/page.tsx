@@ -441,7 +441,7 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
             {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
-            <div className="sticky top-[110px] md:top-[130px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
+            <div className="sticky top-[84px] md:top-[100px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {TEMU_CATEGORIES.map((cat) => {
                   const isActive = activeTab === cat;
