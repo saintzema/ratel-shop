@@ -374,14 +374,13 @@ function HomeContent() {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
                   </div>
 
-                  {/* Buttons Overlay — Centered Bottom on Mobile, Top-Left on Desktop */}
-                  <div className="absolute z-30 flex items-center gap-2 md:gap-4 bottom-6 md:top-10 md:bottom-auto left-0 right-0 md:left-10 md:right-auto justify-center md:justify-start px-4 md:px-0">
+                  {/* Buttons Overlay — Centered Bottom on Mobile, Bottom-Left on Desktop */}
+                  <div className="absolute z-30 flex items-center gap-2 md:gap-4 bottom-6 md:bottom-10 left-0 right-0 md:left-10 md:right-auto justify-center md:justify-start px-4 md:px-0">
                     <Button
                       size="lg"
-                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/10 hover:bg-white/20 backdrop-blur-2xl border-none text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden glassy-gradient-border"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/5 hover:bg-white/15 backdrop-blur-[40px] border border-emerald-400/50 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
                       onClick={() => setIsPriceModalOpen(true)}
                     >
-                      <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                       PRICE CHECKER AI 
                       <Sparkles className="h-4 w-4 md:h-5 md:w-5 text-[#34d399] animate-pulse" />
                     </Button>
@@ -423,7 +422,6 @@ function HomeContent() {
                           setIsPriceModalOpen(true);
                         } else if (ad.link) {
                           router.push(ad.link);
-                        }
                       }}
                     >
                       <img 
