@@ -40,9 +40,19 @@ export default function NewProduct() {
     });
 
     const [savedNumbers, setSavedNumbers] = useState<string[]>([]);
+    const [minFinancingPrice, setMinFinancingPrice] = useState(300000);
+    const [isPremium, setIsPremium] = useState(false);
 
     useEffect(() => {
+        try {
+            const adminSettings = JSON.parse(localStorage.getItem('fp_admin_settings') || '{}');
+            if (adminSettings.minFinancingPrice) setMinFinancingPrice(Number(adminSettings.minFinancingPrice));
+        } catch {}
+
         const seller = DataSyncService.getCurrentSeller();
+        if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
+            setIsPremium(true);
+        }
         const user = DataSyncService.getCurrentUser();
         const numbers = new Set<string>();
         if (seller?.phone_numbers) seller.phone_numbers.forEach(n => numbers.add(n));
@@ -210,7 +220,17 @@ export default function NewProduct() {
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({ ...prev, price: formatPriceWithCommas(e.target.value) }));
+        const newPriceFormatted = formatPriceWithCommas(e.target.value);
+        const numericPrice = parseInt(newPriceFormatted.replace(/,/g, ""));
+        
+        setFormData(prev => {
+            const next = { ...prev, price: newPriceFormatted };
+            // Auto-disable financing if price falls below min limit
+            if (prev.financing_available && !isPremium && !isNaN(numericPrice) && numericPrice < minFinancingPrice) {
+                next.financing_available = false;
+            }
+            return next;
+        });
     };
 
     const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -763,11 +783,20 @@ export default function NewProduct() {
                                             </div>
                                             <div className="space-y-1">
                                                 <h3 className="font-bold text-gray-900 leading-tight">Financing & Ownership</h3>
-                                                <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans.</p>
+                                                <p className="text-xs text-gray-500 leading-relaxed max-w-sm">Enable <span className="text-emerald-600 font-bold uppercase tracking-tighter">Buy Now, Pay Later</span> for this product to attract 5x more buyers with 12–36 month payment plans. <br/><span className="text-[10px] text-gray-400 font-semibold italic mt-1 inline-block">Note: Products must be above ₦{minFinancingPrice.toLocaleString()} unless you are on a premium plan.</span></p>
                                             </div>
                                         </div>
                                         <div 
-                                            onClick={() => handleChange("financing_available", !formData.financing_available)}
+                                            onClick={() => {
+                                                const currentPrice = parseInt(formData.price.replace(/,/g, ""));
+                                                if (!formData.financing_available && !isPremium && (isNaN(currentPrice) || currentPrice < minFinancingPrice)) {
+                                                    if (confirm(`Product price must be at least ₦${minFinancingPrice.toLocaleString()} to enable financing. Upgrade to a premium plan to bypass this limit. Click OK to view plans.`)) {
+                                                        router.push("/seller/settings/billing");
+                                                    }
+                                                    return;
+                                                }
+                                                handleChange("financing_available", !formData.financing_available);
+                                            }}
                                             className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${formData.financing_available ? 'bg-emerald-600' : 'bg-gray-200'}`}
                                         >
                                             <span

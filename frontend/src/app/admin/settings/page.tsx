@@ -41,6 +41,7 @@ export default function AdminSettings() {
     const [lowCostFlatFee, setLowCostFlatFee] = useState("250");
     const [highCostThreshold, setHighCostThreshold] = useState("500000");
     const [highCostCap, setHighCostCap] = useState("15000");
+    const [minFinancingPrice, setMinFinancingPrice] = useState("300000");
 
     // COD Settings
     const [codThreshold, setCodThreshold] = useState("50000");
@@ -155,6 +156,7 @@ export default function AdminSettings() {
                     if (initialData.lowCostFlatFee) setLowCostFlatFee(initialData.lowCostFlatFee.toString());
                     if (initialData.highCostThreshold) setHighCostThreshold(initialData.highCostThreshold.toString());
                     if (initialData.highCostCap) setHighCostCap(initialData.highCostCap.toString());
+                    if (initialData.minFinancingPrice !== undefined) setMinFinancingPrice(initialData.minFinancingPrice.toString());
 
                     if (initialData.supportConfig) {
                         const sc = initialData.supportConfig;
@@ -225,6 +227,7 @@ export default function AdminSettings() {
             lowCostFlatFee: parseFloat(lowCostFlatFee) || 250,
             highCostThreshold: parseFloat(highCostThreshold) || 500000,
             highCostCap: parseFloat(highCostCap) || 15000,
+            minFinancingPrice: parseFloat(minFinancingPrice) || 300000,
         }, setIsSavingCommission);
     };
 
@@ -325,6 +328,13 @@ export default function AdminSettings() {
                                     </div>
                                     <Input value={vehicleDepositPct} onChange={(e) => setVehicleDepositPct(e.target.value)} type="number" min="5" max="50" className="h-12 bg-gray-50 border-none rounded-xl font-bold border-amber-200 ring-2 ring-amber-50" />
                                     <p className="text-[10px] text-gray-400 pl-1">Buyers pay this % upfront for vehicle transactions (default: 15%)</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-1.5 pl-1">
+                                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Min. Financing Price (₦)</label>
+                                        <InfoTooltip content="The minimum price a product must have to be eligible for BNPL financing." />
+                                    </div>
+                                    <Input value={minFinancingPrice} onChange={(e) => setMinFinancingPrice(e.target.value)} type="number" className="h-12 bg-gray-50 border-none rounded-xl font-bold" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Standard Commission (%)</label>

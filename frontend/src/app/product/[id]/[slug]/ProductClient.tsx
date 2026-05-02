@@ -1025,6 +1025,13 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const isOwner = user && seller && user.id === seller.user_id;
     const isSellerApproved = seller?.status === "active" || seller?.verified === true || seller?.kyc_status === "approved" || seller?.id === "global-partners";
 
+    const sellerYears = React.useMemo(() => {
+        if (!seller?.created_at) return 1;
+        const joinedDate = new Date(seller.created_at);
+        const years = new Date().getFullYear() - joinedDate.getFullYear();
+        return years > 0 ? years : 1;
+    }, [seller]);
+
     // Wait for client-side hydration before rendering
     if (!mounted) return null;
 
@@ -1271,7 +1278,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             <Link href={`/store/${seller.store_url || seller.id}`} className="text-sm font-bold text-ratel-green-600 hover:underline mb-1 inline-block">
                                 {seller.business_name}
                             </Link>
+                            
                             <h1 className="text-3xl font-black text-gray-900 leading-tight mb-2">{product.name}</h1>
+                            
+                            {(product.category === "cars" || product.category === "vehicles" || product.category === "automotive") && isSellerApproved && (
+                                <div className="mb-3 flex items-center gap-1.5 w-fit bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border border-blue-100 shadow-sm">
+                                    <ShieldCheck className="h-3 w-3" /> {sellerYears} {sellerYears > 1 ? 'Years' : 'Year'}+ Verified Merchant
+                                </div>
+                            )}
                             <div className="flex items-center gap-4 text-sm mt-3">
                                 <div className="flex items-center gap-1 text-amber-500 font-bold">
                                     <Star className="h-4 w-4 fill-current" />

@@ -64,6 +64,17 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
     const savings = displayOriginalPrice ? displayOriginalPrice - product.price : 0;
     const savingsPct = displayOriginalPrice ? Math.round((savings / displayOriginalPrice) * 100) : 0;
 
+    const isCar = product.category === "cars" || product.category === "vehicles" || product.category === "automotive";
+    const cardSeller = product.seller_id ? DataSyncService.getSellers().find(s => s.id === product.seller_id || s.user_id === product.seller_id) : null;
+    const showTenureBadge = isCar && cardSeller?.status === "approved";
+    
+    let sellerYears = 1;
+    if (cardSeller?.created_at) {
+        const joinedDate = new Date(cardSeller.created_at);
+        const years = new Date().getFullYear() - joinedDate.getFullYear();
+        sellerYears = years > 0 ? years : 1;
+    }
+
     const handleDoubleTap = useCallback((e: React.MouseEvent | React.TouchEvent) => {
         const now = Date.now();
         if (now - lastTapRef.current < 400) {
@@ -142,8 +153,16 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                         </div>
                     )}
                     {product.stock !== undefined && product.stock > 0 && product.stock <= 3 && (
-                        <div className="absolute bottom-3 right-3 z-30 bg-red-600/90 backdrop-blur-md text-white px-2 py-1 text-[9px] font-black uppercase tracking-widest rounded shadow-md border border-red-400 flex items-center gap-1">
+                        <div className="absolute bottom-10 right-3 z-30 bg-red-600/90 backdrop-blur-md text-white px-2 py-1 text-[9px] font-black uppercase tracking-widest rounded shadow-md border border-red-400 flex items-center gap-1">
                             <AlertTriangle className="h-2.5 w-2.5" /> Almost Sold Out
+                        </div>
+                    )}
+
+                    {/* Seller Tenure Badge (Bottom Right Image) */}
+                    {showTenureBadge && (
+                        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 px-2 py-1 bg-blue-600/90 backdrop-blur-md rounded shadow-md border border-blue-400">
+                            <ShieldCheck className="h-2.5 w-2.5 text-white" />
+                            <span className="text-[9px] font-black text-white uppercase tracking-widest">{sellerYears} {sellerYears > 1 ? 'Years' : 'Year'}+</span>
                         </div>
                     )}
 

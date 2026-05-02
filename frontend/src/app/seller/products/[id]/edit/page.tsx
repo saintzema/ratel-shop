@@ -37,6 +37,8 @@ export default function EditProduct() {
     const galleryFileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
     const [product, setProduct] = useState<Product | null>(null);
+    const [minFinancingPrice, setMinFinancingPrice] = useState(300000);
+    const [isPremium, setIsPremium] = useState(false);
     const [formData, setFormData] = useState({
         name: "",
         category: "",
@@ -68,6 +70,16 @@ export default function EditProduct() {
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {
         const loadData = () => {
+            try {
+                const adminSettings = JSON.parse(localStorage.getItem('fp_admin_settings') || '{}');
+                if (adminSettings.minFinancingPrice) setMinFinancingPrice(Number(adminSettings.minFinancingPrice));
+            } catch {}
+
+            const seller = DataSyncService.getCurrentSeller();
+            if (seller && ['Pro', 'Growth', 'Scale'].includes(seller.subscription_plan || '')) {
+                setIsPremium(true);
+            }
+
             const currentTaxonomy = DataSyncService.getTaxonomy();
             setTaxonomy(currentTaxonomy);
 
@@ -164,7 +176,16 @@ export default function EditProduct() {
     };
 
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({ ...formData, price: formatPriceWithCommas(e.target.value) });
+        const newPriceFormatted = formatPriceWithCommas(e.target.value);
+        const numericPrice = parseInt(newPriceFormatted.replace(/,/g, ""));
+        
+        setFormData(prev => {
+            const next = { ...prev, price: newPriceFormatted };
+            if (prev.financing_available && !isPremium && !isNaN(numericPrice) && numericPrice < minFinancingPrice) {
+                next.financing_available = false;
+            }
+            return next;
+        });
     };
 
     const handleOriginalPriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -748,11 +769,20 @@ export default function EditProduct() {
 
                 <div className="ml-10 space-y-6">
                     <div className="flex items-center justify-between p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer group"
-                        onClick={() => setFormData(prev => ({ ...prev, financing_available: !prev.financing_available }))}
+                        onClick={() => {
+                            const currentPrice = parseInt(formData.price.replace(/,/g, ""));
+                            if (!formData.financing_available && !isPremium && (isNaN(currentPrice) || currentPrice < minFinancingPrice)) {
+                                if (confirm(`Product price must be at least ₦${minFinancingPrice.toLocaleString()} to enable financing. Upgrade to a premium plan to bypass this limit. Click OK to view plans.`)) {
+                                    router.push("/seller/settings/billing");
+                                }
+                                return;
+                            }
+                            setFormData(prev => ({ ...prev, financing_available: !prev.financing_available }));
+                        }}
                     >
                         <div className="space-y-1">
                             <h3 className="text-sm font-bold text-gray-900 group-hover:text-blue-600 transition-colors">Enable Buy Now, Pay Later (BNPL)</h3>
-                            <p className="text-xs text-gray-500">Allow customers to pay in monthly installments (3, 6, 12, or 24 months).</p>
+                            <p className="text-xs text-gray-500">Allow customers to pay in monthly installments (3, 6, 12, or 24 months). <br/><span className="text-[10px] text-gray-400 font-semibold italic mt-1 inline-block">Note: Products must be above ₦{minFinancingPrice.toLocaleString()} unless you are on a premium plan.</span></p>
                         </div>
                         <div className={`w-12 h-6 rounded-full transition-colors relative ${formData.financing_available ? 'bg-blue-600' : 'bg-gray-200'}`}>
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.financing_available ? 'left-7' : 'left-1 shadow-sm'}`} />
