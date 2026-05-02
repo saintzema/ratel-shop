@@ -650,7 +650,7 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
         <>
             <AnimatePresence>
                 {isOpen && (
-                    <div className="fixed inset-0 z-[9999] flex items-center md:items-start pt-0 md:pt-[10vh] justify-center p-4 overflow-hidden">
+                    <div className="fixed inset-0 z-[9999] flex items-center md:items-start pt-0 md:pt-[10vh] justify-center p-4">
                         <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
