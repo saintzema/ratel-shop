@@ -422,6 +422,7 @@ function HomeContent() {
                           setIsPriceModalOpen(true);
                         } else if (ad.link) {
                           router.push(ad.link);
+                        }
                       }}
                     >
                       <img 
