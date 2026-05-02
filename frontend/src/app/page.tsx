@@ -378,7 +378,7 @@ function HomeContent() {
                   <div className="absolute z-30 flex items-center gap-2 md:gap-4 bottom-6 md:top-10 md:bottom-auto left-0 right-0 md:left-10 md:right-auto justify-center md:justify-start px-4 md:px-0">
                     <Button
                       size="lg"
-                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/10 hover:bg-white/20 backdrop-blur-2xl border border-white/30 text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden"
+                      className="rounded-full px-4 md:px-7 h-9 md:h-12 bg-white/10 hover:bg-white/20 backdrop-blur-2xl border-none text-white font-black text-[10px] md:text-[14px] shadow-2xl flex items-center gap-1.5 md:gap-2.5 transition-all active:scale-95 group overflow-hidden glassy-gradient-border"
                       onClick={() => setIsPriceModalOpen(true)}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -442,7 +442,7 @@ function HomeContent() {
           {/* ─── Content Body ─── */}
           <div ref={productSectionRef} className="relative z-20 w-full bg-[#F5F5F7]">
             {/* Secondary Quick Categories Bar (Pills) - Now Sticky and Interactive */}
-            <div className="sticky top-[60px] md:top-[68px] z-[40] bg-[#F5F5F7] border-b border-gray-200 shadow-sm transition-all pb-1">
+            <div className="sticky top-[110px] md:top-[130px] z-[40] bg-[#F5F5F7]/80 backdrop-blur-xl border-b border-gray-200 shadow-sm transition-all pb-1">
               <div id="pills-container" className="container mx-auto px-1 md:px-2 pt-2 pb-2 flex items-center gap-2 overflow-x-auto scrollbar-hide no-scrollbar relative scroll-smooth">
                 {TEMU_CATEGORIES.map((cat) => {
                   const isActive = activeTab === cat;
