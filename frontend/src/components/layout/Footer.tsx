@@ -24,6 +24,9 @@ export function Footer() {
               <Link href="/about" className="hover:underline hover:text-white transition-colors">About FairPrice</Link>
             </li>
             <li>
+              <Link href="/features" className="hover:underline hover:text-white transition-colors">Platform Features</Link>
+            </li>
+            <li>
               <Link href="/affiliate" className="hover:underline hover:text-white transition-colors">Affiliate & Influencer Program</Link>
             </li>
             <li>

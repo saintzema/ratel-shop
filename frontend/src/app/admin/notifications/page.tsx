@@ -60,11 +60,11 @@ export default function AdminPushNotifications() {
     const [broadcastSuccess, setBroadcastSuccess] = useState(false);
     const [showProductSearch, setShowProductSearch] = useState(false);
     const [productSearchQuery, setProductSearchQuery] = useState("");
-
-    // Tabs
     const [activeTab, setActiveTab] = useState<"push" | "whatsapp">("push");
     const [isWhatsAppBroadcasting, setIsWhatsAppBroadcasting] = useState(false);
     const [whatsappSuccess, setWhatsappSuccess] = useState(false);
+    const [whatsappReach, setWhatsappReach] = useState(0);
+    const [templateName, setTemplateName] = useState("product_offer_v1");
 
     // Automation Templates State
     const [templates, setTemplates] = useState<NotificationTemplate[]>(DEFAULT_TEMPLATES);
@@ -86,6 +86,12 @@ export default function AdminPushNotifications() {
             router.push("/");
             return;
         }
+
+        // Fetch WhatsApp Reach
+        fetch("/api/admin/whatsapp-broadcast?stats=true")
+            .then(res => res.json())
+            .then(data => setWhatsappReach(data.totalReach || 0))
+            .catch(console.error);
 
         const saved = localStorage.getItem("fp_admin_notification_templates");
         if (saved) {
@@ -163,6 +169,7 @@ export default function AdminPushNotifications() {
                 body: JSON.stringify({
                     product: selectedProduct,
                     message: broadcastBody,
+                    templateName: selectedProduct ? "product_offer_v1" : templateName,
                     targetUsers: "all"
                 })
             });
@@ -213,8 +220,15 @@ export default function AdminPushNotifications() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                         <div className="text-right">
-                            <p className="text-3xl font-black text-white">{DataSyncService.getAllUsers().length + DataSyncService.getSellers().length}</p>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Active Reach</p>
+                            <p className="text-3xl font-black text-white">
+                                {activeTab === "push" 
+                                    ? DataSyncService.getAllUsers().length + DataSyncService.getSellers().length
+                                    : whatsappReach
+                                }
+                            </p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                                {activeTab === "push" ? "Active Sessions" : "Unique WA Reach"}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -346,13 +360,28 @@ export default function AdminPushNotifications() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-xs font-black uppercase tracking-[0.1em] text-gray-400 pl-1">Destination Link</label>
-                                    <Input 
-                                        placeholder="/product/iphone-15" 
-                                        value={broadcastLink}
-                                        onChange={(e) => setBroadcastLink(e.target.value)}
-                                        className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all text-sm font-bold px-6"
-                                    />
+                                    <label className="text-xs font-black uppercase tracking-[0.1em] text-gray-400 pl-1">
+                                        {activeTab === "push" ? "Destination Link" : "WhatsApp Template"}
+                                    </label>
+                                    {activeTab === "push" ? (
+                                        <Input 
+                                            placeholder="/product/iphone-15" 
+                                            value={broadcastLink}
+                                            onChange={(e) => setBroadcastLink(e.target.value)}
+                                            className="h-14 rounded-2xl border-gray-100 bg-gray-50/50 focus:bg-white transition-all text-sm font-bold px-6"
+                                        />
+                                    ) : (
+                                        <select 
+                                            value={templateName}
+                                            onChange={(e) => setTemplateName(e.target.value)}
+                                            className="w-full h-14 rounded-2xl border border-gray-100 bg-gray-50/50 focus:bg-white px-6 text-sm font-bold outline-none transition-all"
+                                        >
+                                            <option value="product_offer_v1">Product Offer (Active)</option>
+                                            <option value="monthly_promo">Monthly Promo</option>
+                                            <option value="happy_new_month">Happy New Month</option>
+                                            <option value="hello_world">Connection Test</option>
+                                        </select>
+                                    )}
                                 </div>
                             </div>
 

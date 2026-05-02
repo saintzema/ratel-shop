@@ -85,7 +85,7 @@ export class WhatsAppService {
 
         try {
             const response = await fetch(
-                `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/marketing_messages`,
+                `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
                 {
                     method: "POST",
                     headers: {
@@ -117,30 +117,41 @@ export class WhatsAppService {
     }
 
     /**
-     * Sends a direct product offer with a Buy Now link
+     * Sends a flexible marketing broadcast (e.g. Happy New Month)
+     * Uses a template with variables for the message and link
      */
-    static async sendProductOffer(to: string, product: { name: string, price: number, url: string, imageUrl?: string }) {
-        const components = [
-            {
+    static async sendMarketingBroadcast(to: string, data: { 
+        templateName: string, 
+        bodyText?: string, 
+        headerImage?: string,
+        buttonLink?: string 
+    }) {
+        const components: any[] = [];
+
+        if (data.headerImage) {
+            components.push({
                 type: "header",
-                parameters: product.imageUrl ? [{ type: "image", image: { link: product.imageUrl } }] : []
-            },
-            {
+                parameters: [{ type: "image", image: { link: data.headerImage } }]
+            });
+        }
+
+        if (data.bodyText) {
+            components.push({
                 type: "body",
-                parameters: [
-                    { type: "text", text: product.name },
-                    { type: "text", text: `₦${product.price.toLocaleString()}` }
-                ]
-            },
-            {
+                parameters: [{ type: "text", text: data.bodyText }]
+            });
+        }
+
+        if (data.buttonLink) {
+            components.push({
                 type: "button",
                 sub_type: "url",
                 index: "0",
-                parameters: [{ type: "text", text: product.url.split('/').pop() }]
-            }
-        ];
+                parameters: [{ type: "text", text: data.buttonLink.split('/').pop() || "" }]
+            });
+        }
 
-        return this.sendMarketingMessage(to, "product_offer_v1", components);
+        return this.sendMarketingMessage(to, data.templateName, components);
     }
 
     /**
