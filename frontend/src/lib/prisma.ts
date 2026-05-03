@@ -4,10 +4,9 @@ import { PrismaNeon } from "@prisma/adapter-neon";
 import ws from "ws";
 
 // 1. Setup for Neon Serverless
-if (typeof window === 'undefined') {
-    // Only set the websocket constructor if we are actually using Neon serverless
-    const isLocal = process.env.DATABASE_URL?.includes('localhost') || process.env.DATABASE_URL?.includes('127.0.0.1');
-    if (!isLocal) {
+if (typeof window === "undefined") {
+    const isLocal = CONNECTION_STRING?.includes("localhost") || CONNECTION_STRING?.includes("127.0.0.1");
+    if (!isLocal && !neonConfig.webSocketConstructor) {
         neonConfig.webSocketConstructor = ws;
     }
 }

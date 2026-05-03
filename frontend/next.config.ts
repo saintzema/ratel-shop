@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ["ws"],
 };
 
 export default nextConfig;
