@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "rm -rf .next && prisma generate && prisma db push --accept-data-loss && next build --no-turbopack",
+    "build": "prisma generate && prisma db push --accept-data-loss && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint"
@@ -43,7 +43,7 @@
     "framer-motion": "^12.34.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.563.0",
-    "next": "16.1.6",
+    "next": "15.3.3",
     "next-auth": "^4.24.13",
     "pg": "^8.19.0",
     "qrcode.react": "^4.2.0",
@@ -64,7 +64,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.18.1",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "15.3.3",
     "prisma": "^6.5.0",
     "tailwindcss": "^4",
     "tsx": "^4.19.2",
