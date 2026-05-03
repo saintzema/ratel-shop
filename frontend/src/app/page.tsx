@@ -320,7 +320,13 @@ function HomeContent() {
     const getByCategory = (cat: string) => pool.filter(p => p.category === cat).slice(0, 15);
 
     return {
-      topPicks: pool.slice(0, 20),
+      topPicks: pool
+        .sort((a, b) => {
+            if (a.is_trending && !b.is_trending) return -1;
+            if (!a.is_trending && b.is_trending) return 1;
+            return (b.sold_count || 0) - (a.sold_count || 0);
+        })
+        .slice(0, 20),
       sponsoredProducts: pool.filter(p => p.is_sponsored).slice(0, 15),
       dealProducts: pool.filter(p => p.original_price && p.original_price > p.price).slice(0, 30),
       phonesProducts: getByCategory("Phones"),

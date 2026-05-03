@@ -150,6 +150,28 @@ function OrdersContent() {
         }
     }, [searchParams, orders, selectedOrderForTracking]);
 
+    // Handle Deep-linking for Ziva Concierge
+    useEffect(() => {
+        const orderId = searchParams?.get("orderId");
+        const openConcierge = searchParams?.get("openConcierge") === "true";
+        
+        if (orderId && openConcierge && orders.length > 0 && !showConcierge) {
+            const order = orders.find(o => o.id === orderId || o.tracking_id === orderId);
+            if (order) {
+                setConciergeOrder(order);
+                setConciergeMode("post_order");
+                setShowConcierge(true);
+                
+                // Clear params from URL to avoid re-opening on refresh
+                const newParams = new URLSearchParams(searchParams.toString());
+                newParams.delete("orderId");
+                newParams.delete("openConcierge");
+                const newUrl = window.location.pathname + (newParams.toString() ? `?${newParams.toString()}` : "");
+                window.history.replaceState({}, document.title, newUrl);
+            }
+        }
+    }, [searchParams, orders, showConcierge]);
+
     const handleCancelOrder = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;

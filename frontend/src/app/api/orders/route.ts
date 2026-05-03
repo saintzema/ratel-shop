@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 
 export const runtime = "nodejs";
 
@@ -42,7 +42,9 @@ export async function GET(request: Request) {
                         imageUrl: true,
                         price: true
                     }
-                }
+                },
+                chatMessages: true,
+                zivaActive: true
             },
             orderBy: {
                 createdAt: 'desc',
@@ -200,6 +202,10 @@ export async function PATCH(request: Request) {
         if (updates.status) prismaUpdates.status = updates.status;
         if (updates.escrow_status) prismaUpdates.escrowStatus = updates.escrow_status;
         if (updates.payout_status) prismaUpdates.payoutStatus = updates.payout_status;
+        if (updates.tracking_status) prismaUpdates.trackingStatus = updates.tracking_status;
+        if (updates.tracking_id) prismaUpdates.trackingId = updates.tracking_id;
+        if (updates.carrier) prismaUpdates.carrier = updates.carrier;
+        if (updates.tracking_steps) prismaUpdates.trackingSteps = updates.tracking_steps;
 
         const order = await db.order.update({
             where: { id },

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"; // REBUILD_TRIGGER_ENV_FIX
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export const runtime = "nodejs";

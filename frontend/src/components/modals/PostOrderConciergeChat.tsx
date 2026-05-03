@@ -12,7 +12,6 @@ import { Capacitor } from "@capacitor/core";
 import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
 import { ShoppingCart } from "lucide-react";
-import { playDingSound } from "@/lib/audio";
 import { getProductUrl } from "@/lib/utils";
 import { isVehicle, hasFinancing } from "@/lib/financing-utils";
 
@@ -276,7 +275,6 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         setInput("");
         setIsTyping(true);
         setReplyingTo(null);
-        playDingSound(); // Quick feedback chime for sending
 
         // Smart Ziva Response
         setTimeout(() => {
@@ -450,7 +448,6 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
     const handleRate = (stars: number) => {
         if (reviewRating > 0 || !product) return;
         setReviewRating(stars);
-        playDingSound(); // Play chime for rating submission
 
         // Save the review instantly
         const currentUser = DataSyncService.getCurrentUser();

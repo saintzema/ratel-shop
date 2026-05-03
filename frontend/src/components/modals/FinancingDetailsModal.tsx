@@ -93,8 +93,8 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                         </div>
                                     </div>
 
-                                    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-                                        <table className="w-full text-left text-sm border-collapse">
+                                    <div className="overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm scrollbar-hide">
+                                        <table className="w-full min-w-[500px] text-left text-sm border-collapse">
                                             <thead className="bg-gray-50/80 border-b border-gray-100">
                                                 <tr>
                                                     <th className="px-5 py-4 font-black text-gray-400 uppercase tracking-widest text-[10px] w-[30%]">Tenor / Duration</th>
@@ -125,7 +125,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                                             <td className="px-5 py-5 text-center">
                                                                 <div className="flex flex-col items-center">
                                                                     <span className="font-bold text-gray-600 text-sm">{formatPrice(analysis.deposit)}</span>
-                                                                    <span className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{Math.round((analysis.deposit / basePrice) * 100)}% Deposit</span>
+                                                                    <span className="text-[10px] text-gray-400 font-bold uppercase mt-0.5">{Math.round((analysis.deposit / (basePrice || 1)) * 100)}% Deposit</span>
                                                                 </div>
                                                             </td>
                                                             <td className="px-5 py-5 text-right">

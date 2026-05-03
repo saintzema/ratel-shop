@@ -39,14 +39,22 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
 
     // Max negotiation discount — admin-configurable via SystemSettings.
     // Default: 5% means users cannot offer less than 95% of the listing price.
-    const maxDiscountPct = (typeof window !== "undefined" && localStorage.getItem("fp_max_negotiation_discount"))
-        ? Number(localStorage.getItem("fp_max_negotiation_discount")) : 5;
-    const minAllowedPrice = product ? Math.round(product.price * (1 - maxDiscountPct / 100)) : 0;
+    const maxDiscountPct = (() => {
+        try {
+            if (typeof window !== "undefined") {
+                const saved = localStorage.getItem("fp_max_negotiation_discount");
+                if (saved) return Number(saved);
+            }
+        } catch (e) { console.warn("localStorage access failed:", e); }
+        return 5;
+    })();
+    
+    const minAllowedPrice = product ? Math.round((product.price || 0) * (1 - maxDiscountPct / 100)) : 0;
 
     // Get 3 similar products to suggest
     const similarProducts = product ? DataSyncService.getProducts()
-        .filter(p => p.category === product.category && p.id !== product.id && p.price < product.price)
-        .sort((a, b) => b.sold_count - a.sold_count)
+        .filter(p => p.category === product.category && p.id !== product.id && p.price < (product.price || 0))
+        .sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0))
         .slice(0, 3) : [];
 
     const handleAnalyze = async () => {
@@ -59,7 +67,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             setAnalysisStep(1);
 
             // Step 2: Extracting data via Gemini API
-            const analysis = await PriceEngine.analyzePrice(product.name);
+            const analysis = await PriceEngine.analyzePrice(product?.name || "Product");
             setAnalysisStep(2);
 
             // Step 3: Calculation logic based on real API response
@@ -138,7 +146,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
         if (!currentUserId) currentUserId = "guest_session";
 
         // Create a conversation thread message string
-        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${product.price.toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
+        const negMessageText = `🤝 Negotiation Request\n\nProduct: ${product.name}\nCurrent Price: ₦${(product.price || 0).toLocaleString()}\nMy Offer: ₦${Number(proposedPrice).toLocaleString()}${message ? `\n\nMessage: ${message}` : ''}\n\nWaiting for seller to respond...`;
 
         // Create new negotiation
         const newNegotiation = {
@@ -162,13 +170,14 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
 
         startConversation(
             `neg_${product.id}`,
-            product.name,
+            product.name || "Negotiated Item",
             product.image_url,
             negMessageText,
             product.seller_name || "Global Store"
         );
 
-        playDingSound(); 
+        // Audio trigger removed to align with "no user-generated sounds" policy
+        // playDingSound(); 
         
         if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
             setTimeout(() => {
@@ -246,13 +255,13 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                             AI Price Checker
                                         </Button>
                                         
-                                        {(product.category === 'cars' || product.category === 'vehicles' || product.name.toLowerCase().includes('car') || product.name.toLowerCase().includes('toyota') || product.name.toLowerCase().includes('honda')) && (
+                                        {(product?.category === 'cars' || product?.category === 'vehicles' || product?.name?.toLowerCase()?.includes('car') || product?.name?.toLowerCase()?.includes('toyota') || product?.name?.toLowerCase()?.includes('honda')) && (
                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 onClick={() => {
                                                     setProposedPrice(minAllowedPrice.toString());
-                                                    setMessage(`What is the last price for this ${product.name}? I am interested and ready to pay.`);
+                                                    setMessage(`What is the last price for this ${product?.name || 'item'}? I am interested and ready to pay.`);
                                                 }}
                                                 className="flex-1 border-amber-200 text-amber-600 hover:text-amber-700 hover:bg-amber-50 bg-amber-50/50"
                                             >

@@ -1299,7 +1299,7 @@ export function ZivaChat() {
                                 )}
                             </div>
 
-                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95">
+                            <button onClick={toggleChat} className="absolute top-1/2 -translate-y-1/2 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full text-white transition-all backdrop-blur-md shadow-sm z-[999] pointer-events-auto active:scale-95 cursor-pointer">
                                 <X className="h-4 w-4 drop-shadow-sm" strokeWidth={3} />
                             </button>
                         </div>
@@ -1583,7 +1583,7 @@ export function ZivaChat() {
                     transition={{ duration: 0.6 }}
                     onClick={toggleChat}
                     className={cn(
-                        "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all",
+                        "relative h-14 w-14 md:h-16 md:w-16 rounded-full border-2 flex items-center justify-center group shadow-2xl shadow-emerald-900/40 overflow-visible transition-all cursor-pointer",
                         isOpen
                             ? "border-emerald-400/50 ring-2 ring-emerald-400/30"
                             : "border-emerald-500/30"
@@ -1625,7 +1625,7 @@ export function ZivaChat() {
                             <div className="relative bg-blue-600 text-white px-5 py-3.5 rounded-2xl rounded-bl-none shadow-2xl border border-blue-400/30 w-[240px] md:w-[280px]">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); setShowInviteBubble(false); }}
-                                    className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors shadow-lg"
+                                    className="absolute -top-2 -right-2 bg-gray-900 text-white rounded-full p-0.5 border border-white/20 hover:bg-black transition-colors shadow-lg cursor-pointer"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>

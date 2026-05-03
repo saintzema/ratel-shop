@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
+import { clients } from "@/lib/realtime-service";
 
 // Vercel serverless functions time out after 300s.
 // We bound the SSE connection to 25s and send a "reconnect" event so the
 // client's native EventSource auto-reconnect loop takes over cleanly.
 const MAX_DURATION_MS = 25_000;
-
-// In-memory client set — works in a single serverless instance.
-// Multiple Vercel instances won't share this, but the polling fallback in
-// each client compensates for missed real-time pushes.
-let clients: Set<ReadableStreamDefaultController> = new Set();
 
 export async function GET() {
     const encoder = new TextEncoder();
@@ -50,15 +46,3 @@ export async function GET() {
     });
 }
 
-// Helper to broadcast messages to all connected SSE clients
-export function broadcast(data: any) {
-    const message = `data: ${JSON.stringify(data)}\n\n`;
-    const encoder = new TextEncoder();
-    clients.forEach(client => {
-        try {
-            client.enqueue(encoder.encode(message));
-        } catch {
-            clients.delete(client);
-        }
-    });
-}

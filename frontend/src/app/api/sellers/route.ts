@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 import { getUserFromRequest } from "@/lib/jwt";
 
 export async function GET(req: Request) {

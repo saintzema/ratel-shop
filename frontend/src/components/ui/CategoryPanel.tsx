@@ -75,7 +75,14 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
           // Filter with Match Strength
           let filtered = allData.map(p => {
               if (catLower === "all") return { product: p, score: 100 };
-              if (catLower === "trending") return { product: p, score: p.is_trending ? 100 : 0 };
+              if (catLower === "trending") {
+                  let score = 0;
+                  if (p.is_trending) score = 100; // Admin explicitly set
+                  else if (p.sold_count && p.sold_count > 100) score = 90; // High sales
+                  else if (p.is_sponsored && p.avg_rating > 4.5) score = 80; // Highly rated sponsored
+                  else if (p.sold_count && p.sold_count > 20) score = 50; // Medium sales
+                  return { product: p, score };
+              }
               if (catLower === "best-selling") {
                   let score = 0;
                   if (p.sold_count && p.sold_count > 50) score = 100;

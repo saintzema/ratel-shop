@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { broadcast } from "../../realtime/route";
+import { broadcast } from "@/lib/realtime-service";
 import crypto from "crypto";
 
 export const runtime = "nodejs";

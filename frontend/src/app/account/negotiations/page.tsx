@@ -63,7 +63,7 @@ export default function NegotiationsPage() {
     }, [user]);
 
     const handleAction = (id: string, status: "accepted" | "rejected") => {
-        DataSyncService.updateNegotiationStatus(id, status);
+        DataSyncService.updateNegotiationStatus(id, status, "buyer");
 
         const userId = user?.id || user?.email || "";
         const all = DataSyncService.getNegotiations(undefined, userId);

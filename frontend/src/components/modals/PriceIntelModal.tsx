@@ -392,8 +392,13 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
     useEffect(() => {
         if (isOpen) {
             const loadHistory = () => {
-                const h = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
-                setRecentHistory(h);
+                try {
+                    const h = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
+                    setRecentHistory(h);
+                } catch (e) {
+                    console.warn("Failed to load price intel history", e);
+                    setRecentHistory([]);
+                }
             };
             loadHistory();
             window.addEventListener("storage", loadHistory);
@@ -629,9 +634,11 @@ export function PriceIntelModal({ isOpen, onClose, initialQuery }: { isOpen: boo
                     category: intel.category,
                     timestamp: Date.now()
                 };
-                const existing = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
-                const updated = [historyItem, ...existing.filter((h: any) => h.name !== intel.name)].slice(0, 6);
-                localStorage.setItem('fp_price_intel_history', JSON.stringify(updated));
+                if (typeof window !== "undefined") {
+                    const existing = JSON.parse(localStorage.getItem('fp_price_intel_history') || '[]');
+                    const updated = [historyItem, ...existing.filter((h: any) => h.name !== intel.name)].slice(0, 6);
+                    localStorage.setItem('fp_price_intel_history', JSON.stringify(updated));
+                }
                 // Signal change for UI
                 window.dispatchEvent(new Event("storage"));
             } catch (e) { console.error("History persistence failed", e); }

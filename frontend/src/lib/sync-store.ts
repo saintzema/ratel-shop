@@ -88,6 +88,7 @@ class DataSyncServiceService {
     // Track product IDs with local edits not yet confirmed by DB
     private _pendingEdits: Set<string> = new Set();
     private _pendingSellerEdits: Set<string> = new Set();
+    private _pendingOrderEdits: Set<string> = new Set();
     private _deletedProductIds: Set<string> = new Set();
     private _deletedSellerIds: Set<string> = new Set();
     private _lastFullSync: number = 0;
@@ -125,6 +126,7 @@ class DataSyncServiceService {
     // Track negotiation IDs with local edits not confirmed by DB
     private _pendingNegotiationEdits: Set<string> = new Set();
     private readonly _PENDING_NEGOTIATION_KEY = "fp_pending_negotiations";
+    private readonly _PENDING_ORDER_KEY = "fp_pending_order_edits";
     private _isRegisteringSeller = false;
     private _autoReleaseActive = false;
     public readonly STORAGE_KEYS = {
@@ -220,6 +222,8 @@ class DataSyncServiceService {
                 if (savedSellers) this._pendingSellerEdits = new Set(JSON.parse(savedSellers));
                 const savedNegs = localStorage.getItem(this._PENDING_NEGOTIATION_KEY);
                 if (savedNegs) this._pendingNegotiationEdits = new Set(JSON.parse(savedNegs));
+                const savedOrders = localStorage.getItem(this._PENDING_ORDER_KEY);
+                if (savedOrders) this._pendingOrderEdits = new Set(JSON.parse(savedOrders));
             } catch { /* ignore */ }
             this.syncWithDB();
             this.startRealtimeSync();
@@ -348,7 +352,7 @@ class DataSyncServiceService {
                 let collectionToSync: string | undefined = undefined;
                 if (data.type === "product_updated") collectionToSync = "products";
                 else if (data.type === "seller_updated") collectionToSync = "sellers";
-                else if (data.type === "order_updated") collectionToSync = "orders";
+                else if (data.type === "order_updated" || data.type === "order_message_sync") collectionToSync = "orders";
                 else if (data.type === "negotiation_updated") collectionToSync = "negotiations";
                 else if (data.type === "notification") collectionToSync = "notifications";
 
@@ -421,7 +425,10 @@ class DataSyncServiceService {
             const mockUnfetched = Promise.resolve({ ok: false, json: () => Promise.resolve(null) } as Response);
 
             const sellerId = this.getCurrentSeller()?.id || this.getCurrentSeller()?.user_id;
-            const ordersUrl = sellerId ? `/api/orders?sellerId=${sellerId}` : "/api/orders?all=true";
+            const customerId = user?.id;
+            const ordersUrl = sellerId 
+                ? `/api/orders?sellerId=${sellerId}` 
+                : (customerId ? `/api/orders?customerId=${customerId}` : "/api/orders?all=true");
 
             const [
                 productsResult, sellersResult, searchCacheResult, ordersResult, 
@@ -625,6 +632,12 @@ class DataSyncServiceService {
                         } : undefined,
                     };
                     mergedOrders.set(dbOrder.id, mapped);
+                }
+                
+                // 🛡️ Preserve user's pending order edits over DB versions (absolute priority)
+                for (const pendingId of this._pendingOrderEdits) {
+                    const localVersion = localMap.get(pendingId);
+                    if (localVersion) mergedOrders.set(pendingId, localVersion);
                 }
 
                 const newDataArray = Array.from(mergedOrders.values());
@@ -867,7 +880,12 @@ class DataSyncServiceService {
             const dbNegotiations: any[] = negData.negotiations || [];
             
             if (dbNegotiations.length > 0) {
-                const localNegotiations: any[] = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+                let localNegotiations: any[] = [];
+                try {
+                    localNegotiations = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]");
+                } catch (e) {
+                    console.warn("Failed to parse local negotiations", e);
+                }
                 const localMap = new Map(localNegotiations.map((n: any) => [n.id, n]));
 
                 for (const dbNeg of dbNegotiations) {
@@ -932,11 +950,15 @@ class DataSyncServiceService {
                     }
                 }
                     const newDataStr = JSON.stringify(Array.from(localMap.values()));
-                    const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
-                    if (newDataStr !== oldDataStr) {
-                        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
+                    try {
+                        const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
+                        if (newDataStr !== oldDataStr) {
+                            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }
+                    } catch (e) {
+                        console.warn("Failed to persist negotiations to localStorage", e);
                     }
                 }
             // Success: reset breaker
@@ -1166,7 +1188,11 @@ class DataSyncServiceService {
     getNegotiations(sellerId?: string, buyerId?: string): NegotiationRequest[] {
         if (typeof window === "undefined") return [];
         let all: any[] = [];
-        try { all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]"); } catch { /* corrupted */ }
+        try { 
+            all = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS) || "[]"); 
+        } catch (e) { 
+            console.warn("Corrupted negotiations in storage", e);
+        }
         
         let filtered = all;
         
@@ -1207,7 +1233,7 @@ class DataSyncServiceService {
             seller_id: product?.seller_id || '',
             chat_messages: request.chat_messages || [{
                 sender: "buyer",
-                text: request.message || `Initial offer of ₦${request.proposed_price.toLocaleString()}`,
+                text: request.message || `Initial offer of ₦${(request.proposed_price || 0).toLocaleString()}`,
                 timestamp: new Date().toISOString(),
                 readByRecipient: false
             }]
@@ -1215,7 +1241,11 @@ class DataSyncServiceService {
         
         const current = this.getNegotiations();
         const updated = [enrichedRequest, ...current];
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        try {
+            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        } catch (e) {
+            console.warn("Failed to add negotiation to localStorage", e);
+        }
 
         // Persist to Postgres (queued if offline)
         resilientFetch("/api/negotiations", { method: "POST", body: enrichedRequest, type: "general" });
@@ -1300,12 +1330,13 @@ class DataSyncServiceService {
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
-    updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased") {
+    updateNegotiationStatus(id: string, status: "accepted" | "rejected" | "purchased", actor: "buyer" | "seller" = "seller") {
         const current = this.getNegotiations();
         const negotiation = current.find(n => n.id === id);
         if (!negotiation) return;
 
-        const isRespondingToCounter = negotiation.status === "countered" && negotiation.counter_status === "pending";
+        // Only the buyer can respond to a seller's counter-offer using this path
+        const isRespondingToCounter = actor === "buyer" && negotiation.status === "countered" && negotiation.counter_status === "pending";
 
         const updated = current.map(n => {
             if (n.id !== id) return n;
@@ -1315,6 +1346,10 @@ class DataSyncServiceService {
                 updatedNeg.counter_status = status;
             } else {
                 updatedNeg.status = status;
+                // If seller accepts original offer while a counter is pending, clear the pending counter.
+                if (actor === "seller" && n.status === "countered" && n.counter_status === "pending") {
+                    updatedNeg.counter_status = undefined;
+                }
             }
 
             // Append a chat message so the response is visible in the chat thread
@@ -1328,13 +1363,19 @@ class DataSyncServiceService {
                         ? `✅ You accepted the counter offer of ₦${n.counter_price?.toLocaleString()}! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
                         : `❌ You rejected the counter offer of ₦${n.counter_price?.toLocaleString()}.`;
                 } else {
-                    text = status === "accepted"
-                        ? `✅ Your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
-                        : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`;
+                    if (actor === "seller") {
+                        text = status === "accepted"
+                            ? `✅ Your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} has been ACCEPTED! 🎉\n\nYou can now proceed to checkout at the negotiated price.`
+                            : `❌ Unfortunately, your offer of ₦${n.proposed_price.toLocaleString()} for ${product?.name || 'this item'} was declined.\n\nYou can try a different offer or purchase at the listed price.`;
+                    } else {
+                        text = status === "accepted"
+                            ? `✅ I've accepted your offer for ${product?.name || 'this item'}.`
+                            : `❌ I've rejected your offer for ${product?.name || 'this item'}.`;
+                    }
                 }
 
                 existingMessages.push({
-                    sender: isRespondingToCounter ? "buyer" as const : "seller" as const,
+                    sender: actor === "buyer" ? "buyer" as const : "seller" as const,
                     text: text,
                     timestamp: new Date().toISOString(),
                     readByRecipient: false
@@ -2409,68 +2450,68 @@ class DataSyncServiceService {
 
     /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
     /** Fuzzy match: find cached products across ALL queries that strictly match tokens */
-searchCacheFuzzyMatch(query: string): any[] {
-    if (typeof window === "undefined") return [];
-    
-    // Fallback to empty object if cache is missing to avoid crashes
-    const cache = this._getSearchCache() || {};
-    const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
+    searchCacheFuzzyMatch(query: string): any[] {
+        if (typeof window === "undefined") return [];
+        
+        // Fallback to empty object if cache is missing to avoid crashes
+        const cache = this._getSearchCache() || {};
+        const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 1);
 
-    // If query is empty or too short, don't show random cache items
-    if (tokens.length === 0) return [];
+        // If query is empty or too short, don't show random cache items
+        if (tokens.length === 0) return [];
 
-    const results: any[] = [];
-    const seenIds = new Set<string>();
+        const results: any[] = [];
+        const seenIds = new Set<string>();
 
-    Object.values(cache).forEach((products) => {
-        // CRITICAL FIX: Ensure 'products' is an array before iterating.
-        // This prevents the "e.forEach is not a function" error.
-        if (Array.isArray(products)) {
-            products.forEach(p => {
-                if (!p || !p.id || seenIds.has(p.id)) return;
-                
-                const name = (p.name || '').toLowerCase();
-                const category = (p.category || '').toLowerCase();
+        Object.values(cache).forEach((products) => {
+            // CRITICAL FIX: Ensure 'products' is an array before iterating.
+            // This prevents the "e.forEach is not a function" error.
+            if (Array.isArray(products)) {
+                products.forEach(p => {
+                    if (!p || !p.id || seenIds.has(p.id)) return;
+                    
+                    const name = (p.name || '').toLowerCase();
+                    const category = (p.category || '').toLowerCase();
 
-                // Ensure ALL typed words exist in either the product name or category
-                const matchesAll = tokens.every(t => name.includes(t) || category.includes(t));
+                    // Ensure ALL typed words exist in either the product name or category
+                    const matchesAll = tokens.every(t => name.includes(t) || category.includes(t));
 
-                if (matchesAll) {
-                    results.push(p);
-                    seenIds.add(p.id);
-                }
-            });
-        }
-    });
+                    if (matchesAll) {
+                        results.push(p);
+                        seenIds.add(p.id);
+                    }
+                });
+            }
+        });
 
-    // Return max 4 most relevant (sorted by name length to prefer tighter matches)
-    return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
-}
+        // Return max 4 most relevant (sorted by name length to prefer tighter matches)
+        return results.sort((a, b) => (a.name?.length || 0) - (b.name?.length || 0)).slice(0, 4);
+    }
 
-/** Direct access to the raw search cache */
-getAllSearchCache(): Record<string, any[]> {
-    return this._getSearchCache() || {};
-}
+    /** Direct access to the raw search cache */
+    getAllSearchCache(): Record<string, any[]> {
+        return this._getSearchCache() || {};
+    }
 
-/** Flat list of all cached products (crucial for Admin view stability) */
-getAllCachedProducts(): any[] {
-    const cache = this._getSearchCache() || {};
-    const seen = new Set<string>();
-    const all: any[] = [];
+    /** Flat list of all cached products (crucial for Admin view stability) */
+    getAllCachedProducts(): any[] {
+        const cache = this._getSearchCache() || {};
+        const seen = new Set<string>();
+        const all: any[] = [];
 
-    Object.values(cache).forEach((products) => {
-        // DEFENSIVE FIX: Guard against non-array values sitting in the store
-        if (Array.isArray(products)) {
-            products.forEach(p => {
-                if (p && p.id && !seen.has(p.id)) {
-                    seen.add(p.id);
-                    all.push(p);
-                }
-            });
-        }
-    });
-    return all;
-}
+        Object.values(cache).forEach((products) => {
+            // DEFENSIVE FIX: Guard against non-array values sitting in the store
+            if (Array.isArray(products)) {
+                products.forEach(p => {
+                    if (p && p.id && !seen.has(p.id)) {
+                        seen.add(p.id);
+                        all.push(p);
+                    }
+                });
+            }
+        });
+        return all;
+    }
     /** Update a product in the search cache (admin edits) */
     updateSearchCacheProduct(productId: string, updates: Partial<any>) {
         if (typeof window === "undefined") return;
@@ -2979,12 +3020,33 @@ getAllCachedProducts(): any[] {
             } else if (sender === 'admin') {
                 // Admin sent: notify customer and seller
                 if (order?.customer_id) {
+                    const customerUser = this.getUser(order.customer_id);
+                    const customerEmail = customerUser?.email || (order.customer_id.includes('@') ? order.customer_id : undefined);
+                    
                     this.addNotification({
                         userId: order.customer_id,
                         type: 'order',
                         message: `💬 Admin replied to your order #${orderId}`,
-                        link: `/account/orders`
+                        link: `/account/orders?orderId=${orderId}&openConcierge=true`
                     });
+
+                    if (customerEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: customerEmail,
+                                type: 'BUYER_ORDER_MESSAGE',
+                                payload: {
+                                    name: customerUser?.name || "Customer",
+                                    sellerName: "FairPrice Support",
+                                    orderId: orderId,
+                                    message: text,
+                                    dashboardUrl: `https://fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
+                                }
+                            })
+                        }).catch(() => {});
+                    }
                 }
                 if (order?.seller_id) {
                     this.addNotification({
@@ -2997,12 +3059,34 @@ getAllCachedProducts(): any[] {
             } else if (sender === 'seller') {
                 // Seller sent: notify customer and admin
                 if (order?.customer_id) {
+                    const customerUser = this.getUser(order.customer_id);
+                    const customerEmail = customerUser?.email || (order.customer_id.includes('@') ? order.customer_id : undefined);
+                    const seller = this.getSellers().find(s => s.id === order.seller_id);
+
                     this.addNotification({
                         userId: order.customer_id,
                         type: 'order',
                         message: `💬 Seller replied to your order #${orderId}`,
-                        link: `/account/orders`
+                        link: `/account/orders?orderId=${orderId}&openConcierge=true`
                     });
+
+                    if (customerEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: customerEmail,
+                                type: 'BUYER_ORDER_MESSAGE',
+                                payload: {
+                                    name: customerUser?.name || "Customer",
+                                    sellerName: seller?.business_name || "the Seller",
+                                    orderId: orderId,
+                                    message: text,
+                                    dashboardUrl: `https://fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
+                                }
+                            })
+                        }).catch(() => {});
+                    }
                 }
                 this.addNotification({
                     userId: 'admin',
@@ -3509,6 +3593,8 @@ getAllCachedProducts(): any[] {
                         tracking_id: o.trackingId,
                         carrier: o.carrier,
                         tracking_steps: o.trackingSteps || [],
+                        chat_messages: o.chatMessages || [],
+                        zivaActive: o.zivaActive,
                         created_at: o.createdAt,
                         updated_at: o.updatedAt
                     });
@@ -3639,9 +3725,25 @@ getAllCachedProducts(): any[] {
 
         const updated = orders.map(o => o.id === id ? { ...o, status } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        
+        // Mark as pending to prevent sync overwrite
+        this._pendingOrderEdits.add(id);
+        localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
         // Trigger balance recalculation if it impacts financials
         this.recalculateSellerBalances(order.seller_id);
+
+        // Sync to Remote DB
+        fetch("/api/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, status })
+        }).then(res => {
+            if (res.ok) {
+                this._pendingOrderEdits.delete(id);
+                localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+            }
+        }).catch(console.error);
 
         // Trigger Emails & Notifications based on status change
         if (order.status !== status) {
@@ -3662,6 +3764,7 @@ getAllCachedProducts(): any[] {
             const sellers = this.getSellers();
             const seller = sellers.find(s => s.id === order.seller_id);
             const sellerEmail = seller?.owner_email || `seller_${order.seller_id}@fairprice.ng`;
+            const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL || "fairprice2026@gmail.com";
 
             const dispatchEmail = (to: string, type: any, payload: any) => {
                  fetch("/api/email", {
@@ -3677,7 +3780,7 @@ getAllCachedProducts(): any[] {
                     name: resolvedName,
                     orderId: order.id,
                     productName,
-                    trackingUrl: `https://fairprice.ng/account/orders`
+                    trackingUrl: `https://fairprice.ng/account/orders?id=${order.id}`
                 });
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has been delivered.`, link: `/account/orders?id=${order.id}` });
             }
@@ -3708,7 +3811,18 @@ getAllCachedProducts(): any[] {
                     name: resolvedName,
                     orderId: order.id,
                     productName,
+                    trackingUrl: `https://fairprice.ng/account/orders?id=${order.id}`
                 });
+                
+                // ALSO Notify Admin!
+                dispatchEmail(adminEmail, "ORDER_SHIPPED", {
+                    name: "Admin",
+                    orderId: order.id,
+                    productName,
+                    sellerName: seller?.business_name || "a Seller",
+                    trackingUrl: `https://fairprice.ng/admin/orders?id=${order.id}`
+                });
+
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has shipped!`, link: `/account/orders?id=${order.id}` });
             }
 
@@ -3734,7 +3848,9 @@ getAllCachedProducts(): any[] {
         }
 
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
+
 
     updateOrderEscrow(id: string, escrow_status: Order["escrow_status"]) {
         const orders = this.getOrders();
@@ -3785,8 +3901,32 @@ getAllCachedProducts(): any[] {
         } : o);
 
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+        
+        // Mark as pending to prevent sync overwrite
+        this._pendingOrderEdits.add(id);
+        localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
-        // Notify Buyer
+        // Sync to Remote DB
+        fetch("/api/orders", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                id, 
+                carrier: carrier || order.carrier, 
+                tracking_id: tracking_id || order.tracking_id,
+                tracking_steps: updatedSteps,
+                tracking_status: status
+            })
+        }).then(res => {
+            if (res.ok) {
+                this._pendingOrderEdits.delete(id);
+                localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+            }
+        }).catch(console.error);
+
+        // Notify Buyer via email & notification
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
         this.addNotification({
             userId: order.customer_id,
             type: "order",

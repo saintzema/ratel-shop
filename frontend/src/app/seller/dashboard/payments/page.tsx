@@ -32,7 +32,7 @@ export default function QRPaymentsPage() {
     const qrRef = useRef<HTMLDivElement>(null);
 
     const isPremium = ["Pro", "Growth", "Scale"].includes(seller?.subscription_plan || "");
-    const logoToUse = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/assets/images/logo.png";
+    const logoToUse = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/logo.svg";
 
     const storeUrl = typeof window !== "undefined" 
         ? `${window.location.origin}/store/${seller?.store_url || seller?.id}`
@@ -47,7 +47,7 @@ export default function QRPaymentsPage() {
         
         setTimeout(() => {
             const invoice = {
-                id: `inv_${Date.now()}`,
+                id: `inv_${Math.random().toString(36).slice(2, 6).toUpperCase()}${Date.now().toString().slice(-4)}`,
                 seller_id: seller?.id || "",
                 amount: Number(amount),
                 label: label || `Payment to ${seller?.business_name}`,

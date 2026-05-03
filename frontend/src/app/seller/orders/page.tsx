@@ -42,6 +42,15 @@ export default function SellerOrders() {
     const [viewMode, setViewMode] = useState<"list" | "kanban">("list");
     const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
     const [cancelReason, setCancelReason] = useState<string>("");
+    
+    // Shipping Form State (Controlled)
+    const [shipCarrier, setShipCarrier] = useState("");
+    const [shipTrackingId, setShipTrackingId] = useState("");
+    const [shipDriverName, setShipDriverName] = useState("");
+    const [shipDriverPhone, setShipDriverPhone] = useState("");
+    const [shipLocation, setShipLocation] = useState("Lagos Warehouse");
+    const [shipArrivalDate, setShipArrivalDate] = useState("");
+
     const searchParams = useSearchParams();
 
     // Read ?filter= from URL (e.g. from dashboard Total Revenue card)
@@ -466,60 +475,67 @@ export default function SellerOrders() {
                                                             <Input
                                                                 placeholder="Carrier (RT Logistics, DHL...)"
                                                                 className="h-9 text-xs rounded-lg"
-                                                                id={`carrier-${order.id}`}
+                                                                value={shipCarrier}
+                                                                onChange={(e) => setShipCarrier(e.target.value)}
                                                             />
                                                             <Input
                                                                 placeholder="Tracking ID"
                                                                 className="h-9 text-xs rounded-lg"
-                                                                id={`tracking-${order.id}`}
+                                                                value={shipTrackingId}
+                                                                onChange={(e) => setShipTrackingId(e.target.value)}
                                                             />
                                                             <Input
                                                                 placeholder="Driver Name *"
                                                                 className="h-9 text-xs rounded-lg"
-                                                                id={`driver-name-${order.id}`}
+                                                                value={shipDriverName}
+                                                                onChange={(e) => setShipDriverName(e.target.value)}
                                                             />
                                                             <Input
                                                                 placeholder="Driver Phone *"
                                                                 className="h-9 text-xs rounded-lg"
-                                                                id={`driver-phone-${order.id}`}
+                                                                value={shipDriverPhone}
+                                                                onChange={(e) => setShipDriverPhone(e.target.value)}
                                                                 inputMode="tel"
                                                             />
                                                             <Input
                                                                 placeholder="Current Location"
                                                                 className="h-9 text-xs rounded-lg"
-                                                                defaultValue="Lagos Warehouse"
-                                                                id={`location-${order.id}`}
+                                                                value={shipLocation}
+                                                                onChange={(e) => setShipLocation(e.target.value)}
                                                             />
                                                             <Input
                                                                 placeholder="Est. Delivery Date"
                                                                 type="date"
                                                                 className="h-9 text-xs rounded-lg"
-                                                                id={`est-delivery-${order.id}`}
+                                                                value={shipArrivalDate}
+                                                                onChange={(e) => setShipArrivalDate(e.target.value)}
                                                             />
                                                         </div>
                                                         <Button
                                                             size="sm"
                                                             onClick={() => {
-                                                                const carrier = (document.getElementById(`carrier-${order.id}`) as HTMLInputElement)?.value;
-                                                                const trackingId = (document.getElementById(`tracking-${order.id}`) as HTMLInputElement)?.value;
-                                                                const location = (document.getElementById(`location-${order.id}`) as HTMLInputElement)?.value || "In transit";
-                                                                const driverName = (document.getElementById(`driver-name-${order.id}`) as HTMLInputElement)?.value;
-                                                                const driverPhone = (document.getElementById(`driver-phone-${order.id}`) as HTMLInputElement)?.value;
-
                                                                 // Enforce required fields
-                                                                if (!carrier || !driverName || !driverPhone) {
+                                                                if (!shipCarrier || !shipDriverName || !shipDriverPhone) {
                                                                     alert("Please fill in the Carrier, Driver Name, and Driver Phone before marking as shipped.");
                                                                     return;
                                                                 }
 
-                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", location, carrier, trackingId);
+                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", shipLocation, shipCarrier, shipTrackingId);
                                                                 handleStatusUpdate(order.id, "shipped");
+
+                                                                // Reset form
+                                                                setShipCarrier("");
+                                                                setShipTrackingId("");
+                                                                setShipDriverName("");
+                                                                setShipDriverPhone("");
+                                                                setShipLocation("Lagos Warehouse");
+                                                                setShipArrivalDate("");
 
                                                                 // Send notification to admin with driver details
                                                                 DataSyncService.addNotification({
                                                                     userId: "admin",
                                                                     type: "order",
-                                                                    message: `📦 Order ${order.id} shipped by ${DataSyncService.getCurrentSeller()?.business_name}. Driver: ${driverName} (${driverPhone}). Carrier: ${carrier}. Tracking: ${trackingId || 'N/A'}`,
+                                                                    message: `📦 Order ${order.id} shipped by ${DataSyncService.getCurrentSeller()?.business_name}. Driver: ${shipDriverName} (${shipDriverPhone}). Carrier: ${shipCarrier}. Tracking: ${shipTrackingId || 'N/A'}`,
                                                                     link: "/admin/orders"
                                                                 });
 
@@ -527,7 +543,7 @@ export default function SellerOrders() {
                                                                 DataSyncService.addNotification({
                                                                     userId: order.customer_id,
                                                                     type: "order",
-                                                                    message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${driverName}. Tracking: ${trackingId || carrier}.`,
+                                                                    message: `🚚 Your order "${order.product?.name}" has been shipped! Driver: ${shipDriverName}. Tracking: ${shipTrackingId || shipCarrier}.`,
                                                                     link: "/account/orders"
                                                                 });
                                                             }}

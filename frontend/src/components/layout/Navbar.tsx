@@ -772,9 +772,11 @@ export function Navbar() {
             <header className="fixed top-0 left-0 right-0 w-full flex-col backdrop-blur-2xl backdrop-saturate-150 shadow-sm" style={{ background: 'rgba(10, 104, 71, 0.78)', position: 'fixed', top: 0, zIndex: 100 }}>
                 {/* Top Bar — Liquid Glass */}
                 <div className="flex w-full items-center justify-between gap-1 md:gap-3 lg:gap-4 liquid-glass px-1 md:px-2 lg:px-4 py-2.5 md:py-3 text-white relative z-10">
-                    <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0">
-                        {/* Logo */}
-                        <Logo variant="light" hideTextMobile />
+                    <div className="flex items-center gap-1 md:gap-2 lg:gap-4 shrink-0 relative z-[10001]">
+                        {/* Logo - Enhanced hit area for mobile */}
+                        <div className="py-1 px-1 -ml-1">
+                            <Logo variant="light" hideTextMobile />
+                        </div>
 
                         {/* Deliver To - Now Clickable */}
                         <button
@@ -903,7 +905,7 @@ export function Navbar() {
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -10 }}
                                     transition={{ duration: 0.1 }}
-                                    className="fixed md:absolute top-[64px] md:top-full left-2 right-2 md:left-0 md:right-0 mt-2 md:mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[70vh] md:max-h-[480px] overflow-y-auto"
+                                    className="fixed md:absolute top-[70px] md:top-full left-2 right-2 md:left-0 md:right-0 mt-2 md:mt-3 bg-white/95 backdrop-blur-[32px] rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.15)] border border-gray-100/50 overflow-hidden z-[9999] max-h-[70vh] md:max-h-[480px] overflow-y-auto"
                                 >
                                     {/* Empty State: Recent & Trending (Temu-style) */}
                                     {searchQuery.trim().length === 0 && (

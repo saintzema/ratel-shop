@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE';
 
 interface EmailPayload {
     name?: string;
@@ -614,7 +614,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">You can track its live status below. Remember, your funds remain safe in escrow until delivery is confirmed.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Track Package</a>
+    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Track Package</a>
 </div>
             `);
             break;
@@ -660,6 +660,22 @@ ${payload.daysRemaining === 0 ? `
 
 <div style="text-align:center;">
     <a href="https://fairprice.ng${payload.productLink}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Order Now</a>
+</div>
+            `);
+            break;
+
+        case 'BUYER_ORDER_MESSAGE':
+            subject = `New message regarding your order #${payload.orderId || ''}`;
+            html = BaseTemplate("You have a new message!", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 16px 0;">The ${payload.sellerName || 'Seller'} has sent you a new message regarding your order <strong>#${payload.orderId || ''}</strong>.</p>
+<div style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:0 0 24px 0;" class="feature-box">
+    <p style="font-size:15px;margin:0;font-style:italic;" class="text-main">"${payload.message || 'Please log in to view the message.'}"</p>
+</div>
+<p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">You can reply directly via the Ziva Order Concierge on your dashboard.</p>
+
+<div style="text-align:center;">
+    <a href="${payload.dashboardUrl || 'https://fairprice.ng/account/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply in Concierge</a>
 </div>
             `);
             break;

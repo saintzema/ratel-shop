@@ -419,8 +419,7 @@ export default function UniversalMessagesPage() {
     }, [selectedId]);
 
     const handleAction = (negId: string, status: "accepted" | "rejected") => {
-        DataSyncService.updateNegotiationStatus(negId, status);
-        // Force reload by triggering a storage event manually or just state update
+        DataSyncService.updateNegotiationStatus(negId, status, "seller");
         window.dispatchEvent(new Event("storage"));
     };
 

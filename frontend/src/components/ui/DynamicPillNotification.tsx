@@ -307,7 +307,7 @@ export function DynamicPillNotification() {
         if (neg) {
             const negId = (neg as any).id;
             if (isSellerAction && negId) {
-                DataSyncService.updateNegotiationStatus(negId, "accepted");
+                DataSyncService.updateNegotiationStatus(negId, "accepted", "seller");
                 window.dispatchEvent(new Event("storage"));
                 setVisible(false);
                 dismissNotification();

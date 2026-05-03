@@ -24,9 +24,9 @@ interface PaystackCheckoutProps {
 }
 
 const PAYSTACK_PUBLIC_KEY = 
-    process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 
+    (process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 
     process.env.NEXT_PUBLIC_PAYSTACK_KEY || 
-    "";
+    "").trim();
 
 // Helper to check if we are in live mode based on the key prefix
 const IS_LIVE_MODE = PAYSTACK_PUBLIC_KEY.startsWith("pk_live_");
