@@ -2,13 +2,13 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
-import { SEED_DEALS, SEED_PRODUCTS } from "@/lib/data";
+import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, ChevronLeft, Heart, Plus, ShoppingCart, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Star, Store as StoreIcon, TrendingUp } from "lucide-react";
+import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
@@ -16,17 +16,13 @@ import { StoreDiscoveryRail } from "@/components/ui/StoreDiscoveryRail";
 import { useRouter } from "next/navigation";
 import { RecentlyViewedHorizontal } from "@/components/ui/RecentlyViewedHorizontal";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
-import { useFavorites } from "@/context/FavoritesContext";
-import { useCart } from "@/context/CartContext";
-import { formatPrice, getProductUrl, getProxiedImageUrl, cn } from "@/lib/utils";
+import { getProxiedImageUrl, cn } from "@/lib/utils";
 import { Product } from "@/lib/types";
 import { useSearchParams } from "next/navigation";
 import { CategoryPanel } from "@/components/ui/CategoryPanel";
 import { 
   TEMU_CATEGORIES, 
   CATEGORY_CARDS_ROW_1, 
-  CATEGORY_CARDS_ROW_2, 
-  CATEGORY_CARDS_ROW_3,
   CategoryCard,
   DEFAULT_AD_SLOTS
 } from "@/lib/constants";
@@ -66,7 +62,7 @@ function HomeContent() {
     }
   };
 
-  const handleDragEnd = (event: any, info: any) => {
+  const handleDragEnd = (_: any, info: { offset: { x: number } }) => {
     const swipeThreshold = 50;
     const currentIndex = TEMU_CATEGORIES.indexOf(activeTab);
     
@@ -146,7 +142,7 @@ function HomeContent() {
       window.removeEventListener("storage", loadGrids);
       window.removeEventListener("hero-config-update", loadHeroConfig);
     };
-  }, []);
+  }, [searchParams, isSeller, router, activeTab]);
 
   // Slideshow timer
   useEffect(() => {
@@ -221,7 +217,7 @@ function HomeContent() {
                           opacity: { duration: 0.2 }
                         }}
                         src={getProxiedImageUrl(banners[currentBannerIndex]?.image_url || "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=2000")}
-                        onError={(e: any) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
+                        onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => e.currentTarget.src = "https://images.unsplash.com/photo-1556656793-02715d8dd6f8?auto=format&fit=crop&w=2000&q=80"}
                         className="absolute inset-0 w-full h-full object-cover"
                         alt={banners[currentBannerIndex]?.title || "Hero Banner"}
                       />
@@ -427,48 +423,6 @@ function HomeContent() {
   );
 }
 
-// ─── Lazy Hydration Wrapper ───
-// Prevents the browser from rendering off-screen sections until needed.
-// This resolves the scrolling lag and white-space issues.
-function LazySection({ children, height = 340, skeletonTitle }: { children: React.ReactNode; height?: number; skeletonTitle?: string }) {
-  const [ref, setRef] = useState<HTMLElement | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (!ref) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "1000px" } // Load 1000px before it enters the viewport for seamless rendering
-    );
-    observer.observe(ref);
-    return () => observer.disconnect();
-  }, [ref]);
-
-  return (
-    <div ref={setRef} style={{ minHeight: isVisible ? "auto" : `${height}px` }} className="transition-all duration-500">
-      {isVisible ? (
-        children
-      ) : (
-        <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-50 flex flex-col justify-center gap-4 group">
-          <div className="flex items-center justify-between opacity-50">
-            <div className="h-6 w-48 bg-gray-100 animate-pulse rounded" />
-            <div className="h-4 w-24 bg-gray-50 animate-pulse rounded" />
-          </div>
-          <div className="flex gap-4 overflow-hidden">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="min-w-[200px] h-[300px] bg-gray-50/50 rounded-xl animate-pulse" />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 
 // ─── CategoryGridCard Component (Amazon 2×2 Style + Apple Aesthetics) ───
@@ -639,22 +593,19 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
   const [isPaused, setIsPaused] = useState(false);
   const initOffsetDone = useRef(false);
 
-  const checkScroll = () => {
+  const checkScroll = useCallback(() => {
     if (scrollRef.current && !autoScroll) {
       const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
       setCanScrollLeft(scrollLeft > 0);
       setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
     }
-  };
+  }, [autoScroll]);
 
   useEffect(() => {
     checkScroll();
     window.addEventListener("resize", checkScroll);
     return () => window.removeEventListener("resize", checkScroll);
-  }, [products]);
-
-  // Auto-scroll effect
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  }, [products, checkScroll]);
   useEffect(() => {
     if (!autoScroll) return;
     const el = scrollRef.current;

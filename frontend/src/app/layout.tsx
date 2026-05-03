@@ -20,7 +20,6 @@ import { WaitlistModal } from "@/components/modals/WaitlistModal";
 import { SplashDismiss } from "@/components/ui/SplashDismiss";
 import { KeyboardAware } from "@/components/ui/KeyboardAware";
 import { SwipeToBack } from "@/components/ui/SwipeToBack";
-import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 import { SessionWrapper } from "@/components/auth/SessionWrapper";
 import Script from 'next/script';
 import { Analytics } from "@vercel/analytics/next";
