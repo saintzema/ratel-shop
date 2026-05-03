@@ -374,8 +374,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     }
 
     let seller = allSellers.find((s) => s.id === product?.seller_id) || SEED_SELLERS.find((s) => s.id === product?.seller_id);
-    const isPremium = ["Pro", "Growth", "Scale"].includes(seller?.subscription_plan || "");
-    const logoToUse = isPremium && seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : "/assets/images/logo.png";
+    const logoToUse = seller?.logo_url ? getProxiedImageUrl(seller.logo_url) : null;
 
     // Fallback for global sourcing products if global-partners isn't in older localStorage DataSyncService caches
     if (!seller && product?.seller_id === "global-partners") {
@@ -1322,8 +1321,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
 
                         {/* Seller Info */}
                         <div className="mt-8 flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                            <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center border border-gray-200 uppercase font-black text-xl text-gray-400">
-                                {seller.business_name[0]}
+                            <div className="h-12 w-12 bg-white rounded-full flex items-center justify-center border border-gray-200 uppercase font-black text-xl text-gray-400 overflow-hidden shrink-0">
+                                {logoToUse ? (
+                                    <img src={logoToUse} alt={seller.business_name} className="w-full h-full object-cover" />
+                                ) : (
+                                    seller.business_name[0]
+                                )}
                             </div>
                             <div>
                                 <h3 className="font-bold text-gray-900">{seller.business_name}</h3>
@@ -1458,8 +1461,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             <h2 className="text-xl font-black text-gray-900 mb-6">From the Seller</h2>
                             <div className="flex items-start gap-6">
                                 <Link href={`/store/${seller.store_url || seller.id}`} className="shrink-0 group">
-                                    <div className="h-16 w-16 bg-gradient-to-br from-ratel-green-50 to-white rounded-full flex items-center justify-center border-2 border-ratel-green-200 uppercase font-black text-2xl text-ratel-green-600 group-hover:border-ratel-green-400 group-hover:shadow-lg transition-all cursor-pointer">
-                                        {seller.business_name[0]}
+                                    <div className="h-16 w-16 bg-gradient-to-br from-ratel-green-50 to-white rounded-full flex items-center justify-center border-2 border-ratel-green-200 uppercase font-black text-2xl text-ratel-green-600 group-hover:border-ratel-green-400 group-hover:shadow-lg transition-all cursor-pointer overflow-hidden shrink-0">
+                                        {logoToUse ? (
+                                            <img src={logoToUse} alt={seller.business_name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            seller.business_name[0]
+                                        )}
                                     </div>
                                 </Link>
                                 <div className="flex-1">
@@ -1745,13 +1752,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         <>
                                             <Button
                                                 className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/20"
-                                                onClick={() => {
-                                                    if (product) {
-                                                        // Vehicle specific checkout logic is handled inside checkout page based on product category
-                                                        for (let i = 0; i < quantity; i++) addToCart(product);
-                                                        window.location.href = '/checkout';
-                                                    }
-                                                }}
+                                                onClick={handleBuyNow}
                                             >
                                                 {hasFinancing(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
                                             </Button>
@@ -2460,7 +2461,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         size={180}
                                         level="H"
                                         imageSettings={{
-                                            src: logoToUse,
+                                            src: logoToUse || "/logo.png",
                                             x: undefined,
                                             y: undefined,
                                             height: 40,
@@ -2474,12 +2475,15 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 <div className="mt-4 text-center">
                                     <p className="text-xs text-gray-500 mb-2 font-medium">Or pay directly on this device:</p>
                                     <div className="flex flex-row items-center justify-center gap-3">
-                                        <a 
-                                            href={typeof window !== 'undefined' ? `${window.location.origin}/checkout/direct?productId=${product?.id}&amount=${product?.price}&name=${encodeURIComponent(product?.name || '')}&image=${encodeURIComponent(product?.image_url || '')}&category=${encodeURIComponent(product?.category || '')}` : '#'}
+                                        <button 
+                                            onClick={() => {
+                                                setShowQrModal(false);
+                                                handleBuyNow();
+                                            }}
                                             className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-200 transition-colors shrink-0"
                                         >
                                             Tap to Checkout
-                                        </a>
+                                        </button>
                                         <div className="flex items-center justify-center gap-1.5 opacity-80 shrink-0">
                                             {/* Mastercard SVG */}
                                             <svg className="w-6 h-4" viewBox="0 0 36 24" fill="none" xmlns="http://www.w3.org/2000/svg">

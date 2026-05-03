@@ -22,12 +22,13 @@ const DEFAULT_SETTINGS = {
     codEnabled: true,
     codThreshold: 50000,
     codAllowExpensiveCategories: true,
-    codGlobalEnabled: false,
-    codGlobalThreshold: 15000,
+    codGlobalEnabled: true,
+    codGlobalThreshold: 50000,
     globalSearchCaching: true,
     supportConfig: {
         email: "hello@fairprice.ng",
         whatsapp: "2348162816305",
+        whatsappOrderNumber: "2348162816305",
         office: "Victoria Island, Lagos, Nigeria",
         hours: "Mon - Sat: 8am - 10pm WAT",
         serviceCenters: []

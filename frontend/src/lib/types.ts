@@ -72,6 +72,7 @@ export interface Seller {
     physical_stores?: string;
     joined_at?: string;
     created_at?: string;
+    seller_role?: string;
 }
 
 export interface Product {

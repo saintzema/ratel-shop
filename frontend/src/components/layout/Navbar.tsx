@@ -266,7 +266,18 @@ export function Navbar() {
 
     // Instant: local product matches + text autocomplete suggestions (no API calls)
     useEffect(() => {
-        if (searchQuery.trim().length > 0) {
+        if (searchQuery.trim().length === 0) {
+            setSuggestions([]);
+            setMatchingBrands([]);
+            setGlobalResults([]);
+            setIsGlobalSearching(false);
+            setCachedResults([]);
+            setTextSuggestions([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        const timer = setTimeout(() => {
           try {
             const q = searchQuery.toLowerCase();
             const storeProducts = DataSyncService.getProducts({ includeInactiveSellers: true });
@@ -296,7 +307,6 @@ export function Navbar() {
                 const brand = (p.specs?.Brand || "").toString();
                 
                 if (name.toLowerCase().includes(q)) {
-                    // Favor long, descriptive names for the text suggestions
                     textPool.add(name);
                 }
                 
@@ -304,13 +314,11 @@ export function Navbar() {
                     brandsPool.add(brand);
                 }
                 
-                // If query is a brand, add its most popular product types
                 if (brand && q.includes(brand.toLowerCase())) {
                     textPool.add(`${brand} ${p.category || ''}`.trim());
                 }
             });
 
-            // Fallback: If pool is small, add smart combinations
             if (textPool.size < 5) {
                 allSearchProducts.forEach(p => {
                     const words = p.name.split(' ');
@@ -329,7 +337,6 @@ export function Navbar() {
                     return a.length - b.length;
                 })
                 .map(name => {
-                    // Enrich with category for Amazon-style descriptive suggestions
                     const p = allSearchProducts.find(prod => prod.name === name);
                     if (p && p.category) {
                         const catLabel = CATEGORIES.find(c => c.value === p.category)?.label || p.category;
@@ -352,15 +359,9 @@ export function Navbar() {
           } catch (err) {
             console.error('[NavSearch] instant search error:', err);
           }
-        } else {
-            setSuggestions([]);
-            setMatchingBrands([]);
-            setGlobalResults([]);
-            setIsGlobalSearching(false);
-            setCachedResults([]);
-            setTextSuggestions([]);
-            setShowSuggestions(false);
-        }
+        }, 200); // 200ms debounce for local search
+
+        return () => clearTimeout(timer);
     }, [searchQuery]);
 
     // Debounced global search — fetches after user stops typing for 350ms
@@ -419,7 +420,7 @@ export function Navbar() {
                     setGlobalResults([]);
                 })
                 .finally(() => setIsGlobalSearching(false));
-        }, 1500);
+        }, 800);
 
         return () => {
             clearTimeout(fetchTimer);

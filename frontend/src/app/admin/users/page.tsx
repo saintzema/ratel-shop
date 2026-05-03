@@ -57,7 +57,7 @@ export default function UserDirectory() {
 
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [isBroadcastDialogOpen, setIsBroadcastDialogOpen] = useState(false);
-    const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", link: "/" });
+    const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", link: "/", sendViaWhatsapp: false });
     const [isBroadcasting, setIsBroadcasting] = useState(false);
 
     // Pagination State
@@ -266,12 +266,32 @@ export default function UserDirectory() {
         }
     };
 
-    const handleBulkBroadcast = () => {
+    const handleBulkBroadcast = async () => {
         if (!broadcastForm.title.trim() || !broadcastForm.body.trim() || selectedUserIds.length === 0) return;
         
         setIsBroadcasting(true);
         
-        setTimeout(() => {
+        try {
+            // If WhatsApp is selected, trigger backend endpoint
+            if (broadcastForm.sendViaWhatsapp) {
+                // Get the actual phone numbers for the selected users
+                const targetUsers = participants.filter(p => selectedUserIds.includes(p.id));
+                const phoneNumbers = targetUsers
+                    .map(p => p.phone || p.whatsapp || p.whatsapp_number)
+                    .filter(Boolean); // Keep only those with numbers
+
+                if (phoneNumbers.length > 0) {
+                    await fetch('/api/whatsapp/broadcast', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            message: `*${broadcastForm.title}*\n\n${broadcastForm.body}\n\n🔗 ${broadcastForm.link}`,
+                            phoneNumbers
+                        })
+                    });
+                }
+            }
+
             selectedUserIds.forEach(userId => {
                 // Add to notification history for each selected user
                 DataSyncService.addNotification({
@@ -295,10 +315,14 @@ export default function UserDirectory() {
 
             setIsBroadcasting(false);
             setIsBroadcastDialogOpen(false);
-            setBroadcastForm({ title: "", body: "", link: "/" });
+            setBroadcastForm({ title: "", body: "", link: "/", sendViaWhatsapp: false });
             setSelectedUserIds([]);
             alert(`Broadcast sent successfully to ${selectedUserIds.length} users.`);
-        }, 1000);
+        } catch (error) {
+            console.error("Broadcast failed:", error);
+            alert("Failed to send broadcast. Please try again.");
+            setIsBroadcasting(false);
+        }
     };
 
     const handleSaveEdit = async () => {
@@ -830,6 +854,27 @@ export default function UserDirectory() {
                                     onChange={e => setBroadcastForm({...broadcastForm, link: e.target.value})}
                                     className="h-12 rounded-xl border-gray-200 focus:bg-white font-bold"
                                 />
+                            </div>
+                            <div className="flex items-center gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    role="switch"
+                                    aria-checked={broadcastForm.sendViaWhatsapp}
+                                    onClick={() => setBroadcastForm(prev => ({ ...prev, sendViaWhatsapp: !prev.sendViaWhatsapp }))}
+                                    className={cn(
+                                        "relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:ring-offset-2",
+                                        broadcastForm.sendViaWhatsapp ? "bg-indigo-600" : "bg-gray-200"
+                                    )}
+                                >
+                                    <span className={cn(
+                                        "pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out",
+                                        broadcastForm.sendViaWhatsapp ? "translate-x-5" : "translate-x-0"
+                                    )} />
+                                </button>
+                                <Label className="text-sm font-bold text-gray-700 cursor-pointer" onClick={() => setBroadcastForm(prev => ({ ...prev, sendViaWhatsapp: !prev.sendViaWhatsapp }))}>
+                                    Send via WhatsApp
+                                    <p className="text-xs font-normal text-gray-500 mt-0.5">Deliver directly to their WhatsApp inbox if a phone number is linked.</p>
+                                </Label>
                             </div>
                         </div>
                     </div>

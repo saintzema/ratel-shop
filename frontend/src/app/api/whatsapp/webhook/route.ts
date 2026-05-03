@@ -122,31 +122,40 @@ export async function POST(req: Request) {
 
             if (!isGreeting) {
                 try {
-                    // Search for matching products in the database
+                    // Fuzzy Search: Split into keywords for better matching
+                    const keywords = text.split(/\s+/).filter((w: string) => w.length > 2);
+                    const searchConditions = keywords.map((kw: string) => ({
+                        OR: [
+                            { name: { contains: kw, mode: "insensitive" } },
+                            { description: { contains: kw, mode: "insensitive" } },
+                            { category: { contains: kw, mode: "insensitive" } },
+                        ]
+                    }));
+
+                    // Search for matching products in the database using fuzzy keyword logic
                     const products = await (db.product as any).findMany({
                         where: {
-                            OR: [
-                                { name: { contains: text, mode: "insensitive" } },
-                                { description: { contains: text, mode: "insensitive" } },
-                                { category: { contains: text, mode: "insensitive" } },
+                            AND: searchConditions.length > 0 ? searchConditions : [
+                                { name: { contains: text, mode: "insensitive" } }
                             ],
                             status: "approved"
                         },
-                        take: 5,
+                        take: 5, // Meta limits
                         orderBy: { createdAt: "desc" },
                         select: { id: true, name: true, price: true, slug: true, category: true }
                     });
 
                     if (products && products.length > 0) {
-                        // Build a product listing message with PDP links
+                        // Build a product listing message with precise PDP links
                         let msg = `🔍 *Found ${products.length} result${products.length > 1 ? 's' : ''} for "${text}":*\n\n`;
                         
                         products.forEach((p: any, i: number) => {
                             const slug = p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
                             const pdpUrl = `${APP_URL}/product/${p.id}/${slug}`;
+                            
                             msg += `${i + 1}. *${p.name}*\n`;
                             msg += `   💰 ₦${Number(p.price).toLocaleString()}\n`;
-                            msg += `   🛒 ${pdpUrl}\n\n`;
+                            msg += `   🔗 *View & Buy:* ${pdpUrl}\n\n`;
                         });
 
                         msg += `_Tap any link to view details and order directly!_\n`;

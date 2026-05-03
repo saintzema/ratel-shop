@@ -58,6 +58,7 @@ const CANCEL_ACTIONS = [
 export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, order, mode = "post_order" }: PostOrderChatProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState("");
+    const [isFocused, setIsFocused] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [reviewRating, setReviewRating] = useState<number>(0);
     const [hoverRating, setHoverRating] = useState<number>(0);
@@ -151,7 +152,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         }
 
         setMessages(initialMessages);
-    }, [isOpen, product, orderId, messages.length, mode]);
+    }, [isOpen, product, orderId, mode]);
 
     // Listen for DataSyncService updates (e.g. admin replies)
     useEffect(() => {
@@ -180,18 +181,17 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         };
     }, [isOpen, orderId]);
 
-    // Auto-scroll
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        // If keyboard opens, scroll to bottom
+        if (isFocused) {
+            const timer = setTimeout(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+            }, 300);
+            return () => clearTimeout(timer);
         }
-        
-        // Play chime for INCOMING messages (not from user)
-        const lastMsg = messages[messages.length - 1];
-        if (lastMsg && lastMsg.sender !== "user" && isOpen) {
-            playDingSound();
-        }
-    }, [messages, isOpen]);
+    }, [messages, isOpen, isFocused]);
 
     if (!isOpen) return null;
 
@@ -495,9 +495,10 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
         <AnimatePresence>
             {isOpen && (
                 <div 
-                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-0 sm:px-4 transition-[bottom] duration-200 cubic-bezier(0.1, 0.7, 0.1, 1)"
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-0 sm:px-4 transition-all duration-300 cubic-bezier(0.1, 0.7, 0.1, 1)"
                     style={{ 
                         bottom: 'var(--kb-height, 0px)',
+                        paddingBottom: isFocused ? '10px' : 'env(safe-area-inset-bottom, 0px)',
                         willChange: 'bottom'
                     }}
                 >
@@ -514,7 +515,7 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 20 }}
                         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                        className="relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[80%] max-h-full sm:h-[600px] font-sans"
+                        className={`relative w-full max-w-lg bg-white rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 font-sans ${isFocused ? 'h-[92%] sm:h-[600px]' : 'h-[80%] max-h-full sm:h-[600px]'}`}
                         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                     >
                         {/* Header */}
@@ -792,6 +793,8 @@ export function PostOrderConciergeChat({ isOpen, onClose, product, orderId, orde
                                             className="pr-12 bg-gray-50 border-gray-200 h-11 rounded-full text-sm focus:bg-white transition-colors"
                                             placeholder="Type a message..."
                                             value={input}
+                                            onFocus={() => setIsFocused(true)}
+                                            onBlur={() => setIsFocused(false)}
                                             onChange={(e) => setInput(e.target.value)}
                                             onKeyDown={(e) => {
                                                 if (e.key === "Enter" && !e.shiftKey) {

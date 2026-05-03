@@ -130,6 +130,11 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
         return url;
     }
 
+    // Data URLs (base64) should be returned as is
+    if (url.startsWith('data:')) {
+        return url;
+    }
+
     const lower = url.toLowerCase();
 
     // Google Grounding / VertexAI redirect URLs expire quickly and cause proxy timeouts.
@@ -141,8 +146,7 @@ export function getProxiedImageUrl(url: string | null | undefined): string {
     const isBroken = lower.includes('no photo') ||
                     lower.includes('no image') ||
                     lower.includes('n/a') ||
-                    lower.includes('placeholder') ||
-                    url.startsWith('data:image');
+                    lower.includes('placeholder');
 
     if (isBroken) {
         return "/assets/images/placeholder.png";

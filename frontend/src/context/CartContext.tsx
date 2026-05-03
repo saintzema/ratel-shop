@@ -54,25 +54,43 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (isLoaded) {
             const key = getCartKey(user?.email);
             localStorage.setItem(key, JSON.stringify(cart));
+            
+            // Trigger a custom event for other tabs/components
+            window.dispatchEvent(new Event("cart-updated"));
         }
     }, [cart, isLoaded, user?.email]);
 
     const addToCart = (product: Product, quantity = 1, negotiatedPrice?: number) => {
         setCart(prev => {
+            let next: CartItem[];
             const existing = prev.find(item => item.product.id === product.id);
             if (existing) {
-                return prev.map(item =>
+                next = prev.map(item =>
                     item.product.id === product.id
                         ? { ...item, quantity: item.quantity + quantity, negotiatedPrice: negotiatedPrice || item.negotiatedPrice }
                         : item
                 );
+            } else {
+                next = [...prev, { product, quantity, negotiatedPrice }];
             }
-            return [...prev, { product, quantity, negotiatedPrice }];
+
+            // PERSIST IMMEDIATELY: Crucial for redirects (window.location.href)
+            const key = getCartKey(user?.email);
+            localStorage.setItem(key, JSON.stringify(next));
+            window.dispatchEvent(new Event("cart-updated"));
+            
+            return next;
         });
     };
 
     const removeFromCart = (productId: string) => {
-        setCart(prev => prev.filter(item => item.product.id !== productId));
+        setCart(prev => {
+            const next = prev.filter(item => item.product.id !== productId);
+            const key = getCartKey(user?.email);
+            localStorage.setItem(key, JSON.stringify(next));
+            window.dispatchEvent(new Event("cart-updated"));
+            return next;
+        });
     };
 
     const updateQuantity = (productId: string, quantity: number) => {
@@ -80,12 +98,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             removeFromCart(productId);
             return;
         }
-        setCart(prev => prev.map(item =>
-            item.product.id === productId ? { ...item, quantity } : item
-        ));
+        setCart(prev => {
+            const next = prev.map(item =>
+                item.product.id === productId ? { ...item, quantity } : item
+            );
+            const key = getCartKey(user?.email);
+            localStorage.setItem(key, JSON.stringify(next));
+            window.dispatchEvent(new Event("cart-updated"));
+            return next;
+        });
     };
 
-    const clearCart = () => setCart([]);
+    const clearCart = () => {
+        setCart([]);
+        const key = getCartKey(user?.email);
+        localStorage.removeItem(key);
+        window.dispatchEvent(new Event("cart-updated"));
+    };
 
     const cartTotal = cart.reduce((ctx, item) => ctx + ((item.negotiatedPrice || item.product.price) * item.quantity), 0);
     const cartCount = cart.reduce((ctx, item) => ctx + item.quantity, 0);

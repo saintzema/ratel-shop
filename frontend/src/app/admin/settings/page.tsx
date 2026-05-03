@@ -48,8 +48,8 @@ export default function AdminSettings() {
     const [codEnabled, setCodEnabled] = useState(true);
     const [codAllowExpensiveCategories, setCodAllowExpensiveCategories] = useState(true);
     // Global COD Settings
-    const [codGlobalEnabled, setCodGlobalEnabled] = useState(false);
-    const [codGlobalThreshold, setCodGlobalThreshold] = useState("15000");
+    const [codGlobalEnabled, setCodGlobalEnabled] = useState(true);
+    const [codGlobalThreshold, setCodGlobalThreshold] = useState("50000");
 
     // Engine States
     const [aiMonitoring, setAiMonitoring] = useState(true);
@@ -61,7 +61,7 @@ export default function AdminSettings() {
     // Support Configuration
     const [supportEmail, setSupportEmail] = useState("hello@fairprice.ng");
     const [supportWhatsapp, setSupportWhatsapp] = useState("2348162816305");
-    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2349131767484");
+    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2348162816305");
     const [supportOffice, setSupportOffice] = useState("Victoria Island, Lagos, Nigeria");
     const [supportHours, setSupportHours] = useState("Mon - Sat: 8am - 10pm WAT");
     const [whatsappNegotiationBridge, setWhatsappNegotiationBridge] = useState(true);
@@ -237,11 +237,11 @@ export default function AdminSettings() {
         doorstepFee: parseFloat(doorstepFee) || 4000,
         pickupFee: parseFloat(pickupFee) || 2500,
         stateShipping,
-        codThreshold: parseFloat(codThreshold) || 20000,
+        codThreshold: parseFloat(codThreshold) || 50000,
         codEnabled,
         codAllowExpensiveCategories,
         codGlobalEnabled,
-        codGlobalThreshold: parseFloat(codGlobalThreshold) || 15000
+        codGlobalThreshold: parseFloat(codGlobalThreshold) || 50000
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({

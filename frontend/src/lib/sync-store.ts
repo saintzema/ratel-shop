@@ -1250,6 +1250,25 @@ class DataSyncServiceService {
                 });
             }
 
+            // --- CRITICAL: Send Real Email via API ---
+            if (sellerEmail) {
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: sellerEmail,
+                        type: 'NEGOTIATION_REQUEST',
+                        payload: {
+                            name: seller?.business_name || "Seller",
+                            customerName: request.customer_name,
+                            productName: product.name,
+                            amount: `₦${request.proposed_price.toLocaleString()}`,
+                            dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                        }
+                    })
+                }).catch(err => console.error("Negotiation email failed:", err));
+            }
+
             // Email seller
             fetch("/api/email", {
                 method: "POST",
@@ -2886,7 +2905,7 @@ getAllCachedProducts(): any[] {
         const orders = this.getOrders();
 
         const updated = orders.map(o => {
-            if (o.id === orderId) {
+            if (o.id === orderId || o.tracking_id === orderId) {
                 const msg = {
                     id: Date.now().toString(),
                     sender,
@@ -2936,6 +2955,26 @@ getAllCachedProducts(): any[] {
                         message: `💬 Customer message on order #${orderId}: "${msgPreview}"`,
                         link: `/seller/dashboard/messages?order=${orderId}`
                     });
+
+                    // --- Send Email to Seller ---
+                    const seller = this.getSellers().find(s => s.id === order.seller_id || s.user_id === order.seller_id);
+                    const sellerEmail = seller?.owner_email || this.getUser(order.seller_id)?.email;
+                    if (sellerEmail) {
+                        fetch('/api/email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                to: sellerEmail,
+                                type: 'ORDER_INQUIRY',
+                                payload: {
+                                    sellerName: seller?.business_name || "Seller",
+                                    orderId: order.id,
+                                    message: text,
+                                    dashboardUrl: `https://fairprice.ng/seller/dashboard/messages?order=${orderId}`
+                                }
+                            })
+                        }).catch(() => {});
+                    }
                 }
             } else if (sender === 'admin') {
                 // Admin sent: notify customer and seller

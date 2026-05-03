@@ -285,6 +285,36 @@ function CheckoutContent() {
     const router = useRouter();
     const { user, login } = useAuth();
     const [isClient, setIsClient] = useState(false);
+    
+    const searchParams = useSearchParams();
+    const negotiationId = searchParams?.get("negotiation");
+    
+    // Determine items to show
+    let checkoutItems: { product: Product, price: number, quantity: number, isNegotiated?: boolean }[] = [];
+
+    if (negotiationId) {
+        // Buy Now / Negotiation Flow
+        const negotiation = DEMO_NEGOTIATIONS.find(n => n.id === negotiationId);
+        if (negotiation) {
+            const negotiatedProduct = SEED_PRODUCTS.find(p => p.id === negotiation.product_id);
+            if (negotiatedProduct) {
+                checkoutItems = [{
+                    product: negotiatedProduct,
+                    price: negotiation.proposed_price,
+                    quantity: 1,
+                    isNegotiated: true
+                }];
+            }
+        }
+    } else {
+        // Standard Cart Flow
+        checkoutItems = cart.map(item => ({
+            product: item.product,
+            price: item.negotiatedPrice || item.product.price,
+            quantity: item.quantity,
+            isNegotiated: !!item.negotiatedPrice
+        }));
+    }
 
     const [previewProduct, setPreviewProduct] = useState<Product | null>(null);
     const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
@@ -306,6 +336,80 @@ function CheckoutContent() {
     const [isEditingAddress, setIsEditingAddress] = useState(true); // Default open for guests
     const [checkoutStep, setCheckoutStep] = useState<1 | 2 | 3>(1);
 
+    // ─── Smart Recommendations Logic ───────────────────────────
+    const CROSS_SELL_MAP: Record<string, string[]> = {
+        "solar": ["solar", "energy", "batteries", "industrial"],
+        "energy": ["solar", "energy", "batteries"],
+        "phones": ["electronics", "tablets", "smartwatch"],
+        "computers": ["electronics", "office", "gaming"],
+        "gaming": ["electronics", "computers", "gaming"],
+        "cars": ["automotive", "industrial", "vehicles"],
+        "automotive": ["cars", "industrial", "vehicles"],
+        "fashion": ["bags", "women", "men", "jewelry", "beauty"],
+        "beauty": ["fashion", "women", "jewelry"],
+        "electronics": ["phones", "computers", "gaming", "tablets"],
+        "appliances": ["home", "household", "energy"],
+        "home": ["appliances", "household", "furniture", "garden"],
+        "fitness": ["health", "sports"],
+        "sports": ["fitness", "health", "fashion"],
+    };
+
+    const frequentlyBoughtTogether = useMemo(() => {
+        if (!isClient) return [];
+        
+        const cartProductIds = checkoutItems.map(i => i.product.id);
+        const cartCategories = checkoutItems.map(i => i.product.category);
+        const cartNames = checkoutItems.map(i => i.product.name.toLowerCase());
+        
+        const targetCategories = new Set<string>();
+        cartCategories.forEach(cat => {
+            const related = CROSS_SELL_MAP[cat as string] || [];
+            related.forEach(r => targetCategories.add(r));
+            targetCategories.add(cat as string);
+        });
+
+        const allProducts = DataSyncService.getApprovedProducts();
+
+        // Filter and prioritize
+        let smartProducts = allProducts.filter(p => 
+            !cartProductIds.includes(p.id) && 
+            (targetCategories.has(p.category as string) || targetCategories.has("all"))
+        );
+
+        // Keyword-based refinement (e.g. Inverter -> Panel/Battery)
+        const hasInverter = cartNames.some(n => n.includes("inverter"));
+        const hasSolar = cartNames.some(n => n.includes("solar") || n.includes("panel"));
+        const hasPhone = cartNames.some(n => n.includes("phone") || n.includes("iphone") || n.includes("samsung"));
+        
+        if (hasInverter && !hasSolar) {
+            smartProducts.sort((a, b) => {
+                const aRel = a.name.toLowerCase().includes("panel") || a.name.toLowerCase().includes("battery") ? 1 : 0;
+                const bRel = b.name.toLowerCase().includes("panel") || b.name.toLowerCase().includes("battery") ? 1 : 0;
+                return bRel - aRel;
+            });
+        } else if (hasSolar && !hasInverter) {
+            smartProducts.sort((a, b) => {
+                const aRel = a.name.toLowerCase().includes("inverter") ? 1 : 0;
+                const bRel = b.name.toLowerCase().includes("inverter") ? 1 : 0;
+                return bRel - aRel;
+            });
+        } else if (hasPhone) {
+            smartProducts.sort((a, b) => {
+                const aRel = a.name.toLowerCase().includes("case") || a.name.toLowerCase().includes("charger") || a.name.toLowerCase().includes("earbud") || a.name.toLowerCase().includes("airpod") ? 1 : 0;
+                const bRel = b.name.toLowerCase().includes("case") || b.name.toLowerCase().includes("charger") || b.name.toLowerCase().includes("earbud") || b.name.toLowerCase().includes("airpod") ? 1 : 0;
+                return bRel - aRel;
+            });
+        }
+
+        // Fill to at least 8 if needed
+        if (smartProducts.length < 8) {
+            const others = allProducts.filter(p => !cartProductIds.includes(p.id) && !smartProducts.some(sp => sp.id === p.id));
+            smartProducts = [...smartProducts, ...others.slice(0, 8 - smartProducts.length)];
+        }
+
+        return smartProducts.slice(0, 8);
+    }, [checkoutItems, isClient]);
+
     // Added state for the "View More" feature
     const [loadedMore, setLoadedMore] = useState(false);
     const [visibleProductsCount, setVisibleProductsCount] = useState(8);
@@ -325,6 +429,17 @@ function CheckoutContent() {
 
     // Paystack Metadata (for webhook tracking)
     const [paystackMetadata, setPaystackMetadata] = useState<any>(null);
+
+    // Identity Reconciliation State
+    const isWhatsAppPlaceholder = user?.email?.startsWith("wa-") && user?.email?.endsWith("@fairprice.ng");
+    const [showIdentityPrompt, setShowIdentityPrompt] = useState(false);
+    const [identityReconciled, setIdentityReconciled] = useState(false);
+
+    useEffect(() => {
+        if (isWhatsAppPlaceholder && !identityReconciled) {
+            setShowIdentityPrompt(true);
+        }
+    }, [isWhatsAppPlaceholder, identityReconciled]);
 
     // Initial load effects
     useEffect(() => {
@@ -408,7 +523,7 @@ function CheckoutContent() {
     const [codGlobalThreshold, setCodGlobalThreshold] = useState(20000);
 
     // WhatsApp Order Number (admin-configurable)
-    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2349131767484");
+    const [whatsappOrderNumber, setWhatsappOrderNumber] = useState("2348162816305");
 
     const PICKUP_STATIONS: Record<string, Record<string, string[]>> = {
         "Lagos": {
@@ -508,9 +623,6 @@ function CheckoutContent() {
 
     const [dynamicPickups, setDynamicPickups] = useState<Record<string, Record<string, string[]>>>(PICKUP_STATIONS);
 
-    const searchParams = useSearchParams();
-    const negotiationId = searchParams?.get("negotiation");
-
     // Load saved addresses and auto-fill from user on mount
     useEffect(() => {
         // Only load saved addresses for authenticated users to prevent cross-session leaks
@@ -518,7 +630,29 @@ function CheckoutContent() {
             const saved = getSavedAddresses();
             setSavedAddresses(saved);
 
-            if (saved.length > 0) {
+            if (isWhatsAppPlaceholder && !identityReconciled) {
+                // Pre-fill address with empty values to force the user to provide their real name and email
+                setAddress({
+                    firstName: "",
+                    lastName: "",
+                    street: saved[0]?.street || "",
+                    city: saved[0]?.city || "Lagos",
+                    state: saved[0]?.state || "Lagos",
+                    phone: saved[0]?.phone || (user as any)?.phone || "",
+                    email: ""
+                });
+                setIsEditingAddress(true);
+                if (saved.length > 0 && saved[0].method === "pickup") {
+                    setDeliveryMethod("pickup");
+                    setPickupDetails({
+                        state: saved[0].state || "",
+                        city: saved[0].city || "",
+                        station: saved[0].station || ""
+                    });
+                } else {
+                    setDeliveryMethod("doorstep");
+                }
+            } else if (saved.length > 0) {
                 const latest = saved[0];
                 setAddress({
                     firstName: latest.firstName,
@@ -582,7 +716,14 @@ function CheckoutContent() {
                     if (data.codGlobalThreshold != null) setCodGlobalThreshold(Number(data.codGlobalThreshold));
                     if (data.escrowFeePayNow != null) setEscrowFeePayNow(Number(data.escrowFeePayNow));
                     // WhatsApp Order Number
-                    if (data.supportConfig?.whatsappOrderNumber) setWhatsappOrderNumber(data.supportConfig.whatsappOrderNumber);
+                    if (data.supportConfig?.whatsappOrderNumber) {
+                        setWhatsappOrderNumber(data.supportConfig.whatsappOrderNumber);
+                        localStorage.setItem("fp_whatsapp_order_number", data.supportConfig.whatsappOrderNumber);
+                    } else if (data.supportConfig?.whatsapp) {
+                        // Fallback to 'whatsapp' field if 'whatsappOrderNumber' is missing
+                        setWhatsappOrderNumber(data.supportConfig.whatsapp);
+                        localStorage.setItem("fp_whatsapp_order_number", data.supportConfig.whatsapp);
+                    }
 
                     if (data.supportConfig?.serviceCenters?.length > 0) {
                         setDynamicPickups(prev => {
@@ -602,33 +743,6 @@ function CheckoutContent() {
             })
             .catch(() => { });
     }, [user]);
-
-    // Determine items to show
-    let checkoutItems: { product: Product, price: number, quantity: number, isNegotiated?: boolean }[] = [];
-
-    if (negotiationId) {
-        // Buy Now / Negotiation Flow
-        const negotiation = DEMO_NEGOTIATIONS.find(n => n.id === negotiationId);
-        if (negotiation) {
-            const negotiatedProduct = SEED_PRODUCTS.find(p => p.id === negotiation.product_id);
-            if (negotiatedProduct) {
-                checkoutItems = [{
-                    product: negotiatedProduct,
-                    price: negotiation.proposed_price,
-                    quantity: 1,
-                    isNegotiated: true
-                }];
-            }
-        }
-    } else {
-        // Standard Cart Flow
-        checkoutItems = cart.map(item => ({
-            product: item.product,
-            price: item.negotiatedPrice || item.product.price,
-            quantity: item.quantity,
-            isNegotiated: !!item.negotiatedPrice
-        }));
-    }
 
     // Redirect if empty
     useEffect(() => {
@@ -787,9 +901,9 @@ function CheckoutContent() {
     };
 
     const handlePlaceOrder = () => {
-        const email = user?.email || address.email;
+        const email = (user && !isWhatsAppPlaceholder) ? user.email : address.email;
         if (!address.firstName.trim() || !email.trim()) {
-            setAddressError(user ? "Please enter your first name." : "Please enter your name and email address.");
+            setAddressError((user && !isWhatsAppPlaceholder) ? "Please enter your first name." : "Please enter your real name and email address.");
             scrollToShippingAddress();
             return;
         }
@@ -828,39 +942,78 @@ function CheckoutContent() {
         }
         setAddressError("");
 
-        // Auto-save this address for next time
-        if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
-            saveCurrentAddress();
-        }
+        const continueWithOrder = () => {
+            // Auto-save this address for next time
+            if ((deliveryMethod === "doorstep" && address.street.trim()) || (deliveryMethod === "pickup" && pickupDetails.station)) {
+                saveCurrentAddress();
+            }
 
-        // Payment routing
-        if (paymentMethod === "whatsapp") {
-            // WhatsApp ordering — finalize order locally then redirect to wa.me
-            const waOrderId = "WA-" + Date.now();
-            finalizeOrder(waOrderId);
+            // Payment routing
+            if (paymentMethod === "whatsapp") {
+                // WhatsApp ordering — finalize order locally then redirect to wa.me
+                const waOrderId = "WA-" + Date.now();
+                finalizeOrder(waOrderId);
 
-            // Generate the message and redirect
-            const msg = generateWhatsAppMessage(waOrderId);
-            const waUrl = `https://wa.me/${whatsappOrderNumber}?text=${encodeURIComponent(msg)}`;
-            // Small delay so the order can be saved before redirecting
-            setTimeout(() => {
-                window.open(waUrl, '_blank');
-            }, 800);
-        } else if (paymentMethod === "cod") {
-            // Pay on delivery — skip Paystack, go straight to order confirmation
-            finalizeOrder("COD-" + Date.now());
-        } else {
-            // Generate IDs for all items in this transaction before starting Paystack
-            // This allows the webhook to update these specific orders
-            const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
-            setPaystackMetadata({
-                type: "order",
-                order_ids: orderIds.join(','),
-                customer_id: user?.id || user?.email || address.email,
-                total_amount: total
+                // Generate the message and redirect
+                const msg = generateWhatsAppMessage(waOrderId);
+                const waUrl = `https://wa.me/${whatsappOrderNumber}?text=${encodeURIComponent(msg)}`;
+                // Small delay so the order can be saved before redirecting
+                setTimeout(() => {
+                    window.open(waUrl, '_blank');
+                }, 800);
+            } else if (paymentMethod === "cod") {
+                // Pay on delivery — skip Paystack, go straight to order confirmation
+                finalizeOrder("COD-" + Date.now());
+            } else {
+                // Generate IDs for all items in this transaction before starting Paystack
+                // This allows the webhook to update these specific orders
+                const orderIds = checkoutItems.map(item => `ORDER-${Math.random().toString(36).substr(2, 8).toUpperCase()}`);
+                setPaystackMetadata({
+                    type: "order",
+                    order_ids: orderIds.join(','),
+                    customer_id: user?.id || user?.email || address.email,
+                    total_amount: total
+                });
+                setShowPaystack(true);
+            }
+        };
+
+        if (isWhatsAppPlaceholder && address.email !== user?.email && !identityReconciled) {
+            setIsProcessing(true);
+            // Reconcile Identity
+            fetch(`/api/users`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    id: user?.id,
+                    email: address.email,
+                    name: `${address.firstName} ${address.lastName}`.trim()
+                })
+            }).then(async (res) => {
+                if (res.ok) {
+                    await fetch("/api/auth/migrate-guest", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ oldId: user?.id, newId: user?.id, email: address.email })
+                    });
+                    setIdentityReconciled(true);
+                    setShowIdentityPrompt(false);
+                    setIsProcessing(false);
+                    continueWithOrder();
+                } else {
+                    setIsProcessing(false);
+                    setAddressError("Failed to update profile. Please try again.");
+                    scrollToShippingAddress();
+                }
+            }).catch(() => {
+                setIsProcessing(false);
+                setAddressError("Error communicating with server.");
+                scrollToShippingAddress();
             });
-            setShowPaystack(true);
+            return;
         }
+
+        continueWithOrder();
     };
 
     // Generate a clean, receipt-style WhatsApp order message
@@ -966,6 +1119,46 @@ function CheckoutContent() {
                         }
                     } : {})
                 }, item.product);
+
+                // 🔔 Notify Seller (In-app & Push via hook)
+                DataSyncService.addNotification({
+                    userId: item.product.seller_id,
+                    type: "order",
+                    title: "New Order Received! 🛒",
+                    message: `You have a new order for ${item.product.name} (₦${(item.price * item.quantity).toLocaleString()}).`,
+                    link: `/seller/orders?id=${newOrder.id}`
+                });
+
+                // 📧 Notify Seller (Email)
+                const seller = DataSyncService.getSellers().find(s => s.id === item.product.seller_id);
+                const sellerEmail = seller?.owner_email || (seller as any)?.email;
+                if (sellerEmail) {
+                    fetch("/api/email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: sellerEmail,
+                            type: "SELLER_NEW_ORDER",
+                            payload: {
+                                name: seller?.business_name || "Seller",
+                                orderId: newOrder.id,
+                                productName: item.product.name,
+                                amount: item.price * item.quantity,
+                                trackingUrl: `https://fairprice.ng/seller/orders`
+                            }
+                        })
+                    }).catch(() => {}); // Silently fail email — in-app notification is the source of truth
+                }
+
+                // 👨‍💼 Notify Admin (In-app & Push via hook)
+                DataSyncService.addNotification({
+                    userId: "admin",
+                    type: "order",
+                    title: "System: New Order Placed 📦",
+                    message: `New order #${newOrder.id} placed by ${fullName} for ${item.product.name}.`,
+                    link: `/admin/orders?id=${newOrder.id}`
+                });
+
                 createdOrders.push({ order: newOrder, product: item.product, item });
             });
 
@@ -1128,6 +1321,16 @@ function CheckoutContent() {
 
                 {/* Left Column: Checkout steps */}
                 <div className="flex-1 space-y-6">
+
+                    {showIdentityPrompt && (
+                        <div className="p-4 rounded-xl bg-orange-50 border border-orange-200 text-orange-800 flex items-start gap-3 transition-opacity">
+                            <ShieldCheck className="h-6 w-6 text-orange-500 shrink-0 mt-0.5" />
+                            <div>
+                                <h3 className="font-bold text-sm">Action Required: Secure Your Account</h3>
+                                <p className="text-xs mt-1">We noticed you logged in via WhatsApp. Please enter your real name and email address in the Shipping section below to complete your profile.</p>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Step 1: Review Items */}
                     <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
@@ -1398,8 +1601,8 @@ function CheckoutContent() {
                                                 />
                                             </div>
                                         </div>
-                                        {/* Only show email for guest users */}
-                                        {!user && (
+                                        {/* Only show email for guest users or placeholder accounts */}
+                                        {(!user || isWhatsAppPlaceholder) && (
                                             <div className="space-y-1 relative">
                                                 <label className="text-xs font-bold uppercase text-gray-400">Email Address</label>
                                                 <Input
@@ -1892,9 +2095,11 @@ function CheckoutContent() {
                                             <p className="text-xs text-gray-400">
                                                 {!codEnabled
                                                     ? "Pay on Delivery is currently disabled"
-                                                    : hasGlobalProduct
-                                                        ? "Your order doesnt't qualify for this payment method"
-                                                        : `Not available for orders above ₦${codThreshold.toLocaleString()}`}
+                                                    : hasGlobalProduct && !codGlobalEnabled
+                                                        ? "Global orders don't qualify for Pay on Delivery"
+                                                        : hasGlobalProduct && total > codGlobalThreshold
+                                                            ? `Global order exceeds ₦${codGlobalThreshold.toLocaleString()} limit`
+                                                            : `Order total exceeds ₦${codThreshold.toLocaleString()} limit`}
                                             </p>
                                         </div>
                                     </div>
@@ -2206,9 +2411,9 @@ function CheckoutContent() {
             {isClient && (
                 <div className="container mx-auto max-w-6xl px-4 mt-6 mb-32">
                     <RecommendedProducts
-                        products={DataSyncService.getApprovedProducts().slice(8, 16)}
+                        products={frequentlyBoughtTogether}
                         title="Frequently Bought Together"
-                        subtitle="Customers also added these items"
+                        subtitle="Smart suggestions based on your cart"
                     />
                     <div className="text-center mt-4">
                         {/* You May Also Like — more products from the same or related categories */}
