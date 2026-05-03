@@ -1,6 +1,8 @@
 import { PrismaClient } from "@prisma/client";
 import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 import ws from "ws";
 
 const CONNECTION_STRING = process.env.DATABASE_URL;
@@ -20,12 +22,19 @@ const globalForPrisma = globalThis as unknown as {
 
 // 3. The client creator function
 function createClient(): PrismaClient {
-  // If connecting to a local DB, don't use the Neon Serverless adapter
-  if (CONNECTION_STRING?.includes('localhost') || CONNECTION_STRING?.includes('127.0.0.1')) {
+  if (!CONNECTION_STRING) {
     return new PrismaClient();
   }
-  const adapter = new PrismaNeon({ connectionString: CONNECTION_STRING! });
-  return new PrismaClient({ adapter } as any);
+
+  // If connecting to a local DB, use the standard PG adapter
+  if (CONNECTION_STRING.includes('localhost') || CONNECTION_STRING.includes('127.0.0.1')) {
+    const pool = new Pool({ connectionString: CONNECTION_STRING });
+    const adapter = new PrismaPg(pool);
+    return new PrismaClient({ adapter });
+  }
+  
+  const adapter = new PrismaNeon({ connectionString: CONNECTION_STRING });
+  return new PrismaClient({ adapter });
 }
 
 // 4. Export as 'prisma' so your current imports don't break
