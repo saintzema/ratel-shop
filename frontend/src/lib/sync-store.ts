@@ -129,6 +129,7 @@ class DataSyncServiceService {
     private readonly _PENDING_ORDER_KEY = "fp_pending_order_edits";
     private _isRegisteringSeller = false;
     private _autoReleaseActive = false;
+    private _syncDebounceTimer: any = null;
     public readonly STORAGE_KEYS = {
         NEGOTIATIONS: "fairprice_demo_negotiations",
         ORDERS: "fairprice_demo_orders",
@@ -347,7 +348,7 @@ class DataSyncServiceService {
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log("Real-time update received:", data);
+                if (data.type === "ping") return;
 
                 let collectionToSync: string | undefined = undefined;
                 if (data.type === "product_updated") collectionToSync = "products";
@@ -356,8 +357,11 @@ class DataSyncServiceService {
                 else if (data.type === "negotiation_updated") collectionToSync = "negotiations";
                 else if (data.type === "notification") collectionToSync = "notifications";
 
-                // On any change, trigger a CRITICAL sync to refresh localStorage
-                this.syncWithDB(collectionToSync, true);
+                // Debounce to prevent rapid-fire DB compute spikes and UI jank
+                if (this._syncDebounceTimer) clearTimeout(this._syncDebounceTimer);
+                this._syncDebounceTimer = setTimeout(() => {
+                    this.syncWithDB(collectionToSync, true);
+                }, 2000); 
             } catch (e) {
                 console.warn("Failed to parse real-time event:", e);
             }
@@ -406,8 +410,8 @@ class DataSyncServiceService {
             const syncAll = !collection;
             const fetchProducts = syncAll || collection === "products";
             const fetchSellers = syncAll || collection === "sellers";
-            // Search Cache is HEAVY — ONLY fetch if it's a full sync OR specifically requested
-            const fetchSearchCache = (syncAll && !isCritical) || collection === "search_cache";
+            // Search Cache is HEAVY — ONLY fetch if specifically requested (Lazy)
+            const fetchSearchCache = collection === "search_cache";
             const fetchOrders = syncAll || collection === "orders" || isCritical;
             const fetchNegotiations = syncAll || collection === "negotiations" || isCritical;
             const fetchNotifications = syncAll || collection === "notifications" || isCritical;
@@ -501,46 +505,41 @@ class DataSyncServiceService {
                         updated_at: p.updatedAt || p.updated_at || p.createdAt || p.created_at || new Date().toISOString()
                     }));
                     
-                    // MERGE STRATEGY:
-                    // If this is a FULL sync (no updated_after), we start fresh BUT keep user-pending edits.
-                    // If this is an INCREMENTAL sync (updated_after), we overlay DB changes on local data.
-                    const isIncremental = !!updatedAfter;
-                    const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
-                    const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
-                    
-                    const deletedStubs = this.getDeletedStubs();
+                    // ASYNC MERGE: Prevent UI hanging for large catalogs (6k+ items)
+                    setTimeout(() => {
+                        const isIncremental = !!updatedAfter;
+                        const localMap = new Map(localProducts.map((p: any) => [p.id, p]));
+                        const merged = isIncremental ? new Map(localMap) : new Map<string, any>();
+                        
+                        const deletedStubs = this.getDeletedStubs();
 
-                    // Apply DB updates (overwrite or add)
-                    for (const dbProduct of mappedDbProducts) {
-                        // Skip if recently deleted locally or in persistent tombstone
-                        if (this._deletedProductIds.has(dbProduct.id) || deletedStubs.includes(dbProduct.id)) continue;
+                        for (const dbProduct of mappedDbProducts) {
+                            if (this._deletedProductIds.has(dbProduct.id) || deletedStubs.includes(dbProduct.id)) continue;
 
-                        const localVersion = localMap.get(dbProduct.id);
-                        if (localVersion) {
-                            // Smart Merge: Only overwrite if DB version is newer or if we're forcing it
-                            const dbTime = new Date(dbProduct.updated_at).getTime();
-                            const localTime = new Date(localVersion.updated_at || 0).getTime();
-                            
-                            if (dbTime >= localTime || !isIncremental) {
+                            const localVersion = localMap.get(dbProduct.id);
+                            if (localVersion) {
+                                const dbTime = new Date(dbProduct.updated_at).getTime();
+                                const localTime = new Date(localVersion.updated_at || 0).getTime();
+                                if (dbTime >= localTime || !isIncremental) {
+                                    merged.set(dbProduct.id, dbProduct);
+                                }
+                            } else {
                                 merged.set(dbProduct.id, dbProduct);
                             }
-                        } else {
-                            merged.set(dbProduct.id, dbProduct);
                         }
-                    }
 
-                    // Preserve user's pending edits over DB versions (absolute priority)
-                    for (const pendingId of this._pendingEdits) {
-                        const localVersion = localMap.get(pendingId);
-                        if (localVersion) merged.set(pendingId, localVersion);
-                    }
-                    
-                    const newDataStr = JSON.stringify(Array.from(merged.values()));
-                    if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
-                        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
-                        window.dispatchEvent(new Event("storage"));
-                        window.dispatchEvent(new Event("sync-store-update"));
-                    }
+                        for (const pendingId of this._pendingEdits) {
+                            const localVersion = localMap.get(pendingId);
+                            if (localVersion) merged.set(pendingId, localVersion);
+                        }
+                        
+                        const newDataStr = JSON.stringify(Array.from(merged.values()));
+                        if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
+                            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
+                            window.dispatchEvent(new Event("storage"));
+                            window.dispatchEvent(new Event("sync-store-update"));
+                        }
+                    }, 0);
                     }
                 }
             }

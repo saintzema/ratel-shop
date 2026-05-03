@@ -127,6 +127,8 @@ model Seller {
   user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([status])
+  @@index([category])
 }
 
 model Product {
@@ -166,6 +168,13 @@ model Product {
   priceAlerts      PriceAlert[]
   seller           Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   reviews          Review[]
+
+  @@index([sellerId])
+  @@index([category])
+  @@index([isActive])
+  @@index([isTrending])
+  @@index([isSponsored])
+  @@index([slug])
 }
 
 model MarketplaceCategory {
@@ -220,6 +229,11 @@ model Order {
   customer          User           @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
   seller            Seller         @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([status])
+  @@index([trackingId])
 }
 
 model Payout {
@@ -255,6 +269,11 @@ model NegotiationRequest {
   customer       User               @relation(fields: [customerId], references: [id], onDelete: Cascade)
   product        Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   seller         Seller             @relation("SellerNegotiations", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([productId])
+  @@index([status])
 }
 
 model Review {
