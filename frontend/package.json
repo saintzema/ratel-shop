@@ -70,4 +70,7 @@
     "tsx": "^4.19.2",
     "typescript": "^5"
   },
+  "engines": {
+    "node": ">=20.x"
+  }
 }

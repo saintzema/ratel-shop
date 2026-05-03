@@ -3,6 +3,8 @@ import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import ws from "ws";
 
+const CONNECTION_STRING = process.env.DATABASE_URL;
+
 // 1. Setup for Neon Serverless
 if (typeof window === "undefined") {
     const isLocal = CONNECTION_STRING?.includes("localhost") || CONNECTION_STRING?.includes("127.0.0.1");
@@ -10,8 +12,6 @@ if (typeof window === "undefined") {
         neonConfig.webSocketConstructor = ws;
     }
 }
-
-const CONNECTION_STRING = process.env.DATABASE_URL;
 
 // 2. Define the singleton container
 const globalForPrisma = globalThis as unknown as {
