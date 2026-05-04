@@ -24,6 +24,7 @@ import {
     Edit,
     X,
     Plus,
+    Package,
     Flame, // Added Flame icon
     Timer,
     Zap, // Added Zap
@@ -35,7 +36,7 @@ import {
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
 import { DataSyncService } from "@/lib/sync-store";
-import { ProductCategory, CATEGORIES } from "@/lib/types";
+import { ProductCategory, CATEGORIES, ProductVariant } from "@/lib/types";
 import { ProductImageSlot, TagsInput, formatPriceWithCommas } from "@/components/product/ProductFormComponents";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +90,7 @@ export default function CatalogControl() {
     const [editExternalUrl, setEditExternalUrl] = useState("");
     const [editImages, setEditImages] = useState<string[]>([]);
     const [editTags, setEditTags] = useState<string[]>([]);
+    const [editVariants, setEditVariants] = useState<ProductVariant[]>([]);
     const [editFinancingConfig, setEditFinancingConfig] = useState<any>(null);
     const [editFinancingAvailable, setEditFinancingAvailable] = useState(false);
     const [editFinancingDownPayment, setEditFinancingDownPayment] = useState("");
@@ -384,7 +386,8 @@ export default function CatalogControl() {
                 financing_available: editFinancingAvailable,
                 financing_down_payment: editFinancingAvailable ? parseFloat(editFinancingDownPayment.replace(/,/g, '')) || 0 : 0,
                 financing_config: editFinancingConfig,
-                slug: editSlug
+                slug: editSlug,
+                variants: editVariants
             });
             setEditingProduct(null);
         }
@@ -1054,6 +1057,7 @@ export default function CatalogControl() {
                                                             setEditExternalUrl(p.external_url || "");
                                                             setEditImages(p.images?.length ? [...p.images] : [""]);
                                                             setEditTags(p.tags || []);
+                                                            setEditVariants(p.variants || []);
                                                             setEditFinancingConfig(p.financing_config || { enabled: false, deposit_percent: 0.15, interest_rate_pa: 0.25, max_tenor_months: 12 });
                                                             setEditFinancingAvailable(p.financing_available ?? false);
                                                             setEditFinancingDownPayment(p.financing_down_payment?.toString() || "");
@@ -1535,6 +1539,106 @@ export default function CatalogControl() {
                                         <a href={editExternalUrl} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
                                             Open source link ↗
                                         </a>
+                                    )}
+                                </div>
+
+                                <div className="space-y-4 pt-4 border-t border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div>
+                                            <p className="text-[12px] font-black uppercase text-gray-900 tracking-tight">Variants & Bundles</p>
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Manage options like colors, sizes, or packages</p>
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-3 text-[10px] font-black uppercase tracking-wider border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg gap-1.5"
+                                            onClick={() => setEditVariants([...editVariants, { id: `var_${Date.now()}_${editVariants.length}`, name: "", price: 0, image_url: "", original_price: 0 }])}
+                                        >
+                                            <Plus className="h-3 w-3" /> Add Variant
+                                        </Button>
+                                    </div>
+                                    
+                                    {editVariants.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {editVariants.map((variant, index) => (
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-3 items-start p-3 bg-gray-50 rounded-xl border border-gray-100 relative group">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditVariants(editVariants.filter((_, i) => i !== index))}
+                                                        className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                                    >
+                                                        <X className="h-2.5 w-2.5" />
+                                                    </button>
+                                                    <div className="w-[80px] h-[80px] shrink-0">
+                                                        <ProductImageSlot
+                                                            url={variant.image_url || ""}
+                                                            onUrlChange={(newUrl) => {
+                                                                const next = [...editVariants];
+                                                                next[index].image_url = newUrl;
+                                                                setEditVariants(next);
+                                                            }}
+                                                            onFileSelect={(e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onload = (ev) => {
+                                                                        const next = [...editVariants];
+                                                                        next[index].image_url = ev.target?.result as string;
+                                                                        setEditVariants(next);
+                                                                    };
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }}
+                                                            className="mb-0 h-full w-full rounded-lg"
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                        <div className="space-y-1 sm:col-span-2">
+                                                            <Input
+                                                                placeholder='Variant Name (e.g., "128GB - Space Gray")'
+                                                                value={variant.name}
+                                                                onChange={(e) => {
+                                                                    const next = [...editVariants];
+                                                                    next[index].name = e.target.value;
+                                                                    setEditVariants(next);
+                                                                }}
+                                                                className="h-8 text-xs font-bold bg-white border-gray-200"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Input
+                                                                placeholder="Price (₦)"
+                                                                value={variant.price}
+                                                                onChange={(e) => {
+                                                                    const next = [...editVariants];
+                                                                    next[index].price = Number(e.target.value.replace(/\D/g, ""));
+                                                                    setEditVariants(next);
+                                                                }}
+                                                                className="h-8 text-xs font-bold bg-white border-gray-200"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <Input
+                                                                placeholder="Original Price (Optional)"
+                                                                value={variant.original_price}
+                                                                onChange={(e) => {
+                                                                    const next = [...editVariants];
+                                                                    next[index].original_price = Number(e.target.value.replace(/\D/g, ""));
+                                                                    setEditVariants(next);
+                                                                }}
+                                                                className="h-8 text-xs font-medium bg-white border-gray-200 text-gray-500 line-through"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-4 bg-gray-50/50 border border-dashed border-gray-200 rounded-xl">
+                                            <Package className="h-5 w-5 text-gray-300 mx-auto mb-1" />
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">No variants configured</p>
+                                        </div>
                                     )}
                                 </div>
 

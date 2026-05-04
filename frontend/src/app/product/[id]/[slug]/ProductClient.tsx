@@ -142,6 +142,7 @@ export default function ProductDetailPage() {
     const [isAdding, setIsAdding] = useState(false);
     const [isFinancingModalOpen, setIsFinancingModalOpen] = useState(false);
     const [loadedMore, setLoadedMore] = useState(false);
+    const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(0);
 
     // Pagination states
     const [visibleReviewsCount, setVisibleReviewsCount] = useState(3);
@@ -637,11 +638,12 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
             const condition = conditionStr.includes('new') && !conditionStr.includes('used') ? 'new' : 
                              conditionStr.includes('nigerian') ? 'nigerian_used' : 'foreign_used';
             const defaultYears = selectedTenorYears > 0 ? selectedTenorYears : undefined;
-            const inlineProductWithQuantityPrice = { ...product, price: product.price * quantity };
+            const activePrice = product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price;
+            const inlineProductWithQuantityPrice = { ...product, price: activePrice * quantity };
             const loan = calculateMonthlyPayment(inlineProductWithQuantityPrice, defaultYears);
             setLoanAnalysis(loan);
         }
-    }, [product, selectedTenorYears, quantity]);
+    }, [product, selectedTenorYears, quantity, selectedVariantIndex]);
     
     // Record to browsing history
     useEffect(() => {
@@ -897,9 +899,25 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     };
 
 
+    const getCartProduct = () => {
+        if (!product) return null;
+        const activeVariant = product.variants?.[selectedVariantIndex];
+        if (!activeVariant) return product;
+        return {
+            ...product,
+            id: `${product.id}-v${selectedVariantIndex}`,
+            name: `${product.name} - ${activeVariant.name}`,
+            price: activeVariant.price ? Number(activeVariant.price) : product.price,
+            original_price: activeVariant.original_price ? Number(activeVariant.original_price) : product.original_price,
+            image_url: activeVariant.image_url || product.image_url,
+            images: activeVariant.image_url ? [activeVariant.image_url, ...(product.images || [])] : product.images,
+        };
+    };
+
     const handleBuyNow = () => {
-        if (product) {
-            for (let i = 0; i < quantity; i++) addToCart(product);
+        const cartProduct = getCartProduct();
+        if (cartProduct) {
+            for (let i = 0; i < quantity; i++) addToCart(cartProduct);
         }
         router.push("/checkout");
     };
@@ -1529,17 +1547,23 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             <div className="p-5 flex flex-col gap-5">
                                 <div className="flex flex-col gap-1">
                                     <span className="text-xs text-gray-500 font-medium">Total Price</span>
-                                    <>
-                                        <span className="text-3xl font-black text-emerald-500">{formatPrice(product.price * quantity)}</span>
-                                        {(product.original_price || 0) > product.price && (
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-sm text-gray-800 line-through font-medium">{formatPrice((product.original_price || 0) * quantity)}</span>
-                                                <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                                                    -{Math.round(((product.original_price! - product.price) / product.original_price!) * 100)}% OFF
-                                                </span>
-                                            </div>
-                                        )}
-                                    </>
+                                    {(() => {
+                                        const activePrice = product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price;
+                                        const activeOriginalPrice = product.variants?.[selectedVariantIndex]?.original_price ? Number(product.variants[selectedVariantIndex].original_price) : (product.original_price || 0);
+                                        return (
+                                            <>
+                                                <span className="text-3xl font-black text-emerald-500">{formatPrice(activePrice * quantity)}</span>
+                                                {activeOriginalPrice > activePrice && (
+                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                        <span className="text-sm text-gray-800 line-through font-medium">{formatPrice(activeOriginalPrice * quantity)}</span>
+                                                        <span className="text-xs font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                                                            -{Math.round(((activeOriginalPrice - activePrice) / activeOriginalPrice) * 100)}% OFF
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
 
                                 {/* FairPrice Intelligence */}
@@ -1711,6 +1735,39 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </div>
 
+                                {/* ─── VARIANTS & BUNDLES ─── */}
+                                {product.variants && product.variants.length > 0 && (
+                                    <div className="mt-4 mb-2 p-4 rounded-2xl border border-gray-200 bg-white shadow-sm">
+                                        <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Select Option</h3>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {product.variants.map((v: any, idx: number) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setSelectedVariantIndex(idx);
+                                                        if (v.image_url) {
+                                                            const imgUrl = getProxiedImageUrl(v.image_url);
+                                                            const imgIdx = allImages.findIndex(img => img === imgUrl);
+                                                            if (imgIdx >= 0) {
+                                                                setCurrentImageIndex(imgIdx);
+                                                            } else {
+                                                                // Fast fallback if image isn't in main gallery yet
+                                                                setCurrentImageIndex(0); // Optional: add to allImages dynamically if needed
+                                                            }
+                                                        }
+                                                    }}
+                                                    className={`flex flex-col gap-1 p-3 border rounded-xl transition-all ${selectedVariantIndex === idx ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500' : 'border-gray-200 hover:border-emerald-300'}`}
+                                                >
+                                                    <span className={`text-xs font-bold line-clamp-1 text-left ${selectedVariantIndex === idx ? 'text-emerald-900' : 'text-gray-800'}`}>{v.name}</span>
+                                                    <span className={`text-xs font-black text-left ${selectedVariantIndex === idx ? 'text-emerald-600' : 'text-gray-600'}`}>
+                                                        {formatPrice(v.price ? Number(v.price) : product.price)}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Quantity Selector */}
                                 <div className="mt-2 flex items-center justify-between p-3 rounded-2xl border border-emerald-200 bg-emerald-50/50">
                                     <span className="text-sm font-bold text-emerald-800">Quantity</span>
@@ -1767,7 +1824,10 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                     } else {
                                                         setIsAdding(true);
                                                         setTimeout(() => {
-                                                            for (let i = 0; i < quantity; i++) addToCart(product!);
+                                                            const cartProduct = getCartProduct();
+                                                            if (cartProduct) {
+                                                                for (let i = 0; i < quantity; i++) addToCart(cartProduct);
+                                                            }
                                                             setIsAdding(false);
                                                             setAddedToCart(true);
                                                         }, 600);

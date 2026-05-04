@@ -75,6 +75,16 @@ export interface Seller {
     seller_role?: string;
 }
 
+export interface ProductVariant {
+    id: string;
+    name: string;
+    price: number;
+    original_price?: number;
+    image_url?: string;
+    stock?: number;
+    is_default?: boolean;
+}
+
 export interface Product {
     id: string;
     seller_id: string;
@@ -120,6 +130,7 @@ export interface Product {
         whatsapp?: string;
     };
     slug?: string;
+    variants?: ProductVariant[];
 }
 
 export interface Order {

@@ -26,7 +26,8 @@ import {
     Globe,
     Loader2,
     ShieldCheck,
-    AlertTriangle
+    AlertTriangle,
+    Package
 } from "lucide-react";
 
 export default function EditProduct() {
@@ -55,7 +56,8 @@ export default function EditProduct() {
         original_price: "",
         external_url: "",
         financing_available: false,
-        financing_down_payment: ""
+        financing_down_payment: "",
+        variants: [] as { name: string; price: string; image_url: string; original_price: string }[]
     });
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -112,7 +114,13 @@ export default function EditProduct() {
                         original_price: found.original_price ? found.original_price.toLocaleString() : "",
                         external_url: found.external_url || "",
                         financing_available: found.financing_available || false,
-                        financing_down_payment: found.financing_down_payment?.toString() || ""
+                        financing_down_payment: found.financing_down_payment?.toString() || "",
+                        variants: found.variants ? found.variants.map(v => ({
+                            name: v.name,
+                            price: v.price > 0 ? v.price.toLocaleString() : "",
+                            original_price: v.original_price ? v.original_price.toLocaleString() : "",
+                            image_url: v.image_url || ""
+                        })) : []
                     }));
                 }
             }
@@ -340,7 +348,15 @@ export default function EditProduct() {
             stock: parseInt(formData.stock) || 0,
             highlights: formData.highlights,
             financing_available: formData.financing_available,
-            financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0
+            financing_down_payment: formData.financing_available ? parseInt(formData.financing_down_payment.replace(/\D/g, "")) || 0 : 0,
+            variants: formData.variants.filter(v => v.name.trim() !== "").map((v, i) => ({
+                id: product.variants?.[i]?.id || `var_${Date.now()}_${i}`,
+                name: v.name.trim(),
+                price: parseInt(v.price.replace(/,/g, "")) || 0,
+                original_price: v.original_price ? parseInt(v.original_price.replace(/,/g, "")) : undefined,
+                image_url: v.image_url ? wrapInCDN(v.image_url) : undefined,
+                is_default: false
+            }))
         });
 
         setIsSaving(false);
@@ -754,6 +770,135 @@ export default function EditProduct() {
                         <Plus className="h-3 w-3 mr-2" /> Add Specification
                     </Button>
                 </div>
+            </motion.section>
+            
+            {/* ─── Section 4.5: Variants & Bundles ─── */}
+            <motion.section
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.185 }}
+                className="bg-white rounded-2xl border border-gray-200/60 shadow-sm p-8 mb-6"
+            >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-gray-900">Variants & Bundles <span className="text-xs ml-2 font-medium bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">Optional</span></h2>
+                        <p className="text-sm text-gray-500 mt-1">Manage bundled options and product variants. Existing orders with older variants won't be affected.</p>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                            markDirty();
+                            setFormData(p => ({
+                                ...p,
+                                variants: [...p.variants, { name: "", price: "", image_url: "", original_price: "" }]
+                            }));
+                        }}
+                        className="h-9 gap-1.5 text-sm"
+                    >
+                        <Plus className="h-4 w-4" /> Add Option
+                    </Button>
+                </div>
+
+                {formData.variants.length > 0 ? (
+                    <div className="space-y-4">
+                        {formData.variants.map((variant, index) => (
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[100px_1fr] gap-4 items-start p-4 bg-gray-50/50 rounded-xl border border-gray-100 relative group">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        markDirty();
+                                        setFormData(p => ({
+                                            ...p,
+                                            variants: p.variants.filter((_, i) => i !== index)
+                                        }));
+                                    }}
+                                    className="absolute -top-2 -right-2 h-6 w-6 bg-white border border-gray-200 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+
+                                {/* Variant Image */}
+                                <div className="w-[100px] h-[100px] shrink-0">
+                                    <ProductImageSlot
+                                        url={variant.image_url}
+                                        onUrlChange={(newUrl) => {
+                                            markDirty();
+                                            const next = [...formData.variants];
+                                            next[index].image_url = newUrl;
+                                            setFormData(p => ({ ...p, variants: next }));
+                                        }}
+                                        onFileSelect={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                    markDirty();
+                                                    const next = [...formData.variants];
+                                                    next[index].image_url = ev.target?.result as string;
+                                                    setFormData(p => ({ ...p, variants: next }));
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                        className="mb-0 h-full w-full rounded-lg"
+                                    />
+                                </div>
+
+                                {/* Variant Details */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
+                                    <div className="space-y-1.5 sm:col-span-2">
+                                        <label className="text-xs font-medium text-gray-600">Option Name</label>
+                                        <Input
+                                            placeholder='e.g., "RIVER 3 Plus + Solar Panel"'
+                                            value={variant.name}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].name = e.target.value;
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-gray-600">Price (₦)</label>
+                                        <Input
+                                            placeholder="0"
+                                            value={variant.price}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].price = e.target.value.replace(/\D/g, "");
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-medium text-gray-600">Original Price (₦)</label>
+                                        <Input
+                                            placeholder="Optional"
+                                            value={variant.original_price}
+                                            onChange={(e) => {
+                                                markDirty();
+                                                const next = [...formData.variants];
+                                                next[index].original_price = e.target.value.replace(/\D/g, "");
+                                                setFormData(p => ({ ...p, variants: next }));
+                                            }}
+                                            className="h-10 text-sm bg-white border-gray-200 text-gray-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="text-center py-6 bg-gray-50 border border-dashed border-gray-200 rounded-xl">
+                        <Package className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 font-medium">No variants added to this product</p>
+                    </div>
+                )}
             </motion.section>
             
             {/* ─── Section 5: Financing & Ownership ─── */}
