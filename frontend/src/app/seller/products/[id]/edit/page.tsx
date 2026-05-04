@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Product, CATEGORIES } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
@@ -66,6 +66,10 @@ export default function EditProduct() {
     const [isFetchingImage, setIsFetchingImage] = useState(false);
     const [taxonomy, setTaxonomy] = useState<any[]>([]);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const isFormDirtyRef = useRef(false);
+
+    // Mark form as dirty whenever the user makes any change
+    const markDirty = useCallback(() => { isFormDirtyRef.current = true; }, []);
 
     // 1. Load Initial Data & Listen for Updates
     useEffect(() => {
@@ -87,25 +91,30 @@ export default function EditProduct() {
             const found = allProducts.find(p => p.id === productId);
             if (found) {
                 setProduct(found);
-                setFormData(prev => ({
-                    ...prev,
-                    name: found.name,
-                    category: (found.category || "").toLowerCase(),
-                    subcategory: found.subcategory || "",
-                    tags: found.tags || [],
-                    colors: found.colors ? found.colors.join(", ") : "",
-                    price: found.price ? parseInt(String(found.price)).toLocaleString() : "",
-                    description: found.description,
-                    highlights: found.highlights || [],
-                    specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value: String(value) })) : [],
-                    image_url: found.image_url,
-                    images: found.images?.length ? [...found.images] : [""],
-                    stock: found.stock.toString(),
-                    original_price: found.original_price ? found.original_price.toLocaleString() : "",
-                    external_url: found.external_url || "",
-                    financing_available: found.financing_available || false,
-                    financing_down_payment: found.financing_down_payment?.toString() || ""
-                }));
+                // Only overwrite formData if the user hasn't made unsaved edits.
+                // This prevents background sync-store-update events from reverting
+                // pasted image URLs or other in-progress changes.
+                if (!isFormDirtyRef.current) {
+                    setFormData(prev => ({
+                        ...prev,
+                        name: found.name,
+                        category: (found.category || "").toLowerCase(),
+                        subcategory: found.subcategory || "",
+                        tags: found.tags || [],
+                        colors: found.colors ? found.colors.join(", ") : "",
+                        price: found.price ? parseInt(String(found.price)).toLocaleString() : "",
+                        description: found.description,
+                        highlights: found.highlights || [],
+                        specs: found.specs ? Object.entries(found.specs).map(([key, value]) => ({ key, value: String(value) })) : [],
+                        image_url: found.image_url,
+                        images: found.images?.length ? [...found.images] : [""],
+                        stock: found.stock.toString(),
+                        original_price: found.original_price ? found.original_price.toLocaleString() : "",
+                        external_url: found.external_url || "",
+                        financing_available: found.financing_available || false,
+                        financing_down_payment: found.financing_down_payment?.toString() || ""
+                    }));
+                }
             }
         };
 
@@ -336,7 +345,11 @@ export default function EditProduct() {
 
         setIsSaving(false);
         setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+        isFormDirtyRef.current = false; // Reset dirty flag after successful save
+        setTimeout(() => {
+            setSaved(false);
+            router.push("/seller/products");
+        }, 1000);
     };
 
     if (!product) {
@@ -416,7 +429,7 @@ export default function EditProduct() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 items-start">
                     <ProductImageSlot 
                         url={formData.image_url} 
-                        onUrlChange={(url) => setFormData({ ...formData, image_url: url })}
+                        onUrlChange={(url) => { markDirty(); setFormData(prev => ({ ...prev, image_url: url })); }}
                         onFileSelect={handleMainImageUpload}
                         label="Main Image"
                     />
@@ -481,68 +494,63 @@ export default function EditProduct() {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
                     <div>
                         <h2 className="text-lg font-semibold text-gray-900">Visual Gallery</h2>
-                        <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid.</p>
+                        <p className="text-sm text-gray-500 mt-1">Upload photos or paste direct links to build your gallery grid. Up to 8 images.</p>
                     </div>
                 </div>
 
-                <div className="space-y-6">
-                    {/* Fast URL Add */}
-                    <div>
-                        <Input 
-                            placeholder="Paste image URLs (comma separated) & hit Enter to add"
-                            className="rounded-xl text-sm bg-gray-50 border-gray-200 h-11 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const val = e.currentTarget.value;
-                                    if (!val) return;
-                                    const newUrls = val.split(',').map(u => u.trim()).filter(Boolean).map(wrapInCDN);
-                                    setFormData(prev => {
-                                        const current = prev.images.filter(x => x.trim() !== "");
-                                        return { ...prev, images: [...current, ...newUrls] };
-                                    });
-                                    e.currentTarget.value = "";
-                                }
-                            }}
-                        />
-                    </div>
-
-                    {/* Visual Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        {formData.images.filter(url => url.trim() !== "").map((url, i) => (
-                            <div key={`gallery-${i}`} className="group relative aspect-square bg-gray-50 rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:border-blue-400 transition-all flex items-center justify-center">
-                                <img src={getProxiedImageUrl(url)} alt={`Gallery ${i + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/placeholder.png" }} />
-                                
-                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                    <Button variant="ghost" size="icon" onClick={() => {
-                                        const newImages = formData.images.filter(x => x.trim() !== "");
-                                        newImages.splice(i, 1);
-                                        setFormData(prev => ({ ...prev, images: newImages.length ? newImages : [""] }));
-                                    }} className="h-8 w-8 text-white hover:text-red-400 hover:bg-white/20 rounded-full">
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </div>
-                        ))}
-
-                        {/* Add New Slot (Upload File) */}
-                        <div 
-                            className="aspect-square bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all text-blue-500"
-                            onClick={() => galleryFileRefs.current.get(999)?.click()}
-                        >
-                            <ImagePlus className="h-6 w-6 mb-2" />
-                            <span className="text-xs font-semibold">Upload Photo</span>
-                            <input type="file" accept="image/*" className="hidden" ref={(el) => { if (el) galleryFileRefs.current.set(999, el); }} onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                    compressImage(file, (url) => {
-                                        setFormData(prev => ({ ...prev, images: [...prev.images.filter(x => x.trim() !== ""), url] }));
-                                    });
-                                }
-                                e.target.value = ''; // Reset
-                            }} />
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {formData.images.map((url, i) => (
+                        <div key={i} className="relative group">
+                            <ProductImageSlot
+                                url={url}
+                                onUrlChange={(newUrl) => {
+                                    markDirty();
+                                    const next = [...formData.images];
+                                    next[i] = newUrl;
+                                    setFormData(prev => ({ ...prev, images: next }));
+                                }}
+                                onFileSelect={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        markDirty();
+                                        const reader = new FileReader();
+                                        reader.onload = (ev) => {
+                                            const next = [...formData.images];
+                                            next[i] = ev.target?.result as string;
+                                            setFormData(prev => ({ ...prev, images: next }));
+                                        };
+                                        reader.readAsDataURL(file);
+                                    }
+                                }}
+                                className="mb-0"
+                            />
+                            {formData.images.length > 1 && (
+                                <button
+                                    onClick={() => {
+                                        markDirty();
+                                        setFormData(prev => ({
+                                            ...prev,
+                                            images: prev.images.filter((_, idx) => idx !== i)
+                                        }));
+                                    }}
+                                    className="absolute -top-1 -right-1 h-5 w-5 bg-white border border-gray-100 text-gray-400 hover:text-rose-500 rounded-full shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                                >
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            )}
                         </div>
-                    </div>
+                    ))}
+                    {formData.images.length < 8 && (
+                        <button
+                            onClick={() => {
+                                markDirty();
+                                setFormData(prev => ({ ...prev, images: [...prev.images, ""] }));
+                            }}
+                            className="aspect-square w-full border border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50 transition-all"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
             </motion.section>
 

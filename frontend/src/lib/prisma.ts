@@ -2,7 +2,6 @@ import { PrismaClient } from "@prisma/client";
 import { neonConfig } from "@neondatabase/serverless";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
 import ws from "ws";
 
 const CONNECTION_STRING = process.env.DATABASE_URL;
@@ -27,9 +26,9 @@ function createClient(): PrismaClient {
   }
 
   // If connecting to a local DB, use the standard PG adapter
+  // Pass PoolConfig object directly to avoid type mismatch between @types/pg and adapter's bundled types
   if (CONNECTION_STRING.includes('localhost') || CONNECTION_STRING.includes('127.0.0.1')) {
-    const pool = new Pool({ connectionString: CONNECTION_STRING });
-    const adapter = new PrismaPg(pool);
+    const adapter = new PrismaPg({ connectionString: CONNECTION_STRING });
     return new PrismaClient({ adapter });
   }
   

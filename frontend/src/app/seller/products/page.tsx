@@ -551,7 +551,7 @@ export default function SellerProducts() {
                                 </td>
                             </tr>
                         ) : (
-                            filtered.map((product) => (
+                            paginatedProducts.map((product) => (
                                 <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
                                     <td className="px-6 py-5">
                                         <div className="h-14 w-14 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden flex items-center justify-center p-1 relative">

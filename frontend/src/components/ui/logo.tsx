@@ -19,7 +19,7 @@ export function Logo({ className, variant = "light", hideTextMobile = false, isA
                 <span className={cn("text-xl font-black tracking-tight leading-tight", variant === "light" ? "text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]" : "text-green-700")}>
                     {isAdmin ? "Admin Portal" : "FairPrice.ng"}
                 </span>
-                <span className={cn("text-[8.5px] font-black italic uppercase tracking-widest mt-1.5", variant === "light" ? "text-brand-orange" : "text-emerald-700")}>
+                <span className={cn("text-[8.5px] font-black italic uppercase tracking-widest mt-1.5", variant === "light" ? "text-yellow-400 drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" : "text-emerald-700")}>
                     {isAdmin ? "Marketplace Engine" : "Never Over Pay Again"}
                 </span>
             </div>

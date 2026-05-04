@@ -9,13 +9,22 @@ import { Label } from "../ui/label";
 import { Textarea } from "../ui/textarea";
 import { Product, PriceComparison } from "@/lib/types";
 import { formatPrice, getProductUrl } from "@/lib/utils";
-import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight } from "lucide-react";
+import { ShieldCheck, MessageSquare, Tag, AlertTriangle, ChevronRight, ChevronDown } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { useAuth } from "@/context/AuthContext";
 import { PriceEngine } from "@/lib/price-engine";
 import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
 import { playDingSound } from "@/lib/audio";
+
+const COUNTRY_CODES = [
+    { code: "+234", name: "Nigeria", flag: "🇳🇬" },
+    { code: "+233", name: "Ghana", flag: "🇬🇭" },
+    { code: "+254", name: "Kenya", flag: "🇰🇪" },
+    { code: "+27", name: "South Africa", flag: "🇿🇦" },
+    { code: "+44", name: "UK", flag: "🇬🇧" },
+    { code: "+1", name: "USA/Canada", flag: "🇺🇸" },
+];
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -36,6 +45,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
     const { user } = useAuth();
     const { startConversation, openMessageBox } = useMessages();
     const [showPushOptIn, setShowPushOptIn] = useState(false);
+    const [countryCode, setCountryCode] = useState("+234");
 
     // Max negotiation discount — admin-configurable via SystemSettings.
     // Default: 5% means users cannot offer less than 95% of the listing price.
@@ -156,7 +166,7 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
             customer_name: user?.name || tempGuestName,
             proposed_price: Number(proposedPrice),
             message: message,
-            customer_whatsapp: whatsappNumber || undefined,
+            customer_whatsapp: whatsappNumber ? `${countryCode}${whatsappNumber}` : undefined,
             status: "pending" as const,
             created_at: new Date().toISOString(),
             chat_messages: [{
@@ -308,13 +318,26 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                                 WhatsApp for Updates
                                 <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-black uppercase">Ziva AI</span>
                             </Label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-xs font-bold">+234</span>
+                            <div className="flex gap-2">
+                                <div className="relative shrink-0">
+                                    <select
+                                        className="h-10 pl-3 pr-8 bg-emerald-50/30 border border-emerald-100 rounded-lg text-xs font-bold appearance-none outline-none focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
+                                        value={countryCode}
+                                        onChange={(e) => setCountryCode(e.target.value)}
+                                    >
+                                        {COUNTRY_CODES.map(c => (
+                                            <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
+                                        <ChevronDown className="h-3 w-3" />
+                                    </div>
+                                </div>
                                 <Input
                                     id="whatsapp"
                                     type="tel"
                                     placeholder="8012345678"
-                                    className="pl-12 bg-emerald-50/30 border-emerald-100 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium"
+                                    className="flex-1 bg-emerald-50/30 border-emerald-100 rounded-lg focus:ring-emerald-500 focus:border-emerald-500 text-sm font-medium"
                                     value={whatsappNumber}
                                     onChange={(e) => setWhatsappNumber(e.target.value.replace(/\D/g, ""))}
                                 />

@@ -1323,11 +1323,27 @@ export function Navbar() {
                                 >
                                     {!user ? (
                                         <div className="p-4 bg-gray-50 border-b border-gray-200 text-center">
-                                            <Link href="/login" onClick={() => setIsAccountMenuOpen(false)}>
-                                                <Button className="w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2">Sign in</Button>
-                                            </Link>
+                                            <Button 
+                                                className="w-full bg-gradient-to-r from-brand-orange to-amber-500 text-black font-bold h-8 text-xs rounded-md shadow-sm mb-2 cursor-pointer"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsAccountMenuOpen(false);
+                                                    router.push("/login");
+                                                }}
+                                            >
+                                                Sign in
+                                            </Button>
                                             <p className="text-[11px] text-gray-500">
-                                                New customer? <Link href="/login" className="text-blue-600 hover:underline" onClick={() => setIsAccountMenuOpen(false)}>Start here.</Link>
+                                                New customer? <button 
+                                                    className="text-blue-600 hover:underline cursor-pointer" 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setIsAccountMenuOpen(false);
+                                                        router.push("/login");
+                                                    }}
+                                                >
+                                                    Start here.
+                                                </button>
                                             </p>
                                         </div>
                                     ) : (

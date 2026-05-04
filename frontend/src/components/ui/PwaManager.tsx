@@ -98,7 +98,7 @@ export function PwaManager() {
                 className="w-full bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_2px_15px_rgba(0,0,0,0.06)] pointer-events-auto"
             >
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
+                    <div className="w-10 h-10 bg-white border-2 border-white rounded-xl flex items-center justify-center shadow-lg shrink-0 overflow-hidden">
                         <img src="/logo.png" alt="FairPrice" className="h-7 w-7 object-contain" />
                     </div>
                     <div className="flex flex-col">
