@@ -16,22 +16,8 @@ import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 
 type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new" | "otp_existing";
-const COUNTRY_CODES = [
-    { code: "+234", country: "Nigeria", flag: "🇳🇬" },
-    { code: "+233", country: "Ghana", flag: "🇬🇭" },
-    { code: "+254", country: "Kenya", flag: "🇰🇪" },
-    { code: "+27", country: "South Africa", flag: "🇿🇦" },
-    { code: "+1", country: "USA/Canada", flag: "🇺🇸" },
-    { code: "+44", country: "UK", flag: "🇬🇧" },
-    { code: "+91", country: "India", flag: "🇮🇳" },
-    { code: "+86", country: "China", flag: "🇨🇳" },
-    { code: "+971", country: "UAE", flag: "🇦🇪" },
-    { code: "+966", country: "Saudi Arabia", flag: "🇸🇦" },
-    { code: "+49", country: "Germany", flag: "🇩🇪" },
-    { code: "+33", country: "France", flag: "🇫🇷" },
-    { code: "+81", country: "Japan", flag: "🇯🇵" },
-    { code: "+61", country: "Australia", flag: "🇦🇺" },
-];
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
+import { COUNTRY_CODES } from "@/lib/constants/countries";
 
 export default function UnifiedAuthPage() {
     const router = useRouter();
@@ -789,7 +775,7 @@ export default function UnifiedAuthPage() {
                     {/* Main Card */}
                     <motion.div
                         layout
-                        className="bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-6 sm:p-8 relative overflow-hidden"
+                        className="bg-white rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-gray-100 p-6 sm:p-8 relative"
                     >
                         <AnimatePresence mode="wait">
 
@@ -865,40 +851,21 @@ export default function UnifiedAuthPage() {
                                             {isLoading && !isWaPolling ? <Loader2 className="h-5 w-5 animate-spin text-[#1d1d1f]" /> : "Login"}
                                         </Button>
 
-
+                                        <div className="flex items-center gap-4 py-2 mt-2">
+                                            <div className="h-px bg-gray-200 flex-1"></div>
+                                            <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Or</span>
+                                            <div className="h-px bg-gray-200 flex-1"></div>
+                                        </div>
 
                                         {!waVerificationCode ? (
                                             <div className="space-y-4">
                                                 <div className="space-y-1.5">
                                                     <label className="text-[13px] font-semibold text-[#1d1d1f]">WhatsApp Number <span className="text-red-500">*</span></label>
                                                     <div className="flex gap-2">
-                                                        <div className="relative">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setShowWaCountryDropdown(!showWaCountryDropdown)}
-                                                                className="h-12 px-3 rounded-xl border border-[#d2d2d7] bg-white flex items-center gap-2 hover:bg-gray-50 transition-all min-w-[80px]"
-                                                            >
-                                                                <span>{COUNTRY_CODES.find(c => c.code === waCountryCode)?.flag || "🌍"}</span>
-                                                                <span className="font-semibold text-sm">{waCountryCode}</span>
-                                                                <ChevronDown className={cn("h-3 w-3 text-gray-400 transition-transform", showWaCountryDropdown && "rotate-180")} />
-                                                            </button>
-                                                            {showWaCountryDropdown && (
-                                                                <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-xl max-h-60 overflow-y-auto">
-                                                                    {COUNTRY_CODES.map(c => (
-                                                                        <button
-                                                                            key={c.code}
-                                                                            type="button"
-                                                                            onClick={() => { setWaCountryCode(c.code); setShowWaCountryDropdown(false); }}
-                                                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-emerald-50 transition-colors ${waCountryCode === c.code ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700'}`}
-                                                                        >
-                                                                            <span className="text-base">{c.flag}</span>
-                                                                            <span className="flex-1 text-left font-medium">{c.country}</span>
-                                                                            <span className="text-gray-400 text-xs font-mono">{c.code}</span>
-                                                                        </button>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        <CountryCodeSelect 
+                                                            value={waCountryCode} 
+                                                            onChange={setWaCountryCode} 
+                                                        />
                                                         <Input
                                                             type="tel"
                                                             placeholder="e.g. 08123456789"

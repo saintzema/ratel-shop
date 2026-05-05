@@ -364,7 +364,7 @@ function HomeContent() {
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1 relative z-40">
-                  <ProductSlider title="Trending in Nigeria" link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
+                  <ProductSlider title={<>Trending in <span className='text-green-500'>Nigeria 🇳🇬</span></>} link="/search" products={sections.topPicks} icon={<TrendingUp className="h-5 w-5 text-brand-green-600" />} autoScroll direction="left" />
                 </section>
 
                 <section className="container mx-auto px-1 md:px-2 mb-1">

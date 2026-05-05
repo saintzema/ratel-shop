@@ -17,14 +17,8 @@ import { useMessages } from "@/context/MessageContext";
 import Link from "next/link";
 import { playDingSound } from "@/lib/audio";
 
-const COUNTRY_CODES = [
-    { code: "+234", name: "Nigeria", flag: "🇳🇬" },
-    { code: "+233", name: "Ghana", flag: "🇬🇭" },
-    { code: "+254", name: "Kenya", flag: "🇰🇪" },
-    { code: "+27", name: "South Africa", flag: "🇿🇦" },
-    { code: "+44", name: "UK", flag: "🇬🇧" },
-    { code: "+1", name: "USA/Canada", flag: "🇺🇸" },
-];
+import { COUNTRY_CODES } from "@/lib/constants/countries";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
 
 interface NegotiationModalProps {
     isOpen: boolean;
@@ -320,18 +314,10 @@ export function NegotiationModal({ isOpen, onClose, product, priceComparison }: 
                             </Label>
                             <div className="flex gap-2">
                                 <div className="relative shrink-0">
-                                    <select
-                                        className="h-10 pl-3 pr-8 bg-emerald-50/30 border border-emerald-100 rounded-lg text-xs font-bold appearance-none outline-none focus:ring-emerald-500 focus:border-emerald-500 cursor-pointer"
-                                        value={countryCode}
-                                        onChange={(e) => setCountryCode(e.target.value)}
-                                    >
-                                        {COUNTRY_CODES.map(c => (
-                                            <option key={c.code} value={c.code}>{c.flag} {c.code}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-                                        <ChevronDown className="h-3 w-3" />
-                                    </div>
+                                    <CountryCodeSelect 
+                                        value={countryCode} 
+                                        onChange={setCountryCode} 
+                                    />
                                 </div>
                                 <Input
                                     id="whatsapp"

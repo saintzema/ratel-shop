@@ -952,10 +952,11 @@ function SearchContent() {
               new Date(a.created_at).getTime()
             );
           default: {
+            if (a.is_sponsored && !b.is_sponsored) return -1;
+            if (!a.is_sponsored && b.is_sponsored) return 1;
+            
             let scoreA = a.sold_count * 2 + a.review_count;
             let scoreB = b.sold_count * 2 + b.review_count;
-            if (a.is_sponsored) scoreA += 500;
-            if (b.is_sponsored) scoreB += 500;
             if (a.is_trending) scoreA += 200;
             if (b.is_trending) scoreB += 200;
             const randA = (a.id.charCodeAt(0) || 0) % 10;

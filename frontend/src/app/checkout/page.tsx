@@ -23,6 +23,8 @@ import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
 import { PaystackCheckout } from "@/components/payment/PaystackCheckout";
 import { PostOrderConciergeChat } from "@/components/modals/PostOrderConciergeChat";
+import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
+import { COUNTRY_CODES } from "@/lib/constants/countries";
 import { Navbar } from "@/components/layout/Navbar";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
 import { ExitIntentModal } from "@/components/modals/ExitIntentModal";
@@ -490,28 +492,7 @@ function CheckoutContent() {
     const [showWhatsappField, setShowWhatsappField] = useState(false);
     const [whatsappCountryCode, setWhatsappCountryCode] = useState("+234");
 
-    const COUNTRY_CODES = [
-        { code: "+234", country: "Nigeria", flag: "🇳🇬" },
-        { code: "+233", country: "Ghana", flag: "🇬🇭" },
-        { code: "+254", country: "Kenya", flag: "🇰🇪" },
-        { code: "+27", country: "South Africa", flag: "🇿🇦" },
-        { code: "+1", country: "USA/Canada", flag: "🇺🇸" },
-        { code: "+44", country: "UK", flag: "🇬🇧" },
-        { code: "+91", country: "India", flag: "🇮🇳" },
-        { code: "+86", country: "China", flag: "🇨🇳" },
-        { code: "+971", country: "UAE", flag: "🇦🇪" },
-        { code: "+966", country: "Saudi Arabia", flag: "🇸🇦" },
-        { code: "+49", country: "Germany", flag: "🇩🇪" },
-        { code: "+33", country: "France", flag: "🇫🇷" },
-        { code: "+81", country: "Japan", flag: "🇯🇵" },
-        { code: "+61", country: "Australia", flag: "🇦🇺" },
-        { code: "+55", country: "Brazil", flag: "🇧🇷" },
-        { code: "+237", country: "Cameroon", flag: "🇨🇲" },
-        { code: "+251", country: "Ethiopia", flag: "🇪🇹" },
-        { code: "+255", country: "Tanzania", flag: "🇹🇿" },
-        { code: "+256", country: "Uganda", flag: "🇺🇬" },
-        { code: "+221", country: "Senegal", flag: "🇸🇳" },
-    ];
+    // Note: Local COUNTRY_CODES array removed in favor of global import.
 
     const handleEmailChange = (value: string) => {
         setAddress({ ...address, email: value });
@@ -1712,33 +1693,10 @@ function CheckoutContent() {
                                             <label className="text-xs font-bold uppercase text-gray-400">Phone Number <span className="text-red-400">*</span></label>
                                             <div className="flex gap-2">
                                                 {/* Country Code Dropdown */}
-                                                <div className="relative">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowCountryDropdown(!showCountryDropdown)}
-                                                        className="h-10 px-3 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 transition-colors min-w-[90px]"
-                                                    >
-                                                        <span>{COUNTRY_CODES.find(c => c.code === countryCode)?.flag || "🌍"}</span>
-                                                        <span className="font-semibold">{countryCode}</span>
-                                                        <svg className="h-3 w-3 text-gray-400 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                                                    </button>
-                                                    {showCountryDropdown && (
-                                                        <div className="absolute z-50 top-full left-0 mt-1 w-56 bg-white rounded-xl border border-gray-200 shadow-xl max-h-52 overflow-y-auto">
-                                                            {COUNTRY_CODES.map(c => (
-                                                                <button
-                                                                    key={c.code}
-                                                                    type="button"
-                                                                    onClick={() => { setCountryCode(c.code); setShowCountryDropdown(false); }}
-                                                                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-emerald-50 transition-colors ${countryCode === c.code ? 'bg-emerald-50 text-emerald-700 font-bold' : 'text-gray-700'}`}
-                                                                >
-                                                                    <span className="text-base">{c.flag}</span>
-                                                                    <span className="flex-1 text-left font-medium">{c.country}</span>
-                                                                    <span className="text-gray-400 text-xs font-mono">{c.code}</span>
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                <CountryCodeSelect 
+                                                    value={countryCode} 
+                                                    onChange={setCountryCode} 
+                                                />
                                                 <Input
                                                     value={address.phone}
                                                     onChange={e => setAddress({ ...address, phone: e.target.value })}
@@ -1763,16 +1721,10 @@ function CheckoutContent() {
                                             </label>
                                             {showWhatsappField && (
                                                 <div className="flex gap-2 pl-8">
-                                                    <div className="relative">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { }}
-                                                            className="h-10 px-3 rounded-xl border border-gray-300 bg-white flex items-center gap-1.5 text-sm font-medium text-gray-700 min-w-[90px]"
-                                                        >
-                                                            <span>{COUNTRY_CODES.find(c => c.code === whatsappCountryCode)?.flag || "🌍"}</span>
-                                                            <span className="font-semibold">{whatsappCountryCode}</span>
-                                                        </button>
-                                                    </div>
+                                                    <CountryCodeSelect 
+                                                        value={whatsappCountryCode} 
+                                                        onChange={setWhatsappCountryCode} 
+                                                    />
                                                     <Input
                                                         value={whatsappPhone}
                                                         onChange={e => setWhatsappPhone(e.target.value)}
