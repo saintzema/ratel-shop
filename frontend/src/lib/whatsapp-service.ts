@@ -4,7 +4,7 @@ const WHATSAPP_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const WABA_ID = process.env.WHATSAPP_WABA_ID;
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
-const API_VERSION = "v25.0";
+const API_VERSION = "v20.0";
 
 export class WhatsAppService {
     /**
@@ -152,6 +152,63 @@ export class WhatsAppService {
         }
 
         return this.sendMarketingMessage(to, data.templateName, components);
+    }
+
+    /**
+     * Sends a verification code using an 'Authentication' category template.
+     * Requirement: Template must be created in Meta Business Manager first.
+     * Recommended Template Body: "{{1}} is your verification code."
+     */
+    static async sendVerificationTemplate(to: string, code: string, templateName: string = "verification_code") {
+        if (!WHATSAPP_TOKEN || !PHONE_NUMBER_ID) {
+            console.warn("WhatsApp credentials missing. Verification code suppressed:", code);
+            return null;
+        }
+
+        const cleanTo = this.normalizePhoneNumber(to);
+
+        try {
+            const response = await fetch(
+                `https://graph.facebook.com/${API_VERSION}/${PHONE_NUMBER_ID}/messages`,
+                {
+                    method: "POST",
+                    headers: {
+                        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        messaging_product: "whatsapp",
+                        to: cleanTo,
+                        type: "template",
+                        template: {
+                            name: templateName,
+                            language: { code: "en_US" },
+                            components: [
+                                {
+                                    type: "body",
+                                    parameters: [{ type: "text", text: code }]
+                                },
+                                {
+                                    type: "button",
+                                    sub_type: "url",
+                                    index: "0",
+                                    parameters: [{ type: "text", text: code }]
+                                }
+                            ]
+                        },
+                    }),
+                }
+            );
+
+            const data = await response.json();
+            if (data.error) {
+                console.error("WhatsApp Template Error:", data.error);
+            }
+            return data;
+        } catch (error) {
+            console.error("WhatsApp Template Send Error:", error);
+            return null;
+        }
     }
 
     /**

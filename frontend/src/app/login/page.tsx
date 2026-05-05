@@ -1039,8 +1039,8 @@ export default function UnifiedAuthPage() {
                                             <Button
                                                 type="button"
                                                 onClick={handleWhatsAppContinue}
-                                                disabled={isLoading || !waPhoneNumber.trim()}
-                                                className="w-full h-[52px] bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[16px] rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_4px_14px_rgba(37,211,102,0.2)]"
+                                                disabled={isLoading}
+                                                className="w-full h-[52px] bg-[#25D366] hover:bg-[#20bd5a] active:bg-[#1da851] active:scale-[0.98] text-white font-bold text-[16px] rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_4px_14px_rgba(37,211,102,0.2)]"
                                             >
                                                 {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                                                     <>
@@ -1835,7 +1835,7 @@ export default function UnifiedAuthPage() {
                                     </div>
 
                                     <div className="space-y-3">
-                                        <Button onClick={handleWaOtpComplete} disabled={isLoading} className="w-full h-14 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[17px] rounded-xl transition-all shadow-[0_4px_14px_rgba(37,211,102,0.2)]">
+                                        <Button onClick={handleWaOtpComplete} disabled={isLoading} className="w-full h-14 bg-[#25D366] hover:bg-[#20bd5a] active:bg-[#1da851] active:scale-[0.98] text-white font-bold text-[17px] rounded-xl transition-all shadow-[0_4px_14px_rgba(37,211,102,0.2)]">
                                             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (isExistingUser ? "Verify & Login" : "Verify & Create Account")}
                                         </Button>
                                     </div>

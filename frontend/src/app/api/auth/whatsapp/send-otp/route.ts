@@ -61,11 +61,8 @@ export async function POST(req: Request) {
             }
         });
 
-        // Send the OTP via WhatsApp Cloud API
-        const purposeText = purpose === "login" ? "login" : "verify your account";
-        const message = `🔐 Your FairPrice ${purpose === "login" ? "login" : "verification"} code is: *${code}*\n\nThis code expires in 10 minutes. Do not share it with anyone.`;
-
-        const sendResult = await WhatsAppService.sendMessage(cleanPhone, message);
+        // Send the OTP via WhatsApp Cloud API Template
+        const sendResult = await WhatsAppService.sendVerificationTemplate(cleanPhone, code);
 
         if (!sendResult) {
             // WhatsApp credentials missing — send was suppressed

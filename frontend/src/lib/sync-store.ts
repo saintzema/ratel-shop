@@ -2596,6 +2596,11 @@ class DataSyncServiceService {
         return products.filter(p => p.is_active !== false && approvedIds.has(p.seller_id));
     }
 
+    /** Manually inject a product into the local store (used by integrations) */
+    addApprovedProduct(product: Product) {
+        this.addRawProduct(product, true);
+    }
+
     getSellers(): Seller[] {
         if (typeof window === "undefined") return [];
         const stored = localStorage.getItem(this.STORAGE_KEYS.SELLERS);

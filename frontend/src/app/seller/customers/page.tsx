@@ -84,6 +84,8 @@ export default function CustomersCRMPage() {
                 });
             }
             const c = cusMap.get(cid);
+            if (!c) return;
+
             c.totalSpend += order.amount;
             c.orders += 1;
             const orderDate = new Date(order.created_at);
@@ -93,7 +95,7 @@ export default function CustomersCRMPage() {
         // Determine VIP Status and attach Tags
         const cList = Array.from(cusMap.values()).map(c => ({
             ...c,
-            status: c.totalSpend > 500000 ? "VIP" : c.orders === 1 ? "New" : "Active",
+            status: (c.totalSpend > 500000 ? "VIP" : c.orders === 1 ? "New" : "Active") as "VIP" | "New" | "Active",
             tags: DataSyncService.getCustomerTags(c.id)
         }));
 
