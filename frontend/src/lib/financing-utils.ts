@@ -32,15 +32,15 @@ export function calculateFinancing(
     tenureMonths: number = 12,
     isCar: boolean = false
 ): FinancingTerms {
-    // 1. Car Financing Case (Specific 20M example logic extrapolated)
+    // 1. Car Financing Case
     if (isCar || amount >= 15000000) {
         return {
             type,
             assetValue: amount,
-            securityDeposit: 3000000,
-            tenureMonths: 24, // Fixed for cars as per request
-            monthlyRepayment: 985870.03,
-            insuranceAnnual: 1000000,
+            securityDeposit: amount * 0.15, // 15% deposit for cars
+            tenureMonths: tenureMonths, // Use provided duration
+            monthlyRepayment: Math.round(((amount * 0.85) * (1 + 0.36 * (tenureMonths / 12))) / tenureMonths),
+            insuranceAnnual: amount * 0.05, // 5% flat insurance placeholder
             interestRate: "36% p.a.",
             collateralRequired: true
         };
@@ -98,17 +98,33 @@ export function getRequiredDocuments(type: 'individual' | 'business', isCar: boo
 
 // ─── COMPATIBILITY EXPORTS ──────────────────────────────────
 
+export function getFinancingThreshold(): number {
+    if (typeof window !== 'undefined') {
+        try {
+            const config = localStorage.getItem("fairprice_admin_settings");
+            if (config) {
+                const parsed = JSON.parse(config);
+                if (parsed.bnplThreshold) return Number(parsed.bnplThreshold);
+            }
+        } catch { /* ignore */ }
+    }
+    return 400000; // Strict default
+}
+
 export function hasFinancing(product: any): boolean {
     if (!product) return false;
-    const cat = product.category?.toLowerCase() || '';
     const price = product.price || 0;
     
+    const threshold = getFinancingThreshold();
+    // Strict enforcement: No financing under threshold regardless of category
+    if (price < threshold) return false;
+
+    const cat = product.category?.toLowerCase() || '';
     // Auto-enable for cars and expensive items
     if (cat.includes('car') || cat.includes('vehicle')) return true;
     if (cat.includes('solar') || cat.includes('inverter')) return true;
-    if (price >= 200000) return true;
     
-    return !!product.financingAvailable;
+    return true; // If it passes threshold, it's eligible
 }
 
 export function isVehicle(product: any): boolean {
@@ -130,7 +146,7 @@ export function calculateMonthlyPayment(product: any, tenureOrType?: number | st
     if (typeof tenureOrType === 'number') {
         tenure = tenureOrType * 12;
     } else if (isCar) {
-        tenure = 24;
+        tenure = 48; // Default to 4 years for cars
     }
 
     const terms = calculateFinancing(amount, 'individual', tenure, isCar);

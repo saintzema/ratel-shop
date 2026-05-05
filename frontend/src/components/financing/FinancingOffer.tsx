@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CreditCard, Sparkles, Building2, User, ChevronRight, CheckCircle2, ShieldCheck, Zap } from "lucide-react";
+import { CreditCard, Sparkles, Building2, User, ChevronRight, CheckCircle2, ShieldCheck, Zap, Banknote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { calculateFinancing, FINANCING_CONSTANTS } from "@/lib/financing-utils";
+import { calculateFinancing, FINANCING_CONSTANTS, getFinancingThreshold } from "@/lib/financing-utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 import { useRouter } from "next/navigation";
@@ -25,7 +25,12 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
     const [isApplying, setIsApplying] = useState(false);
     
     const isCar = product.category?.toLowerCase().includes('car') || product.category?.toLowerCase().includes('vehicle');
-    const terms = calculateFinancing(product.price, type, 12, isCar);
+    const [tenure, setTenure] = useState(isCar ? 48 : 12);
+
+    const threshold = getFinancingThreshold();
+    if (product.price < threshold) return null;
+
+    const terms = calculateFinancing(product.price, type, tenure, isCar);
 
     const handleApply = async () => {
         setIsApplying(true);
@@ -59,7 +64,7 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
         <>
             <div className="bg-gradient-to-br from-indigo-50 via-white to-indigo-50/30 rounded-3xl border border-indigo-100 p-5 shadow-sm relative overflow-hidden group transition-all hover:shadow-md">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <Sparkles className="h-12 w-12 text-indigo-600" />
+                    <Banknote className="h-16 w-16 text-indigo-600" />
                 </div>
                 
                 <div className="flex items-center gap-3 mb-4">
@@ -74,15 +79,30 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
                     </div>
                 </div>
 
-                <div className="space-y-3 mb-5">
+                <div className="space-y-3 mb-5 relative z-10">
                     <div className="flex justify-between items-end">
                         <span className="text-xs font-medium text-gray-500">Monthly Payment</span>
                         <span className="text-lg font-black text-gray-900">₦{terms.monthlyRepayment.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-end">
-                        <span className="text-xs font-medium text-gray-500">Deposit (20%)</span>
+                        <span className="text-xs font-medium text-gray-500">Deposit ({isCar ? '15%' : '20%'})</span>
                         <span className="text-sm font-bold text-gray-700">₦{terms.securityDeposit.toLocaleString()}</span>
                     </div>
+                    {isCar && (
+                        <div className="flex justify-between items-center pt-2">
+                            <span className="text-xs font-medium text-gray-500">Duration</span>
+                            <select 
+                                value={tenure}
+                                onChange={(e) => setTenure(Number(e.target.value))}
+                                className="text-xs font-bold bg-white border border-gray-200 rounded-lg px-2 py-1 outline-none text-indigo-700"
+                            >
+                                <option value={12}>1 Year (12 months)</option>
+                                <option value={24}>2 Years (24 months)</option>
+                                <option value={36}>3 Years (36 months)</option>
+                                <option value={48}>4 Years (48 months)</option>
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 <Button 
@@ -93,7 +113,7 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
                 </Button>
 
                 <p className="text-[9px] text-center text-gray-400 font-bold mt-3 uppercase tracking-tighter">
-                    Powered by Altpower & Carbon Finance
+                    Apply Now to Get Product Delivered After Approval
                 </p>
             </div>
 

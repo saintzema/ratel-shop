@@ -119,7 +119,7 @@ export async function GET(req: Request) {
                 error: "Service Temporarily Unavailable",
                 message: "The database is currently offline or misconfigured.",
                 code: "DB_OFFLINE"
-            }, { status: 503 });
+            }, { status: 500 });
         }
     }
 }

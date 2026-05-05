@@ -80,7 +80,7 @@ export async function GET(req: Request) {
             message: "The seller registry is currently unreachable.",
             code: "DB_OFFLINE"
         }, {
-            status: 503,
+            status: 500,
             headers: { 
                 "X-DB-Status": "offline",
                 "Cache-Control": "no-store" 
@@ -201,7 +201,7 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("Seller API error:", error);
         return NextResponse.json({ error: "Database temporarily unavailable", queued: true }, {
-            status: 503,
+            status: 500,
             headers: { "Retry-After": "30" }
         });
     }

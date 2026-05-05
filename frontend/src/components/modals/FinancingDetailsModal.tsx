@@ -108,7 +108,7 @@ export function FinancingDetailsModal({ isOpen, onClose, product }: FinancingDet
                                                      if (product.financing_config?.max_tenor_months) {
                                                          maxYears = Math.floor(product.financing_config.max_tenor_months / 12);
                                                      } else if (product.category?.toLowerCase().includes('car') || product.category?.toLowerCase().includes('vehicle')) {
-                                                         maxYears = 5;
+                                                         maxYears = 4;
                                                      } else if (product.price > 300000) {
                                                          maxYears = 4;
                                                      }

@@ -2201,7 +2201,7 @@ export const SEED_PRODUCTS: Product[] = [
         name: "3-in-1 Black Replacement Cover Accessories Kit with Canopy & Shoulder Pads for Baby Infant Stroller",
         description: "High-quality accessories kit for strollers and car seats.",
         price: 78159, original_price: 128594, recommended_price: 78000,
-        category: "baby", image_url: "https://images.unsplash.com/photo-1544126592-807de205c058?w=400&q=80",
+        category: "baby", image_url: "/assets/images/placeholder.png",
         images: [], stock: 50, price_flag: "great_deal", is_active: true,
         avg_rating: 4.8, review_count: 111, sold_count: 676, created_at: "2026-02-20T10:00:00Z"
     },
@@ -2210,7 +2210,7 @@ export const SEED_PRODUCTS: Product[] = [
         name: "Compatible for Strollers & Car Seat Organizer Storage Bag with Zipper",
         description: "Machine-Washable Travel Stroller Organizer storage bag.",
         price: 14815, original_price: 48831, recommended_price: 15000,
-        category: "baby", image_url: "https://images.unsplash.com/photo-1622290291136-11f8e6583d73?w=400&q=80",
+        category: "baby", image_url: "/assets/images/placeholder.png",
         images: [], stock: 100, price_flag: "great_deal", is_active: true,
         avg_rating: 4.5, review_count: 80, sold_count: 320, created_at: "2026-02-20T10:00:00Z"
     },
@@ -2219,7 +2219,7 @@ export const SEED_PRODUCTS: Product[] = [
         name: "3pcs Baby Stroller Cushion Set + Includes 2pcs Safety Belt Shoulder Pads",
         description: "Cationic Baby Stroller Mat Suitable for All Seasons, Washable.",
         price: 16069, original_price: 53611, recommended_price: 16000,
-        category: "baby", image_url: "https://images.unsplash.com/photo-1515488042178-9e120d6f4d54?w=400&q=80",
+        category: "baby", image_url: "/assets/images/placeholder.png",
         images: [], stock: 45, price_flag: "great_deal", is_active: true,
         avg_rating: 4.7, review_count: 45, sold_count: 150, created_at: "2026-02-20T10:00:00Z"
     },
@@ -2246,7 +2246,7 @@ export const SEED_PRODUCTS: Product[] = [
         name: "Lightweight And Ultra-Lightweight Stroller for Infants",
         description: "Suitable for Babies Aged 0-3, Can Be Used for Sitting Or Lying Down.",
         price: 182882, original_price: 1405072, recommended_price: 185000,
-        category: "baby", image_url: "https://images.unsplash.com/photo-1591129336183-b54203ae8d27?w=400&q=80",
+        category: "baby", image_url: "/assets/images/placeholder.png",
         images: [], stock: 12, price_flag: "great_deal", is_active: true,
         avg_rating: 4.8, review_count: 56, sold_count: 240, created_at: "2026-02-20T10:00:00Z"
     },
@@ -2255,7 +2255,7 @@ export const SEED_PRODUCTS: Product[] = [
         name: "Stroller Replacement Trio: Seat Mat, Sunshade & Shoulder Covers",
         description: "Value Kit | Trio Protection | All-in-One Care for Complete Stroller Comfort",
         price: 62241, original_price: 142158, recommended_price: 65000,
-        category: "baby", image_url: "https://images.unsplash.com/photo-1536640712-4d4c36ef0e2c?w=400&q=80",
+        category: "baby", image_url: "/assets/images/placeholder.png",
         images: [], stock: 30, price_flag: "great_deal", is_active: true,
         avg_rating: 4.6, review_count: 34, sold_count: 110, created_at: "2026-02-20T10:00:00Z"
     },

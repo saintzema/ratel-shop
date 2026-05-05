@@ -14,13 +14,13 @@ export function FloatingWhatsApp() {
   const isHidden = pathname?.startsWith('/checkout') || pathname?.startsWith('/admin') || pathname?.startsWith('/seller');
 
   useEffect(() => {
-    // Slight delay to animate in after page load
+    // Delay render so it doesn't overlap Ziva AI's initial greeting
     const timer = setTimeout(() => {
         setIsVisible(true);
         // Show tooltip automatically after a few seconds, then hide
         setTimeout(() => setShowTooltip(true), 3000);
         setTimeout(() => setShowTooltip(false), 10000);
-    }, 1000);
+    }, 12000);
     return () => clearTimeout(timer);
   }, []);
 

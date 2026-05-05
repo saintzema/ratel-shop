@@ -145,7 +145,7 @@ export async function GET(req: Request) {
         console.error("Users API error:", error);
         return NextResponse.json(
             { error: "Database temporarily unavailable", offline: true },
-            { status: 503, headers: { "X-DB-Status": "offline" } }
+            { status: 500, headers: { "X-DB-Status": "offline" } }
         );
     }
 }

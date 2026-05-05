@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { NIGERIAN_STATES } from "@/lib/nigerian-states";
 import { SEED_PRODUCTS, SEED_SELLERS, DEMO_REVIEWS, SEED_DEALS, getDemoPriceComparison } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
-import { formatPrice, getProxiedImageUrl, getProductUrl, cn, isVideoUrl } from "@/lib/utils";
+import { formatPrice, getProxiedImageUrl, getProductUrl, cn, isVideoUrl, copyToClipboard } from "@/lib/utils";
 import { QRCodeCanvas } from "qrcode.react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1228,7 +1228,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             </h2>
                             <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:grid-cols-5">
                                 <a
-                                    href={`https://wa.me/?text=${encodeURIComponent((product?.name || '') + ' — ₦' + (product?.price || 0).toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? window.location.href : ''))}`}
+                                    href={`https://wa.me/?text=${encodeURIComponent((product?.name || '') + ' — ₦' + (product?.price || 0).toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? (window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://fairprice.ng', 'https://www.fairprice.ng')) : ''))}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-[#25D366]/20 bg-[#25D366]/5 group"
@@ -1258,7 +1258,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </a>
                                 <a
-                                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== 'undefined' ? window.location.href : '')}`}
+                                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== 'undefined' ? (window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://fairprice.ng', 'https://www.fairprice.ng')) : '')}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-[#1877F2]/20 bg-[#1877F2]/5 group"
@@ -1269,8 +1269,8 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 </a>
                                 <button
                                     onClick={async () => {
-                                        const { copyToClipboard } = await import("@/lib/utils");
-                                        const success = await copyToClipboard(window.location.href);
+                                        const shareUrl = window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://fairprice.ng', 'https://www.fairprice.ng');
+                                        const success = await copyToClipboard(shareUrl);
                                         if (success) {
                                             setCopiedLink(true);
                                             setTimeout(() => setCopiedLink(false), 2000);
@@ -1608,6 +1608,37 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         </div>
                                     </div>
                                 )}
+
+                                {/* Full Price Payment Option */}
+                                <div className="p-5 rounded-3xl border border-gray-200 bg-white shadow-sm flex flex-col gap-4">
+                                    <Button 
+                                        onClick={handleBuyNow}
+                                        className="w-full h-14 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg shadow-xl active:scale-[0.98] transition-all flex flex-col items-center justify-center relative overflow-hidden group"
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
+                                        <span className="text-xs font-bold text-gray-300 uppercase tracking-widest mb-0.5">Pay Full Price Now</span>
+                                        <span>{formatPrice(product.price * quantity)}</span>
+                                    </Button>
+                                    
+                                    <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-tight">
+                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                            <Handshake className="h-3 w-3 text-ratel-green-600" />
+                                            Negotiate Price
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                            <CheckCircle2 className="h-3 w-3 text-ratel-green-600" />
+                                            85% Acceptance Rate
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                            <QrCode className="h-3 w-3 text-ratel-green-600" />
+                                            Scan to Pay
+                                        </div>
+                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                            <ShieldCheck className="h-3 w-3 text-ratel-green-600" />
+                                            FAST & SECURE
+                                        </div>
+                                    </div>
+                                </div>
 
                                 {/* Buy Now, Pay Later Discovery & Breakdown */}
                                 <FinancingOffer product={product} />

@@ -23,7 +23,7 @@ export default function AboutPage() {
                     <section>
                         <h2 className="text-2xl font-black text-gray-900 mb-4">Our Mission</h2>
                         <p className="text-gray-600 leading-relaxed text-lg">
-                            FairPrice was founded with a simple but powerful vision: to ensure every Nigerian shopper gets the best possible deal, every time they shop online. Our AI-driven pricing engine analyzes thousands of data points across local and global markets to guarantee you&apos;re never overpaying.
+                            FairPrice was founded with a simple but powerful vision: to ensure every Nigerian shopper gets the best possible deal, every time they shop online. Our AI-driven pricing engine analyzes thousands of data points across local and global markets to guarantee you buy & sell with no wahala.
                         </p>
                     </section>
 

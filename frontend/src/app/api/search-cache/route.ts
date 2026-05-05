@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     } catch (error) {
         console.error("Database fetch error for Search Cache:", error);
         return NextResponse.json({}, {
-            status: 503,
+            status: 500,
             headers: { "X-DB-Status": "offline" }
         });
     }

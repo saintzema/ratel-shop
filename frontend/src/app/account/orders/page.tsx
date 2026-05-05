@@ -528,7 +528,7 @@ function OrdersContent() {
                                 <h3 className="font-bold text-sm text-white">Negotiate a Price</h3>
                             </div>
                             <p className="text-xs text-emerald-100 leading-relaxed mb-3">
-                                Find any product and negotiate for a better price. Our AI searches the internet for fair market prices so you never overpay.
+                                Find any product and negotiate for a better price. Our AI searches the internet for fair market prices so you buy & sell with no wahala.
                             </p>
                             <Link href="/account/negotiations">
                                 <Button size="sm" className="w-full bg-white text-emerald-700 hover:bg-emerald-50 font-bold text-xs rounded-lg shadow-sm">

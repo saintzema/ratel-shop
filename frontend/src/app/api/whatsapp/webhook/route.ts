@@ -258,7 +258,7 @@ async function handleIceBreaker(from: string, text: string) {
     const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
 
     if (text === "Check Real Market Price") {
-        await WhatsAppService.sendMessage(from, `Welcome to FairPrice! ZIVA AI ensures you never overpay.\n\nReply with \`/price [product name]\` or search our catalog directly inside WhatsApp:\n🔗 ${APP_URL}/search`);
+        await WhatsAppService.sendMessage(from, `Welcome to FairPrice! ZIVA AI ensures you Buy & Sell with no wahala.\n\nReply with \`/price [product name]\` or search our catalog directly inside WhatsApp:\n🔗 ${APP_URL}/search`);
     } else if (text === "How much last? Let's bargain") {
         await WhatsAppService.sendMessage(from, `Ready to haggle? Our sellers are open to offers!\n\nBrowse products and click the 🤝 Negotiate button to start haggling directly from here:\n🔗 ${APP_URL}`);
     } else if (text === "Apply for Financing") {

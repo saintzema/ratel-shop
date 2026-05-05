@@ -28,7 +28,7 @@ export default function FeaturesPage() {
             bg: "bg-blue-50",
             features: [
                 { title: "Marketplace Discovery", desc: "Browse multi-category products with real-time search, fuzzy matching, and smart filters." },
-                { title: "Price Intelligence", desc: "Look for the 'Fair Price' badge. Our AI analyzes local and global markets to ensure you never overpay." },
+                { title: "Price Intelligence", desc: "Look for the 'Fair Price' badge. Our AI analyzes local and global markets to ensure you Buy & Sell with no wahala." },
                 { title: "Dynamic Negotiations", desc: "Negotiate directly with sellers. Accept, reject, or counter-offer via the web or WhatsApp." },
                 { title: "Escrow Protection", desc: "Funds are held securely and only released when you confirm delivery and satisfaction." }
             ]

@@ -47,10 +47,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, disputes: mappedDisputes });
     } catch (error: any) {
         console.error("Disputes API Error:", error);
-        return NextResponse.json({ success: true, disputes: [] }, {
-            status: 503,
-            headers: { "X-DB-Status": "offline" }
-        });
+        return NextResponse.json(
+            { success: false, error: "Failed to fetch disputes", details: error.message },
+            { status: 500 }
+        );
     }
 }
 

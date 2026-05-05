@@ -49,7 +49,7 @@ export async function GET(request: Request) {
     } catch (error: any) {
         console.error("Reviews API Error:", error);
         return NextResponse.json({ success: true, reviews: [] }, {
-            status: 503,
+            status: 500,
             headers: { "X-DB-Status": "offline" }
         });
     }

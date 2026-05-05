@@ -100,7 +100,7 @@ function BaseTemplate(title: string, contentHTML: string) {
                                             FairPrice.ng
                                         </h1>
                                         <div style="font-size:10px;font-weight:700;font-style:italic;margin-top:6px;text-transform:uppercase;letter-spacing:0.1em;color:#ca8a04;line-height:1;">
-                                            Never overpay again
+                                            Buy & Sell with no wahala
                                         </div>
                                     </div>
                                     <h2 style="margin:8px 0 0 0;font-size:24px;font-weight:700;color:#1d1d1f;letter-spacing:-0.5px;" class="text-main">${title}</h2>
@@ -120,7 +120,7 @@ function BaseTemplate(title: string, contentHTML: string) {
                         <tr>
                             <td style="padding:0;font-size:13px;color:#86868b;line-height:20px;font-weight:500;" class="text-muted">
                                 <p style="margin:0;">&copy; ${new Date().getFullYear()} FairPrice.ng. All rights reserved.</p>
-                                <p style="margin:4px 0 0 0;">Never overpay again.</p>
+                                <p style="margin:4px 0 0 0;">Buy & Sell with no wahala.</p>
                             </td>
                         </tr>
                     </table>

@@ -5853,22 +5853,83 @@ class DataSyncServiceService {
             localStorage.setItem(key, value);
         } catch (e: any) {
             if (e.name === "QuotaExceededError" || e.code === 22 || e.code === 1014) {
-                console.warn("⚠️ LocalStorage quota exceeded. Attempting emergency cleanup...");
-                // Emergency cleanup: delete chats older than 14 days
-                this.bulkCleanupChats({ daysOld: 14 });
+                console.warn(`⚠️ LocalStorage quota exceeded while writing ${key}. Attempting emergency pruning...`);
+                
+                // 1. First attempt: Selective pruning
+                this.pruneStorage({ aggressive: false });
+                
                 try {
                     localStorage.setItem(key, value);
-                    console.log("✅ Emergency cleanup successful. Storage preserved.");
+                    console.log("✅ Emergency pruning successful. Data saved.");
+                    return;
                 } catch (retryError) {
-                    console.error("❌ Critical: Storage quota still exceeded after cleanup.");
-                    window.dispatchEvent(new CustomEvent("fp-quota-exceeded", { 
-                        detail: { key, message: "Storage full. Please use the Admin Chat Manager to clear old history." } 
-                    }));
+                    console.warn("⚠️ Storage still full after selective pruning. Attempting aggressive cleanup...");
+                    
+                    // 2. Second attempt: Aggressive pruning
+                    this.pruneStorage({ aggressive: true });
+                    
+                    try {
+                        localStorage.setItem(key, value);
+                        console.log("✅ Aggressive pruning successful. Data saved.");
+                    } catch (finalError) {
+                        console.error("❌ CRITICAL: Storage quota still exceeded after aggressive cleanup.");
+                        window.dispatchEvent(new CustomEvent("fp-quota-exceeded", { 
+                            detail: { 
+                                key, 
+                                message: "Storage full. Large datasets (chats/cache) have been cleared, but we're still over limit. Please clear your browser cache." 
+                            } 
+                        }));
+                    }
                 }
             } else {
                 throw e;
             }
         }
+    }
+
+    /** 
+     * Prunes non-essential data from localStorage to free up space.
+     * Non-essential includes: Search Cache, Old Notifications, Old Chat Messages, Seeded Data.
+     */
+    public pruneStorage(options: { aggressive?: boolean } = {}) {
+        if (typeof window === "undefined") return;
+        const isAggressive = options.aggressive || false;
+
+        console.log(`🧹 Pruning storage (${isAggressive ? 'Aggressive' : 'Soft'})...`);
+
+        // 1. Soft Pruning: Clear non-essential caches
+        localStorage.removeItem(this.STORAGE_KEYS.SEARCH_CACHE);
+        localStorage.removeItem(this.STORAGE_KEYS.TRENDING_CURATION);
+        localStorage.removeItem(this.STORAGE_KEYS.PROMOTIONS);
+        
+        if (!isAggressive) {
+            // Also clear old notifications
+            const notifications = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.NOTIFICATIONS) || "[]");
+            if (notifications.length > 50) {
+                localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(notifications.slice(0, 50)));
+            }
+            return;
+        }
+
+        // 2. Aggressive Pruning: Limit chat messages and clear seeded data
+        localStorage.removeItem(this.STORAGE_KEYS.REVIEWS);
+        localStorage.removeItem(this.STORAGE_KEYS.AD_CREDITS);
+        
+        // Limit chat messages to last 100
+        const messages = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+        if (messages.length > 100) {
+            localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(messages.slice(-100)));
+        }
+
+        // Limit notifications even more
+        localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
+
+        // Clear Ziva chats older than 7 days
+        this.bulkCleanupChats({ daysOld: 7, zivaOnly: true });
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+        console.log("✅ Pruning complete.");
     }
 
     /** Granular cleanup of chats to manage storage quota */

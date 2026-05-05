@@ -19,7 +19,7 @@ async function safeFetch(url: string, options?: RequestInit): Promise<any> {
         if (!url.includes("localhost")) {
             console.error("Backend unreachable:", (error as Error).message);
         }
-        return { data: null, status: 503 };
+        return { data: null, status: 500 };
     }
 }
 

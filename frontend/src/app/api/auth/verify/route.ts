@@ -54,6 +54,6 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("Auth verify error:", error);
         // DB offline — fall through to client-side fallback
-        return NextResponse.json({ success: false, error: "Service unavailable", offline: true }, { status: 503 });
+        return NextResponse.json({ success: false, error: "Service unavailable", offline: true }, { status: 500 });
     }
 }

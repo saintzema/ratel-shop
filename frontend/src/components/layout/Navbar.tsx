@@ -1491,12 +1491,7 @@ export function Navbar() {
                         <Link href="/search?rating=5" className="flex items-center gap-1 whitespace-nowrap px-2 py-0.5 hover:bg-white/10 rounded transition-all text-white/90 text-[11px] md:text-[13px] font-medium">
                             <TrendingUp className="w-3 h-3 md:w-3.5 md:h-3.5" /> 5-Star Rated
                         </Link>
-                        <span className="flex items-center px-2 whitespace-nowrap text-[11px] md:text-[13px]">
-                            Free Delivery
-                        </span>
-                        <span className="whitespace-nowrap text-[11px] md:text-[13px]">
-                            ₦1,000 refund on late delivery
-                        </span>
+                        <SlidingSubnavTexts />
                     </div >
                     {/* Right: Trust Badges */}
                     < div className="hidden md:flex items-center gap-4 shrink-0 text-white/70 text-[12px] max-w-[35%] overflow-hidden whitespace-nowrap justify-end" >
@@ -1633,3 +1628,47 @@ const FALLBACK_CATEGORIES = [
     { label: "Fashion", value: "fashion" },
     { label: "Gaming", value: "gaming" },
 ];
+
+const SlidingSubnavTexts = () => {
+    const [index, setIndex] = useState(0);
+    const router = useRouter();
+    
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setIndex((prev) => (prev + 1) % 2);
+        }, 4000);
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <div className="relative h-5 md:h-6 w-40 md:w-56 overflow-hidden flex items-center shrink-0 ml-1">
+            <AnimatePresence mode="wait">
+                {index === 0 ? (
+                    <motion.button
+                        key="free-delivery"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -20, opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="absolute inset-0 flex items-center justify-start gap-1.5 whitespace-nowrap px-2 md:px-3 py-0.5 hover:bg-white/10 rounded transition-all text-emerald-50 font-bold tracking-wide text-[10px] md:text-[12px] bg-white/5 border border-white/10 shadow-sm cursor-pointer"
+                        onClick={() => router.push('/search?delivery=free')}
+                    >
+                        <Package className="w-3 h-3 text-emerald-400 shrink-0" /> <span className="truncate">FREE DELIVERY EVERYWHERE</span>
+                    </motion.button>
+                ) : (
+                    <motion.button
+                        key="late-refund"
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -20, opacity: 0 }}
+                        transition={{ duration: 0.4 }}
+                        className="absolute inset-0 flex items-center justify-start gap-1.5 whitespace-nowrap px-2 md:px-3 py-0.5 hover:bg-white/10 rounded transition-all text-amber-50 font-bold tracking-wide text-[10px] md:text-[12px] bg-white/5 border border-white/10 shadow-sm cursor-pointer"
+                        onClick={() => router.push('/buyer-protection')}
+                    >
+                        <Shield className="w-3 h-3 text-amber-400 shrink-0" /> <span className="truncate">₦1,000 LATE DELIVERY REFUND</span>
+                    </motion.button>
+                )}
+            </AnimatePresence>
+        </div>
+    );
+};

@@ -66,6 +66,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ exists: false });
     } catch (error: any) {
         console.error("WhatsApp Lookup Error:", error);
-        return NextResponse.json({ error: "Service unavailable", offline: true }, { status: 503 });
+        return NextResponse.json({ error: "Service unavailable", offline: true }, { status: 500 });
     }
 }
