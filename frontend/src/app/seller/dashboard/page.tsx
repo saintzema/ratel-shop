@@ -306,13 +306,103 @@ export default function SellerDashboard() {
         >
             {/* Enhanced Banner: Tier Level Progress */}
             {safeSeller.verified && (
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-6 md:p-8 flex items-center justify-between shadow-sm">
+                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-3xl p-3 md:p-4 flex items-center justify-between shadow-sm">
                     <div className="flex flex-col">
                         <span className="text-emerald-800 font-black text-lg md:text-xl tracking-tight flex items-center gap-2">
-                            <ShieldCheck className="h-6 w-6 text-emerald-600" />
+                            <ShieldCheck className="h-4 w-4 text-emerald-600" />
                             {safeSeller.business_name} - Verified Partner
                         </span>
                     </div>
+                </div>
+            )}
+
+            {/* Welcome header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
+                        Welcome back, {safeSeller.business_name} 
+                        <motion.span 
+                            animate={{ rotate: [0, 15, -15, 0] }}
+                            transition={{ repeat: Infinity, duration: 2, delay: 1 }}
+                        >👋</motion.span>
+                    </h1>
+                    <p className="text-sm text-zinc-500 font-medium mt-1">
+                        Here's what's happening with your store today.
+                    </p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold px-5 h-10 transition-all hover:scale-105 active:scale-95"
+                        onClick={async () => {
+                            setIsRefreshing(true);
+                            await DataSyncService.autoSync(true); // Force clear stale local cache
+                            setIsRefreshing(false);
+                        }}
+                    >
+                        <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                        {isRefreshing ? "Refreshing..." : "Global Refresh"}
+                    </Button>
+                </div>
+            </div>
+
+            {/* Stats Grid */}
+            <motion.div 
+                layout
+                className="grid grid-cols-2 md:grid-cols-4 gap-4"
+            >
+                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={revenueTrend} color="emerald" href="/seller/orders?filter=delivered" delay={0.1} />
+                <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" delay={0.2} />
+                <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} tooltip="Accept more reasonable counter-offers and avoid letting negotiations expire to boost your success rate." />
+                <StatCard icon={<Star />} label="Trust Score" value={`${safeSeller.trust_score || 50}%`} color="purple" delay={0.4} tooltip="Ship orders on time, avoid return disputes, and keep your inventory accurate to maintain a high trust score." />
+            </motion.div>
+
+            {/* Dispute Alert */}
+            {disputedOrders.length > 0 && (
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-rose-800">
+                            {disputedOrders.length} order{disputedOrders.length !== 1 ? "s" : ""} under dispute
+                        </p>
+                        <p className="text-xs text-rose-600 mt-0.5">Payment is frozen until the admin resolves each dispute.</p>
+                    </div>
+                    <Link href="/seller/orders?filter=disputed" className="text-xs font-bold text-rose-700 hover:text-rose-800 bg-white px-3 py-1.5 rounded-lg border border-rose-200">
+                        View Orders
+                    </Link>
+                </div>
+            )}
+
+            {/* New Orders Alert */}
+            {newOrders.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
+                    <ShoppingBag className="h-5 w-5 text-blue-600 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-blue-800">
+                            {newOrders.length} new order{newOrders.length !== 1 ? "s" : ""} awaiting shipment
+                        </p>
+                        <p className="text-xs text-blue-600 mt-0.5">Ship orders quickly to maintain a high trust score.</p>
+                    </div>
+                    <Link href="/seller/orders" className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg border border-blue-200">
+                        Process Orders
+                    </Link>
+                </div>
+            )}
+
+            {/* Returns Alert */}
+            {returnedOrders.length > 0 && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
+                    <Package className="h-5 w-5 text-amber-600 shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold text-amber-800">
+                            {returnedOrders.length} return request{returnedOrders.length !== 1 ? "s" : ""}
+                        </p>
+                        <p className="text-xs text-amber-600 mt-0.5">Please review pending returns and arrange for product pickup.</p>
+                    </div>
+                    <Link href="/seller/orders" className="text-xs font-bold text-amber-700 hover:text-amber-800 bg-white px-3 py-1.5 rounded-lg border border-amber-200">
+                        Review Returns
+                    </Link>
                 </div>
             )}
 
@@ -475,95 +565,7 @@ export default function SellerDashboard() {
                     </Button>
                 </div>
             </div>
-            {/* Welcome header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-2">
-                        Welcome back, {safeSeller.business_name} 
-                        <motion.span 
-                            animate={{ rotate: [0, 15, -15, 0] }}
-                            transition={{ repeat: Infinity, duration: 2, delay: 1 }}
-                        >👋</motion.span>
-                    </h1>
-                    <p className="text-sm text-zinc-500 font-medium mt-1">
-                        Here's what's happening with your store today.
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="rounded-full border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-bold px-5 h-10 transition-all hover:scale-105 active:scale-95"
-                        onClick={async () => {
-                            setIsRefreshing(true);
-                            await DataSyncService.autoSync(true); // Force clear stale local cache
-                            setIsRefreshing(false);
-                        }}
-                    >
-                        <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-                        {isRefreshing ? "Refreshing..." : "Global Refresh"}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Stats Grid */}
-            <motion.div 
-                layout
-                className="grid grid-cols-2 md:grid-cols-4 gap-4"
-            >
-                <StatCard icon={<DollarSign />} label="Total Revenue" value={formatPrice(totalRevenue)} trend={revenueTrend} color="emerald" href="/seller/orders?filter=delivered" delay={0.1} />
-                <StatCard icon={<ShoppingBag />} label="Pending Orders" value={newOrders.length.toString()} color="amber" href="/seller/orders" delay={0.2} />
-                <StatCard icon={<TrendingUp />} label="Neg. Success" value={`${successRate}%`} color="blue" href="/seller/dashboard/messages" delay={0.3} tooltip="Accept more reasonable counter-offers and avoid letting negotiations expire to boost your success rate." />
-                <StatCard icon={<Star />} label="Trust Score" value={`${safeSeller.trust_score || 50}%`} color="purple" delay={0.4} tooltip="Ship orders on time, avoid return disputes, and keep your inventory accurate to maintain a high trust score." />
-            </motion.div>
-
-            {/* Dispute Alert */}
-            {disputedOrders.length > 0 && (
-                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center gap-3">
-                    <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-rose-800">
-                            {disputedOrders.length} order{disputedOrders.length !== 1 ? "s" : ""} under dispute
-                        </p>
-                        <p className="text-xs text-rose-600 mt-0.5">Payment is frozen until the admin resolves each dispute.</p>
-                    </div>
-                    <Link href="/seller/orders?filter=disputed" className="text-xs font-bold text-rose-700 hover:text-rose-800 bg-white px-3 py-1.5 rounded-lg border border-rose-200">
-                        View Orders
-                    </Link>
-                </div>
-            )}
-
-            {/* New Orders Alert */}
-            {newOrders.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-center gap-3">
-                    <ShoppingBag className="h-5 w-5 text-blue-600 shrink-0" />
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-blue-800">
-                            {newOrders.length} new order{newOrders.length !== 1 ? "s" : ""} awaiting shipment
-                        </p>
-                        <p className="text-xs text-blue-600 mt-0.5">Ship orders quickly to maintain a high trust score.</p>
-                    </div>
-                    <Link href="/seller/orders" className="text-xs font-bold text-blue-700 hover:text-blue-800 bg-white px-3 py-1.5 rounded-lg border border-blue-200">
-                        Process Orders
-                    </Link>
-                </div>
-            )}
-
-            {/* Returns Alert */}
-            {returnedOrders.length > 0 && (
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
-                    <Package className="h-5 w-5 text-amber-600 shrink-0" />
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-amber-800">
-                            {returnedOrders.length} return request{returnedOrders.length !== 1 ? "s" : ""}
-                        </p>
-                        <p className="text-xs text-amber-600 mt-0.5">Please review pending returns and arrange for product pickup.</p>
-                    </div>
-                    <Link href="/seller/orders" className="text-xs font-bold text-amber-700 hover:text-amber-800 bg-white px-3 py-1.5 rounded-lg border border-amber-200">
-                        Review Returns
-                    </Link>
-                </div>
-            )}
+            
 
             {/* Recent Activity Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
