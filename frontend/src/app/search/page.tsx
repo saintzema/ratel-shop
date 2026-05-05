@@ -494,6 +494,34 @@ function SearchContent() {
   const { ref: observerRef, inView } = useInView({ threshold: 0.1 });
 
   useEffect(() => {
+    // ─── HALLUCINATION DEFENSE: PROACTIVE PURGE ───
+    // Run once on search page mount to clear any legacy invalid data from local storage
+    const lastPurge = localStorage.getItem('last_hallucination_purge');
+    const purgeTarget = "2026-05-04"; // Targeted purge date
+    
+    if (lastPurge !== purgeTarget) {
+      try {
+        const SERVICE_KEYWORDS = /\b(service|moving|relocation|mover|relocator|management|waste|cleaning|consultancy|agency|hub|hire|program)\b/i;
+        
+        // 1. Clear search cache completely to flush old Gemini hallucinations
+        localStorage.removeItem('search_cache');
+        
+        // 2. Filter out bad products from local catalogue
+        const products = DataSyncService.getApprovedProducts();
+        const cleaned = products.filter(p => p && p.price > 0 && !SERVICE_KEYWORDS.test(p.name || ""));
+        
+        if (cleaned.length !== products.length) {
+            localStorage.setItem('frontend_products', JSON.stringify(cleaned));
+            setAllProducts(cleaned.filter(p => p.is_active));
+        }
+        
+        localStorage.setItem('last_hallucination_purge', purgeTarget);
+        console.log(`[Purge] Successfully removed ${products.length - cleaned.length} hallucinated entries.`);
+      } catch (e) {
+        console.error("[Purge] Failed:", e);
+      }
+    }
+
     const refresh = () => {
       try {
         setAllProducts(
@@ -645,8 +673,15 @@ function SearchContent() {
   };
 
   const searchableProducts = useMemo(() => {
-    // Guard: ensure every local product has a non-null name to prevent toLowerCase() crashes
-    let locals = allProducts.filter(p => p && p.name);
+    // Guard: ensure every local product has a non-null name and valid price
+    const SERVICE_KEYWORDS = /\b(service|moving|relocation|mover|relocator|management|waste|cleaning|consultancy|agency|hub|hire|program)\b/i;
+    
+    let locals = allProducts.filter(p => {
+        if (!p || !p.name) return false;
+        if (p.price <= 0) return false;
+        if (SERVICE_KEYWORDS.test(p.name) && !p.name.toLowerCase().includes("battery service")) return false; // Exclude services, but keep relevant tech services
+        return true;
+    });
     
     const enrichWithPool = (p: any) => {
         const normalized = (p.name || "").toLowerCase().trim();
@@ -729,18 +764,30 @@ function SearchContent() {
         return product as import("@/lib/types").Product;
       })
 
-      // ─── FRONTEND VEHICLE PRICE FLOOR (mirrors backend defense — zero latency) ───
-      .filter((p) => {
+      // ─── FRONTEND DEFENSE (Price Floor & Service Filter) ───
+      .filter((p: any) => {
+        if (!p) return false;
+        // 1. Strict Price Floor (No free or hallucinated zero-price items)
+        if (p.price <= 0) return false;
+
+        // 2. Service Exclusion (We don't offer moving/waste/consultancy services currently)
+        if (SERVICE_KEYWORDS.test(p.name) && !p.name.toLowerCase().includes("battery service")) return false;
+
+        // 3. Vehicle Price Floor (Defense against hallucinated Toyotas/EVs)
         const VEHICLE_FLOOR = 5_000_000;
         if (p.price >= VEHICLE_FLOOR) return true;
+        
         const name = (p.name || "").toLowerCase();
-        const cat = (p.category || "").toLowerCase();
+        const cat = ((p as any)?.category || "").toLowerCase();
         const PART_KW = /\b(part|spare|filter|oil|brake|pad|tire|tyre|wheel|rim|bumper|headlight|mirror|sensor|plug|belt|gasket|radiator|cable|charger|adapter|case|phone|smartphone|tablet|earphone|earbuds|headphone|watch|smart\s*watch|powerbank|speaker|laptop|notebook|scooter|bicycle|bike|motorcycle|accessory|accessories)\b/i;
         const WHOLE_VEH = /\b(sedan|suv|hatchback|coupe|pickup|truck|van|crossover|wagon|model\s*[s3xy]|song\s*plus|song\s*pro|han|tang|seal|dolphin|atto|seagull|camry|corolla|rav4|highlander|prado|land\s*cruiser|fortuner|hilux|civic|accord|cr-?v|tucson|santa\s*fe|elantra|sonata|creta|sportage|sorento|range\s*rover|defender|evoque|x[1-7]|a[1-8]|q[2-8]|mustang|explorer|bronco|f-?150|ranger|equinox|tahoe|silverado|uni-?[tkv]|jetour|dasheng|coolray|haval|jolion|changan|cs[0-9]+|tiggo|omoda|jaecoo|dm-?i|phev|bev|hybrid|xiaomi\s*su7|su7)\b/i;
+        
         if (PART_KW.test(name)) return true; // Parts/phones always pass
+        
         const isVehicleCat = cat.includes("car") || cat.includes("vehicle") || cat.includes("auto");
         const isWholeVeh = WHOLE_VEH.test(name);
-        if ((isVehicleCat || isWholeVeh) && p.price < VEHICLE_FLOOR) return false; // Block hallucinated vehicle
+        if ((isVehicleCat || isWholeVeh) && (p as any)?.price < VEHICLE_FLOOR) return false; // Block hallucinated vehicle
+        
         return true;
       });
 
@@ -1381,7 +1428,7 @@ function SearchContent() {
                       <NextLink
                         href={{
                           pathname: '/search',
-                          query: { ...Object.fromEntries(searchParams.entries()), page: page + 1 }
+                          query: { ...(searchParams ? Object.fromEntries(searchParams.entries()) : {}), page: page + 1 }
                         }}
                         scroll={false}
                         onClick={(e) => {

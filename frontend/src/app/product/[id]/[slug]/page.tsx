@@ -57,7 +57,22 @@ export async function generateMetadata(
         openGraph: {
             title: `${titleProductName} - Verified FairPrice in Nigeria`,
             description: `Check the 30-day price trend for ${titleProductName}. Real market data from FairPrice.ng.`,
-            images: ((productDetails as any)?.imageUrl || (productDetails as any)?.image_url) ? [((productDetails as any)?.imageUrl || (productDetails as any)?.image_url)] : [],
+            url: `https://www.fairprice.ng/product/${resolvedParams.id}/${resolvedParams.slug}`,
+            siteName: 'FairPrice Nigeria',
+            images: [
+                {
+                    url: ((productDetails as any)?.imageUrl || (productDetails as any)?.image_url) 
+                        ? (((productDetails as any)?.imageUrl || (productDetails as any)?.image_url).startsWith('http') 
+                            ? ((productDetails as any)?.imageUrl || (productDetails as any)?.image_url) 
+                            : `https://www.fairprice.ng${((productDetails as any)?.imageUrl || (productDetails as any)?.image_url).startsWith('/') ? '' : '/'}${((productDetails as any)?.imageUrl || (productDetails as any)?.image_url)}`)
+                        : 'https://www.fairprice.ng/logo.png',
+                    width: 800,
+                    height: 800,
+                    alt: titleProductName,
+                }
+            ],
+            locale: 'en_NG',
+            type: 'website',
         },
         twitter: {
             card: 'summary_large_image',

@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED';
 
 interface EmailPayload {
     name?: string;
@@ -250,12 +250,12 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 
 <div style="background-color:#fee2e2;border:1px solid #fca5a5;border-radius:12px;padding:16px;margin-bottom:32px;">
     <p style="margin:0;color:#dc2626;font-size:14px;font-weight:700;text-align:center;">
-        ⚠️ If you do not confirm within 48 hours, the funds will be automatically released to the seller.
+        ⚠️ IMPORTANT: If you do not confirm receipt or file a dispute within 24 hours, the funds will be automatically released to the seller for payout.
     </p>
 </div>
 
 <div style="text-align:center;">
-    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Confirm Receipt</a>
+    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Confirm Receipt & Finish Order</a>
 </div>
             `);
             break;
@@ -676,6 +676,62 @@ ${payload.daysRemaining === 0 ? `
 
 <div style="text-align:center;">
     <a href="${payload.dashboardUrl || 'https://fairprice.ng/account/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply in Concierge</a>
+</div>
+            `);
+            break;
+
+        case 'SELLER_PAYOUT_COMPLETED':
+            subject = `💰 Payout Sent: ₦${payload.amount?.toLocaleString() || '0'} to your bank account`;
+            html = BaseTemplate("Payout Successful! 💰", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">Great news! Your payout has been <strong style="color:${BRAND_COLOR}">successfully processed</strong> and the funds are on their way to your bank account.</p>
+
+<table role="presentation" style="width:100%;border:none;border-spacing:0;margin-bottom:32px;">
+    <tr>
+        <td style="padding:16px;background-color:#f9fafb;border-radius:12px;border:1px solid #e5e7eb;" class="feature-box">
+            <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+                <tr>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;" class="divider text-muted">Store</td>
+                    <td style="padding-bottom:12px;border-bottom:1px solid #e5e5ea;text-align:right;font-weight:700;" class="divider text-main">${payload.sellerName || payload.businessName || 'Your Store'}</td>
+                </tr>
+                <tr>
+                    <td style="padding-top:12px;" class="text-muted">Amount Sent</td>
+                    <td style="padding-top:12px;text-align:right;font-weight:900;font-size:18px;color:${BRAND_COLOR};" class="code-text">₦${payload.amount?.toLocaleString() || '0'}</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Funds typically arrive within 1-24 hours depending on your bank. You can view your settlement history on your dashboard.</p>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/seller/wallet" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Balance & Settlements</a>
+</div>
+            `);
+            break;
+
+        case 'SELLER_PAYOUT_FAILED':
+            subject = `⚠️ Payout Issue: ₦${payload.amount?.toLocaleString() || '0'} transfer needs attention`;
+            html = BaseTemplate("Payout Update ⚠️", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 24px 0;">We encountered an issue processing your payout of <strong>₦${payload.amount?.toLocaleString() || '0'}</strong> to your bank account.</p>
+
+<div style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin-bottom:32px;">
+    <p style="margin:0;color:#dc2626;font-size:14px;font-weight:700;text-align:center;">
+        ⚠️ This is usually caused by incorrect bank details. Please verify your account information.
+    </p>
+</div>
+
+<p style="margin:0 0 16px 0;font-size:14px;" class="text-main">What you can do:</p>
+<ul style="margin:0 0 32px 0;padding-left:20px;font-size:14px;line-height:22px;" class="text-muted">
+    <li>Check that your bank account number is correct</li>
+    <li>Verify your bank name matches your Paystack records</li>
+    <li>Contact our support team if the issue persists</li>
+</ul>
+
+<div style="text-align:center;">
+    <a href="https://fairprice.ng/seller/settings/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Bank Details</a>
 </div>
             `);
             break;

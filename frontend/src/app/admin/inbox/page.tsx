@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
+import Link from "next/link";
 import {
     MessageSquare,
     Send,
@@ -9,7 +10,11 @@ import {
     Plus,
     ArrowLeft,
     CheckCheck,
-    X
+    X,
+    Trash2,
+    Database,
+    AlertTriangle,
+    Archive
 } from "lucide-react";
 import { DataSyncService } from "@/lib/sync-store";
 import { Button } from "@/components/ui/button";
@@ -29,6 +34,9 @@ function AdminInboxContent() {
     const [composeTo, setComposeTo] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
     const [mobileShowChat, setMobileShowChat] = useState(false);
+    const [showCleanupModal, setShowCleanupModal] = useState(false);
+    const [isCleaning, setIsCleaning] = useState(false);
+    const [cleanupStatus, setCleanupStatus] = useState<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Load conversations
@@ -104,6 +112,32 @@ function AdminInboxContent() {
             e.preventDefault();
             handleSend();
         }
+    };
+
+    const handleDeleteConversation = (convId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (confirm("Are you sure you want to delete this entire conversation thread? This cannot be undone.")) {
+            DataSyncService.deleteConversation(convId);
+            if (activeConv?.id === convId) {
+                setActiveConv(null);
+                setMessages([]);
+            }
+            loadConversations();
+        }
+    };
+
+    const handleBulkCleanup = (options: any) => {
+        setIsCleaning(true);
+        setTimeout(() => {
+            const results = DataSyncService.bulkCleanupChats(options);
+            setCleanupStatus(results);
+            setIsCleaning(false);
+            loadConversations();
+            if (activeConv) {
+                // Refresh active conversation messages in case some were deleted
+                loadMessages(activeConv.id);
+            }
+        }, 800);
     };
 
     const handleNewConversation = () => {
@@ -182,12 +216,29 @@ function AdminInboxContent() {
                         {totalUnread > 0 ? `${totalUnread} unread conversation${totalUnread !== 1 ? "s" : ""}` : "All caught up"}
                     </p>
                 </div>
-                <Button
-                    onClick={() => setShowCompose(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl h-10 px-5 text-xs tracking-wide shadow-lg shadow-indigo-600/20 gap-2"
-                >
-                    <Plus className="h-4 w-4" /> New Message
-                </Button>
+                <div className="flex gap-3">
+                    <Link href="/admin/inbox/concierge">
+                        <Button
+                            variant="outline"
+                            className="bg-white hover:bg-gray-50 text-indigo-600 border-indigo-200 font-bold rounded-xl h-10 px-5 text-xs tracking-wide gap-2"
+                        >
+                            <MessageSquare className="h-4 w-4" /> Ziva Chats
+                        </Button>
+                    </Link>
+                    <Button
+                        onClick={() => setShowCleanupModal(true)}
+                        variant="outline"
+                        className="bg-white hover:bg-red-50 text-red-600 border-red-100 font-bold rounded-xl h-10 px-5 text-xs tracking-wide gap-2 shadow-sm"
+                    >
+                        <Trash2 className="h-4 w-4" /> Storage Manager
+                    </Button>
+                    <Button
+                        onClick={() => setShowCompose(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl h-10 px-5 text-xs tracking-wide shadow-lg shadow-indigo-600/20 gap-2"
+                    >
+                        <Plus className="h-4 w-4" /> New Message
+                    </Button>
+                </div>
             </div>
 
             {/* Main Chat Layout */}
@@ -252,11 +303,20 @@ function AdminInboxContent() {
                                                 )}>
                                                     {conv.last_message?.replace(/\*\*/g, "") || "No messages yet"}
                                                 </p>
-                                                {unread > 0 && (
-                                                    <span className="h-5 min-w-[20px] px-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-full flex items-center justify-center shrink-0">
-                                                        {unread}
-                                                    </span>
-                                                )}
+                                                <div className="flex items-center gap-2">
+                                                    {unread > 0 && (
+                                                        <span className="h-5 min-w-[20px] px-1.5 bg-indigo-600 text-white text-[10px] font-black rounded-full flex items-center justify-center shrink-0">
+                                                            {unread}
+                                                        </span>
+                                                    )}
+                                                    <button 
+                                                        onClick={(e) => handleDeleteConversation(conv.id, e)}
+                                                        className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 rounded text-red-500 transition-all"
+                                                        title="Delete conversation"
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     </button>
@@ -408,6 +468,129 @@ function AdminInboxContent() {
                                 <Send className="h-4 w-4 mr-2" /> Start Chat
                             </Button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* Cleanup Modal */}
+            {showCleanupModal && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-200">
+                        <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-red-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-2xl bg-red-100 flex items-center justify-center text-red-600">
+                                    <Database className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="font-black text-gray-900 text-lg">Storage Management</h3>
+                                    <p className="text-xs text-gray-500 font-bold uppercase tracking-tight">Prevent browser quota limits</p>
+                                </div>
+                            </div>
+                            <button onClick={() => { setShowCleanupModal(false); setCleanupStatus(null); }} className="h-8 w-8 rounded-full bg-white shadow-sm flex items-center justify-center text-gray-400 hover:text-gray-700">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 space-y-6">
+                            {cleanupStatus ? (
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 text-center">
+                                    <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                                        <CheckCheck className="h-6 w-6" />
+                                    </div>
+                                    <h4 className="font-bold text-emerald-900">Cleanup Complete!</h4>
+                                    <div className="mt-4 grid grid-cols-3 gap-3">
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Orders</p>
+                                            <p className="text-xl font-black text-gray-900">{cleanupStatus.ordersCleared}</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Threads</p>
+                                            <p className="text-xl font-black text-gray-900">{cleanupStatus.convsCleared}</p>
+                                        </div>
+                                        <div className="bg-white p-3 rounded-xl shadow-sm">
+                                            <p className="text-[10px] text-gray-400 font-bold uppercase">Messages</p>
+                                            <p className="text-xl font-black text-gray-900">{cleanupStatus.messagesCleared}</p>
+                                        </div>
+                                    </div>
+                                    <Button onClick={() => { setShowCleanupModal(false); setCleanupStatus(null); }} className="w-full mt-6 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl h-11">
+                                        Done
+                                    </Button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 flex gap-3">
+                                        <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                                        <p className="text-xs text-amber-900 font-medium leading-relaxed">
+                                            Browser storage is limited. Regular cleanup of historical logs prevents "QuotaExceededError" which can cause the app to crash or stop saving data.
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <button 
+                                            disabled={isCleaning}
+                                            onClick={() => handleBulkCleanup({ zivaOnly: true })}
+                                            className="group flex items-center justify-between p-4 bg-gray-50 hover:bg-indigo-50 border border-gray-100 hover:border-indigo-200 rounded-2xl transition-all text-left disabled:opacity-50"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <MessageSquare className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">Clear Ziva Chats</p>
+                                                    <p className="text-[10px] text-gray-500 font-medium">Remove automated concierge logs only</p>
+                                                </div>
+                                            </div>
+                                            <Database className="h-4 w-4 text-gray-300 group-hover:text-indigo-400" />
+                                        </button>
+
+                                        <button 
+                                            disabled={isCleaning}
+                                            onClick={() => handleBulkCleanup({ readOnly: true })}
+                                            className="group flex items-center justify-between p-4 bg-gray-50 hover:bg-emerald-50 border border-gray-100 hover:border-emerald-200 rounded-2xl transition-all text-left disabled:opacity-50"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <CheckCheck className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">Purge Read Threads</p>
+                                                    <p className="text-[10px] text-gray-500 font-medium">Safe cleanup of completed conversations</p>
+                                                </div>
+                                            </div>
+                                            <Archive className="h-4 w-4 text-gray-300 group-hover:text-emerald-400" />
+                                        </button>
+
+                                        <button 
+                                            disabled={isCleaning}
+                                            onClick={() => handleBulkCleanup({ daysOld: 14 })}
+                                            className="group flex items-center justify-between p-4 bg-gray-50 hover:bg-red-50 border border-gray-100 hover:border-red-200 rounded-2xl transition-all text-left disabled:opacity-50"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-10 w-10 rounded-xl bg-red-100 text-red-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <Archive className="h-5 w-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900">Purge Older (14d)</p>
+                                                    <p className="text-[10px] text-gray-500 font-medium">Delete all history older than 2 weeks</p>
+                                                </div>
+                                            </div>
+                                            <Trash2 className="h-4 w-4 text-gray-300 group-hover:text-red-400" />
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        
+                        {!cleanupStatus && (
+                            <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
+                                <Button 
+                                    variant="ghost" 
+                                    onClick={() => setShowCleanupModal(false)}
+                                    className="font-bold text-gray-500"
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

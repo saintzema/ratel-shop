@@ -54,6 +54,7 @@ export default function AddressesPage() {
         })();
 
         if (userId) {
+            // Fetch from DB for cross-device sync
             fetch(`/api/addresses?userId=${encodeURIComponent(userId)}`)
                 .then(r => r.json())
                 .then(data => {
@@ -69,13 +70,44 @@ export default function AddressesPage() {
                         isDefault: a.isDefault || false,
                         type: (a.type || a.label?.toLowerCase() || "home") as "home" | "work" | "other",
                     }));
-                    // Merge: DB addresses take priority by ID, local-only addresses are kept
-                    const dbMap = new Map(dbAddrs.map(a => [a.id, a]));
-                    const localMap = new Map(localAddrs.map(a => [a.id, a]));
-                    for (const [id, addr] of dbMap) localMap.set(id, addr);
-                    const merged = Array.from(localMap.values());
-                    setAddresses(merged);
-                    localStorage.setItem(getAddressKey(), JSON.stringify(merged));
+
+                    // ALSO extract unique addresses from orders for resilience
+                    import("@/lib/sync-store").then(({ DataSyncService }) => {
+                        const orders = DataSyncService.getOrders().filter(o => o.customer_id === userId || o.customer_email === userId);
+                        const orderAddrs: Address[] = [];
+                        
+                        orders.forEach(o => {
+                            if (!o.shipping_address) return;
+                            // Check if this street is already known
+                            const street = o.shipping_address;
+                            const exists = [...dbAddrs, ...localAddrs].some(a => a.street?.toLowerCase().includes(street.toLowerCase()) || street.toLowerCase().includes(a.street?.toLowerCase()));
+                            
+                            if (!exists) {
+                                orderAddrs.push({
+                                    id: `order_addr_${o.id}`,
+                                    label: "From Order",
+                                    firstName: o.customer_name?.split(" ")[0] || "Customer",
+                                    lastName: o.customer_name?.split(" ").slice(1).join(" ") || "",
+                                    phone: o.customer_phone || "",
+                                    street: o.shipping_address,
+                                    city: "",
+                                    state: "",
+                                    isDefault: false,
+                                    type: "other"
+                                });
+                            }
+                        });
+
+                        // Merge: DB addresses take priority by ID, then local, then order-extracted
+                        const finalMap = new Map<string, Address>();
+                        localAddrs.forEach(a => finalMap.set(a.id, a));
+                        orderAddrs.forEach(a => finalMap.set(a.id, a));
+                        dbAddrs.forEach(a => finalMap.set(a.id, a));
+                        
+                        const merged = Array.from(finalMap.values());
+                        setAddresses(merged);
+                        localStorage.setItem(getAddressKey(), JSON.stringify(merged));
+                    });
                 })
                 .catch(() => { /* fallback to local only */ });
         }

@@ -2,7 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import Link from "next/link";
-import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins, TrendingUp } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Info, Heart, Phone, Monitor, Sofa, Home, Zap, ShoppingBag, Car, Gamepad, Shirt, Baby, Dumbbell, BookOpen, Wrench, Paintbrush, Package, Coins, TrendingUp, Crown } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl, isVideoUrl, getProxiedImageUrl } from "@/lib/utils";
 import { useLocation } from "@/context/LocationContext";
@@ -225,7 +225,9 @@ export function SearchResultCard({
                         <Badge variant="outline" className="text-[9px] border-emerald-200 bg-emerald-50 text-emerald-700 py-0 px-1.5 h-4">Verified Seller</Badge>
                     )}
                     {seller?.subscription_plan && seller.subscription_plan !== "Starter" && (
-                        <Badge variant="outline" className="text-[9px] border-amber-200 bg-amber-50 text-amber-700 py-0 px-1.5 h-4">Premium Seller</Badge>
+                        <Badge variant="outline" className="text-[9px] border-amber-200 bg-amber-50 text-amber-700 py-0 px-1.5 h-4 flex items-center gap-1">
+                            <Crown className="h-2.5 w-2.5" /> Premium Seller
+                        </Badge>
                     )}
                 </div>
 

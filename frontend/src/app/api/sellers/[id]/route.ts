@@ -32,7 +32,7 @@ export async function GET(
             created_at: seller.createdAt.toISOString(),
             business_name: seller.businessName,
             status: seller.status,
-            orders: seller.orders.map(o => ({
+            orders: seller.orders.map((o: any) => ({
                 ...o,
                 created_at: o.createdAt.toISOString(),
             }))
@@ -60,6 +60,7 @@ export async function PATCH(
                 verified: body.verified !== undefined ? body.verified : undefined,
                 kycStatus: body.kyc_status || body.kycStatus || undefined,
                 businessName: body.businessName || body.business_name || undefined,
+                autoPayoutEnabled: body.autoPayoutEnabled !== undefined ? body.autoPayoutEnabled : undefined,
                 user: {
                     update: {
                         name: body.name || body.display_name || undefined,

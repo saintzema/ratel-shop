@@ -59,8 +59,14 @@ export async function POST(req: Request) {
                         data: { status: "verified" }
                     });
 
+                    const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+                    const returnLink = `${APP_URL}/login?wa_code=${code}`;
+
                     await WhatsAppService.sendMessage(from, 
-                        `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\nYou can now return to the website to continue your login. You're now locked into the FairPrice conversational ecosystem! 🚀`
+                        `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\n` +
+                        `You can now return to the website to continue. If you're on mobile, tap the link below to finish logging in:\n\n` +
+                        `🔗 *Back to FairPrice:* ${returnLink}\n\n` +
+                        `You're now locked into the FairPrice conversational ecosystem! 🚀`
                     );
                     return NextResponse.json({ ok: true });
                 } else {
@@ -73,10 +79,13 @@ export async function POST(req: Request) {
 
         // FIND ACTIVE NEGOTIATION
         // We look for the most recent negotiation that isn't already closed
+        const normalizedFrom = WhatsAppService.normalizePhoneNumber(from);
+        
         const negotiation = await (db.negotiationRequest as any).findFirst({
             where: {
                 OR: [
-                    { customerWhatsapp: from },
+                    { customerWhatsapp: normalizedFrom },
+                    { customerWhatsapp: from }, // Fallback to raw
                     { customerWhatsapp: `+${from}` },
                     { customerWhatsapp: from.startsWith("234") ? from.replace("234", "0") : from }
                 ],

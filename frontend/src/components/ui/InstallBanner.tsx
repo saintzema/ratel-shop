@@ -24,12 +24,12 @@ export function InstallBanner() {
     if (!isVisible) return null;
 
     return (
-        <div className="fixed top-0 left-0 right-0 z-[1000] flex flex-col items-center pointer-events-none">
+        <div className="fixed bottom-20 md:bottom-6 left-0 right-0 z-[1000] flex flex-col-reverse items-center pointer-events-none px-2">
             {/* Top Banner - Following User's Screenshot Style */}
             <motion.div
-                initial={{ opacity: 0, y: -20 }}
+                initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between gap-3 shadow-[0_2px_15px_rgba(0,0,0,0.06)] pointer-events-auto"
+                className="w-full bg-white border border-gray-100 rounded-2xl px-4 py-3 flex items-center justify-between gap-3 shadow-[0_10px_40px_rgba(0,0,0,0.1)] pointer-events-auto"
             >
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg shrink-0">
@@ -61,13 +61,13 @@ export function InstallBanner() {
             <AnimatePresence>
                 {showInstructions && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                        className="mt-3 w-[92%] max-w-sm bg-black rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.3)] pointer-events-auto relative"
+                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                        className="mb-3 w-[92%] max-w-sm bg-black rounded-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.3)] pointer-events-auto relative"
                     >
                         {/* Triangular pointer */}
-                        <div className="absolute -top-1.5 right-14 w-3 h-3 bg-black rotate-45" />
+                        <div className="absolute -bottom-1.5 right-14 w-3 h-3 bg-black rotate-45" />
 
                         <h3 className="text-white font-black text-sm mb-5">How to install FairPrice on your device:</h3>
                         

@@ -1,5 +1,5 @@
 export const TEMU_CATEGORIES = [
-  'All', 'Trending', 'Best-Selling', 'Solar', 'Streaming Kits', 'Phones', 'Gaming', 
+  'All', 'Trending', 'Price Drop', 'Best-Selling', 'Solar', 'Streaming Kits', 'Phones', 'Gaming', 
   'Computers', 'Fashion', 'Cars', 'Grocery', 'Home Office', 'EVs', 'Industrial', 
   'Health', 'Automotive', 'Bags', 'Women', 'Jewelry', 'Household', 'Toy', 
   'Crafts', 'Men', 'Sports', 'Kids', 'Beauty', 'Office', 'Baby', 'Garden', 

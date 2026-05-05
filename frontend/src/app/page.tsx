@@ -8,7 +8,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp } from "lucide-react";
+import { ChevronRight, ChevronLeft, Flame, ShieldCheck, Smartphone, Gamepad2, Monitor, Plug, Car, Shirt, Sparkles, Home as HomeIcon, Dumbbell, ShoppingBasket, Store as StoreIcon, TrendingUp, Tag } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { RecommendedProducts } from "@/components/ui/RecommendedProducts";
@@ -170,7 +170,18 @@ function HomeContent() {
         })
         .slice(0, 20),
       sponsoredProducts: pool.filter(p => p.is_sponsored).slice(0, 15),
-      dealProducts: pool.filter(p => p.original_price && p.original_price > p.price).slice(0, 30),
+      dealProducts: pool
+        .filter(p => p.original_price && p.original_price > p.price)
+        .slice(0, 30)
+        .map(p => {
+          const savings = (p.original_price || p.price) - p.price;
+          const discountPct = Math.round((savings / (p.original_price || p.price)) * 100);
+          return {
+            ...p,
+            dealEndTime: p.created_at ? new Date(new Date(p.created_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
+            dealDiscountText: `${discountPct}% OFF`
+          };
+        }),
       phonesProducts: getByCategory("Phones"),
       gamingProducts: getByCategory("Gaming"),
       computerProducts: getByCategory("Computers"),
@@ -312,6 +323,7 @@ function HomeContent() {
                     >
                       {cat === 'Best-Selling' && <Flame className="h-4 w-4 mr-1 text-orange-500" />}
                       {cat === 'Trending' && <TrendingUp className="h-4 w-4 mr-1 text-red-500" />}
+                      {cat === 'Price Drop' && <Tag className="h-4 w-4 mr-1 text-purple-500 animate-pulse" />}
                       {cat}
                     </Button>
                   );

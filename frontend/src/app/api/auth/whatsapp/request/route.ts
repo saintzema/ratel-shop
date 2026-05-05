@@ -11,7 +11,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Phone number is required" }, { status: 400 });
         }
 
-        const cleanPhone = phoneNumber.replace(/\D/g, "");
+        const cleanPhone = WhatsAppService.normalizePhoneNumber(phoneNumber);
         const code = WhatsAppService.generateVerificationCode();
         
         // Create verification record valid for 10 minutes

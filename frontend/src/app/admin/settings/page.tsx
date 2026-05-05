@@ -782,9 +782,9 @@ export default function AdminSettings() {
                             </div>
                             <div className="pt-6 border-t border-gray-50">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-sm font-bold text-gray-900">Registered Service Centers</h4>
+                                    <h4 className="text-sm font-bold text-gray-900">Warehouses & Logistics Hubs</h4>
                                     <Button onClick={() => setServiceCenters([...serviceCenters, { name: "", address: "", phone: "" }])} variant="outline" size="sm" className="h-8 text-xs font-bold rounded-xl text-cyan-600 border-cyan-200 hover:bg-cyan-50">
-                                        + Add Location
+                                        + Add Warehouse Location
                                     </Button>
                                 </div>
                                 <div className="space-y-4">

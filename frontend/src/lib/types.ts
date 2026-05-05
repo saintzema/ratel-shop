@@ -15,6 +15,7 @@ export interface User {
     emailVerified?: boolean;
     phone?: string;
     phone_numbers?: string[];
+    whatsapp?: string;
     created_at: string;
 }
 
@@ -73,6 +74,7 @@ export interface Seller {
     joined_at?: string;
     created_at?: string;
     seller_role?: string;
+    auto_payout_enabled?: boolean;
 }
 
 export interface ProductVariant {

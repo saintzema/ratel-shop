@@ -19,10 +19,12 @@ import {
     TrendingUp,
     ChevronRight,
     CreditCard,
+    Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatPrice, cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 const NIGERIAN_BANKS = [
     "Access Bank",
@@ -56,6 +58,8 @@ export default function PayoutsSettingsPage() {
     const [success, setSuccess] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [orders, setOrders] = useState<Order[]>([]);
+    const [autoPayoutEnabled, setAutoPayoutEnabled] = useState(false);
+    const [savingToggle, setSavingToggle] = useState(false);
 
     const [bankData, setBankData] = useState({
         bank_name: "",
@@ -131,6 +135,7 @@ export default function PayoutsSettingsPage() {
             account_number: s.account_number || "",
             account_name: s.account_name || "",
         });
+        setAutoPayoutEnabled((s as any).auto_payout_enabled ?? false);
 
         // Get orders for this seller
         const sellerOrders = DataSyncService.getOrders().filter(
@@ -581,6 +586,98 @@ export default function PayoutsSettingsPage() {
                         </div>
                     </div>
                 )}
+            </div>
+
+            {/* Auto-Payout Toggle Section */}
+            <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
+                <div className="p-6">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-violet-100 rounded-xl">
+                                <Zap className="h-5 w-5 text-violet-600" />
+                            </div>
+                            <div>
+                                <h2 className="font-bold text-gray-900">Instant Auto-Payout</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Automatically settle QR payments to your bank</p>
+                            </div>
+                        </div>
+                        <Switch
+                            checked={autoPayoutEnabled}
+                            disabled={savingToggle || !hasBankDetails}
+                            onCheckedChange={async (val) => {
+                                if (!hasBankDetails) return;
+                                setSavingToggle(true);
+                                setAutoPayoutEnabled(val);
+                                try {
+                                    // Save to local sync store
+                                    if (seller) {
+                                        DataSyncService.updateSeller(seller.id, { auto_payout_enabled: val });
+                                    }
+                                    // Persist to DB via seller API
+                                    const token = localStorage.getItem("fp_token");
+                                    if (seller && token) {
+                                        await fetch(`/api/sellers/${seller.id}`, {
+                                            method: "PATCH",
+                                            headers: {
+                                                "Content-Type": "application/json",
+                                                Authorization: `Bearer ${token}`
+                                            },
+                                            body: JSON.stringify({ autoPayoutEnabled: val })
+                                        }).catch(console.error);
+                                    }
+                                    setSuccess(true);
+                                    setTimeout(() => setSuccess(false), 2000);
+                                } catch (err) {
+                                    console.error("Toggle save error:", err);
+                                    setAutoPayoutEnabled(!val); // Revert on failure
+                                } finally {
+                                    setSavingToggle(false);
+                                }
+                            }}
+                        />
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                        <AnimatePresence>
+                            {autoPayoutEnabled && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="bg-white/60 backdrop-blur-sm rounded-xl p-4 border border-violet-100 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <CheckCircle2 className="h-4 w-4 text-violet-600" />
+                                            <span className="text-sm font-bold text-violet-900">Auto-payout is active</span>
+                                        </div>
+                                        <p className="text-xs text-violet-700 leading-relaxed">
+                                            When customers pay via your store QR code, funds will be automatically
+                                            transferred to <strong>{bankData.account_name || "your bank account"}</strong> at{" "}
+                                            <strong>{bankData.bank_name || "your bank"}</strong> after the platform
+                                            commission ({commissionRate}%) is deducted. No manual payout request needed.
+                                        </p>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        {!hasBankDetails && (
+                            <div className="flex items-start gap-2 bg-amber-50 rounded-xl p-3 border border-amber-100">
+                                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                <p className="text-xs text-amber-800 font-medium">
+                                    You need to add and verify your bank details before enabling auto-payout.
+                                </p>
+                            </div>
+                        )}
+
+                        {!autoPayoutEnabled && hasBankDetails && (
+                            <p className="text-xs text-gray-500 font-medium pl-1">
+                                When disabled, QR payment settlements require manual payout request or admin approval.
+                            </p>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Payout History */}

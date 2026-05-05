@@ -105,14 +105,14 @@ class DataSyncServiceService {
         const currentProducts = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || '[]');
         if (currentProducts.length === 0) {
             console.log("🛠️ Resilience: Database unreachable and store empty. Seeding full SEED_PRODUCTS catalog.");
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(SEED_PRODUCTS));
             
             // Also seed sellers to ensure getApprovedProducts works
             const currentSellers = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.SELLERS) || '[]');
             if (currentSellers.length === 0) {
                 // Ensure all seeded sellers are marked as verified/active for the demo
                 const verifiedSellers = SEED_SELLERS.map(s => ({ ...s, verified: true, status: "active", kyc_status: "approved" }));
-                localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
+                this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(verifiedSellers));
             }
 
             // Trigger UI update
@@ -186,7 +186,7 @@ class DataSyncServiceService {
                                 );
                             });
                             if (filtered.length !== data.length) {
-                                localStorage.setItem(key, JSON.stringify(filtered));
+                                this.safeSetItem(key, JSON.stringify(filtered));
                                 healed = true;
                             }
                         }
@@ -231,7 +231,7 @@ class DataSyncServiceService {
 
             // Re-sync EVERYTHING when user logs in or switches accounts
             window.addEventListener("fp-auth-update", () => {
-                this.syncWithDB();
+                this.syncWithDB(undefined, true); // Bypass throttle on auth change
             });
 
             // Listen for buyer messages from floating chat to hot-sync to DB
@@ -252,7 +252,7 @@ class DataSyncServiceService {
 
                     // Update local storage
                     const updated = negs.map(n => n.id === neg.id ? { ...n, chat_messages: existingMessages } : n);
-                    localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+                    this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
                     
                     // Hot sync to DB
                     fetch("/api/negotiations", {
@@ -287,53 +287,53 @@ class DataSyncServiceService {
         if (currentVersion !== DATA_VERSION) {
             // Clear all stale data and re-seed with latest
             Object.values(this.STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
-            localStorage.setItem("fairprice_data_version", DATA_VERSION);
+            this.safeSetItem("fairprice_data_version", DATA_VERSION);
         }
 
         this.selfHeal();
 
         if (!localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS)) {
-            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-            localStorage.setItem(this.STORAGE_KEYS.ORDERS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.ORDERS, "[]");
         }
         // NOTE: Products & Sellers are NO LONGER seeded from hardcoded constants.
         // They will be populated exclusively by syncWithDB() from the Neon database.
         // This ensures all users see the same prices regardless of browser/session.
         if (!localStorage.getItem(this.STORAGE_KEYS.KYC)) {
-            localStorage.setItem(this.STORAGE_KEYS.KYC, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.KYC, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.COMPLAINTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.COMPLAINTS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PAYOUTS)) {
-            localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.PAYOUTS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.RETURNS)) {
-            localStorage.setItem(this.STORAGE_KEYS.RETURNS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.RETURNS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.CATEGORIES)) {
-            localStorage.setItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
+            this.safeSetItem(this.STORAGE_KEYS.CATEGORIES, JSON.stringify(INITIAL_CATEGORIES));
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.TAXONOMY)) {
-            localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.TAXONOMY, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.DEALS)) {
-            localStorage.setItem(this.STORAGE_KEYS.DEALS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.DEALS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.PROMOTIONS)) {
-            localStorage.setItem(this.STORAGE_KEYS.PROMOTIONS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.PROMOTIONS, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.AD_CREDITS)) {
-            localStorage.setItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
+            this.safeSetItem(this.STORAGE_KEYS.AD_CREDITS, "{}");
         }
         
         if (!localStorage.getItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES)) {
-            localStorage.setItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.OFF_LISTING_INVOICES, "[]");
         }
         if (!localStorage.getItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS)) {
-            localStorage.setItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, "[]");
+            this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, "[]");
         }
         
         // Start auto-release worker
@@ -382,9 +382,9 @@ class DataSyncServiceService {
     public async syncWithDB(collection?: string, isCritical: boolean = false) {
         if (typeof window === "undefined" || this.isSyncing) return;
         
-        // Throttle heavy syncs to prevent UI hanging
+        // Throttle heavy syncs to prevent UI hanging (Shortened to 30s for better reactivity)
         const now = Date.now();
-        if (!collection && !isCritical && now - this._lastFullSync < 600000) { // 10 min throttle for full sync
+        if (!collection && !isCritical && now - this._lastFullSync < 30000) { 
             return;
         }
 
@@ -430,9 +430,14 @@ class DataSyncServiceService {
 
             const sellerId = this.getCurrentSeller()?.id || this.getCurrentSeller()?.user_id;
             const customerId = user?.id;
-            const ordersUrl = sellerId 
-                ? `/api/orders?sellerId=${sellerId}` 
-                : (customerId ? `/api/orders?customerId=${customerId}` : "/api/orders?all=true");
+            const customerEmail = user?.email;
+            
+            let ordersUrl = "/api/orders?all=true";
+            if (sellerId) {
+                ordersUrl = `/api/orders?sellerId=${sellerId}`;
+            } else if (customerId) {
+                ordersUrl = `/api/orders?customerId=${customerId}${customerEmail ? `&customerEmail=${encodeURIComponent(customerEmail)}` : ''}`;
+            }
 
             const [
                 productsResult, sellersResult, searchCacheResult, ordersResult, 
@@ -470,7 +475,7 @@ class DataSyncServiceService {
             this._isDbOffline = false;
 
             if (!collection) {
-                localStorage.setItem("fp_last_sync_time", new Date().toISOString());
+                this.safeSetItem("fp_last_sync_time", new Date().toISOString());
             }
 
             // ── Process Products ──
@@ -535,7 +540,7 @@ class DataSyncServiceService {
                         
                         const newDataStr = JSON.stringify(Array.from(merged.values()));
                         if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.PRODUCTS)) {
-                            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
+                            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, newDataStr);
                             window.dispatchEvent(new Event("storage"));
                             window.dispatchEvent(new Event("sync-store-update"));
                         }
@@ -586,7 +591,7 @@ class DataSyncServiceService {
                     const sortedSellers = Array.from(merged.values()).sort((a, b) => a.id.localeCompare(b.id));
                     const newDataStr = JSON.stringify(sortedSellers);
                     if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.SELLERS)) {
-                        localStorage.setItem(this.STORAGE_KEYS.SELLERS, newDataStr);
+                        this.safeSetItem(this.STORAGE_KEYS.SELLERS, newDataStr);
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
@@ -642,7 +647,7 @@ class DataSyncServiceService {
                 const newDataArray = Array.from(mergedOrders.values());
                 const newDataStr = JSON.stringify(newDataArray);
                 if (newDataStr !== localStorage.getItem(this.STORAGE_KEYS.ORDERS)) {
-                    localStorage.setItem(this.STORAGE_KEYS.ORDERS, newDataStr);
+                    this.safeSetItem(this.STORAGE_KEYS.ORDERS, newDataStr);
                     window.dispatchEvent(new Event("storage"));
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
@@ -733,7 +738,7 @@ class DataSyncServiceService {
                     }
 
                     if (hasNewUpdate) {
-                        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
+                        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(Array.from(localMap.values())));
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                         window.dispatchEvent(new Event("negotiation-updated-remote"));
@@ -766,7 +771,7 @@ class DataSyncServiceService {
                         }
                     }
                     if (changed) {
-                        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
+                        this.safeSetItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(Array.from(localMap.values())));
                         window.dispatchEvent(new Event("storage"));
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
@@ -777,7 +782,7 @@ class DataSyncServiceService {
             if (searchCacheResult.status === "fulfilled" && searchCacheResult.value.ok) {
                 const dbSearchCache = await searchCacheResult.value.json();
                 if (Object.keys(dbSearchCache).length > 0) {
-                    localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(dbSearchCache));
+                    this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(dbSearchCache));
                 }
             }
 
@@ -798,7 +803,7 @@ class DataSyncServiceService {
                             timestamp: n.created_at || new Date().toISOString()
                         });
                     });
-                    localStorage.setItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
+                    this.safeSetItem(this.STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(Array.from(localMap.values())));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -807,7 +812,7 @@ class DataSyncServiceService {
             if (disputesResult.status === "fulfilled" && disputesResult.value.ok) {
                 const data = await disputesResult.value.json();
                 if (data.success && Array.isArray(data.disputes)) {
-                    localStorage.setItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
+                    this.safeSetItem(this.STORAGE_KEYS.DISPUTES, JSON.stringify(data.disputes));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -816,7 +821,7 @@ class DataSyncServiceService {
             if (complaintsResult.status === "fulfilled" && complaintsResult.value.ok) {
                 const data = await complaintsResult.value.json();
                 if (data.success && Array.isArray(data.complaints)) {
-                    localStorage.setItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
+                    this.safeSetItem(this.STORAGE_KEYS.COMPLAINTS, JSON.stringify(data.complaints));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -825,7 +830,7 @@ class DataSyncServiceService {
             if (kycResult.status === "fulfilled" && kycResult.value.ok) {
                 const data = await kycResult.value.json();
                 if (data.success && Array.isArray(data.submissions)) {
-                    localStorage.setItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
+                    this.safeSetItem(this.STORAGE_KEYS.KYC, JSON.stringify(data.submissions));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -835,7 +840,7 @@ class DataSyncServiceService {
                 const data = await reviewsResult.value.json();
                 if (data.success && Array.isArray(data.reviews)) {
                     // Reviews might be handled differently, check key
-                    localStorage.setItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
+                    this.safeSetItem(this.STORAGE_KEYS.REVIEWS || "fp_reviews", JSON.stringify(data.reviews));
                     window.dispatchEvent(new Event("storage"));
                 }
             }
@@ -952,7 +957,7 @@ class DataSyncServiceService {
                     try {
                         const oldDataStr = localStorage.getItem(this.STORAGE_KEYS.NEGOTIATIONS);
                         if (newDataStr !== oldDataStr) {
-                            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
+                            this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, newDataStr);
                             window.dispatchEvent(new Event("storage"));
                             window.dispatchEvent(new Event("sync-store-update"));
                         }
@@ -1048,7 +1053,7 @@ class DataSyncServiceService {
     }
 
     setCategories(categories: Category[]) {
-        localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(categories));
+        this.safeSetItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(categories));
         window.dispatchEvent(new Event("sync-store-update"));
         window.dispatchEvent(new Event("storage"));
     }
@@ -1064,7 +1069,7 @@ class DataSyncServiceService {
                         ...cat,
                         children: cat.subcategories || []
                     }));
-                    localStorage.setItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(mapped));
+                    this.safeSetItem(this.STORAGE_KEYS.TAXONOMY, JSON.stringify(mapped));
                     if (!silent) {
                         window.dispatchEvent(new Event("sync-store-update"));
                     }
@@ -1241,7 +1246,7 @@ class DataSyncServiceService {
         const current = this.getNegotiations();
         const updated = [enrichedRequest, ...current];
         try {
-            localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+            this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         } catch (e) {
             console.warn("Failed to add negotiation to localStorage", e);
         }
@@ -1383,7 +1388,7 @@ class DataSyncServiceService {
             }
             return updatedNeg;
         });
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         // Let's add the resilientFetch here!
         const updatedNegRef = updated.find(n => n.id === id);
@@ -1571,7 +1576,7 @@ class DataSyncServiceService {
             updated_at: new Date().toISOString()
         };
         requests.unshift(newReq);
-        localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(requests));
+        this.safeSetItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(requests));
 
         // Update order status
         this.updateOrderStatus(orderId, "return_requested");
@@ -1595,7 +1600,7 @@ class DataSyncServiceService {
             updated_at: new Date().toISOString()
         } : r);
 
-        localStorage.setItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.RETURNS, JSON.stringify(updated));
 
         // Sync to order status & escrow
         if (status === "approved") {
@@ -1646,7 +1651,7 @@ class DataSyncServiceService {
             };
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 
@@ -1726,12 +1731,12 @@ class DataSyncServiceService {
             };
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
         const updatedNeg = updated.find(n => n.id === negId);
         
         // Mark as pending to prevent sync overwrite
         this._pendingNegotiationEdits.add(negId);
-        try { localStorage.setItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
+        try { this.safeSetItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
 
         // Persist to Postgres
         fetch("/api/negotiations", {
@@ -1749,7 +1754,7 @@ class DataSyncServiceService {
         }).then(res => {
             if (res.ok) {
                 this._pendingNegotiationEdits.delete(negId);
-                try { localStorage.setItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
+                try { this.safeSetItem(this._PENDING_NEGOTIATION_KEY, JSON.stringify([...this._pendingNegotiationEdits])); } catch {}
             }
         }).catch(console.error);
 
@@ -1832,7 +1837,7 @@ class DataSyncServiceService {
             };
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updated));
 
         // Persist to Postgres
         fetch("/api/negotiations", {
@@ -1894,7 +1899,7 @@ class DataSyncServiceService {
 
     // --- Login ---
     loginSeller(sellerId: string) {
-        localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, sellerId);
+        this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, sellerId);
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -1917,7 +1922,7 @@ class DataSyncServiceService {
             const byUser = sellers.find(s => s.user_id === userId);
             if (byUser) {
                 // Auto-heal: update the stored seller ID to the canonical DB ID
-                localStorage.setItem(this.STORAGE_KEYS.CURRENT_SELLER, byUser.id);
+                this.safeSetItem(this.STORAGE_KEYS.CURRENT_SELLER, byUser.id);
                 return byUser;
             }
         }
@@ -1956,11 +1961,11 @@ class DataSyncServiceService {
         if (!guestId) {
             // Unify with AuthContext pattern: gst_<timestamp>_<random_string>
             guestId = `gst_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-            localStorage.setItem("fp_guest_id", guestId);
+            this.safeSetItem("fp_guest_id", guestId);
             
             // Also initialize a matching guest name if not already set
             if (!localStorage.getItem("fp_guest_name")) {
-                localStorage.setItem("fp_guest_name", "Guest Buyer");
+                this.safeSetItem("fp_guest_name", "Guest Buyer");
             }
             console.log(`👤 SyncStore: Initialized unique guest identity: ${guestId}`);
         }
@@ -2004,9 +2009,9 @@ class DataSyncServiceService {
         if (!this._pendingSellerEdits.has(id)) {
             this._pendingSellerEdits.add(id);
         }
-        try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+        try { this.safeSetItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
 
-        localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(updated));
         
         // Only dispatch if something actually changed (beyond the guard above)
         window.dispatchEvent(new Event("storage"));
@@ -2020,7 +2025,7 @@ class DataSyncServiceService {
         }).then(res => {
             if (res.ok) {
                 this._pendingSellerEdits.delete(id);
-                try { localStorage.setItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
+                try { this.safeSetItem(this._PENDING_SELLER_KEY, JSON.stringify([...this._pendingSellerEdits])); } catch { /* quota */ }
             }
         }).catch(() => {
             // Keep in pendingSellerEdits so syncWithDB doesn't overwrite
@@ -2055,7 +2060,7 @@ class DataSyncServiceService {
                     { min: 5000000, rate: 0.02 }
                 ]
             };
-            localStorage.setItem(this.STORAGE_KEYS.PLATFORM_SETTINGS, JSON.stringify(defaults));
+            this.safeSetItem(this.STORAGE_KEYS.PLATFORM_SETTINGS, JSON.stringify(defaults));
             return defaults;
         }
         return JSON.parse(stored);
@@ -2173,7 +2178,7 @@ class DataSyncServiceService {
             });
             
             if (validDeals.length !== deals.length) {
-                localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(validDeals));
+                this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(validDeals));
             }
             
             return validDeals;
@@ -2192,7 +2197,7 @@ class DataSyncServiceService {
             deal_priority: deal.deal_priority || 999 // Default to low priority
         };
         const updated = [newDeal, ...current];
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update")); // Ensure global sync
     }
@@ -2203,7 +2208,7 @@ class DataSyncServiceService {
         if (!stored) return;
         const current: any[] = JSON.parse(stored);
         const updated = current.filter(d => d.id !== dealId);
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -2214,7 +2219,7 @@ class DataSyncServiceService {
         if (!stored) return;
         const current: any[] = JSON.parse(stored);
         const updated = current.filter(d => (d.product_id || d.productId) !== productId);
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -2225,7 +2230,7 @@ class DataSyncServiceService {
         if (!stored) return;
         const current: Deal[] = JSON.parse(stored);
         const updated = current.map(d => d.id === dealId ? { ...d, ...updates } : d);
-        localStorage.setItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.DEALS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
     }
 
@@ -2240,7 +2245,7 @@ class DataSyncServiceService {
         const subs = this.getRestockSubscriptions();
         if (!subs.some(s => s.productId === productId && s.userId === userId)) {
             subs.push({ productId, userId, userEmail, timestamp: new Date().toISOString() });
-            localStorage.setItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
+            this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
             window.dispatchEvent(new Event("sync-store-update"));
         }
     }
@@ -2248,7 +2253,7 @@ class DataSyncServiceService {
     removeRestockSubscriptionsByProduct(productId: string) {
         if (typeof window === "undefined") return;
         const subs = this.getRestockSubscriptions().filter(s => s.productId !== productId);
-        localStorage.setItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
+        this.safeSetItem(this.STORAGE_KEYS.RESTOCK_SUBSCRIPTIONS, JSON.stringify(subs));
     }
 
     // --- Getters ---
@@ -2340,7 +2345,7 @@ class DataSyncServiceService {
         }
 
         try {
-            localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+            this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
 
             // Persist to Postgres database for Admin visibility across devices
             fetch("/api/search-cache", {
@@ -2392,7 +2397,7 @@ class DataSyncServiceService {
                 if (product) {
                     product.is_trending = data.isTrending;
                     newStatus = data.isTrending;
-                    localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+                    this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
                     window.dispatchEvent(new Event("sync-store-update"));
                 }
             } else {
@@ -2520,7 +2525,7 @@ class DataSyncServiceService {
                 p.id === productId ? { ...p, ...updates } : p
             );
         });
-        localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
@@ -2549,7 +2554,7 @@ class DataSyncServiceService {
             cache[q] = cache[q].filter((p: any) => p.id !== productId);
             if (cache[q].length === 0) delete cache[q];
         });
-        localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
+        this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(cache));
         window.dispatchEvent(new Event("sync-store-update"));
     }
 
@@ -2606,12 +2611,12 @@ class DataSyncServiceService {
             console.log("Registration locked - attempt too recent");
             return;
         }
-        localStorage.setItem(lockKey, Date.now().toString());
+        this.safeSetItem(lockKey, Date.now().toString());
 
         this._isRegisteringSeller = true;
         const sellers = this.getSellers();
         sellers.push(seller);
-        localStorage.setItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
+        this.safeSetItem(this.STORAGE_KEYS.SELLERS, JSON.stringify(sellers));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
 
@@ -2748,7 +2753,7 @@ class DataSyncServiceService {
 
         const orders = this.getOrders();
         const updated = [newOrder, ...orders];
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Gamification: Post-Purchase Delight
         if (order.source && order.source.startsWith("negotiation_")) {
@@ -2786,7 +2791,7 @@ class DataSyncServiceService {
             // Mark negotiation as purchased
             if (neg) {
                 const updatedNegs = negotiations.map(n => n.id === negId ? { ...n, purchased: true } : n);
-                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updatedNegs));
+                this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(updatedNegs));
             }
         }
 
@@ -2966,7 +2971,7 @@ class DataSyncServiceService {
             return o;
         });
 
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // CRITICAL: Push to DB immediately for Concierge messages to ensure persistence and notifications
         fetch("/api/orders/sync-messages", {
@@ -3127,7 +3132,7 @@ class DataSyncServiceService {
     markOrderReadAsAdmin(orderId: string) {
         const orders = this.getOrders();
         const updated = orders.map(o => o.id === orderId ? { ...o, unread_admin: false } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -3161,7 +3166,7 @@ class DataSyncServiceService {
         };
 
         const updated = [newProduct, ...products];
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
         return newProduct;
@@ -3256,11 +3261,11 @@ class DataSyncServiceService {
         if (products.length > 500) products.length = 500; // soft limit
 
         try {
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         } catch (e) {
             // Force aggressive trim if quota exceeded
             products.length = 150;
-            localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+            this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
         }
 
         // Persist to Postgres if allowed (queued if offline)
@@ -3308,10 +3313,10 @@ class DataSyncServiceService {
 
         // Mark as pending BEFORE writing — protects from syncWithDB overwrite
         this._pendingEdits.add(id);
-        try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
+        try { this.safeSetItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
 
         // Write to localStorage for instant UI feedback
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
 
         // Clear stale NavSearch sessionStorage cache so thumbnails update immediately
         try {
@@ -3419,7 +3424,7 @@ class DataSyncServiceService {
                 if (res.ok) {
                     console.log(`✅ Persisted product update to DB: ${id}`);
                     this._pendingEdits.delete(id);
-                    try { localStorage.setItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
+                    try { this.safeSetItem(this._PENDING_KEY, JSON.stringify([...this._pendingEdits])); } catch { /* quota */ }
                 } else {
                     const errData = await res.json().catch(() => ({}));
                     console.warn(`⚠️ DB write returned ${res.status} for product ${id}:`, errData.error || "Unknown error");
@@ -3439,14 +3444,14 @@ class DataSyncServiceService {
 
     setCachedGlobalResults(query: string, products: Product[]) {
         const normalizedQuery = query.toLowerCase().trim();
-        localStorage.setItem(`fairprice_global_search_${normalizedQuery}`, JSON.stringify(products));
+        this.safeSetItem(`fairprice_global_search_${normalizedQuery}`, JSON.stringify(products));
 
         // Also save to the central SEARCH_CACHE for the Admin portal
         try {
             const centralCacheStr = localStorage.getItem(this.STORAGE_KEYS.SEARCH_CACHE) || "{}";
             const centralCache = JSON.parse(centralCacheStr);
             centralCache[normalizedQuery] = products;
-            localStorage.setItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(centralCache));
+            this.safeSetItem(this.STORAGE_KEYS.SEARCH_CACHE, JSON.stringify(centralCache));
             window.dispatchEvent(new Event("sync-store-update"));
         } catch (e) {
             console.error("Failed to update central search cache for admin", e);
@@ -3470,7 +3475,7 @@ class DataSyncServiceService {
 
             history.unshift({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
             if (history.length > 50) history.length = 50;
-            localStorage.setItem("fairprice_demo_global_search_history", JSON.stringify(history));
+            this.safeSetItem("fairprice_demo_global_search_history", JSON.stringify(history));
         } catch (e) { }
     }
 
@@ -3496,7 +3501,7 @@ class DataSyncServiceService {
         // 1. Local cleanup
         const products = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.PRODUCTS) || "[]");
         const filtered = products.filter((p: any) => p.id !== id);
-        localStorage.setItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(filtered));
+        this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(filtered));
         
         // 2. Persistent Tombstone (Prevents re-syncing from DB in current session)
         this._deletedProductIds.add(id);
@@ -3504,7 +3509,7 @@ class DataSyncServiceService {
         const deleted = this.getDeletedStubs();
         if (!deleted.includes(id)) {
             deleted.push(id);
-            localStorage.setItem(this.STORAGE_KEYS.DELETED_STUBS, JSON.stringify(deleted));
+            this.safeSetItem(this.STORAGE_KEYS.DELETED_STUBS, JSON.stringify(deleted));
         }
 
         setTimeout(() => this._deletedProductIds.delete(id), 60000); // 1 min memory tombstone
@@ -3540,14 +3545,14 @@ class DataSyncServiceService {
             // We don't wipe everything, just items matching this identity to avoid affecting other accounts
             if (sellerId) {
                 const orders = this.getOrders().filter(o => o.seller_id !== sellerId);
-                localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+                this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
                 const negs = this.getNegotiationsRaw().filter((n: any) => n.seller_id !== sellerId);
-                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+                this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
             } else if (userId) {
                 const orders = this.getOrders().filter(o => o.customer_id !== userId);
-                localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+                this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
                 const negs = this.getNegotiationsRaw().filter((n: any) => n.customer_id !== userId);
-                localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+                this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
             }
         }
         try {
@@ -3626,14 +3631,14 @@ class DataSyncServiceService {
             if (sellerId) {
                 const payoutsRes = results[2];
                 if (payoutsRes.status === "fulfilled" && payoutsRes.value?.payouts) {
-                    localStorage.setItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payoutsRes.value.payouts));
+                    this.safeSetItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payoutsRes.value.payouts));
                 }
             }
 
             // 4. Force financial recalculation after data merge
             if (sellerId) this.recalculateSellerBalances(sellerId);
 
-            localStorage.setItem("fp_last_sync", new Date().toISOString());
+            this.safeSetItem("fp_last_sync", new Date().toISOString());
             window.dispatchEvent(new Event("sync-store-update"));
             console.log("✅ AutoSync complete.");
 
@@ -3674,7 +3679,7 @@ class DataSyncServiceService {
         } as any);
 
         // Persistent stats cache for dashboard
-        localStorage.setItem(`fp_stats_${sellerId}`, JSON.stringify({
+        this.safeSetItem(`fp_stats_${sellerId}`, JSON.stringify({
             escrowAmount,
             availableBalance,
             totalRevenue,
@@ -3693,7 +3698,7 @@ class DataSyncServiceService {
         } else {
             orders.unshift(order as Order);
         }
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(orders));
         // Don't dispatch events here to avoid infinite loops during batch upserts
     }
 
@@ -3706,13 +3711,13 @@ class DataSyncServiceService {
         } else {
             negs.unshift(neg);
         }
-        localStorage.setItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
+        this.safeSetItem(this.STORAGE_KEYS.NEGOTIATIONS, JSON.stringify(negs));
     }
 
     updateOrder(id: string, updates: Partial<Order>) {
         const orders = this.getOrders();
         const updated = orders.map(o => o.id === id ? { ...o, ...updates } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -3722,25 +3727,37 @@ class DataSyncServiceService {
         const order = orders.find(o => o.id === id);
         if (!order) return;
 
-        const updated = orders.map(o => o.id === id ? { ...o, status } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        const now = new Date().toISOString();
+        const updated = orders.map(o => o.id === id ? { 
+            ...o, 
+            status, 
+            updated_at: now,
+            ...(status === 'delivered' ? { deliveredAt: now } : {})
+        } : o);
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
         
         // Mark as pending to prevent sync overwrite
         this._pendingOrderEdits.add(id);
-        localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+        this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
         // Trigger balance recalculation if it impacts financials
-        this.recalculateSellerBalances(order.seller_id);
+        if (status === 'delivered' || status === 'cancelled') {
+             this.recalculateSellerBalances(order.seller_id);
+        }
 
         // Sync to Remote DB
         fetch("/api/orders", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, status })
+            body: JSON.stringify({ 
+                id, 
+                status,
+                ...(status === 'delivered' ? { deliveredAt: now } : {})
+            })
         }).then(res => {
             if (res.ok) {
                 this._pendingOrderEdits.delete(id);
-                localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+                this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
             }
         }).catch(console.error);
 
@@ -3782,6 +3799,16 @@ class DataSyncServiceService {
                     trackingUrl: `https://fairprice.ng/account/orders?id=${order.id}`
                 });
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has been delivered.`, link: `/account/orders?id=${order.id}` });
+                
+                // Notify Admin too!
+                dispatchEmail(adminEmail, "ORDER_DELIVERED", {
+                    name: "Admin",
+                    orderId: order.id,
+                    productName,
+                    sellerName: seller?.business_name || "a Seller",
+                    trackingUrl: `https://fairprice.ng/admin/orders?id=${order.id}`
+                });
+                this.addNotification({ userId: 'admin', type: "order", message: `Order #${order.id.substring(0, 8)} has been marked as delivered by ${seller?.business_name || 'seller'}.`, link: `/admin/orders?id=${order.id}` });
             }
 
             // 2. Cancelled
@@ -3857,7 +3884,7 @@ class DataSyncServiceService {
         if (!order) return;
 
         const updated = orders.map(o => o.id === id ? { ...o, escrow_status } : o);
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
         // Financial Integrity: Recalculate balance on escrow state change
         this.recalculateSellerBalances(order.seller_id);
@@ -3899,11 +3926,11 @@ class DataSyncServiceService {
             tracking_status: status // Sync top level status
         } : o);
 
-        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+        this.safeSetItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
         
         // Mark as pending to prevent sync overwrite
         this._pendingOrderEdits.add(id);
-        localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+        this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
 
         // Sync to Remote DB
         fetch("/api/orders", {
@@ -3919,7 +3946,7 @@ class DataSyncServiceService {
         }).then(res => {
             if (res.ok) {
                 this._pendingOrderEdits.delete(id);
-                localStorage.setItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
+                this.safeSetItem(this._PENDING_ORDER_KEY, JSON.stringify(Array.from(this._pendingOrderEdits)));
             }
         }).catch(console.error);
 
@@ -4983,6 +5010,7 @@ class DataSyncServiceService {
     releaseEscrow(orderId: string) {
         const orders = this.getOrders();
         const order = orders.find(o => o.id === orderId);
+        if (!order) return;
 
         const updated = orders.map(o => o.id === orderId ? {
             ...o,
@@ -4991,18 +5019,14 @@ class DataSyncServiceService {
         } : o);
         localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
 
-        if (order) {
-            // Prompt buyer to leave a review
-            this.addNotification({
-                userId: order.customer_id,
-                type: "system",
-                message: `Funds for ${order.product?.name || 'your order'} have been released.Please leave a review!`,
-                link: `/product/${order.product_id}?review=true`,
-            });
-            // Update stats & trigger storage event
-            this.updateOrderEscrow(orderId, "released");
-        }
+        // Update stats & trigger storage event
+        this.updateOrderEscrow(orderId, "released");
+        
+        // Force immediate balance recalculation to ensure availability
+        this.recalculateSellerBalances(order.seller_id);
+
         window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
     }
 
     /** Check if order is eligible for auto-release (48 hours since seller confirmed, no dispute) */
@@ -5641,6 +5665,204 @@ class DataSyncServiceService {
         
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    // --- Messaging Helpers ---
+    getCustomerNameById(customerId: string): string {
+        if (!customerId) return "Customer";
+        
+        // Check orders first
+        const orders = this.getOrders();
+        const orderMatch = orders.find(o => o.customer_id === customerId);
+        if (orderMatch && orderMatch.customer_name && !orderMatch.customer_name.startsWith("usr_")) {
+            return orderMatch.customer_name;
+        }
+
+        // Check negotiations
+        const negs = this.getNegotiations();
+        const negMatch = negs.find(n => n.customer_id === customerId);
+        if (negMatch && negMatch.customer_name && !negMatch.customer_name.startsWith("usr_")) {
+            return negMatch.customer_name;
+        }
+
+        // Check conversations
+        const convs = this.getConversations();
+        const convMatch = convs.find(c => c.participants.includes(customerId));
+        if (convMatch && convMatch.participant_names && convMatch.participant_names[customerId]) {
+            return convMatch.participant_names[customerId];
+        }
+
+        return `Customer # ${customerId.substring(0, 6)}`;
+    }
+
+    getLastMessageTimestamp(convoId: string): number {
+        if (typeof window === "undefined") return 0;
+        const key = `msg_notify_last_${convoId}`;
+        const stored = localStorage.getItem(key);
+        return stored ? parseInt(stored) : 0;
+    }
+
+    updateLastMessageTimestamp(convoId: string) {
+        if (typeof window === "undefined") return;
+        const key = `msg_notify_last_${convoId}`;
+        localStorage.setItem(key, Date.now().toString());
+    }
+
+    shouldSendEmailNotification(convoId: string, windowMinutes: number = 15): boolean {
+        const last = this.getLastMessageTimestamp(convoId);
+        const now = Date.now();
+        const diff = (now - last) / (1000 * 60);
+        return diff > windowMinutes;
+    }
+
+    // --- Customer CRM Notes ---
+    getCustomerNotes(customerId: string): string {
+        if (typeof window === "undefined") return "";
+        const allNotes = JSON.parse(localStorage.getItem("fp_customer_notes") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return "";
+        return allNotes[`${sellerId}_${customerId}`] || "";
+    }
+
+    saveCustomerNotes(customerId: string, notes: string) {
+        if (typeof window === "undefined") return;
+        const allNotes = JSON.parse(localStorage.getItem("fp_customer_notes") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return;
+        allNotes[`${sellerId}_${customerId}`] = notes;
+        localStorage.setItem("fp_customer_notes", JSON.stringify(allNotes));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    // --- Customer CRM Tags ---
+    getCustomerTags(customerId: string): string[] {
+        if (typeof window === "undefined") return [];
+        const allTags = JSON.parse(localStorage.getItem("fp_customer_tags") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return [];
+        return allTags[`${sellerId}_${customerId}`] || [];
+    }
+
+    saveCustomerTags(customerId: string, tags: string[]) {
+        if (typeof window === "undefined") return;
+        const allTags = JSON.parse(localStorage.getItem("fp_customer_tags") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return;
+        allTags[`${sellerId}_${customerId}`] = tags;
+        localStorage.setItem("fp_customer_tags", JSON.stringify(allTags));
+        window.dispatchEvent(new Event("storage"));
+    }
+
+    /** Returns all unique tags used by this seller across all customers */
+    getAllSellerTags(): string[] {
+        if (typeof window === "undefined") return [];
+        const allTags = JSON.parse(localStorage.getItem("fp_customer_tags") || "{}");
+        const sellerId = this.getCurrentSellerId();
+        if (!sellerId) return [];
+
+        const sellerTagsSet = new Set<string>();
+        Object.keys(allTags).forEach(key => {
+            if (key.startsWith(`${sellerId}_`)) {
+                (allTags[key] as string[]).forEach(tag => sellerTagsSet.add(tag));
+            }
+        });
+        return Array.from(sellerTagsSet).sort();
+    }
+    
+    /** Get all orders that have concierge chat history */
+    getConciergeChats() {
+        return this.getOrders().filter(o => o.chat_messages && o.chat_messages.length > 0);
+    }
+
+    /** Clear chat history for a specific order */
+    clearOrderChat(orderId: string) {
+        const orders = this.getOrders();
+        const updated = orders.map(o => o.id === orderId ? { ...o, chat_messages: [], zivaActive: false } : o);
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updated));
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+    }
+
+    private safeSetItem(key: string, value: string) {
+        if (typeof window === "undefined") return;
+        try {
+            localStorage.setItem(key, value);
+        } catch (e: any) {
+            if (e.name === "QuotaExceededError" || e.code === 22 || e.code === 1014) {
+                console.warn("⚠️ LocalStorage quota exceeded. Attempting emergency cleanup...");
+                // Emergency cleanup: delete chats older than 14 days
+                this.bulkCleanupChats({ daysOld: 14 });
+                try {
+                    localStorage.setItem(key, value);
+                    console.log("✅ Emergency cleanup successful. Storage preserved.");
+                } catch (retryError) {
+                    console.error("❌ Critical: Storage quota still exceeded after cleanup.");
+                    window.dispatchEvent(new CustomEvent("fp-quota-exceeded", { 
+                        detail: { key, message: "Storage full. Please use the Admin Chat Manager to clear old history." } 
+                    }));
+                }
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /** Granular cleanup of chats to manage storage quota */
+    bulkCleanupChats(options: { daysOld?: number; zivaOnly?: boolean; readOnly?: boolean }) {
+        const { daysOld, zivaOnly, readOnly } = options;
+        const now = Date.now();
+        const cutoff = daysOld !== undefined ? now - (daysOld * 24 * 60 * 60 * 1000) : null;
+        
+        const orders = this.getOrders();
+        let ordersCleared = 0;
+        
+        // 1. Cleanup Order-based Concierge (Ziva) chats
+        const updatedOrders = orders.map(o => {
+            const orderDate = new Date(o.created_at).getTime();
+            const isOldEnough = !cutoff || orderDate < cutoff;
+            
+            if (isOldEnough && (o.chat_messages?.length ?? 0) > 0) {
+                // If readOnly is set, only clear if no unread messages (simulated check)
+                if (readOnly && o.zivaActive) return o; 
+                
+                ordersCleared++;
+                return { ...o, chat_messages: [], zivaActive: false };
+            }
+            return o;
+        });
+        localStorage.setItem(this.STORAGE_KEYS.ORDERS, JSON.stringify(updatedOrders));
+
+        // 2. Cleanup General Conversations & Messages
+        const convs = this.getConversations();
+        const messages = JSON.parse(localStorage.getItem(this.STORAGE_KEYS.CHAT_MESSAGES) || "[]");
+
+        const remainingConvs = convs.filter((c: any) => {
+            const lastMsgDate = new Date(c.last_message_at || c.created_at).getTime();
+            const isOldEnough = !cutoff || lastMsgDate < cutoff;
+            const isZiva = c.context?.type === "ziva_escalation";
+            const isRead = Object.values(c.unread_count || {}).every(v => v === 0);
+
+            // Filter logic
+            if (zivaOnly && !isZiva) return true;
+            if (readOnly && !isRead) return true;
+            if (isOldEnough) return false; // Delete it
+            
+            return true;
+        });
+
+        const activeConvIds = new Set(remainingConvs.map((c: any) => c.id));
+        const remainingMessages = messages.filter((m: any) => activeConvIds.has(m.conversation_id));
+
+        localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(remainingConvs));
+        localStorage.setItem(this.STORAGE_KEYS.CHAT_MESSAGES, JSON.stringify(remainingMessages));
+
+        window.dispatchEvent(new Event("storage"));
+        window.dispatchEvent(new Event("sync-store-update"));
+        return { 
+            ordersCleared, 
+            convsCleared: convs.length - remainingConvs.length,
+            messagesCleared: messages.length - remainingMessages.length
+        };
     }
 }
 

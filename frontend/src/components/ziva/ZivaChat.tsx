@@ -223,21 +223,7 @@ export function ZivaChat() {
         }
     }, [pathname, isOpen]);
 
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        {
-            id: "welcome",
-            role: "assistant",
-            content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
-            quickActions: [
-                { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
-                { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
-                { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
-                { label: "Track my order", query: "Track my order", icon: "📦" },
-                { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
-                { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
-            ]
-        }
-    ]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
     const [adminActive, setAdminActive] = useState(false);
@@ -247,6 +233,62 @@ export function ZivaChat() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const { cart, addToCart } = useCart();
     const { user } = useAuth();
+
+    // ─── Persistence ───
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const key = `fp_ziva_history_${user?.id || 'guest'}`;
+        const saved = localStorage.getItem(key);
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setMessages(parsed);
+                } else {
+                    // Default welcome
+                    setMessages([
+                        {
+                            id: "welcome",
+                            role: "assistant",
+                            content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
+                            quickActions: [
+                                { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
+                                { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
+                                { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
+                                { label: "Track my order", query: "Track my order", icon: "📦" },
+                                { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
+                                { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
+                            ]
+                        }
+                    ]);
+                }
+            } catch (e) {
+                console.error("Failed to parse Ziva history", e);
+            }
+        } else {
+            setMessages([
+                {
+                    id: "welcome",
+                    role: "assistant",
+                    content: "Hey! 👋 I'm **Ziva**, your personal shopping AI. I search the market, compare prices, and help you get the best deals on FairPrice.\n\nTry asking me anything!",
+                    quickActions: [
+                        { label: "Find phones around ₦500k", query: "Find me a phone above ₦500,000", icon: "📱" },
+                        { label: "Today's best deals", query: "Show me today's best deals", icon: "🔥" },
+                        { label: "Is this price fair?", query: "__PRICE_CHECK__", icon: "🛡️" },
+                        { label: "Track my order", query: "Track my order", icon: "📦" },
+                        { label: "Negotiate a price", query: "I want to negotiate a price", icon: "💰" },
+                        { label: "Talk to a Human", query: "I want to talk to a human agent", icon: "🧑‍💼" },
+                    ]
+                }
+            ]);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || messages.length === 0) return;
+        const key = `fp_ziva_history_${user?.id || 'guest'}`;
+        localStorage.setItem(key, JSON.stringify(messages));
+    }, [messages, user?.id]);
 
     useEffect(() => { setMounted(true); }, []);
 

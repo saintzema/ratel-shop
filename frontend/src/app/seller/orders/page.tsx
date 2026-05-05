@@ -50,6 +50,7 @@ export default function SellerOrders() {
     const [shipDriverPhone, setShipDriverPhone] = useState("");
     const [shipLocation, setShipLocation] = useState("Lagos Warehouse");
     const [shipArrivalDate, setShipArrivalDate] = useState("");
+    const [warehouses, setWarehouses] = useState<{name: string, address: string}[]>([]);
 
     const searchParams = useSearchParams();
 
@@ -71,7 +72,33 @@ export default function SellerOrders() {
             setReturnRequests(DataSyncService.getReturnRequests(sellerId));
         };
 
+        const loadWarehouses = async () => {
+            try {
+                const res = await fetch("/api/admin/settings");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.supportConfig?.serviceCenters) {
+                        setWarehouses(data.supportConfig.serviceCenters);
+                        // If current shipLocation is default, and we have warehouses, maybe pick the first one?
+                        // Or keep "Lagos Warehouse" as a fallback if it's not in the list.
+                    }
+                } else {
+                    // Fallback to local storage if API fails
+                    const local = localStorage.getItem("fp_admin_settings");
+                    if (local) {
+                        const data = JSON.parse(local);
+                        if (data.supportConfig?.serviceCenters) {
+                            setWarehouses(data.supportConfig.serviceCenters);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load warehouses", err);
+            }
+        };
+
         loadOrders();
+        loadWarehouses();
         window.addEventListener("storage", loadOrders);
         window.addEventListener("sync-store-update", loadOrders);
         return () => {
@@ -472,44 +499,70 @@ export default function SellerOrders() {
                                                             </div>
                                                         )}
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                                                            <Input
-                                                                placeholder="Carrier (RT Logistics, DHL...)"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                value={shipCarrier}
-                                                                onChange={(e) => setShipCarrier(e.target.value)}
-                                                            />
-                                                            <Input
-                                                                placeholder="Tracking ID"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                value={shipTrackingId}
-                                                                onChange={(e) => setShipTrackingId(e.target.value)}
-                                                            />
-                                                            <Input
-                                                                placeholder="Driver Name *"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                value={shipDriverName}
-                                                                onChange={(e) => setShipDriverName(e.target.value)}
-                                                            />
-                                                            <Input
-                                                                placeholder="Driver Phone *"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                value={shipDriverPhone}
-                                                                onChange={(e) => setShipDriverPhone(e.target.value)}
-                                                                inputMode="tel"
-                                                            />
-                                                            <Input
-                                                                placeholder="Current Location"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                value={shipLocation}
-                                                                onChange={(e) => setShipLocation(e.target.value)}
-                                                            />
-                                                            <Input
-                                                                placeholder="Est. Delivery Date"
-                                                                type="date"
-                                                                className="h-9 text-xs rounded-lg"
-                                                                value={shipArrivalDate}
-                                                                onChange={(e) => setShipArrivalDate(e.target.value)}
-                                                            />
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Shipping Carrier</label>
+                                                                <Input
+                                                                    placeholder="Carrier (RT Logistics, DHL...)"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipCarrier}
+                                                                    onChange={(e) => setShipCarrier(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Tracking ID (Optional)</label>
+                                                                <Input
+                                                                    placeholder="Tracking ID"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipTrackingId}
+                                                                    onChange={(e) => setShipTrackingId(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Driver's Name</label>
+                                                                <Input
+                                                                    placeholder="Driver Name *"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipDriverName}
+                                                                    onChange={(e) => setShipDriverName(e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Driver's Phone Number</label>
+                                                                <Input
+                                                                    placeholder="Driver Phone *"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipDriverPhone}
+                                                                    onChange={(e) => setShipDriverPhone(e.target.value)}
+                                                                    inputMode="tel"
+                                                                />
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Warehouse / Drop-off Location</label>
+                                                                <div className="relative">
+                                                                    <select
+                                                                        className="w-full h-9 text-xs rounded-lg border border-gray-200 bg-white px-3 appearance-none focus:ring-2 focus:ring-purple-500/20 outline-none font-medium"
+                                                                        value={shipLocation}
+                                                                        onChange={(e) => setShipLocation(e.target.value)}
+                                                                    >
+                                                                        <option value="Lagos Warehouse">Lagos Warehouse (Default)</option>
+                                                                        <option value="Abuja Warehouse">Abuja Warehouse</option>
+                                                                        {warehouses.map((w, idx) => (
+                                                                            <option key={idx} value={w.name}>{w.name}</option>
+                                                                        ))}
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest pl-1">Est. Arrival at Warehouse</label>
+                                                                <Input
+                                                                    placeholder="Est. Delivery Date"
+                                                                    type="date"
+                                                                    className="h-9 text-xs rounded-lg"
+                                                                    value={shipArrivalDate}
+                                                                    onChange={(e) => setShipArrivalDate(e.target.value)}
+                                                                />
+                                                            </div>
                                                         </div>
                                                         <Button
                                                             size="sm"
@@ -520,7 +573,11 @@ export default function SellerOrders() {
                                                                     return;
                                                                 }
 
-                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", shipLocation, shipCarrier, shipTrackingId);
+                                                                const locationWithDate = shipArrivalDate 
+                                                                    ? `${shipLocation} (Est. Arrival: ${shipArrivalDate})`
+                                                                    : shipLocation;
+
+                                                                DataSyncService.updateTrackingStatus(order.id, "Shipped from Warehouse", locationWithDate, shipCarrier, shipTrackingId);
                                                                 handleStatusUpdate(order.id, "shipped");
 
                                                                 // Reset form

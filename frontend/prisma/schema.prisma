@@ -115,6 +115,7 @@ model Seller {
   updatedAt      DateTime             @updatedAt
   whatsappEnabled Boolean             @default(false)
   whatsappNumber String?
+  autoPayoutEnabled Boolean            @default(false)
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")
@@ -220,6 +221,7 @@ model Order {
   sellerName        String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  deliveredAt       DateTime?
   chatMessages      Json?
   payoutStatus      String?        @default("none")
   unreadAdmin       Boolean?       @default(false)
@@ -237,17 +239,20 @@ model Order {
 }
 
 model Payout {
-  id            String   @id @default(cuid())
-  sellerId      String
-  amount        Float
-  status        String   @default("pending")
-  bankName      String
-  accountNumber String
-  accountName   String
-  orderIds      String[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  seller        Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  id               String   @id @default(cuid())
+  sellerId         String
+  amount           Float
+  status           String   @default("pending")
+  bankName         String
+  accountNumber    String
+  accountName      String
+  orderIds         String[]
+  paymentReference String?  // Links to the original Paystack charge reference for audit
+  transferCode     String?  // Paystack transfer code for tracking
+  isAutoPayout     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  seller           Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
 }
 
 model NegotiationRequest {

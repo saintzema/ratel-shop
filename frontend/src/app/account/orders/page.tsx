@@ -71,8 +71,19 @@ function OrdersContent() {
 
     const loadData = () => {
         if (!user) return;
+        const allProducts = DataSyncService.getProducts();
         const allOrders = DataSyncService.getOrders();
-        const userOrders = allOrders.filter(o =>
+        
+        // Enrich orders with full product data if missing
+        const enrichedOrders = allOrders.map(o => {
+            if (!o.product && o.product_id) {
+                const found = allProducts.find(p => p.id === o.product_id);
+                if (found) return { ...o, product: found };
+            }
+            return o;
+        });
+
+        const userOrders = enrichedOrders.filter(o =>
             o.customer_id === user.email ||
             o.customer_id === user.id
         );
@@ -86,10 +97,21 @@ function OrdersContent() {
             n.customer_name === user.name
         ));
 
-        setProducts(DataSyncService.getProducts());
+        setProducts(allProducts);
     };
 
-    useEffect(() => { loadData(); }, [user]);
+    useEffect(() => {
+        loadData();
+        // Proactive sync for latest orders
+        DataSyncService.syncWithDB("orders", true);
+        
+        window.addEventListener("storage", loadData);
+        window.addEventListener("sync-store-update", loadData);
+        return () => {
+            window.removeEventListener("storage", loadData);
+            window.removeEventListener("sync-store-update", loadData);
+        };
+    }, [user]);
 
     // Handle checkout success redirect — runs ONCE only
     useEffect(() => {
@@ -122,21 +144,17 @@ function OrdersContent() {
 
     const handleConfirmDelivery = (orderId: string) => {
         const order = orders.find(o => o.id === orderId);
+        if (!order) return;
+        
+        // updateOrderStatus already handles notifications for 'delivered' status
         DataSyncService.updateOrderStatus(orderId, "delivered");
         DataSyncService.releaseEscrow(orderId);
-        DataSyncService.addNotification({
-            userId: user?.email || "guest",
-            type: "order",
-            message: `Delivery Confirmed! 🎉 Your order has been delivered. Leave a review to help other shoppers!`,
-            link: `${getProductUrl(order?.product)}?review=true`
-        });
+        
         loadData();
 
-        if (order) {
-            setConciergeOrder({ ...order, status: "delivered" });
-            setConciergeMode("review");
-            setShowConcierge(true);
-        }
+        setConciergeOrder({ ...order, status: "delivered" });
+        setConciergeMode("review");
+        setShowConcierge(true);
     };
 
     // Auto-open tracking/details modal from notifications
@@ -751,13 +769,23 @@ function OrdersContent() {
                                 )}
                             </div>
 
+                            {/* Delivery Info */}
+                            <div className="px-5 py-4 border-b border-gray-100 space-y-2.5">
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.1em] text-gray-400">Delivery Info</h3>
+                                <div className="space-y-1">
+                                    <p className="text-xs font-bold text-gray-900">{selectedOrderForTracking.customer_name || user?.name}</p>
+                                    <p className="text-xs text-gray-600 leading-relaxed">{selectedOrderForTracking.shipping_address || 'Standard Shipping Address'}</p>
+                                    <p className="text-[11px] font-medium text-brand-green-600 mt-1">{selectedOrderForTracking.customer_phone || selectedOrderForTracking.customer_whatsapp || user?.phone || 'No phone attached'}</p>
+                                </div>
+                            </div>
+
                             {/* Tracking Steps */}
                             <div className="px-5 py-4 space-y-4 max-h-[40vh] overflow-y-auto">
                                 <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Tracking</h3>
                                 <div className="relative">
                                     <div className="absolute left-3 top-3 bottom-3 w-px bg-gray-200" />
                                     <div className="space-y-4">
-                                        {(selectedOrderForTracking.tracking_steps || [
+                                        {((selectedOrderForTracking.tracking_steps && selectedOrderForTracking.tracking_steps.length > 0) ? selectedOrderForTracking.tracking_steps : [
                                             { status: "Order Placed", location: "System", timestamp: selectedOrderForTracking.created_at, completed: true }
                                         ]).map((step, i) => (
                                             <div key={i} className="relative flex gap-4 pl-8">

@@ -81,33 +81,45 @@ const groupMessagesByDate = (messages: ChatMessage[]) => {
 };
 
 // ─── Memoized Sub-components ─────────────────────────────
-
 const ChatMessageItem = React.memo(({ 
     msg, 
     onReply, 
     onAcceptCounter, 
-    onRejectCounter,
-    onRenegotiate
+    onRejectCounter, 
+    onRenegotiate,
+    storeName,
+    storeLogo
 }: { 
     msg: ChatMessage, 
     onReply: (sender: string, text: string) => void,
     onAcceptCounter: (productId: string, price: number) => void,
     onRejectCounter: (productId: string) => void,
-    onRenegotiate: (productId: string, price: number) => void
+    onRenegotiate: (productId: string, price: number) => void,
+    storeName?: string,
+    storeLogo?: string
 }) => {
     const isUser = msg.sender === "user";
     
     return (
         <div className={`flex mb-2 ${isUser ? "justify-end" : "justify-start"}`}>
             {!isUser && (
-                <div className="h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700">
-                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />}
+                <div className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mt-auto mb-1 mr-2 overflow-hidden",
+                    msg.sender === "admin" ? "bg-blue-100 text-blue-700" :
+                    msg.sender === "ziva" ? "bg-brand-green-100 text-brand-green-700" :
+                    "bg-gray-100 text-gray-700"
+                )}>
+                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : (
+                        msg.sender === "seller" && storeLogo ? (
+                            <img src={storeLogo} alt="S" className="w-full h-full object-cover" />
+                        ) : msg.sender === "seller" ? "S" : <Bell className="h-3.5 w-3.5" />
+                    )}
                 </div>
             )}
             <div className={`max-w-[85%] relative flex flex-col items-${isUser ? "end" : "start"}`}>
                 {!isUser && (
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5 px-1 ml-1">
-                        {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : "Seller"}
+                        {msg.sender === "ziva" ? "Ziva AI" : msg.sender === "admin" ? "FairPrice Support" : (storeName || "Seller")}
                     </p>
                 )}
                 <div
@@ -282,13 +294,17 @@ const ChatMessageList = React.memo(({
     onReply,
     onAcceptCounter,
     onRejectCounter,
-    onRenegotiate
+    onRenegotiate,
+    storeName,
+    storeLogo
 }: { 
     messages: ChatMessage[], 
     onReply: (sender: string, text: string) => void,
     onAcceptCounter: (productId: string, price: number) => void,
     onRejectCounter: (productId: string) => void,
-    onRenegotiate: (productId: string, price: number) => void
+    onRenegotiate: (productId: string, price: number) => void,
+    storeName?: string,
+    storeLogo?: string
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const groups = React.useMemo(() => groupMessagesByDate(messages), [messages]);
@@ -340,6 +356,8 @@ const ChatMessageList = React.memo(({
                             onAcceptCounter={onAcceptCounter}
                             onRejectCounter={onRejectCounter}
                             onRenegotiate={onRenegotiate}
+                            storeName={storeName}
+                            storeLogo={storeLogo}
                         />
                     ))}
                 </div>
@@ -882,6 +900,8 @@ export function MessageBox() {
                                     onAcceptCounter={handleAcceptCounter}
                                     onRejectCounter={handleRejectCounter}
                                     onRenegotiate={handleRenegotiate}
+                                    storeName={selectedConversation.storeName}
+                                    storeLogo={selectedConversation.storeLogo}
                                 />
                                 
                                 {activeNegotiation && (

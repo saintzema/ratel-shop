@@ -290,12 +290,14 @@ export default function UniversalMessagesPage() {
             }
             
             if (directCustomer) {
+                // Resolve name from history
+                const resolvedName = DataSyncService.getCustomerNameById(directCustomer);
                 // Mock a direct chat thread for this customer if it doesn't exist
                 if (!convos.find(c => c.customer_id === directCustomer && c.type === "order")) {
                     convos.push({
                         id: `chat-${directCustomer}`,
                         type: "order", // general chat
-                        customer_name: "Customer # " + directCustomer.substring(0, 4), // Fallback naming
+                        customer_name: resolvedName,
                         customer_id: directCustomer,
                         preview: "Start a conversation",
                         updated_at: new Date(),
@@ -519,25 +521,35 @@ export default function UniversalMessagesPage() {
             }));
         }
 
-        // Send email notification to the customer
+        // Send email notification to the customer with a 15-minute cooldown
         if (activeConvo.customer_id) {
-            const customerEmail = activeConvo.customer_id; // customer_id is often the email
-            const sellerObj2 = DataSyncService.getSellers().find(s => s.id === sellerId);
-            const sellerBusinessName = sellerObj2?.business_name || "Seller";
-            fetch('/api/email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: customerEmail,
-                    type: 'ORDER_UPDATE',
-                    payload: {
-                        name: activeConvo.customer_name || 'Customer',
-                        orderId: activeConvo.orderId || activeConvo.order?.id || '',
-                        status: 'message',
-                        message: `${sellerBusinessName} sent you a message: "${(chatMessage || '[Image Attached]').substring(0, 100)}"`,
-                    }
-                })
-            }).catch(err => console.error('Email notification failed:', err));
+            const convoId = activeConvo.id;
+            const shouldNotify = DataSyncService.shouldSendEmailNotification(convoId, 15);
+            
+            if (shouldNotify) {
+                const customerEmail = activeConvo.customer_id; // customer_id is often the email
+                const sellerObj2 = DataSyncService.getSellers().find(s => s.id === sellerId);
+                const sellerBusinessName = sellerObj2?.business_name || "Seller";
+                
+                fetch('/api/email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        to: customerEmail,
+                        type: 'ORDER_UPDATE',
+                        payload: {
+                            name: activeConvo.customer_name || 'Customer',
+                            orderId: activeConvo.orderId || activeConvo.order?.id || '',
+                            status: 'message',
+                            message: `${sellerBusinessName} sent you a message: "${(chatMessage || '[Image Attached]').substring(0, 100)}"`,
+                        }
+                    })
+                }).then(() => {
+                    DataSyncService.updateLastMessageTimestamp(convoId);
+                }).catch(err => console.error('Email notification failed:', err));
+            } else {
+                console.log(`Suppressed notification for ${convoId} - within cooldown window.`);
+            }
         }
 
         setChatMessage("");
@@ -804,12 +816,28 @@ export default function UniversalMessagesPage() {
                                     <div key={idx} className={cn("flex w-full", isSeller ? "justify-end" : "justify-start")}>
                                         <div className="flex items-end gap-2 max-w-[85%]">
                                             {!isSeller && (
-                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mb-5",
-                                                    msg.sender === "admin" ? "bg-blue-100 text-blue-700" :
-                                                    msg.sender === "ziva" ? "bg-brand-green-100 text-brand-green-700 text-[9px]" :
-                                                    "bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700"
-                                                )}>
-                                                    {msg.sender === "admin" ? "A" : msg.sender === "ziva" ? "Z" : activeConvo.customer_name.charAt(0)}
+                                                <div className={cn("h-8 w-8 rounded-full flex items-center justify-center font-bold shrink-0 text-xs shadow-inner mb-5 overflow-hidden bg-gray-100")}>
+                                                    {msg.sender === "admin" ? (
+                                                        <div className="h-full w-full bg-blue-100 text-blue-700 flex items-center justify-center">A</div>
+                                                    ) : msg.sender === "ziva" ? (
+                                                        <div className="h-full w-full bg-brand-green-100 text-brand-green-700 text-[9px] flex items-center justify-center">Z</div>
+                                                    ) : (
+                                                        <div className="h-full w-full bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 flex items-center justify-center">
+                                                            {activeConvo.customer_name.charAt(0)}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {isSeller && (
+                                                <div className="h-8 w-8 rounded-full border border-indigo-100 shrink-0 mb-5 overflow-hidden bg-white flex items-center justify-center shadow-sm">
+                                                    <img 
+                                                        src={DataSyncService.getCurrentSeller()?.logo_url || "/logo.svg"} 
+                                                        alt="Store" 
+                                                        className="w-full h-full object-cover" 
+                                                        onError={(e) => {
+                                                            e.currentTarget.src = "https://ui-avatars.com/api/?name=Store&background=6366f1&color=fff";
+                                                        }}
+                                                    />
                                                 </div>
                                             )}
                                             <div className="flex flex-col gap-1 items-end group/msg">

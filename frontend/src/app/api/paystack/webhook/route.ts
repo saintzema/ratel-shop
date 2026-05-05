@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { broadcast } from "@/lib/realtime-service";
+import { initiatePaystackTransfer, notifySellerPayout, emailSellerPayout } from "@/lib/payout-transfer";
 import crypto from "crypto";
 
 export const runtime = "nodejs";
@@ -92,7 +93,128 @@ async function handleChargeSuccess(data: any) {
                 broadcast({ type: "order_updated", id: id.trim() });
                 console.log(`📦 Order ${id} marked as processing.`);
             }
-        } 
+        }
+        // ─────────────────────────────────────────────────────────────────────
+        // QR PAYMENT — Instant Payment via Seller QR Code
+        // ─────────────────────────────────────────────────────────────────────
+        else if (type === "qr_payment") {
+            const sellerId = metadata?.seller_id;
+            const label = metadata?.label || "QR Payment";
+            const amountNaira = amount / 100; // Paystack sends kobo
+
+            if (!sellerId) {
+                console.error("❌ QR Payment missing seller_id in metadata");
+                return;
+            }
+
+            console.log(`📱 QR Payment received: ₦${amountNaira} for seller ${sellerId} — "${label}"`);
+
+            // 1. Fetch seller with bank details
+            const seller = await db.seller.findUnique({
+                where: { id: sellerId },
+                select: {
+                    id: true,
+                    businessName: true,
+                    bankName: true,
+                    accountNumber: true,
+                    accountName: true,
+                    commissionRate: true,
+                    autoPayoutEnabled: true,
+                    ownerEmail: true,
+                    userId: true,
+                }
+            });
+
+            if (!seller) {
+                console.error(`❌ Seller ${sellerId} not found in database`);
+                return;
+            }
+
+            // 2. Calculate commission and net amount
+            const commissionRate = seller.commissionRate ?? 2.5;
+            const commissionAmount = Math.round(amountNaira * (commissionRate / 100) * 100) / 100;
+            const netAmount = Math.round((amountNaira - commissionAmount) * 100) / 100;
+
+            console.log(`📊 QR Settlement: Gross ₦${amountNaira} | Commission ${commissionRate}% (₦${commissionAmount}) | Net ₦${netAmount}`);
+
+            // 3. Create Payout record (always — for audit trail)
+            const payout = await db.payout.create({
+                data: {
+                    sellerId: seller.id,
+                    amount: netAmount,
+                    bankName: seller.bankName || "Unknown",
+                    accountNumber: seller.accountNumber || "",
+                    accountName: seller.accountName || seller.businessName,
+                    orderIds: [], // QR payments don't have order IDs
+                    paymentReference: reference,
+                    isAutoPayout: seller.autoPayoutEnabled,
+                    status: seller.autoPayoutEnabled ? "processing" : "pending",
+                }
+            });
+
+            console.log(`📝 Payout record created: ${payout.id} (auto: ${seller.autoPayoutEnabled})`);
+
+            // Broadcast to admin dashboard
+            broadcast({ type: "payout_created", payoutId: payout.id, sellerId: seller.id });
+
+            // 4. Notify admin about the incoming QR payment
+            try {
+                await db.notification.create({
+                    data: {
+                        type: "order",
+                        message: `📱 QR Payment received: ₦${amountNaira.toLocaleString()} from customer → ${seller.businessName}. Net payout: ₦${netAmount.toLocaleString()} (${seller.autoPayoutEnabled ? "AUTO" : "MANUAL"})`,
+                        link: "/admin/payouts",
+                        read: false,
+                    }
+                });
+            } catch (notifErr) {
+                console.warn("Admin notification failed (non-critical):", notifErr);
+            }
+
+            // 5. Auto-payout flow (if enabled AND bank details are verified)
+            if (seller.autoPayoutEnabled && seller.bankName && seller.accountNumber) {
+                console.log(`🚀 Auto-payout ENABLED for ${seller.businessName} — initiating transfer...`);
+
+                const result = await initiatePaystackTransfer({
+                    payoutId: payout.id,
+                    amount: netAmount,
+                    bankName: seller.bankName,
+                    accountNumber: seller.accountNumber,
+                    accountName: seller.accountName || seller.businessName,
+                    sellerId: seller.id,
+                    paymentReference: reference,
+                    isAutoPayout: true
+                });
+
+                if (result.success) {
+                    console.log(`✅ Auto-payout completed for ${seller.businessName}: ₦${netAmount}`);
+                    await notifySellerPayout(seller.id, netAmount, "completed", payout.id);
+                    await emailSellerPayout(seller.id, netAmount, "completed");
+                } else {
+                    console.error(`❌ Auto-payout FAILED for ${seller.businessName}: ${result.message}`);
+                    await notifySellerPayout(seller.id, netAmount, "failed", payout.id);
+                    await emailSellerPayout(seller.id, netAmount, "failed");
+
+                    // Notify admin about the failed auto-payout
+                    await db.notification.create({
+                        data: {
+                            type: "system",
+                            message: `🔴 Auto-payout FAILED for ${seller.businessName}: ₦${netAmount.toLocaleString()}. Reason: ${result.message}. Requires manual review.`,
+                            link: "/admin/payouts",
+                            read: false,
+                        }
+                    }).catch(() => {});
+                }
+            } else {
+                // Manual mode — notify seller that funds are pending admin approval
+                console.log(`⏳ Manual payout mode for ${seller.businessName} — awaiting admin approval`);
+                await notifySellerPayout(seller.id, netAmount, "processing", payout.id);
+
+                if (!seller.bankName || !seller.accountNumber) {
+                    console.warn(`⚠️ Seller ${seller.businessName} has incomplete bank details — auto-payout skipped`);
+                }
+            }
+        }
         else if (type === "sponsored_ad") {
             const productId = metadata?.product_id;
             if (productId) {
@@ -152,19 +274,34 @@ async function handleChargeSuccess(data: any) {
 
 async function handleTransferSuccess(data: any) {
     const { reference, amount, recipient } = data;
-    console.log(`💸 Payout Successful [${reference}] - Sent ₦${amount / 100} to ${recipient.name}`);
+    console.log(`💸 Payout Successful [${reference}] - Sent ₦${amount / 100} to ${recipient?.name || "Recipient"}`);
     
-    // Attempt to update matching payout record if reference is known
     try {
-        const payout = await db.payout.findFirst({
-            where: { id: { contains: reference } } // Reference might be part of ID or custom field
-        });
+        // Match by our custom reference format: fp_payout_<payoutId>
+        let payout = null;
+        if (reference?.startsWith("fp_payout_")) {
+            const payoutId = reference.replace("fp_payout_", "");
+            payout = await db.payout.findUnique({ where: { id: payoutId } });
+        }
+
+        // Fallback: search by transfer code
+        if (!payout) {
+            payout = await db.payout.findFirst({
+                where: { transferCode: { not: null } }
+            });
+        }
 
         if (payout) {
             await db.payout.update({
                 where: { id: payout.id },
                 data: { status: "completed" }
             });
+
+            // Notify the seller about successful transfer
+            await notifySellerPayout(payout.sellerId, payout.amount, "completed", payout.id);
+            await emailSellerPayout(payout.sellerId, payout.amount, "completed");
+
+            broadcast({ type: "payout_completed", sellerId: payout.sellerId, payoutId: payout.id });
             console.log(`✅ Payout ${payout.id} marked as completed.`);
         }
     } catch (err) {
@@ -175,5 +312,42 @@ async function handleTransferSuccess(data: any) {
 async function handleTransferFailed(data: any) {
     const { reference, reason } = data;
     console.error(`🔴 Payout Failed [${reference}]: ${reason}`);
-    // Optionally notify admin or seller
+    
+    try {
+        // Match by our custom reference format
+        if (reference?.startsWith("fp_payout_")) {
+            const payoutId = reference.replace("fp_payout_", "");
+            const payout = await db.payout.findUnique({ where: { id: payoutId } });
+
+            if (payout) {
+                await db.payout.update({
+                    where: { id: payout.id },
+                    data: { status: "failed" }
+                });
+
+                // Notify seller and admin
+                await notifySellerPayout(payout.sellerId, payout.amount, "failed", payout.id);
+                await emailSellerPayout(payout.sellerId, payout.amount, "failed");
+
+                // Admin alert
+                const seller = await db.seller.findUnique({
+                    where: { id: payout.sellerId },
+                    select: { businessName: true }
+                });
+
+                await db.notification.create({
+                    data: {
+                        type: "system",
+                        message: `🔴 Bank transfer FAILED for ${seller?.businessName || payout.sellerId}: ₦${payout.amount.toLocaleString()}. Reason: ${reason || "Unknown"}`,
+                        link: "/admin/payouts",
+                        read: false,
+                    }
+                }).catch(() => {});
+
+                console.log(`❌ Payout ${payout.id} marked as failed.`);
+            }
+        }
+    } catch (err) {
+        console.error("❌ Transfer failure handling error:", err);
+    }
 }

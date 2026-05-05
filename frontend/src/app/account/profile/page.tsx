@@ -5,7 +5,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useRef, useEffect } from "react";
-import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft, LogOut } from "lucide-react";
+import { User, Mail, Lock, Phone, MapPin, Camera, Loader2, Save, ChevronLeft, LogOut, MessageSquare } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useNotification } from "@/components/ui/NotificationProvider";
 import { LocationModal } from "@/components/modals/LocationModal";
@@ -23,6 +23,7 @@ export default function ProfilePage() {
         name: user?.name || "",
         email: user?.email || "",
         phone: (user as any)?.phone || "",
+        whatsapp: (user as any)?.whatsapp || "",
         address: (user as any)?.address || "",
         password: "",
         location: user?.location || globalLocation || "Lagos, Nigeria"
@@ -35,6 +36,7 @@ export default function ProfilePage() {
                 name: user.name || "",
                 email: user.email || "",
                 phone: (user as any)?.phone || "",
+                whatsapp: (user as any)?.whatsapp || "",
                 address: (user as any)?.address || "",
                 location: user.location || prev.location || globalLocation || "Lagos, Nigeria"
             }));
@@ -52,20 +54,29 @@ export default function ProfilePage() {
 
     useEffect(() => {
         const saved = localStorage.getItem('fp_profile_pic');
-        if (saved) setProfilePic(saved);
-    }, []);
+        if (saved) {
+            setProfilePic(saved);
+        } else if (user?.avatar_url) {
+            setProfilePic(user.avatar_url);
+        }
+    }, [user?.avatar_url]);
 
     const handleProfilePicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+        
         const reader = new FileReader();
         reader.onloadend = () => {
             const dataUrl = reader.result as string;
             setProfilePic(dataUrl);
             localStorage.setItem('fp_profile_pic', dataUrl);
+            
+            // Persist to AuthContext and DB
+            updateUser({ avatar_url: dataUrl });
+            
             showNotification({
-                title: "Profile Picture Updated Successfully",
-                message: "Your avatar has been synced across all devices.",
+                title: "Avatar Updated",
+                message: "Your profile picture has been saved successfully.",
                 type: "success"
             });
         };
@@ -79,6 +90,7 @@ export default function ProfilePage() {
             email: formData.email,
             location: formData.location,
             phone: formData.phone,
+            whatsapp: formData.whatsapp,
             address: formData.address
         } as any);
 
@@ -151,10 +163,10 @@ export default function ProfilePage() {
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(255,255,255,0.1),transparent)] pointer-events-none" />
                         <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                             <div className="h-20 w-20 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-2xl font-black border-2 border-white/30 text-white overflow-hidden">
-                                {profilePic ? (
-                                    <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
+                                {profilePic || user?.avatar_url ? (
+                                    <img src={profilePic || user?.avatar_url} alt="Profile" className="w-full h-full object-cover" />
                                 ) : (
-                                    formData.name.charAt(0)
+                                    formData.name.charAt(0) || "U"
                                 )}
                             </div>
                             <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -170,8 +182,14 @@ export default function ProfilePage() {
                         </div>
                         <div>
                             <h2 className="text-2xl font-bold">{formData.name}</h2>
-                            <p className="text-emerald-200 text-sm">Personal Member</p>
+                            <p className="text-emerald-100 text-xs font-medium bg-white/10 px-2.5 py-0.5 rounded-full inline-block backdrop-blur-sm mt-1">
+                                {user?.role === 'seller' ? 'Elite Seller' : user?.role === 'admin' ? 'Administrator' : 'Premium Member'}
+                            </p>
                         </div>
+                    </div>
+
+                    <div className="p-1 px-6 bg-emerald-50 text-[10px] font-bold text-emerald-700 uppercase tracking-tighter flex items-center justify-center gap-1 border-b border-emerald-100">
+                        <Camera className="h-3 w-3" /> Tap avatar to change photo
                     </div>
 
                     <div className="p-6 space-y-6">
@@ -247,6 +265,32 @@ export default function ProfilePage() {
                                 onClick={() => setEditingField(editingField === "phone" ? null : "phone")}
                             >
                                 {editingField === "phone" ? "Cancel" : "Edit"}
+                            </Button>
+                        </div>
+
+                        {/* WhatsApp */}
+                        <div className="flex gap-4 items-start pb-6 border-b border-gray-100">
+                            <div className="mt-1"><MessageSquare className="h-5 w-5 text-gray-400" /></div>
+                            <div className="flex-1">
+                                <label className="block text-sm font-bold text-gray-700 mb-1">WhatsApp Number</label>
+                                {editingField === "whatsapp" ? (
+                                    <Input
+                                        value={formData.whatsapp}
+                                        onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+                                        placeholder="e.g. +234..."
+                                        className="h-10 border-emerald-500 focus:ring-emerald-500/20"
+                                        autoFocus
+                                    />
+                                ) : (
+                                    <p className="text-gray-900 h-10 flex items-center">{formData.whatsapp || "Not set"}</p>
+                                )}
+                            </div>
+                            <Button
+                                variant="outline"
+                                className="mt-6"
+                                onClick={() => setEditingField(editingField === "whatsapp" ? null : "whatsapp")}
+                            >
+                                {editingField === "whatsapp" ? "Cancel" : "Edit"}
                             </Button>
                         </div>
 

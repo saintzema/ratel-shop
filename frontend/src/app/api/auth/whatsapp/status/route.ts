@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export async function GET(req: Request) {
     try {
@@ -20,8 +21,10 @@ export async function GET(req: Request) {
 
         if (verification.status === "verified" || verification.status === "used") {
             // Find or create the user linked to this phone number
+            const normalizedPhone = WhatsAppService.normalizePhoneNumber(verification.phoneNumber);
+            
             let user = await db.user.findUnique({
-                where: { whatsappNumber: verification.phoneNumber }
+                where: { whatsappNumber: normalizedPhone }
             });
 
             if (!user) {
@@ -29,9 +32,9 @@ export async function GET(req: Request) {
                 // For simplicity in this demo, we'll create a new user if not found
                 user = await db.user.create({
                     data: {
-                        name: `WA User ${verification.phoneNumber.slice(-4)}`,
-                        email: `wa-${verification.phoneNumber}@fairprice.ng`, // Placeholder email
-                        whatsappNumber: verification.phoneNumber,
+                        name: `WA User ${normalizedPhone.slice(-4)}`,
+                        email: `wa-${normalizedPhone}@fairprice.ng`, // Placeholder email
+                        whatsappNumber: normalizedPhone,
                         role: "customer"
                     }
                 });

@@ -24,6 +24,7 @@ import { getProxiedImageUrl } from "@/lib/utils";
 export default function QRPaymentsPage() {
     const seller = DataSyncService.getCurrentSeller();
     const [amount, setAmount] = useState("");
+    const [displayAmount, setDisplayAmount] = useState("");
     const [label, setLabel] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
     const [qrValue, setQrValue] = useState("");
@@ -40,6 +41,15 @@ export default function QRPaymentsPage() {
 
     const handleGenerate = () => {
         if (!amount) return;
+
+        // Ensure bank details exist before generating payment link
+        if (!seller?.account_number || !seller?.bank_name) {
+            if (window.confirm("You must set up your bank settlement details first to receive payments. Redirect to banking settings?")) {
+                window.location.href = "/seller/settings/payouts";
+            }
+            return;
+        }
+
         setIsGenerating(true);
         
         // Use direct checkout link with sellerId and amount
@@ -176,21 +186,23 @@ export default function QRPaymentsPage() {
                         </div>
 
                         {!isPremium && (
-                            <div className="mb-10 p-6 bg-amber-50 rounded-[32px] border border-amber-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="mb-10 p-6 bg-gradient-to-br from-amber-50 to-orange-50 rounded-[32px] border border-amber-100 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
                                 <div className="flex items-center gap-4">
-                                    <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-amber-500 shadow-sm">
-                                        <ImageIcon className="h-6 w-6" />
+                                    <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-amber-500 shadow-md">
+                                        <ImageIcon className="h-7 w-7" />
                                     </div>
-                                    <div>
-                                        <h4 className="font-black text-gray-900 text-sm">Add Your Logo to QR Codes</h4>
-                                        <p className="text-xs font-medium text-gray-500">Upgrade to the #5k Plan to replace the FairPrice logo with your brand logo.</p>
+                                    <div className="max-w-md">
+                                        <h4 className="font-black text-gray-900 text-base">Custom QR Branding</h4>
+                                        <p className="text-xs font-medium text-gray-600 mt-0.5">
+                                            Replace the default logo with your store's brand logo on all QR codes. This feature is exclusive to our <strong>Pro, Growth, and Scale</strong> plans.
+                                        </p>
                                     </div>
                                 </div>
                                 <Button 
                                     onClick={() => window.location.href = "/seller/settings/billing"}
-                                    className="h-12 px-6 rounded-xl bg-gray-900 text-white font-black text-xs uppercase tracking-widest hover:bg-black transition-all"
+                                    className="h-12 px-8 rounded-xl bg-gray-900 text-white font-black text-xs uppercase tracking-widest hover:bg-black transition-all hover:scale-105 active:scale-95 shadow-lg"
                                 >
-                                    Upgrade to Pro
+                                    Unlock Premium Branding
                                 </Button>
                             </div>
                         )}
@@ -203,8 +215,12 @@ export default function QRPaymentsPage() {
                                         <span className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400 font-black text-lg">₦</span>
                                         <Input 
                                             placeholder="10,000" 
-                                            value={amount}
-                                            onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                                            value={displayAmount}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/\D/g, "");
+                                                setAmount(val);
+                                                setDisplayAmount(val ? Number(val).toLocaleString() : "");
+                                            }}
                                             className="h-16 pl-12 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:border-emerald-500 transition-all font-black text-xl shadow-inner"
                                         />
                                     </div>

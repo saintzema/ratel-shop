@@ -195,9 +195,18 @@ export default function SellerLayout({
         loadData();
         window.addEventListener("storage", loadData);
         window.addEventListener("sync-store-update", loadData);
+
+        // --- Escrow Auto-Release Worker ---
+        // Run once on load and then every 30 minutes
+        DataSyncService.runAutoReleaseWorker();
+        const escrowInterval = setInterval(() => {
+            DataSyncService.runAutoReleaseWorker();
+        }, 1000 * 60 * 30);
+
         return () => {
             window.removeEventListener("storage", loadData);
             window.removeEventListener("sync-store-update", loadData);
+            clearInterval(escrowInterval);
         };
     }, [router, isPublicRoute]);
 
@@ -270,9 +279,9 @@ export default function SellerLayout({
                                         </div>
                                     )}
                                     {currentSeller.subscription_plan && currentSeller.subscription_plan !== "Starter" && (
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                                            <span className="text-[11px] text-amber-600 font-bold tracking-tight">Premium Seller</span>
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            <Crown className="w-3 h-3 text-amber-500 fill-amber-500" />
+                                            <span className="text-[11px] text-amber-600 font-bold tracking-tight uppercase">Premium Seller</span>
                                         </div>
                                     )}
                                 </div>

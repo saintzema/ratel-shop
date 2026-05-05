@@ -1353,9 +1353,15 @@ export function Navbar() {
                                                     "h-10 w-10 min-w-10 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm overflow-hidden relative",
                                                     user.isPremium ? "bg-gradient-to-br from-amber-400 to-amber-600 ring-2 ring-amber-400 ring-offset-1" : "bg-gradient-to-br from-brand-green-600 to-emerald-400"
                                                 )}>
-                                                    <div className="relative">
-                                                        <div className="h-8 w-8 rounded-full bg-brand-green-100 flex items-center justify-center text-brand-green-700 font-bold overflow-hidden">
-                                                            {mounted && user?.name ? user.name.charAt(0).toUpperCase() : <User className="h-4 w-4" />}
+                                                    <div className="relative w-full h-full">
+                                                        <div className="h-full w-full bg-brand-green-100 flex items-center justify-center text-brand-green-700 font-bold overflow-hidden">
+                                                            {mounted && (user?.avatar_url || localStorage.getItem('fp_profile_pic')) ? (
+                                                                <img src={user?.avatar_url || localStorage.getItem('fp_profile_pic')!} alt="" className="w-full h-full object-cover" />
+                                                            ) : mounted && user?.name ? (
+                                                                user.name.charAt(0).toUpperCase()
+                                                            ) : (
+                                                                <User className="h-4 w-4" />
+                                                            )}
                                                         </div>
                                                         {mounted && user?.isPremium && (
                                                             <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
@@ -1533,12 +1539,25 @@ export function Navbar() {
                             >
                                 <div className="flex items-center justify-between bg-brand-green-600 px-6 py-3 text-white font-bold text-lg">
                                     {mounted && user ? (
-                                        <div className="flex items-center gap-2">
-                                            <User className="h-6 w-6" /> Hello, {(user.name || user.email || "there").split(" ")[0]}
-                                        </div>
+                                         <Link href="/account" className="flex items-center gap-3" onClick={() => setIsSidebarOpen(false)}>
+                                             <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-white/50 bg-white/20 flex items-center justify-center">
+                                                 {(user.avatar_url || localStorage.getItem('fp_profile_pic')) ? (
+                                                     <img src={user.avatar_url || localStorage.getItem('fp_profile_pic')!} alt="" className="w-full h-full object-cover" />
+                                                 ) : (
+                                                     <User className="h-6 w-6 text-white" />
+                                                 )}
+                                             </div>
+                                             <div className="flex flex-col leading-tight">
+                                                 <span className="text-sm font-bold">Hello, {(user.name || "there").split(" ")[0]}</span>
+                                                 <span className="text-[10px] text-emerald-100 font-medium">My Account & Settings</span>
+                                             </div>
+                                         </Link>
                                     ) : (
-                                        <Link href="/login" className="flex items-center gap-2 hover:underline">
-                                            <User className="h-6 w-6" /> Hello, Sign in
+                                        <Link href="/login" className="flex items-center gap-2 hover:underline" onClick={() => setIsSidebarOpen(false)}>
+                                             <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center">
+                                                 <User className="h-6 w-6" />
+                                             </div>
+                                             <span>Hello, Sign in</span>
                                         </Link>
                                     )}
                                     <button onClick={toggleSidebar} className="text-white/80 hover:text-white">

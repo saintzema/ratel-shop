@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { broadcast } from "@/lib/realtime-service";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 const API_PREFIX = "/api/v1/notifications";
@@ -130,6 +131,12 @@ export async function POST(req: NextRequest) {
         if (data === null) {
             return NextResponse.json({ ok: false, error: "Backend unavailable" }, { status: 200 });
         }
+
+        // Broadcast to trigger frontend sync
+        if (effectiveEmail) {
+            broadcast({ type: "notification", user_email: effectiveEmail });
+        }
+
         return NextResponse.json(data, { status });
     } catch (error) {
         console.error("Notification create error:", error);
@@ -177,5 +184,11 @@ export async function PATCH(req: NextRequest) {
     if (data === null) {
         return NextResponse.json({ ok: false }, { status: 200 });
     }
+
+    // Broadcast update
+    if (user_email) {
+        broadcast({ type: "notification", user_email: user_email });
+    }
+
     return NextResponse.json(data);
 }

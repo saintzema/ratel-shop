@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag } from "lucide-react";
+import { Star, ShieldCheck, AlertTriangle, Heart, Handshake, ShoppingCart, Clock, Percent, Tag, Crown } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, getTrustColor, cn, getProductUrl, getProxiedImageUrl, formatNumber, isVideoUrl } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -159,12 +159,20 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     )}
 
                     {/* Seller Tenure Badge (Bottom Right Image) */}
-                    {showTenureBadge && (
-                        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 px-2 py-1 bg-blue-600/90 backdrop-blur-md rounded shadow-md border border-blue-400">
-                            <ShieldCheck className="h-2.5 w-2.5 text-white" />
-                            <span className="text-[9px] font-black text-white uppercase tracking-widest">{sellerYears} {sellerYears > 1 ? 'Years' : 'Year'}+</span>
-                        </div>
-                    )}
+                    <div className="absolute bottom-3 right-3 z-30 flex flex-col items-end gap-1">
+                        {cardSeller?.subscription_plan && cardSeller.subscription_plan !== "Starter" && (
+                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/95 backdrop-blur-md rounded shadow-md border border-amber-300">
+                                <Crown className="h-2.5 w-2.5 text-white" />
+                                <span className="text-[9px] font-black text-white uppercase tracking-widest">Premium Seller</span>
+                            </div>
+                        )}
+                        {showTenureBadge && (
+                            <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 backdrop-blur-md rounded shadow-md border border-blue-400">
+                                <ShieldCheck className="h-2.5 w-2.5 text-white" />
+                                <span className="text-[9px] font-black text-white uppercase tracking-widest">{sellerYears} {sellerYears > 1 ? 'Years' : 'Year'}+</span>
+                            </div>
+                        )}
+                    </div>
 
                     {/* Heart Button — Top Right */}
                     <button

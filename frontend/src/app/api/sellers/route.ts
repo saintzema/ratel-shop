@@ -69,8 +69,8 @@ export async function GET(req: Request) {
 
         return NextResponse.json(mappedSellers, {
             headers: {
-                // Sellers change less often, cache for 5 min
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=60"
+                // Reactive cache for hot updates
+                "Cache-Control": "public, s-maxage=1, stale-while-revalidate=5"
             }
         });
     } catch (error: any) {

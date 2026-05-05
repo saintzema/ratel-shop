@@ -17,10 +17,12 @@ export default function DealsPage() {
     const activeDeals = useMemo(() => {
         const now = new Date();
         const allDeals = typeof window !== "undefined" ? DataSyncService.getDeals() : SEED_DEALS;
+        const allProducts = typeof window !== "undefined" ? DataSyncService.getApprovedProducts() : SEED_PRODUCTS;
+        
         return allDeals
             .filter(d => d.is_active && new Date(d.end_at) > now)
             .map(deal => {
-                const product = SEED_PRODUCTS.find(p => p.id === deal.product_id);
+                const product = allProducts.find(p => p.id === deal.product_id);
                 if (!product) return null;
                 const discountedPrice = Math.round(product.price * (1 - deal.discount_pct / 100));
                 return {
@@ -33,7 +35,7 @@ export default function DealsPage() {
             .filter(Boolean) as Array<{
                 id: string;
                 product_id: string;
-                product: typeof SEED_PRODUCTS[0];
+                product: any;
                 discount_pct: number;
                 discountedPrice: number;
                 savings: number;
@@ -46,7 +48,9 @@ export default function DealsPage() {
     // Also find products with significant price drops (original > price) that aren't already in deals
     const priceDropProducts = useMemo(() => {
         const dealProductIds = new Set(activeDeals.map(d => d.product_id));
-        return SEED_PRODUCTS
+        const allProducts = typeof window !== "undefined" ? DataSyncService.getApprovedProducts() : SEED_PRODUCTS;
+        
+        return allProducts
             .filter(p => p.original_price && p.original_price > p.price && !dealProductIds.has(p.id))
             .map(p => ({
                 product: p,

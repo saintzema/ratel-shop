@@ -167,4 +167,24 @@ export class WhatsAppService {
     static generateVerificationCode(): string {
         return Math.floor(100000 + Math.random() * 900000).toString();
     }
+
+    /**
+     * Normalizes a phone number to international format (E.164) for Nigeria
+     * Strips all non-digits, handles leading 0, and ensure 234 prefix
+     */
+    static normalizePhoneNumber(phone: string): string {
+        let clean = phone.replace(/\D/g, "");
+        
+        // Handle Nigerian format: 081... -> 23481...
+        if (clean.startsWith("0") && clean.length === 11) {
+            clean = "234" + clean.substring(1);
+        }
+        
+        // If it starts with 81... and is 10 digits, add 234
+        if (!clean.startsWith("234") && clean.length === 10) {
+            clean = "234" + clean;
+        }
+
+        return clean;
+    }
 }

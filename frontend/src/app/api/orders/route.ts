@@ -10,12 +10,23 @@ export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const customerId = searchParams.get("customerId");
+        const customerEmail = searchParams.get("customerEmail");
         const sellerId = searchParams.get("sellerId");
         const fetchAll = searchParams.get("all") === "true";
 
         const whereClause: any = {};
         if (!fetchAll) {
-            if (customerId) whereClause.customerId = customerId;
+            if (customerId && customerEmail) {
+                whereClause.OR = [
+                    { customerId: customerId },
+                    { customerId: customerEmail }
+                ];
+            } else if (customerId) {
+                whereClause.customerId = customerId;
+            } else if (customerEmail) {
+                whereClause.customerId = customerEmail;
+            }
+            
             if (sellerId) whereClause.sellerId = sellerId;
         }
 
@@ -54,7 +65,7 @@ export async function GET(request: Request) {
 
         return NextResponse.json({ success: true, orders }, {
             headers: {
-                "Cache-Control": "public, s-maxage=30, stale-while-revalidate=15"
+                "Cache-Control": "public, s-maxage=1, stale-while-revalidate=5"
             }
         });
     } catch (error: any) {
@@ -80,19 +91,10 @@ export async function POST(request: Request) {
         const userEmail = body.customer_email || `${userId}@fairprice.ng`;
         const userName = body.customer_name || "Customer";
 
-        await db.user.upsert({
-            where: { id: userId },
-            update: { name: userName },
-            create: {
-                id: userId,
-                email: userEmail,
-                name: userName,
-                role: "customer",
-            }
-        }).catch(async () => {
-            // If upsert by ID fails (e.g. email conflict), try by email
-            await db.user.upsert({
-                where: { email: userEmail },
+        let resolvedUserId = userId;
+        try {
+            const user = await db.user.upsert({
+                where: { id: userId },
                 update: { name: userName },
                 create: {
                     id: userId,
@@ -100,15 +102,93 @@ export async function POST(request: Request) {
                     name: userName,
                     role: "customer",
                 }
-            }).catch(() => { /* ignore — order will save locally */ });
-        });
+            });
+            resolvedUserId = user.id;
+        } catch (err) {
+            // If upsert by ID fails (e.g. email conflict), try by email to link to existing account
+            try {
+                const user = await db.user.upsert({
+                    where: { email: userEmail },
+                    update: { name: userName },
+                    create: {
+                        id: userId,
+                        email: userEmail,
+                        name: userName,
+                        role: "customer",
+                    }
+                });
+                resolvedUserId = user.id;
+            } catch (err2) {
+                /* ignore — order will save with guest ID */
+            }
+        }
+
+        // ─── POWER FIX: Just-in-Time Product Hydration ───
+        // If this is a global product or from a seller not yet in the DB, 
+        // we must hydrate it before creating the order to satisfy FK constraints.
+        if (body.product_id && body.product) {
+            const p = body.product;
+            try {
+                // Ensure global seller exists if needed
+                if (p.seller_id === 'global-partners') {
+                    const globalUser = await db.user.upsert({
+                        where: { id: 'global-user' },
+                        update: {},
+                        create: {
+                            id: 'global-user',
+                            email: 'global@fairprice.app',
+                            name: 'FairPrice Global',
+                            role: 'admin'
+                        }
+                    });
+
+                    await db.seller.upsert({
+                        where: { id: 'global-partners' },
+                        update: { status: 'active' },
+                        create: {
+                            id: 'global-partners',
+                            userId: globalUser.id,
+                            businessName: 'Global Stores',
+                            ownerEmail: 'global@fairprice.app',
+                            description: 'Global Sourcing Partners',
+                            category: 'All',
+                            status: 'active',
+                            verified: true,
+                            rating: 5.0,
+                            trustScore: 100.0
+                        }
+                    });
+                }
+
+                // Hydrate the product itself
+                await db.product.upsert({
+                    where: { id: body.product_id },
+                    update: {}, // Don't overwrite if exists
+                    create: {
+                        id: body.product_id,
+                        sellerId: p.seller_id || 'global-partners',
+                        sellerName: p.seller_name || 'Global Store',
+                        name: p.name,
+                        description: p.description || "",
+                        price: p.price,
+                        category: p.category || "General",
+                        imageUrl: p.image_url || p.imageUrl || "/placeholder.png",
+                        images: p.images || [],
+                        stock: p.stock || 100,
+                        isActive: true
+                    }
+                });
+            } catch (hydrationErr) {
+                console.warn("JIT Hydration failed (continuing anyway):", hydrationErr);
+            }
+        }
 
         const newOrder = await db.$transaction(async (tx) => {
             // 1. Create the order
             const order = await tx.order.create({
                 data: {
                     id: body.tracking_id || `FP-${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-                    customerId: userId,
+                    customerId: resolvedUserId,
                     customerName: userName,
                     productId: body.product_id,
                     sellerId: body.seller_id,
@@ -206,6 +286,10 @@ export async function PATCH(request: Request) {
         if (updates.tracking_id) prismaUpdates.trackingId = updates.tracking_id;
         if (updates.carrier) prismaUpdates.carrier = updates.carrier;
         if (updates.tracking_steps) prismaUpdates.trackingSteps = updates.tracking_steps;
+
+        if (updates.status === 'delivered') {
+            prismaUpdates.deliveredAt = new Date();
+        }
 
         const order = await db.order.update({
             where: { id },

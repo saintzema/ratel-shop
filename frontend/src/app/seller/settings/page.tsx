@@ -185,7 +185,7 @@ export default function SellerSettingsPage() {
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className={`space-y-6 ${!isEditing ? 'opacity-90 pointer-events-none' : ''}`}>
+            <form onSubmit={handleSubmit} className="space-y-6">
 
                 {/* Branding Section */}
                 <div className="bg-white rounded-[24px] border border-gray-100 p-6 sm:p-8 shadow-sm">

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/product/ProductCard";
+import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard";
 import { ProductCardSkeleton } from "@/components/ui/skeleton";
 import { Product } from "@/lib/types";
 import { DataSyncService } from "@/lib/sync-store";
@@ -57,6 +58,7 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
           const categoryMappings: Record<string, string[]> = {
               "all": [],
               "trending": ["trending"],
+              "price drop": ["price-drop", "price_drop", "sale", "discount"],
               "best-selling": ["best_selling", "best-selling"],
               "automotive": ["automotive", "cars", "vehicles"],
               "cars": ["cars", "vehicles", "automotive"],
@@ -73,21 +75,50 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
           const searchTerms = categoryMappings[catLower] || [catLower];
 
           // Filter with Match Strength
+          const now = new Date();
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
           let filtered = allData.map(p => {
               if (catLower === "all") return { product: p, score: 100 };
+              
+              const isRecent = p.created_at && new Date(p.created_at) > sevenDaysAgo;
+              
               if (catLower === "trending") {
                   let score = 0;
-                  if (p.is_trending) score = 100; // Admin explicitly set
-                  else if (p.sold_count && p.sold_count > 100) score = 90; // High sales
-                  else if (p.is_sponsored && p.avg_rating > 4.5) score = 80; // Highly rated sponsored
-                  else if (p.sold_count && p.sold_count > 20) score = 50; // Medium sales
+                  if (p.is_trending) score = 100; // Admin pick
+                  else if (isRecent && (p.sold_count || 0) > 5) score = 95; // New and moving
+                  else if ((p.avg_rating || 0) > 4.7 && (p.sold_count || 0) > 10) score = 90; // High rating + some sales
+                  else if (p.is_sponsored && p.avg_rating > 4.5) score = 85; // Highly rated sponsored
+                  else if (isRecent) score = 70; // Fresh products get a boost
+                  else if ((p.sold_count || 0) > 20) score = 50; // Medium sales
                   return { product: p, score };
               }
+
+              if (catLower === "price drop" || catLower === "price-drop") {
+                  const oPrice = p.original_price || (p.price * 1.2);
+                  if (oPrice > p.price) {
+                      const discountPct = (oPrice - p.price) / oPrice;
+                      // Base score on discount magnitude
+                      let score = discountPct * 100;
+                      if (p.is_trending) score += 20;
+                      if (p.is_sponsored) score += 10;
+                      return { product: p, score };
+                  }
+                  return { product: p, score: 0 };
+              }
+
               if (catLower === "best-selling") {
                   let score = 0;
-                  if (p.sold_count && p.sold_count > 50) score = 100;
-                  else if (p.is_trending) score = 80;
-                  else if (p.sold_count && p.sold_count > 10) score = 50;
+                  const sales = p.sold_count || 0;
+                  if (sales > 100) score = 100;
+                  else if (sales > 50) score = 90;
+                  else if (sales > 20) score = 70;
+                  else if (sales > 10) score = 40;
+                  
+                  // Rating multiplier for best sellers to ensure quality
+                  if (p.avg_rating > 4.5) score += 10;
+                  if (p.is_trending) score += 5;
+                  
                   return { product: p, score };
               }
               
@@ -106,6 +137,9 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
                   // Description match is lowest priority
                   else if (pDesc.includes(term)) score = Math.max(score, 30);
               }
+              
+              // Apply recency boost to standard categories too
+              if (isRecent && score > 0) score += 10;
               
               return { product: p, score };
           })
@@ -154,7 +188,9 @@ export function CategoryPanel({ category }: CategoryPanelProps) {
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-2 md:gap-4">
               {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
+                category.toLowerCase() === "price drop" 
+                  ? <CompactPriceDropCard key={p.id} product={p} />
+                  : <ProductCard key={p.id} product={p} />
               ))}
             </div>
             
