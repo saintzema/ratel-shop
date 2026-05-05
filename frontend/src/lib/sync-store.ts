@@ -525,8 +525,10 @@ class DataSyncServiceService {
                             if (localVersion) {
                                 const dbTime = new Date(dbProduct.updated_at).getTime();
                                 const localTime = new Date(localVersion.updated_at || 0).getTime();
-                                if (dbTime >= localTime || !isIncremental) {
+                                if (dbTime >= localTime) {
                                     merged.set(dbProduct.id, dbProduct);
+                                } else {
+                                    merged.set(dbProduct.id, localVersion);
                                 }
                             } else {
                                 merged.set(dbProduct.id, dbProduct);
@@ -3323,6 +3325,9 @@ class DataSyncServiceService {
             sessionStorage.removeItem('nav_search_results');
             sessionStorage.removeItem('nav_search_clicked_id');
         } catch { /* ignore */ }
+
+        // Also update the search cache so NavSearch shows fresh data immediately
+        this.updateSearchCacheProduct(id, mergedProduct);
 
         // ─── RESTOCK NOTIFICATION ───
         // If stock was 0 and is now > 0, notify all subscribed users

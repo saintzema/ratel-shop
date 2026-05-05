@@ -1,14 +1,26 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { WhatsAppService } from "@/lib/whatsapp-service";
 
 export async function POST(req: Request) {
     try {
-        const { email, password } = await req.json();
-        if (!email || !password) {
-            return NextResponse.json({ success: false, error: "Email and password required" }, { status: 400 });
+        const { email, password, whatsappNumber } = await req.json();
+        
+        if ((!email && !whatsappNumber) || !password) {
+            return NextResponse.json({ success: false, error: "Email or WhatsApp number and password required" }, { status: 400 });
         }
 
-        const user = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        let user;
+
+        if (whatsappNumber) {
+            // WhatsApp-based login
+            const cleanPhone = WhatsAppService.normalizePhoneNumber(whatsappNumber);
+            user = await db.user.findUnique({ where: { whatsappNumber: cleanPhone } });
+        } else {
+            // Email-based login
+            user = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+        }
+
         if (!user) {
             return NextResponse.json({ success: false, error: "User not found" });
         }
@@ -35,6 +47,7 @@ export async function POST(req: Request) {
                 name: user.name,
                 role: user.role,
                 avatar_url: user.avatarUrl,
+                whatsappNumber: user.whatsappNumber,
                 created_at: user.createdAt?.toISOString(),
             }
         });

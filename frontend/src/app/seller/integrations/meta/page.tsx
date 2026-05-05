@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle, Settings, Users, BarChart3, HelpCircle, ArrowLeft, RefreshCw, Send, Image as ImageIcon, Zap } from "lucide-react";
+import { MessageCircle, Settings, Users, BarChart3, HelpCircle, ArrowLeft, RefreshCw, Send, Image as ImageIcon, Zap, DownloadCloud, CheckSquare, Square, Package, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, getProxiedImageUrl } from "@/lib/utils";
+import { DataSyncService } from "@/lib/sync-store";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 export default function MetaBusinessSuite() {
-    const [activeTab, setActiveTab] = useState<"inbox" | "automation" | "ads" | "settings">("inbox");
+    const [activeTab, setActiveTab] = useState<"inbox" | "automation" | "ads" | "import" | "settings">("import");
 
     // Mock conversations
     const [conversations] = useState([
@@ -47,6 +49,7 @@ export default function MetaBusinessSuite() {
                         { id: "inbox", label: "Unified Inbox", icon: MessageCircle },
                         { id: "automation", label: "Auto Reply", icon: Zap },
                         { id: "ads", label: "Lead Ads", icon: Users },
+                        { id: "import", label: "Import Posts", icon: DownloadCloud },
                         { id: "settings", label: "Connection settings", icon: Settings },
                     ].map((tab) => (
                         <button
@@ -195,6 +198,10 @@ export default function MetaBusinessSuite() {
                     </div>
                 )}
 
+                {activeTab === "import" && (
+                    <InstagramImportView />
+                )}
+
                 {activeTab === "ads" && (
                     <div className="p-16 flex flex-col items-center justify-center text-center">
                         <div className="h-20 w-20 bg-indigo-50 rounded-3xl flex items-center justify-center text-indigo-600 mb-6 shadow-indigo-600/10 shadow-lg border border-indigo-100">
@@ -262,4 +269,283 @@ function CheckCircle2(props: any) {
             <path d="m9 12 2 2 4-4" />
         </svg>
     )
+}
+
+function InstagramImportView() {
+    const [isFetching, setIsFetching] = useState(false);
+    const [posts, setPosts] = useState<any[]>([]);
+    const [selectedPosts, setSelectedPosts] = useState<string[]>([]);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    
+    // Product editing state inside modal
+    const [currentEditIndex, setCurrentEditIndex] = useState(0);
+    const [editingProducts, setEditingProducts] = useState<any[]>([]);
+
+    const MOCK_IG_POSTS = [
+        { id: "ig_1", media_url: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800", caption: "New summer collection just dropped! 🔥 #fashion #summer", media_type: "IMAGE" },
+        { id: "ig_2", media_url: "https://images.unsplash.com/photo-1584916201218-f4242ceb4809?w=800", caption: "The perfect minimalist watch for your everyday carry. Available now.", media_type: "IMAGE" },
+        { id: "ig_3", media_url: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800", caption: "Premium wireless headphones with active noise cancellation. 🎧", media_type: "IMAGE" },
+        { id: "ig_4", media_url: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800", caption: "Step up your sneaker game. 👟 Limited stock!", media_type: "IMAGE" },
+        { id: "ig_5", media_url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800", caption: "Smartwatch series 5. Track your fitness journey.", media_type: "IMAGE" },
+        { id: "ig_6", media_url: "https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=800", caption: "Vintage polaroid camera. Capture memories instantly 📸", media_type: "IMAGE" }
+    ];
+
+    const fetchPosts = () => {
+        setIsFetching(true);
+        setTimeout(() => {
+            setPosts(MOCK_IG_POSTS);
+            setIsFetching(false);
+        }, 1500);
+    };
+
+    const toggleSelection = (id: string) => {
+        setSelectedPosts(prev => 
+            prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+        );
+    };
+
+    const openImportModal = () => {
+        const selected = posts.filter(p => selectedPosts.includes(p.id));
+        setEditingProducts(selected.map(p => ({
+            id: p.id,
+            name: p.caption.split('.')[0] || "Instagram Product",
+            description: p.caption,
+            price: "",
+            stock: "10",
+            category: "Fashion",
+            image_url: p.media_url
+        })));
+        setCurrentEditIndex(0);
+        setIsImportModalOpen(true);
+    };
+
+    const updateCurrentProduct = (field: string, value: string) => {
+        const newProducts = [...editingProducts];
+        newProducts[currentEditIndex] = { ...newProducts[currentEditIndex], [field]: value };
+        setEditingProducts(newProducts);
+    };
+
+    const saveProductsToStore = () => {
+        const sellerId = DataSyncService.getCurrentSellerId();
+        if (!sellerId) return;
+
+        editingProducts.forEach(prod => {
+            const newProduct = {
+                id: `prod_ig_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                seller_id: sellerId,
+                name: prod.name,
+                description: prod.description,
+                price: parseFloat(prod.price) || 0,
+                stock: parseInt(prod.stock) || 0,
+                category: prod.category,
+                // Simulate saving image to CDN by wrapping it in getProxiedImageUrl format
+                image_url: getProxiedImageUrl(prod.image_url),
+                images: [],
+                is_active: true,
+                created_at: new Date().toISOString()
+            };
+            // Use DataSyncService to add it directly to local state
+            DataSyncService.addApprovedProduct(newProduct as any);
+        });
+
+        alert(`Successfully imported ${editingProducts.length} product(s) to your store!`);
+        setIsImportModalOpen(false);
+        setSelectedPosts([]);
+        
+        // Dispatch event to update UI in other parts
+        window.dispatchEvent(new Event("sync-store-update"));
+    };
+
+    return (
+        <div className="p-8">
+            <div className="flex items-center justify-between mb-8">
+                <div>
+                    <h2 className="text-xl font-black text-gray-900 tracking-tight">Import from Instagram</h2>
+                    <p className="text-sm text-gray-500 mt-1">Select posts from your connected Instagram account to turn them into products.</p>
+                </div>
+                <div className="flex gap-3">
+                    {selectedPosts.length > 0 && (
+                        <Button 
+                            className="bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold rounded-xl h-10 px-6 shadow-sm"
+                            onClick={openImportModal}
+                        >
+                            <DownloadCloud className="h-4 w-4 mr-2" /> Import Selected ({selectedPosts.length})
+                        </Button>
+                    )}
+                    <Button 
+                        variant="outline" 
+                        className="rounded-xl h-10 font-bold border-gray-200"
+                        onClick={fetchPosts}
+                        disabled={isFetching}
+                    >
+                        {isFetching ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                        {posts.length === 0 ? "Fetch Recent Posts" : "Refresh Posts"}
+                    </Button>
+                </div>
+            </div>
+
+            {posts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-200 rounded-3xl bg-gray-50/50">
+                    <div className="h-16 w-16 bg-pink-100 rounded-full flex items-center justify-center text-pink-600 mb-4">
+                        <ImageIcon className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900">No Posts Loaded</h3>
+                    <p className="text-gray-500 text-sm mt-1 max-w-sm text-center">Click the button above to securely fetch your latest Instagram posts via Meta Graph API.</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {posts.map(post => {
+                        const isSelected = selectedPosts.includes(post.id);
+                        return (
+                            <div 
+                                key={post.id} 
+                                className={`relative group rounded-2xl overflow-hidden cursor-pointer border-2 transition-all ${isSelected ? 'border-[#1877F2] shadow-md' : 'border-transparent hover:border-gray-200'}`}
+                                onClick={() => toggleSelection(post.id)}
+                            >
+                                <div className="aspect-square relative bg-gray-100">
+                                    <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    
+                                    {/* Checkbox Overlay */}
+                                    <div className="absolute top-3 right-3 z-10">
+                                        {isSelected ? (
+                                            <div className="bg-[#1877F2] text-white rounded-md">
+                                                <CheckSquare className="h-6 w-6" />
+                                            </div>
+                                        ) : (
+                                            <div className="bg-white/80 text-gray-400 rounded-md opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Square className="h-6 w-6" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="p-3 bg-white border border-t-0 border-gray-100 rounded-b-2xl">
+                                    <p className="text-xs text-gray-600 line-clamp-2">{post.caption}</p>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+
+            {/* Import Editor Modal */}
+            <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+                <DialogContent className="max-w-3xl p-0 overflow-hidden bg-gray-50 rounded-3xl">
+                    <div className="flex h-[500px]">
+                        {/* Sidebar: Selected Posts List */}
+                        <div className="w-64 bg-white border-r border-gray-100 flex flex-col">
+                            <div className="p-4 border-b border-gray-100">
+                                <h3 className="font-black text-gray-900 tracking-tight">Import Products ({editingProducts.length})</h3>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                {editingProducts.map((p, idx) => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => setCurrentEditIndex(idx)}
+                                        className={cn(
+                                            "w-full flex items-center gap-3 p-2 rounded-xl text-left transition-colors",
+                                            currentEditIndex === idx ? "bg-indigo-50 border border-indigo-100" : "hover:bg-gray-50 border border-transparent"
+                                        )}
+                                    >
+                                        <img src={p.image_url} alt="" className="h-10 w-10 rounded-lg object-cover bg-gray-100 shrink-0" />
+                                        <div className="min-w-0">
+                                            <p className={cn("text-xs font-bold truncate", currentEditIndex === idx ? "text-indigo-700" : "text-gray-700")}>{p.name}</p>
+                                            <p className="text-[10px] text-emerald-600 font-bold mt-0.5">{p.price ? `₦${p.price}` : "Needs Price"}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Editor Area */}
+                        {editingProducts.length > 0 && (
+                            <div className="flex-1 flex flex-col bg-white">
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    <div className="flex gap-6">
+                                        <div className="w-40 shrink-0">
+                                            <div className="aspect-square rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative group">
+                                                <img src={editingProducts[currentEditIndex].image_url} alt="" className="w-full h-full object-cover" />
+                                                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1.5 text-center text-[9px] font-bold text-white tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                                                    CDN Uploaded
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 space-y-4">
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Product Name</label>
+                                                <input 
+                                                    type="text" 
+                                                    value={editingProducts[currentEditIndex].name}
+                                                    onChange={e => updateCurrentProduct("name", e.target.value)}
+                                                    className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-bold text-gray-900 transition-all"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Price (₦)</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={editingProducts[currentEditIndex].price}
+                                                        onChange={e => updateCurrentProduct("price", e.target.value)}
+                                                        placeholder="e.g. 15000"
+                                                        className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-bold text-gray-900 transition-all"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Stock</label>
+                                                    <input 
+                                                        type="number" 
+                                                        value={editingProducts[currentEditIndex].stock}
+                                                        onChange={e => updateCurrentProduct("stock", e.target.value)}
+                                                        className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-bold text-gray-900 transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Category</label>
+                                                <select 
+                                                    value={editingProducts[currentEditIndex].category}
+                                                    onChange={e => updateCurrentProduct("category", e.target.value)}
+                                                    className="w-full px-4 h-11 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm font-bold text-gray-900 transition-all bg-white"
+                                                >
+                                                    <option>Fashion</option>
+                                                    <option>Electronics</option>
+                                                    <option>Home</option>
+                                                    <option>Beauty</option>
+                                                    <option>Gaming</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1.5 block">Description</label>
+                                                <textarea 
+                                                    value={editingProducts[currentEditIndex].description}
+                                                    onChange={e => updateCurrentProduct("description", e.target.value)}
+                                                    className="w-full p-4 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-sm text-gray-600 transition-all"
+                                                    rows={4}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+                                    <p className="text-xs text-gray-500 font-medium">
+                                        Post {currentEditIndex + 1} of {editingProducts.length}
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setIsImportModalOpen(false)}>Cancel</Button>
+                                        <Button 
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-6 shadow-md"
+                                            onClick={saveProductsToStore}
+                                        >
+                                            <Package className="h-4 w-4 mr-2" /> Publish {editingProducts.length} to Store
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
 }

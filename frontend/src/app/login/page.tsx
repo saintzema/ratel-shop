@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 
-type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new" | "otp_existing";
+type AuthStep = "identifier" | "password_existing" | "password_new" | "name_new" | "verification_new" | "otp_existing" | "wa_signup" | "wa_otp";
 import { CountryCodeSelect } from "@/components/ui/CountryCodeSelect";
 import { COUNTRY_CODES } from "@/lib/constants/countries";
 
@@ -43,9 +43,9 @@ export default function UnifiedAuthPage() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [isExistingUser, setIsExistingUser] = useState(false);
     const [fetchedUser, setFetchedUser] = useState<any>(null);
-    const [waLoginData, setWaLoginData] = useState<{ code: string; waLink: string } | null>(null);
-    const [isWaPolling, setIsWaPolling] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [isWhatsAppAuth, setIsWhatsAppAuth] = useState(false);
+    const [waFullPhone, setWaFullPhone] = useState(""); // normalized e.g. "2348123456789"
 
     useEffect(() => {
         setMounted(true);
@@ -67,16 +67,13 @@ export default function UnifiedAuthPage() {
         }
     }, [mounted, searchParams]);
 
-    // Auto-verify if wa_code is present in URL (returning from WhatsApp)
+    // Auto-fill phone from URL params (e.g. returning from a QR link)
     useEffect(() => {
-        if (autoWaCode && mounted && !isWaPolling) {
-            setWaVerificationCode(autoWaCode);
-            setIsWaPolling(true);
-            // Scroll to the WhatsApp step if needed
-            const element = document.getElementById("whatsapp-section");
-            if (element) element.scrollIntoView({ behavior: "smooth" });
+        if (autoWaCode && mounted) {
+            // Legacy wa_code parameter — no longer used for polling
+            console.info("wa_code parameter present but new flow uses OTP verification.");
         }
-    }, [autoWaCode, mounted, isWaPolling]);
+    }, [autoWaCode, mounted]);
 
     // Lookup existing user for OTP login flow
     const existingUser = fetchedUser || (() => {
@@ -290,10 +287,17 @@ export default function UnifiedAuthPage() {
 
         try {
             // 1. Try server-side password verification first (bcrypt against DB)
+            const verifyBody: any = { password };
+            if (isWhatsAppAuth && waFullPhone) {
+                verifyBody.whatsappNumber = waFullPhone;
+            } else {
+                verifyBody.email = identifier.trim();
+            }
+
             const res = await fetch("/api/auth/verify", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier.trim(), password }),
+                body: JSON.stringify(verifyBody),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -582,67 +586,225 @@ export default function UnifiedAuthPage() {
     const [waPhoneNumber, setWaPhoneNumber] = useState("");
     const [waCountryCode, setWaCountryCode] = useState("+234");
     const [showWaCountryDropdown, setShowWaCountryDropdown] = useState(false);
-    const [waVerificationCode, setWaVerificationCode] = useState<string | null>(null);
-    const [waVerificationLink, setWaVerificationLink] = useState<string | null>(null);
+    const [waEmail, setWaEmail] = useState(""); // optional email for WA signup
+    const [waOtpSending, setWaOtpSending] = useState(false);
+    const [waOtpSent, setWaOtpSent] = useState(false);
 
-    const handleWhatsAppLoginRequest = async () => {
-        if (!waPhoneNumber || waPhoneNumber.length < 10) {
+    /** Continue with WhatsApp — looks up the number in DB to decide login vs signup */
+    const handleWhatsAppContinue = async () => {
+        if (!waPhoneNumber || waPhoneNumber.replace(/\D/g, '').length < 7) {
             setError("Please enter a valid WhatsApp phone number.");
             return;
         }
 
         setError("");
+        setIsServerError(false);
         setIsLoading(true);
-        try {
-            // Merge country code and phone number, stripping leading zero from phone if present
-            const cleanPhone = waPhoneNumber.replace(/^0/, '').replace(/\D/g, '');
-            const fullPhone = `${waCountryCode}${cleanPhone}`;
+        setIsWhatsAppAuth(true);
 
-            const res = await fetch("/api/auth/whatsapp/request", {
+        // Build normalized phone
+        const cleanPhone = waPhoneNumber.replace(/^0/, '').replace(/\D/g, '');
+        const fullPhone = `${waCountryCode.replace('+', '')}${cleanPhone}`;
+        setWaFullPhone(fullPhone);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+
+        try {
+            const res = await fetch("/api/auth/whatsapp/lookup", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ phoneNumber: fullPhone })
+                body: JSON.stringify({ phoneNumber: fullPhone }),
+                signal: controller.signal
             });
+            clearTimeout(timeoutId);
             const data = await res.json();
-            if (data.success) {
-                setWaVerificationCode(data.code);
-                setWaVerificationLink(data.waLink);
-                setIsWaPolling(true);
+
+            if (data.exists && data.user) {
+                // EXISTING USER — go to password step
+                setIsExistingUser(true);
+                setFetchedUser(data.user);
+                setIdentifier(data.user.email || `wa_${fullPhone}@fairprice.ng`);
+                if (data.user.name) {
+                    const parts = data.user.name.split(" ");
+                    setFirstName(parts[0] || "");
+                    setLastName(parts.slice(1).join(" ") || "");
+                }
+                setStep(data.user.hasPassword ? "password_existing" : "password_new");
+            } else if (data.offline) {
+                // DB offline — check local
+                const localWaUsers = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
+                const localMatch = localWaUsers.find((u: any) => u.whatsappNumber === fullPhone);
+                if (localMatch) {
+                    setIsExistingUser(true);
+                    setIdentifier(localMatch.email);
+                    setStep("password_existing");
+                } else {
+                    setIsServerError(true);
+                    setError("Server is warming up. Please wait a moment and try again.");
+                }
             } else {
-                setError(data.error || "Failed to initiate WhatsApp login");
+                // NEW USER — go to WA signup step
+                setIsExistingUser(false);
+                setStep("wa_signup");
             }
-        } catch (err) {
-            console.error("WA Request Error:", err);
-            setError("Could not connect to WhatsApp service.");
+        } catch (err: any) {
+            clearTimeout(timeoutId);
+            // Timeout / network error — fallback to local
+            const localWaUsers = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
+            const localMatch = localWaUsers.find((u: any) => u.whatsappNumber === fullPhone);
+            if (localMatch) {
+                setIsExistingUser(true);
+                setIsWhatsAppAuth(true);
+                setIdentifier(localMatch.email);
+                setStep("password_existing");
+            } else {
+                setIsServerError(true);
+                setError("Server is warming up. Please wait a moment and try again.");
+            }
         } finally {
             setIsLoading(false);
         }
     };
 
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        if (isWaPolling && waVerificationCode) {
-            interval = setInterval(async () => {
-                try {
-                    const res = await fetch(`/api/auth/whatsapp/status?code=${waVerificationCode}`);
-                    const data = await res.json();
-                    if (data.status === "success" && data.user) {
-                        setIsWaPolling(false);
-                        login(data.user);
-                        saveRegisteredUser(data.user.email, data.user.name, data.user.role);
-                        router.push(redirectPath);
-                    } else if (data.status === "expired") {
-                        setIsWaPolling(false);
-                        setWaVerificationCode(null);
-                        setError("WhatsApp verification expired. Please try again.");
-                    }
-                } catch (err) {
-                    console.error("Polling error:", err);
-                }
-            }, 3000);
+    /** Send WhatsApp OTP for verification */
+    const handleSendWhatsAppOtp = async (purpose: "signup" | "login" = "signup") => {
+        setWaOtpSending(true);
+        setError("");
+        try {
+            const res = await fetch("/api/auth/whatsapp/send-otp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phoneNumber: waFullPhone, purpose })
+            });
+            const data = await res.json();
+            if (data.bypassed) {
+                // Admin disabled WA verification — skip OTP step entirely
+                return "bypassed";
+            }
+            if (data.success) {
+                setWaOtpSent(true);
+                return "sent";
+            } else {
+                setError(data.error || "Failed to send verification code.");
+                return "failed";
+            }
+        } catch {
+            setError("Could not send verification code. Please try again.");
+            return "failed";
+        } finally {
+            setWaOtpSending(false);
         }
-        return () => clearInterval(interval);
-    }, [isWaPolling, waVerificationCode, login, router, redirectPath]);
+    };
+
+    /** Verify WhatsApp OTP code */
+    const handleVerifyWhatsAppOtp = async (enteredCode: string): Promise<boolean> => {
+        try {
+            const res = await fetch("/api/auth/whatsapp/verify-otp", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phoneNumber: waFullPhone, code: enteredCode })
+            });
+            const data = await res.json();
+            return data.success === true;
+        } catch {
+            return false;
+        }
+    };
+
+    /** Complete WhatsApp registration (new user) */
+    const handleFinalizeWaRegistration = async () => {
+        setError("");
+        setIsLoading(true);
+
+        try {
+            const res = await fetch("/api/auth/whatsapp/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    phoneNumber: waFullPhone,
+                    name: `${firstName.trim()} ${lastName.trim()}`,
+                    password,
+                    email: waEmail.trim() || undefined,
+                })
+            });
+            const data = await res.json();
+
+            if (data.success && data.user) {
+                login(data.user);
+                saveRegisteredUser(
+                    data.user.email,
+                    data.user.name,
+                    data.user.role,
+                    undefined,
+                    password
+                );
+                // Also save WA number locally for offline fallback
+                try {
+                    const registered = JSON.parse(localStorage.getItem("fairprice_registered_users") || "[]");
+                    const idx = registered.findIndex((u: any) => u.email === data.user.email);
+                    if (idx > -1) {
+                        registered[idx].whatsappNumber = waFullPhone;
+                        localStorage.setItem("fairprice_registered_users", JSON.stringify(registered));
+                    }
+                } catch { /* ignore */ }
+
+                DataSyncService.addNotification({
+                    userId: data.user.email,
+                    message: `Welcome to FairPrice, ${firstName.trim()}! 🎉 Your account is created via WhatsApp.`,
+                    type: "system",
+                    link: "/"
+                });
+
+                router.push(redirectPath);
+            } else {
+                setError(data.error || "Registration failed. Please try again.");
+            }
+        } catch (err) {
+            console.error("WA Registration error:", err);
+            setError("Could not complete registration. Please try again.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    /** Handle WA OTP verification step completion (for both signup and login) */
+    const handleWaOtpComplete = async () => {
+        setError("");
+        const enteredCode = Array.from({ length: 6 }).map((_, i) =>
+            (document.getElementById(`wa-otp-${i}`) as HTMLInputElement)?.value || ""
+        ).join("");
+
+        if (enteredCode.length !== 6) {
+            setError("Please enter the full 6-digit code.");
+            return;
+        }
+
+        setIsLoading(true);
+        const verified = await handleVerifyWhatsAppOtp(enteredCode);
+
+        if (!verified) {
+            setError("Invalid verification code. Please check your WhatsApp and try again.");
+            setIsLoading(false);
+            return;
+        }
+
+        if (isExistingUser) {
+            // WA OTP login — user is verified, log them in
+            if (fetchedUser) {
+                login(fetchedUser);
+                saveRegisteredUser(fetchedUser.email, fetchedUser.name, fetchedUser.role);
+                const finalRedirect =
+                    fetchedUser.role === "admin" && redirectPath === "/" ? "/admin/dashboard" :
+                    fetchedUser.role === "seller" && redirectPath === "/" ? "/seller/dashboard" :
+                    redirectPath;
+                router.push(finalRedirect);
+            }
+        } else {
+            // WA signup — OTP verified, now register the user
+            await handleFinalizeWaRegistration();
+        }
+    };
 
     const handleSocialLogin = async (provider: "google" | "apple" | "x") => {
         try {
@@ -845,10 +1007,10 @@ export default function UnifiedAuthPage() {
                                         )}
                                         <Button
                                             type="submit"
-                                            disabled={isLoading || !identifier.trim() || isWaPolling}
+                                            disabled={isLoading || !identifier.trim()}
                                             className="w-full h-[52px] bg-[#d2d2d7]/50 hover:bg-brand-green-600 hover:text-white text-[#1d1d1f] font-bold text-[16px] rounded-xl transition-all disabled:opacity-50 mt-2"
                                         >
-                                            {isLoading && !isWaPolling ? <Loader2 className="h-5 w-5 animate-spin text-[#1d1d1f]" /> : "Login"}
+                                            {isLoading ? <Loader2 className="h-5 w-5 animate-spin text-[#1d1d1f]" /> : "Login with Email"}
                                         </Button>
 
                                         <div className="flex items-center gap-4 py-2 mt-2">
@@ -857,93 +1019,41 @@ export default function UnifiedAuthPage() {
                                             <div className="h-px bg-gray-200 flex-1"></div>
                                         </div>
 
-                                        {!waVerificationCode ? (
-                                            <div className="space-y-4">
-                                                <div className="space-y-1.5">
-                                                    <label className="text-[13px] font-semibold text-[#1d1d1f]">WhatsApp Number <span className="text-red-500">*</span></label>
-                                                    <div className="flex gap-2">
-                                                        <CountryCodeSelect 
-                                                            value={waCountryCode} 
-                                                            onChange={setWaCountryCode} 
-                                                        />
-                                                        <Input
-                                                            type="tel"
-                                                            placeholder="e.g. 08123456789"
-                                                            className="flex-1 h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 focus:ring-1 focus:ring-emerald-500/20"
-                                                            value={waPhoneNumber}
-                                                            onChange={(e) => setWaPhoneNumber(e.target.value)}
-                                                        />
-                                                    </div>
+                                        <div className="space-y-4">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[13px] font-semibold text-[#1d1d1f]">WhatsApp Number <span className="text-red-500">*</span></label>
+                                                <div className="flex gap-2">
+                                                    <CountryCodeSelect 
+                                                        value={waCountryCode} 
+                                                        onChange={setWaCountryCode} 
+                                                    />
+                                                    <Input
+                                                        type="tel"
+                                                        placeholder="e.g. 08123456789"
+                                                        className="flex-1 h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 focus:ring-1 focus:ring-emerald-500/20"
+                                                        value={waPhoneNumber}
+                                                        onChange={(e) => setWaPhoneNumber(e.target.value)}
+                                                    />
                                                 </div>
-                                                <Button
-                                                    type="button"
-                                                    onClick={handleWhatsAppLoginRequest}
-                                                    disabled={isLoading || !waPhoneNumber.trim()}
-                                                    className="w-full h-[52px] bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[16px] rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_4px_14px_rgba(37,211,102,0.2)]"
-                                                >
-                                                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
-                                                        <>
-                                                            <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-                                                            </svg>
-                                                            Login with WhatsApp
-                                                        </>
-                                                    )}
-                                                </Button>
                                             </div>
-                                        ) : (
-                                            <div id="whatsapp-section" className="space-y-4 p-5 bg-emerald-50 rounded-2xl border-2 border-dashed border-emerald-200">
-                                                <div className="text-center">
-                                                    <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full mb-3">
-                                                        <Check className="h-6 w-6" />
-                                                    </div>
-                                                    <p className="text-[15px] font-bold text-emerald-900 mb-1">Step 2: Send the Code</p>
-                                                    <p className="text-[13px] text-emerald-700 mb-4 leading-relaxed">
-                                                        Click the button below to open WhatsApp, then **tap SEND** on the pre-filled message.
-                                                    </p>
-                                                    
-                                                    <div className="bg-white/60 backdrop-blur-sm rounded-xl p-3 mb-4 border border-emerald-100">
-                                                        <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mb-1">Your Code</p>
-                                                        <p className="text-3xl font-black text-emerald-900 tracking-tighter">{waVerificationCode}</p>
-                                                    </div>
-
-                                                    <Button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (Capacitor.isNativePlatform()) {
-                                                                Browser.open({ url: waVerificationLink || "" });
-                                                            } else {
-                                                                window.open(waVerificationLink || "", "_blank");
-                                                            }
-                                                        }}
-                                                        className="w-full h-14 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-xl flex items-center justify-center gap-3 shadow-[0_4px_14px_rgba(37,211,102,0.3)] transition-all transform active:scale-[0.98]"
-                                                    >
-                                                        <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
+                                            <Button
+                                                type="button"
+                                                onClick={handleWhatsAppContinue}
+                                                disabled={isLoading || !waPhoneNumber.trim()}
+                                                className="w-full h-[52px] bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[16px] rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_4px_14px_rgba(37,211,102,0.2)]"
+                                            >
+                                                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                                                    <>
+                                                        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
                                                             <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
                                                         </svg>
-                                                        Open WhatsApp
-                                                    </Button>
-
-                                                    <div className="flex flex-col items-center gap-2 mt-6">
-                                                        <div className="flex items-center gap-2 text-[11px] text-emerald-700 font-bold uppercase tracking-widest">
-                                                            <div className="h-2 w-2 bg-emerald-500 rounded-full animate-ping" />
-                                                            Waiting for your message...
-                                                        </div>
-                                                        <p className="text-[10px] text-emerald-600 max-w-[200px]">
-                                                            Once you send the message, you'll be logged in automatically.
-                                                        </p>
-                                                    </div>
-
-                                                    <button
-                                                        onClick={() => { setWaVerificationCode(null); setIsWaPolling(false); }}
-                                                        className="text-[11px] text-emerald-700 font-bold hover:underline mt-6 block w-full"
-                                                    >
-                                                        Wrong number? Start over
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
+                                                        Continue with WhatsApp
+                                                    </>
+                                                )}
+                                            </Button>
+                                        </div>
                                     </form>
+
 
 
                                 </motion.div>
@@ -1047,7 +1157,7 @@ export default function UnifiedAuthPage() {
                                             </button>
                                         </div>
 
-                                        <div className="flex justify-center -mt-2 mb-2">
+                                        <div className="flex flex-col items-center gap-1 -mt-2 mb-2">
                                             <button
                                                 type="button"
                                                 onClick={handleSendOtpLoginCode}
@@ -1055,6 +1165,33 @@ export default function UnifiedAuthPage() {
                                             >
                                                 Sign in with email code instead
                                             </button>
+                                            {isWhatsAppAuth && waFullPhone && (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        const result = await handleSendWhatsAppOtp("login");
+                                                        if (result === "sent") {
+                                                            setStep("wa_otp");
+                                                        } else if (result === "bypassed") {
+                                                            // Verification bypassed — log in directly via OTP skip
+                                                            if (fetchedUser) {
+                                                                login(fetchedUser);
+                                                                saveRegisteredUser(fetchedUser.email, fetchedUser.name, fetchedUser.role);
+                                                                router.push(redirectPath);
+                                                            }
+                                                        }
+                                                    }}
+                                                    disabled={waOtpSending}
+                                                    className="text-[13px] font-bold text-[#25D366] hover:underline cursor-pointer flex items-center gap-1.5"
+                                                >
+                                                    {waOtpSending ? <Loader2 className="h-3 w-3 animate-spin" /> : (
+                                                        <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                                        </svg>
+                                                    )}
+                                                    Send login code via WhatsApp
+                                                </button>
+                                            )}
                                         </div>
 
                                         <Button type="submit" disabled={isLoading || !password} className="w-full h-[52px] bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold text-[16px] rounded-xl transition-all">
@@ -1428,6 +1565,278 @@ export default function UnifiedAuthPage() {
                                     <div className="space-y-3">
                                         <Button onClick={handleFinalizeOtpLogin} disabled={isLoading} className="w-full h-14 bg-brand-green-600 hover:bg-brand-green-700 text-white font-medium text-[17px] rounded-xl transition-all shadow-sm">
                                             {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Login"}
+                                        </Button>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {/* WA SIGNUP: New user via WhatsApp — collect name, password, optional email */}
+                            {step === "wa_signup" && (
+                                <motion.div
+                                    key="step-wa-signup"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <button onClick={() => { setStep("identifier"); setIsWhatsAppAuth(false); setError(""); }} className="flex items-center gap-1 text-[13px] text-[#86868b] font-semibold mb-5 hover:text-brand-green-600 transition-colors">
+                                        <ChevronLeft className="h-4 w-4" /> Back
+                                    </button>
+
+                                    <div className="mb-5">
+                                        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-100 mb-3">
+                                            <svg className="w-4 h-4 fill-emerald-600" viewBox="0 0 24 24">
+                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                            </svg>
+                                            <span className="text-[12px] font-bold text-emerald-700">+{waFullPhone}</span>
+                                        </div>
+                                        <h2 className="text-[22px] font-bold text-[#1d1d1f] mb-1">Create Your Account</h2>
+                                        <p className="text-[13px] text-[#86868b]">This WhatsApp number is new. Set up your account below.</p>
+                                    </div>
+
+                                    {error && (
+                                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl flex items-center gap-2 text-[13px] font-medium bg-red-50 border border-red-100 text-red-700 mb-4">
+                                            <AlertCircle className="h-4 w-4 shrink-0" />
+                                            {error}
+                                        </motion.div>
+                                    )}
+
+                                    <div className="space-y-4">
+                                        {/* Name Fields */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="space-y-1.5">
+                                                <label className="text-[13px] font-semibold text-[#1d1d1f]">First Name <span className="text-red-500">*</span></label>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="e.g. Chioma"
+                                                    className="h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 focus:ring-1 focus:ring-emerald-500/20"
+                                                    value={firstName}
+                                                    onChange={(e) => setFirstName(e.target.value)}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <div className="space-y-1.5">
+                                                <label className="text-[13px] font-semibold text-[#1d1d1f]">Last Name <span className="text-red-500">*</span></label>
+                                                <Input
+                                                    type="text"
+                                                    placeholder="e.g. Okafor"
+                                                    className="h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 focus:ring-1 focus:ring-emerald-500/20"
+                                                    value={lastName}
+                                                    onChange={(e) => setLastName(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Optional Email */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[13px] font-semibold text-[#1d1d1f]">Email <span className="text-[#86868b] font-normal">(optional)</span></label>
+                                            <Input
+                                                type="email"
+                                                placeholder="your@email.com"
+                                                className="h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 focus:ring-1 focus:ring-emerald-500/20"
+                                                value={waEmail}
+                                                onChange={(e) => setWaEmail(e.target.value)}
+                                            />
+                                        </div>
+
+                                        {/* Password */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[13px] font-semibold text-[#1d1d1f]">Create Password <span className="text-red-500">*</span></label>
+                                            <div className="relative">
+                                                <Input
+                                                    type={showPassword ? "text" : "password"}
+                                                    placeholder="Min 8 characters"
+                                                    className="h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 pr-12 focus:ring-1 focus:ring-emerald-500/20"
+                                                    value={password}
+                                                    onChange={(e) => setPassword(e.target.value)}
+                                                />
+                                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#86868b]">
+                                                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Confirm Password */}
+                                        <div className="space-y-1.5">
+                                            <label className="text-[13px] font-semibold text-[#1d1d1f]">Confirm Password <span className="text-red-500">*</span></label>
+                                            <div className="relative">
+                                                <Input
+                                                    type={showConfirmPassword ? "text" : "password"}
+                                                    placeholder="Re-enter password"
+                                                    className="h-12 bg-white border border-[#d2d2d7] text-[15px] text-[#1d1d1f] rounded-xl px-4 pr-12 focus:ring-1 focus:ring-emerald-500/20"
+                                                    value={confirmPassword}
+                                                    onChange={(e) => setConfirmPassword(e.target.value)}
+                                                />
+                                                <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#86868b]">
+                                                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Password strength indicator */}
+                                        {password && (
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                    <div className={cn(
+                                                        "h-full rounded-full transition-all",
+                                                        password.length < 8 ? "w-1/4 bg-red-400" :
+                                                        password.length < 12 ? "w-2/4 bg-amber-400" :
+                                                        "w-full bg-emerald-500"
+                                                    )} />
+                                                </div>
+                                                <span className={cn(
+                                                    "text-[11px] font-bold",
+                                                    password.length < 8 ? "text-red-500" :
+                                                    password.length < 12 ? "text-amber-600" :
+                                                    "text-emerald-600"
+                                                )}>
+                                                    {password.length < 8 ? "Weak" : password.length < 12 ? "Good" : "Strong"}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        <Button
+                                            onClick={async () => {
+                                                if (!firstName.trim() || !lastName.trim()) {
+                                                    setError("Please enter your first and last name.");
+                                                    return;
+                                                }
+                                                if (password.length < 8) {
+                                                    setError("Password must be at least 8 characters.");
+                                                    return;
+                                                }
+                                                if (password !== confirmPassword) {
+                                                    setError("Passwords do not match.");
+                                                    return;
+                                                }
+                                                setError("");
+
+                                                // Check if WA verification is enabled — if so, send OTP first
+                                                const otpResult = await handleSendWhatsAppOtp("signup");
+                                                if (otpResult === "bypassed") {
+                                                    // Admin disabled verification — register directly
+                                                    await handleFinalizeWaRegistration();
+                                                } else if (otpResult === "sent") {
+                                                    setStep("wa_otp");
+                                                }
+                                                // if "failed", error message is already set by handler
+                                            }}
+                                            disabled={isLoading || !firstName.trim() || !lastName.trim() || !password || password !== confirmPassword}
+                                            className="w-full h-[52px] bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[16px] rounded-xl transition-all flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(37,211,102,0.2)]"
+                                        >
+                                            {isLoading || waOtpSending ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                                                <>
+                                                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                                                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                                    </svg>
+                                                    Create Account
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </motion.div>
+                            )}
+
+                            {/* WA OTP: WhatsApp verification code input */}
+                            {step === "wa_otp" && (
+                                <motion.div
+                                    key="step-wa-otp"
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: -20 }}
+                                    transition={{ duration: 0.3 }}
+                                >
+                                    <button onClick={() => { setStep(isExistingUser ? "password_existing" : "wa_signup"); setError(""); }} className="flex items-center gap-1 text-[13px] text-[#86868b] font-semibold mb-5 hover:text-brand-green-600 transition-colors">
+                                        <ChevronLeft className="h-4 w-4" /> Back
+                                    </button>
+
+                                    <div className="text-center mb-6">
+                                        <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-50 rounded-full mb-4">
+                                            <svg className="w-8 h-8 fill-[#25D366]" viewBox="0 0 24 24">
+                                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                                            </svg>
+                                        </div>
+                                        <h2 className="text-[22px] font-bold text-[#1d1d1f] mb-1">Verify Your WhatsApp</h2>
+                                        <p className="text-[13px] text-[#86868b] leading-relaxed">
+                                            We sent a 6-digit code to your WhatsApp at<br />
+                                            <span className="font-bold text-[#1d1d1f]">+{waFullPhone}</span>
+                                        </p>
+                                    </div>
+
+                                    {error && (
+                                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl flex items-center gap-2 text-[13px] font-medium bg-red-50 border border-red-100 text-red-700 mb-4">
+                                            <AlertCircle className="h-4 w-4 shrink-0" />
+                                            {error}
+                                        </motion.div>
+                                    )}
+
+                                    {/* 6-digit OTP input */}
+                                    <div className="flex justify-center gap-2.5 mb-6">
+                                        {Array.from({ length: 6 }).map((_, idx) => (
+                                            <input
+                                                key={idx}
+                                                id={`wa-otp-${idx}`}
+                                                type="text"
+                                                maxLength={1}
+                                                className="w-12 h-14 text-center text-xl font-bold bg-white border-2 border-[#d2d2d7] rounded-xl text-[#1d1d1f] focus:border-[#25D366] focus:ring-2 focus:ring-[#25D366]/20 focus:outline-none transition-all"
+                                                inputMode="numeric"
+                                                pattern="[0-9]*"
+                                                autoFocus={idx === 0}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Backspace" && !(e.target as HTMLInputElement).value && idx > 0) {
+                                                        document.getElementById(`wa-otp-${idx - 1}`)?.focus();
+                                                    }
+                                                }}
+                                                onPaste={(e) => {
+                                                    e.preventDefault();
+                                                    const text = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+                                                    if (text) {
+                                                        text.split("").forEach((char, i) => {
+                                                            const input = document.getElementById(`wa-otp-${i}`) as HTMLInputElement;
+                                                            if (input) input.value = char;
+                                                        });
+                                                        const nextIdx = Math.min(text.length, 5);
+                                                        document.getElementById(`wa-otp-${nextIdx}`)?.focus();
+                                                        if (text.length === 6) {
+                                                            setTimeout(() => handleWaOtpComplete(), 300);
+                                                        }
+                                                    }
+                                                }}
+                                                onChange={(e) => {
+                                                    const val = e.target.value.replace(/\D/g, "");
+                                                    e.target.value = val;
+                                                    if (val && idx < 5) {
+                                                        document.getElementById(`wa-otp-${idx + 1}`)?.focus();
+                                                    }
+                                                    if (val && idx === 5) {
+                                                        const allFilled = Array.from({ length: 6 }).every((_, i) => (document.getElementById(`wa-otp-${i}`) as HTMLInputElement)?.value);
+                                                        if (allFilled) setTimeout(() => handleWaOtpComplete(), 300);
+                                                    }
+                                                }}
+                                            />
+                                        ))}
+                                    </div>
+
+                                    <div className="mb-6 text-center">
+                                        <button
+                                            onClick={async () => {
+                                                setError("");
+                                                const result = await handleSendWhatsAppOtp(isExistingUser ? "login" : "signup");
+                                                if (result === "sent") {
+                                                    setWaOtpSent(true);
+                                                }
+                                            }}
+                                            disabled={waOtpSending}
+                                            className="text-sm text-[#25D366] font-bold hover:underline cursor-pointer flex items-center gap-1.5 mx-auto"
+                                        >
+                                            {waOtpSending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                            Resend code via WhatsApp
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-3">
+                                        <Button onClick={handleWaOtpComplete} disabled={isLoading} className="w-full h-14 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-[17px] rounded-xl transition-all shadow-[0_4px_14px_rgba(37,211,102,0.2)]">
+                                            {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : (isExistingUser ? "Verify & Login" : "Verify & Create Account")}
                                         </Button>
                                     </div>
                                 </motion.div>

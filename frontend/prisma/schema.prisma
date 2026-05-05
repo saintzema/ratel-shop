@@ -431,6 +431,7 @@ model SystemSetting {
   stateShipping               Json?
   globalSearchCaching         Boolean  @default(true)
   supportConfig               Json?
+  waVerificationEnabled       Boolean  @default(false)
 }
 
 model Discount {
