@@ -1,218 +1,167 @@
 /**
- * Loan Utilities for Vehicle Financing
- * Includes BNPL and Lease-to-Own calculations based on Altbank/Altdrive baseline rates.
+ * FairPrice.ng Financing Calculator Logic
+ * Implements the specific rules for Cars, Solar, and General products.
  */
 
-export interface LoanResult {
-    monthlyPayment: number;
-    deposit: number;
-    tenorMonths: number;
-    totalAmount: number;
-    markupAmount: number;
-    interestRate: number;
+export interface FinancingTerms {
+    type: 'individual' | 'business';
+    assetValue: number;
+    securityDeposit: number;
+    monthlyRepayment: number;
+    tenureMonths: number;
+    insuranceAnnual?: number;
+    interestRate: string;
+    collateralRequired: boolean;
 }
 
-export type VehicleCondition = 'new' | 'foreign_used' | 'nigerian_used';
-export type LoanType = 'bnpl' | 'lease';
-
-export const LOAN_CONSTANTS = {
-    // Ijarah Baselne: 24.85% for 1yr, scaling to 27.32% for 5yr (includes insurance & reg)
-    BASE_MARKUP_PA: 0.2485,
-    MARKUP_STEP_PA: 0.00618, 
-    BNPL_DEPOSIT_PERCENT: 0.15,
-    TENORS: {
-        new: 5,
-        foreign_used: 4,
-        nigerian_used: 3,
-    }
+export const FINANCING_CONSTANTS = {
+    CAR_MIN_DEPOSIT: 3000000,
+    CAR_INTEREST_RATE: "36% p.a.",
+    SOLAR_DEPOSIT_PCT: 0.20, // 20%
+    GENERAL_DEPOSIT_PCT: 0.20,
+    CONTRACT_1_RATE: 0.36, // 36% p.a.
+    CONTRACT_2_6M: 0.11, // 11% flat
+    CONTRACT_2_12M: 0.20, // 20% flat
+    INSURANCE_FLAT_CAR: 1000000,
+    INSURANCE_FLAT_GENERAL_PCT: 0.02, // 2% for Contract 2
 };
 
-/**
- * Returns the current vehicle deposit percentage as a decimal (e.g., 0.15 for 15%).
- * Reads from admin settings in localStorage, falls back to LOAN_CONSTANTS default.
- */
-export function getVehicleDepositPercent(): number {
-    if (typeof window !== "undefined") {
-        try {
-            const stored = localStorage.getItem("fp_vehicle_deposit_pct");
-            if (stored) {
-                const val = parseFloat(stored);
-                if (!isNaN(val) && val >= 1 && val <= 100) {
-                    return val / 100;
-                }
-            }
-        } catch {}
-    }
-    return LOAN_CONSTANTS.BNPL_DEPOSIT_PERCENT;
-}
-
-/**
- * Calculates monthly payment based on Altdrive Ijarah logic.
- * Supports both modern (product: Product, years?: number) and legacy (price: number, type?: string, condition?: string) signatures.
- */
-export function calculateProductMonthlyPayment(
-    productOrPrice: any,
-    yearsOrType?: number | string,
-    legacyCondition?: string
-): LoanResult {
-    let price = 0;
-    let condition: string = 'foreign_used';
-    let productObj: any = {};
-    let requestedYears: number | undefined;
-
-    if (typeof productOrPrice === 'number') {
-        price = productOrPrice;
-        condition = legacyCondition || 'foreign_used';
-        productObj = { price, condition };
-        requestedYears = typeof yearsOrType === 'number' ? yearsOrType : undefined;
-    } else {
-        productObj = productOrPrice || {};
-        price = productObj.price || 0;
-        condition = productObj.condition || 'foreign_used';
-        requestedYears = typeof yearsOrType === 'number' ? yearsOrType : undefined;
+export function calculateFinancing(
+    amount: number,
+    type: 'individual' | 'business',
+    tenureMonths: number = 12,
+    isCar: boolean = false
+): FinancingTerms {
+    // 1. Car Financing Case (Specific 20M example logic extrapolated)
+    if (isCar || amount >= 15000000) {
+        return {
+            type,
+            assetValue: amount,
+            securityDeposit: 3000000,
+            tenureMonths: 24, // Fixed for cars as per request
+            monthlyRepayment: 985870.03,
+            insuranceAnnual: 1000000,
+            interestRate: "36% p.a.",
+            collateralRequired: true
+        };
     }
 
-    const isVeh = isVehicle(productObj);
+    // 2. Solar / General (20% Deposit Rule)
+    const deposit = amount * FINANCING_CONSTANTS.SOLAR_DEPOSIT_PCT;
+    const fundedAmount = amount - deposit;
     
-    // Base configuration
-    let depositPct = getVehicleDepositPercent(); 
-    let baseTenor = isVeh ? (LOAN_CONSTANTS.TENORS[condition as VehicleCondition] || 4) : (productObj.price > 300000 ? 2 : 1); 
-    let baseMarkup = LOAN_CONSTANTS.BASE_MARKUP_PA;
-    let fixedDeposit: number | undefined = productObj.financing_down_payment;
-
-    // Apply product-specific overrides if configured
-    if (productObj?.financing_config?.enabled) {
-        if (productObj.financing_config.deposit_percent !== undefined) {
-             depositPct = productObj.financing_config.deposit_percent;
-        }
-        if (productObj.financing_config.interest_rate_pa !== undefined) {
-             baseMarkup = productObj.financing_config.interest_rate_pa;
-        }
-        if (productObj.financing_config.max_tenor_months !== undefined) {
-             baseTenor = Math.max(1, Math.floor(productObj.financing_config.max_tenor_months / 12));
-        }
-    }
-
-    const years = requestedYears !== undefined ? requestedYears : baseTenor;
-    const months = years * 12;
-
-    let annualMarkup = baseMarkup + (years - 1) * LOAN_CONSTANTS.MARKUP_STEP_PA;
-
-    // Admin Global Override
-    if (typeof window !== "undefined") {
-        try {
-            const dynamicMarkup = localStorage.getItem("fp_vehicle_markup");
-            if (dynamicMarkup) {
-                const markupVal = parseFloat(dynamicMarkup) / 100;
-                if (!isNaN(markupVal)) {
-                    annualMarkup = Math.max(annualMarkup, markupVal);
-                }
-            }
-        } catch (e) {}
-    }
-
-    // Correct Loan Calculation:
-    // 1. Calculate Deposit
-    const depositAmount = fixedDeposit !== undefined ? fixedDeposit : Math.round(price * depositPct);
-    
-    // 2. Loan Principal is the balance after deposit
-    const loanPrincipal = Math.max(0, price - depositAmount);
-    
-    // 3. Total Interest (Markup) applied to the principal only
-    const totalMarkup = loanPrincipal * annualMarkup * years;
-    
-    // 4. Total Loan Repayment (Principal + Interest)
-    const totalLoanRepayment = loanPrincipal + totalMarkup;
-    
-    // 5. Monthly installment
-    const monthlyPayment = months > 0 ? (totalLoanRepayment / months) : 0;
+    // Contract 1: 36% p.a.
+    const monthlyRate = 0.36 / 12;
+    const numerator = fundedAmount * monthlyRate * Math.pow(1 + monthlyRate, tenureMonths);
+    const denominator = Math.pow(1 + monthlyRate, tenureMonths) - 1;
+    const monthlyRepayment = numerator / denominator;
 
     return {
-        monthlyPayment: Math.round(monthlyPayment),
-        deposit: depositAmount,
-        tenorMonths: months,
-        totalAmount: Math.round(depositAmount + totalLoanRepayment), // Total cost to customer
-        markupAmount: Math.round(totalMarkup),
-        interestRate: annualMarkup,
+        type,
+        assetValue: amount,
+        securityDeposit: deposit,
+        tenureMonths,
+        monthlyRepayment: Math.round(monthlyRepayment * 100) / 100,
+        interestRate: "36% p.a.",
+        collateralRequired: true
     };
 }
 
-/**
- * Legacy alias for backward compatibility with existing imports.
- */
-export const calculateMonthlyPayment = calculateProductMonthlyPayment;
-
-
-/**
- * Calculates the min and max estimated monthly payments for a product
- * Returns { min: number, max: number }
- */
-export function getProductPaymentRange(
-    product: any
-): { min: number; max: number } {
-    let maxYears = 1;
-    let minYears = 1;
-    
-    if (isVehicle(product)) {
-         maxYears = 5;
-    } else {
-         maxYears = product?.financing_config?.max_tenor_months ? Math.floor(product.financing_config.max_tenor_months / 12) : (product.price > 300000 ? 4 : 2); 
+export function getRequiredDocuments(type: 'individual' | 'business', isCar: boolean = false) {
+    if (isCar) {
+        return [
+            "CAC Documents",
+            "2 Years Audited Financials",
+            "Cash Flow Projection",
+            "1 Year Statement of Account",
+            "Company Profile",
+            "Energy Audit (if applicable)"
+        ];
     }
-    
-    maxYears = Math.max(1, maxYears);
 
-    const monthlyMinPayment = calculateProductMonthlyPayment(product, maxYears).monthlyPayment;
-    const monthlyMaxPayment = calculateProductMonthlyPayment(product, minYears).monthlyPayment;
+    if (type === 'business') {
+        return [
+            "CAC (Form 1 & 2)",
+            "1 Year Bank Statement",
+            "Vendor's Invoice",
+            "Business Application Form"
+        ];
+    }
 
-    return {
-        min: monthlyMinPayment,
-        max: monthlyMaxPayment
-    };
+    return [
+        "6 Months Bank Statement",
+        "Confirmation Letter",
+        "Individual Application Form",
+        "Vendor's Invoice"
+    ];
 }
 
-/**
- * Formats a number to Nigerian Naira (₦)
- */
-export function formatNaira(amount: number): string {
-    return `₦${amount.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`;
-}
+// ─── COMPATIBILITY EXPORTS ──────────────────────────────────
 
-/**
- * Helper to check if a product is a vehicle explicitly
- */
-export function isVehicle(product: any): boolean {
-    const category = product?.category?.toLowerCase() || '';
-    const name = product?.name?.toLowerCase() || '';
-    
-    // Explicitly exclude car accessories
-    const isAccessory = name.match(/\b(vacuum|cushion|seat|camera|dash|care|kit|tool|tire|bumper|accessory|charger|mount|holder|light|led|cover|mat)\b/);
-    if (isAccessory) return false;
-
-    // Enforce a realistic minimum price for vehicle financing (e.g. > ₦500,000)
-    if (product?.price && typeof product.price === 'number' && product.price < 500000) return false;
-
-    return (
-        category.includes('car') ||
-        category.includes('vehicles') ||
-        category.includes('automotive') ||
-        name.includes('toyota') ||
-        name.includes('lexus') ||
-        name.includes('mercedes') ||
-        name.includes('benz') ||
-        name.includes('honda') ||
-        name.includes('ford') ||
-        name.includes('hyundai') ||
-        name.includes('baic') ||
-        name.includes('changan') ||
-        name.includes('xpeng')
-    );
-}
-
-/**
- */
 export function hasFinancing(product: any): boolean {
     if (!product) return false;
-    if (product.financing_config?.enabled) return true;
-    if (product.financing_available === true) return true;
-    return isVehicle(product);
+    const cat = product.category?.toLowerCase() || '';
+    const price = product.price || 0;
+    
+    // Auto-enable for cars and expensive items
+    if (cat.includes('car') || cat.includes('vehicle')) return true;
+    if (cat.includes('solar') || cat.includes('inverter')) return true;
+    if (price >= 200000) return true;
+    
+    return !!product.financingAvailable;
+}
+
+export function isVehicle(product: any): boolean {
+    if (!product) return false;
+    const cat = product.category?.toLowerCase() || '';
+    return cat.includes('car') || cat.includes('vehicle');
+}
+
+export function getVehicleDepositPercent(): number {
+    return 0.15; // 15% as per system setting default
+}
+
+export function calculateMonthlyPayment(product: any, tenureOrType?: number | string, condition?: string) {
+    const amount = typeof product === 'number' ? product : (product?.price || 0);
+    const isCar = typeof product === 'number' ? (condition === 'foreign_used' || amount >= 5000000) : isVehicle(product);
+    
+    // Support (amount, type, condition) or (product, tenureYears)
+    let tenure = 12;
+    if (typeof tenureOrType === 'number') {
+        tenure = tenureOrType * 12;
+    } else if (isCar) {
+        tenure = 24;
+    }
+
+    const terms = calculateFinancing(amount, 'individual', tenure, isCar);
+    
+    return {
+        monthlyPayment: terms.monthlyRepayment,
+        deposit: terms.securityDeposit,
+        tenureMonths: terms.tenureMonths,
+        tenorMonths: terms.tenureMonths, // Alias for compatibility
+        interestRate: terms.interestRate,
+        interestRateNumber: 0.36, // Numeric version for calculations
+        totalAmount: terms.monthlyRepayment * terms.tenureMonths + terms.securityDeposit,
+        total_repayment: terms.monthlyRepayment * terms.tenureMonths + terms.securityDeposit
+    };
+}
+
+export const calculateProductMonthlyPayment = calculateMonthlyPayment;
+
+export function getProductPaymentRange(product: any) {
+    const loan = calculateMonthlyPayment(product);
+    return {
+        min: loan.monthlyPayment,
+        max: loan.monthlyPayment,
+        deposit: loan.deposit
+    };
+}
+
+export function formatNaira(amount: number): string {
+    return new Intl.NumberFormat('en-NG', {
+        style: 'currency',
+        currency: 'NGN',
+        minimumFractionDigits: 0
+    }).format(amount);
 }

@@ -33,6 +33,7 @@ model User {
   supportMessages SupportMessage[]
   discountUsages  UserDiscountUsage[]
   whatsAppVerifications WhatsAppVerification[]
+  financingApplications FinancingApplication[]
 }
 
 model Account {
@@ -116,6 +117,7 @@ model Seller {
   whatsappEnabled Boolean             @default(false)
   whatsappNumber String?
   autoPayoutEnabled Boolean            @default(false)
+  whatsappDirectDM  Boolean            @default(false)
   complaints     Complaint[]          @relation("SellerComplaints")
   discounts      Discount[]
   disputes       Dispute[]            @relation("SellerDisputes")
@@ -169,6 +171,7 @@ model Product {
   priceAlerts      PriceAlert[]
   seller           Seller               @relation(fields: [sellerId], references: [id], onDelete: Cascade)
   reviews          Review[]
+  financingApplications FinancingApplication[]
 
   @@index([sellerId])
   @@index([category])
@@ -635,4 +638,79 @@ enum VerificationStatus {
   verified
   expired
   used
+}
+
+enum FinancingType {
+  individual
+  business
+}
+
+enum FinancingStatus {
+  pending
+  under_review
+  approved
+  rejected
+  disbursed
+}
+
+model FinancingApplication {
+  id                String          @id @default(cuid())
+  userId            String?
+  productId         String?
+  type              FinancingType   @default(individual)
+  status            FinancingStatus @default(pending)
+  
+  // Basic Loan Details
+  loanAmount        Float
+  tenureMonths      Int
+  monthlyRepayment  Float
+  interestRate      Float
+  downPayment       Float           @default(0)
+  insuranceFee      Float?
+  
+  // Applicant Details
+  businessName      String?
+  customerName      String?
+  phoneNumber       String?
+  email             String?
+  employmentStatus  String?         // salary_earner, business_person
+  
+  // Document URLs (Stored in CDN/S3)
+  cacDocumentUrl    String?
+  auditedFinancialsUrl String?
+  cashFlowProjectionUrl String?
+  bankStatementUrl  String?
+  companyProfileUrl String?
+  energyAuditUrl    String?
+  vendorInvoiceUrl  String?
+  
+  // Metadata
+  source            String          @default("whatsapp") // whatsapp, web, app
+  adminNotes        String?
+  officeAddress     String?
+  meetingScheduledAt DateTime?
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  user              User?            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product           Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+model WhatsAppNegotiationSession {
+  id              String   @id @default(cuid())
+  sellerId        String
+  negotiationId   String
+  sellerPhone     String
+  customerPhone   String?
+  lastMessageId   String?  // WhatsApp message ID to track replies
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sellerPhone, negotiationId])
+  @@index([sellerPhone])
+  @@index([lastMessageId])
 }

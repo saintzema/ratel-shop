@@ -39,6 +39,21 @@ export class WhatsAppService {
             );
 
             const data = await response.json();
+
+            // Log OUTBOUND interaction for Admin Visibility
+            await db.whatsAppInteraction.create({
+                data: {
+                    phoneNumber: cleanTo,
+                    interaction_type: "outbound_message",
+                    payload: JSON.stringify({
+                        text,
+                        status: data.error ? "error" : "sent",
+                        response: data,
+                        timestamp: new Date().toISOString()
+                    })
+                }
+            }).catch((e: any) => console.error("Failed to log outbound interaction:", e));
+
             return data;
         } catch (error) {
             console.error("WhatsApp Send Error:", error);
@@ -56,6 +71,19 @@ export class WhatsAppService {
         negotiationId: string
     }) {
         const message = `Hello! ${data.sellerName} has countered your offer for *${data.productName}*.\n\nNew Price: *₦${data.newPrice.toLocaleString()}*\n\nReply with your counter-offer (e.g. 50000) or 'ACCEPT' to finalize the deal.`;
+        return this.sendMessage(to, message);
+    }
+
+    /**
+     * Sends a direct DM to the seller when a negotiation is received
+     */
+    static async sendSellerNegotiationDM(to: string, data: {
+        customerName: string,
+        productName: string,
+        proposedPrice: number,
+        negotiationId: string
+    }) {
+        const message = `💰 *New Offer Received!*\n\n${data.customerName} is offering *₦${data.proposedPrice.toLocaleString()}* for your *${data.productName}*.\n\nReply directly to this message to counter or accept.\n- Format: "counter [price]" (e.g. counter 45000)\n- Format: "ACCEPT" to finalize.\n- Format: "REJECT" to decline.`;
         return this.sendMessage(to, message);
     }
 

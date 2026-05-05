@@ -25,6 +25,7 @@ import { NegotiationModal } from "@/components/modals/NegotiationModal";
 import { PriceIntelModal } from "@/components/modals/PriceIntelModal";
 import { hasFinancing, isVehicle, calculateMonthlyPayment, getVehicleDepositPercent } from "@/lib/financing-utils";
 import { FinancingDetailsModal } from "@/components/modals/FinancingDetailsModal";
+import { FinancingOffer } from "@/components/financing/FinancingOffer";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Handshake,
@@ -1609,121 +1610,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 )}
 
                                 {/* Buy Now, Pay Later Discovery & Breakdown */}
-                                {hasFinancing(product) && loanAnalysis && (
-                                    <motion.div 
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        onClick={() => setIsFinancingModalOpen(true)}
-                                        className="rounded-[24px] border-2 border-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-blue-50 p-5 space-y-4 relative overflow-hidden group/loan shadow-lg shadow-emerald-500/10 mt-1 cursor-pointer hover:shadow-xl transition-all"
-                                    >
-                                        <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-black px-4 py-1.5 rounded-bl-xl shadow-sm z-10 tracking-[0.1em]">
-                                            BUY NOW, PAY LATER
-                                        </div>
-                                        
-                                        <div className="flex items-start gap-4 mt-4">
-                                            <motion.div 
-                                                whileHover={{ scale: 1.1, rotate: 5 }}
-                                                className="h-12 w-12 rounded-2xl bg-white border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm shrink-0 hidden sm:flex"
-                                            >
-                                                <Banknote className="h-6 w-6" />
-                                            </motion.div>
-                                            <div className="pt-1 flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-1.5">
-                                                    <Banknote className="h-4 w-4 text-emerald-600 sm:hidden shrink-0" />
-                                                    <p className="text-[10px] sm:text-xs font-black text-emerald-800 uppercase tracking-widest leading-normal md:leading-none truncate sm:whitespace-normal">Secure ownership with a deposit of</p>
-                                                </div>
-                                                <div className="flex flex-wrap items-baseline gap-1.5 md:gap-2">
-                                                    <span className="text-2xl sm:text-3xl font-black text-gray-900 leading-tight truncate">{formatPrice(loanAnalysis.deposit)}</span>
-                                                    <motion.span 
-                                                        initial={{ opacity: 0, scale: 0.8 }}
-                                                        animate={{ opacity: 1, scale: 1 }}
-                                                        className="text-[9px] sm:text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-full border border-emerald-200/50 shrink-0 mb-1"
-                                                    >
-                                                        {loanAnalysis.deposit && product.price > 0 ? Math.round((loanAnalysis.deposit / (product.price * quantity)) * 100) : 15}% Deposit
-                                                    </motion.span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <motion.div 
-                                                whileHover={{ y: -2 }}
-                                                className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-emerald-100 shadow-sm flex flex-col justify-center"
-                                            >
-                                                <div className="flex items-center gap-1.5 mb-1.5">
-                                                    <div className="h-4 w-4 rounded-md bg-emerald-100 flex items-center justify-center">
-                                                        <CreditCard className="h-2.5 w-2.5 text-emerald-600" />
-                                                    </div>
-                                                    <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Monthly Pay</p>
-                                                </div>
-                                                <p className="text-base font-black text-emerald-700">{formatPrice(loanAnalysis.monthlyPayment)}</p>
-                                            </motion.div>
-                                            <div className="relative">
-                                                <motion.div 
-                                                    whileHover={{ y: -2 }}
-                                                    onClick={(e) => { e.stopPropagation(); setShowDurationSelector(!showDurationSelector); }}
-                                                    className="bg-white/80 backdrop-blur-sm p-4 rounded-2xl border border-blue-200 shadow-sm flex flex-col justify-center cursor-pointer hover:border-blue-400 transition-colors"
-                                                >
-                                                    <div className="flex items-center justify-between mb-1.5">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <div className="h-4 w-4 rounded-md bg-blue-100 flex items-center justify-center">
-                                                                <TrendingUp className="h-2.5 w-2.5 text-blue-600" />
-                                                            </div>
-                                                            <p className="text-[9px] text-gray-400 font-bold uppercase tracking-tight">Duration</p>
-                                                        </div>
-                                                        <ChevronDown className={`h-3 w-3 text-blue-500 transition-transform ${showDurationSelector ? 'rotate-180' : ''}`} />
-                                                    </div>
-                                                    <p className="text-base font-black text-gray-900">{loanAnalysis.tenorMonths / 12} {loanAnalysis.tenorMonths / 12 === 1 ? 'Year' : 'Years'} <span className="text-[10px] text-blue-500 font-bold">Plan</span></p>
-                                                </motion.div>
-
-                                                {/* Dropdown for Duration */}
-                                                <AnimatePresence>
-                                                    {showDurationSelector && (
-                                                        <motion.div 
-                                                            initial={{ opacity: 0, y: -10 }}
-                                                            animate={{ opacity: 1, y: 0 }}
-                                                            exit={{ opacity: 0, y: -10 }}
-                                                            className="absolute top-full mt-2 w-full bg-white rounded-xl border border-blue-100 shadow-2xl z-[100] overflow-hidden"
-                                                        >
-                                                            {[1, 2, 3, 4, 5].slice(0, product.financing_config?.max_tenor_months ? Math.floor(product.financing_config.max_tenor_months / 12) : 5).map((year) => (
-                                                                <div 
-                                                                    key={year}
-                                                                    onClick={() => {
-                                                                        setSelectedTenorYears(year);
-                                                                        setShowDurationSelector(false);
-                                                                    }}
-                                                                    className={`px-4 py-2.5 text-sm font-bold cursor-pointer transition-colors ${
-                                                                        selectedTenorYears === year || (selectedTenorYears === 0 && loanAnalysis.tenorMonths / 12 === year)
-                                                                            ? 'bg-blue-50 text-blue-700' 
-                                                                            : 'text-gray-700 hover:bg-gray-50'
-                                                                    }`}
-                                                                >
-                                                                    {year} Year{year > 1 ? 's' : ''} {year === 1 && <span className="text-[10px] font-medium text-gray-400 ml-1">(Higher Pay)</span>}
-                                                                </div>
-                                                            ))}
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="bg-emerald-600/5 rounded-xl p-3 border border-emerald-100/50 flex gap-3 items-start">
-                                            <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-                                            <p className="text-[10px] text-emerald-700 font-medium leading-normal">
-                                                Funds are held in <span className="font-bold">Escrow Protection</span>. Payment is only released to the seller after the item is delivered and inspected.
-                                            </p>
-                                        </div>
-                                        
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            onClick={() => setIsFinancingDetailsOpen(true)}
-                                            className="w-full text-emerald-700 hover:bg-emerald-100/50 text-[11px] font-black h-10 rounded-xl transition-all border border-emerald-200 group/btn"
-                                        >
-                                            View Detailed Payment Plan <ChevronRight className="h-3 w-3 ml-1 group-hover/btn:translate-x-1 transition-transform" />
-                                        </Button>
-                                    </motion.div>
-                                )}
+                                <FinancingOffer product={product} />
 
                                 {/* Price History Embedded Widget */}
                                 {priceComparison && (

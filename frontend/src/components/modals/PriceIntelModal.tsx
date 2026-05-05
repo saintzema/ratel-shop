@@ -1693,7 +1693,7 @@ function VerdictCard({ result, onAddToCart, onRequestProduct }: { result: PriceI
                                         ~{formatPrice(loan.monthlyPayment)}/mo
                                     </span>
                                     <span className="text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-lg">
-                                        {(loan.interestRate * 100).toFixed(1)}% Markup p.a.
+                                        {(loan.interestRateNumber * 100).toFixed(1)}% Markup p.a.
                                     </span>
                                     <span className="text-[10px] font-bold text-gray-500 bg-gray-50 border border-gray-100 px-2.5 py-1 rounded-lg flex items-center gap-1">
                                         <ShieldCheck className="h-3 w-3 text-emerald-500" /> Secure Escrow

@@ -26,229 +26,179 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        
-        // Extract message components
         const entry = body.entry?.[0];
-        const change = entry?.changes?.[0];
-        const value = change?.value;
+        const changes = entry?.changes?.[0];
+        const value = changes?.value;
         const message = value?.messages?.[0];
 
         if (!message) return NextResponse.json({ ok: true });
 
-        const from = message.from; // Sender phone number
-        // Handle standard text OR interactive button replies (Ice Breakers/Quick Replies)
+        const from = message.from;
         const text = message.text?.body?.trim() 
                   || message.interactive?.button_reply?.title?.trim() 
                   || message.interactive?.list_reply?.title?.trim() 
                   || message.button?.text?.trim() 
                   || "";
 
-        if (!text) return NextResponse.json({ ok: true });
+        if (!text && !message.interactive) return NextResponse.json({ ok: true });
 
-        // --- NEW: LOGIN VERIFICATION HANDLING ---
+        // --- 1. ADMIN VISIBILITY: Log Interaction ---
+        await db.whatsAppInteraction.create({
+            data: {
+                phoneNumber: from,
+                interaction_type: "inbound_message",
+                payload: JSON.stringify({
+                    text,
+                    raw: message,
+                    timestamp: new Date().toISOString()
+                })
+            }
+        }).catch((e: any) => console.error("Failed to log interaction:", e));
+
+        const normalizedFrom = WhatsAppService.normalizePhoneNumber(from);
+
+        // --- 2. LOGIN VERIFICATION ---
         if (text.toLowerCase().startsWith("verify fairprice:")) {
             const code = text.split(":")[1]?.trim();
             if (code) {
-                const verification = await db.whatsAppVerification.findUnique({
-                    where: { code }
-                });
-
+                const verification = await db.whatsAppVerification.findUnique({ where: { code } });
                 if (verification && new Date() < verification.expiresAt) {
                     await db.whatsAppVerification.update({
                         where: { id: verification.id },
                         data: { status: "verified" }
                     });
-
                     const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
-                    const returnLink = `${APP_URL}/login?wa_code=${code}`;
-
-                    await WhatsAppService.sendMessage(from, 
-                        `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\n` +
-                        `You can now return to the website to continue. If you're on mobile, tap the link below to finish logging in:\n\n` +
-                        `🔗 *Back to FairPrice:* ${returnLink}\n\n` +
-                        `You're now locked into the FairPrice conversational ecosystem! 🚀`
-                    );
-                    return NextResponse.json({ ok: true });
-                } else {
-                    await WhatsAppService.sendMessage(from, `❌ *Invalid or Expired Code.* Please request a new login link from the website.`);
+                    await WhatsAppService.sendMessage(from, `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\n🔗 *Back to FairPrice:* ${APP_URL}/login?wa_code=${code}`);
                     return NextResponse.json({ ok: true });
                 }
             }
         }
-        // ------------------------------------------
 
-        // FIND ACTIVE NEGOTIATION
-        // We look for the most recent negotiation that isn't already closed
-        const normalizedFrom = WhatsAppService.normalizePhoneNumber(from);
-        
-        const negotiation = await (db.negotiationRequest as any).findFirst({
+        // --- 3. COMMANDS (/price, etc) ---
+        if (text.startsWith("/")) {
+            await handleCommand(from, text);
+            return NextResponse.json({ ok: true });
+        }
+
+        // --- 4. ICEBREAKERS ---
+        const iceBreakers = [
+            "Check Real Market Price", 
+            "How much last? Let's bargain", 
+            "Apply for Financing", 
+            "Help import or source a product"
+        ];
+        if (iceBreakers.includes(text)) {
+            await handleIceBreaker(from, text);
+            return NextResponse.json({ ok: true });
+        }
+
+        // --- 5. SELLER DIRECT DM ROUTING ---
+        const sellerSession = await db.whatsAppNegotiationSession.findFirst({
+            where: { sellerPhone: normalizedFrom },
+            orderBy: { updatedAt: "desc" }
+        });
+
+        if (sellerSession) {
+            const upperText = text.toUpperCase();
+            const isSellerAction = upperText.startsWith("COUNTER") || upperText === "ACCEPT" || upperText === "REJECT";
+            if (isSellerAction) {
+                await handleSellerDirectReply(from, text, sellerSession);
+                return NextResponse.json({ ok: true });
+            }
+        }
+
+        // --- 6. CUSTOMER NEGOTIATION CONTEXT ---
+        const negotiation = await db.negotiationRequest.findFirst({
             where: {
                 OR: [
                     { customerWhatsapp: normalizedFrom },
-                    { customerWhatsapp: from }, // Fallback to raw
-                    { customerWhatsapp: `+${from}` },
-                    { customerWhatsapp: from.startsWith("234") ? from.replace("234", "0") : from }
+                    { customerWhatsapp: from }
                 ],
                 status: { in: ["pending", "countered"] }
             },
             orderBy: { createdAt: "desc" },
-            include: { 
-                product: {
-                    select: { name: true, price: true }
-                }
-            }
-        }) as any;
+            include: { product: { select: { name: true, price: true } } }
+        });
 
-        if (!negotiation) {
-            // NEW: Conversational Components (Ice Breakers & Commands)
-            if (text.startsWith("/")) {
-                await handleCommand(from, text);
+        if (negotiation) {
+            const upperText = text.toUpperCase();
+            if (upperText === "ACCEPT") {
+                await db.negotiationRequest.update({
+                    where: { id: negotiation.id },
+                    data: { status: "accepted" }
+                });
+                await WhatsAppService.sendMessage(from, `Deal Finalized! 🤝 Your offer for *${negotiation.product.name}* was accepted. Go to the website to pay!`);
                 return NextResponse.json({ ok: true });
             }
-
-            const iceBreakers = [
-                "Check Real Market Price", 
-                "How much last? Let's bargain", 
-                "Apply for Financing", 
-                "Help import or source a product"
-            ];
-            if (iceBreakers.includes(text)) {
-                await handleIceBreaker(from, text);
+            if (upperText === "REJECT") {
+                await db.negotiationRequest.update({
+                    where: { id: negotiation.id },
+                    data: { status: "rejected" }
+                });
+                await WhatsAppService.sendMessage(from, `Negotiation for *${negotiation.product.name}* has been closed.`);
                 return NextResponse.json({ ok: true });
             }
-
-            // Check if this is an order message from WhatsApp checkout (ignore, admin will handle)
-            if (text.includes("NEW ORDER") && text.includes("fairprice.ng")) {
+            const price = parseFloat(text.replace(/[^0-9.]/g, ""));
+            if (!isNaN(price) && price > 0) {
+                await db.negotiationRequest.update({
+                    where: { id: negotiation.id },
+                    data: { proposedPrice: price, status: "pending" }
+                });
+                await WhatsAppService.sendMessage(from, `📝 Offer updated to *₦${price.toLocaleString()}* for *${negotiation.product.name}*. We've notified the seller!`);
                 return NextResponse.json({ ok: true });
             }
-
-            const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
-
-            // Smart product search — if the message looks like a product query (3+ chars, not a greeting),
-            // search our catalog and return PDP links with prices
-            const greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "sup", "yo", "start", "menu"];
-            const isGreeting = greetings.includes(text.toLowerCase()) || text.length < 3;
-
-            if (!isGreeting) {
-                try {
-                    // Fuzzy Search: Split into keywords for better matching
-                    const keywords = text.split(/\s+/).filter((w: string) => w.length > 2);
-                    const searchConditions = keywords.map((kw: string) => ({
-                        OR: [
-                            { name: { contains: kw, mode: "insensitive" } },
-                            { description: { contains: kw, mode: "insensitive" } },
-                            { category: { contains: kw, mode: "insensitive" } },
-                        ]
-                    }));
-
-                    // Search for matching products in the database using fuzzy keyword logic
-                    const products = await (db.product as any).findMany({
-                        where: {
-                            AND: searchConditions.length > 0 ? searchConditions : [
-                                { name: { contains: text, mode: "insensitive" } }
-                            ],
-                            status: "approved"
-                        },
-                        take: 5, // Meta limits
-                        orderBy: { createdAt: "desc" },
-                        select: { id: true, name: true, price: true, slug: true, category: true }
-                    });
-
-                    if (products && products.length > 0) {
-                        // Build a product listing message with precise PDP links
-                        let msg = `🔍 *Found ${products.length} result${products.length > 1 ? 's' : ''} for "${text}":*\n\n`;
-                        
-                        products.forEach((p: any, i: number) => {
-                            const slug = p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-                            const pdpUrl = `${APP_URL}/product/${p.id}/${slug}`;
-                            
-                            msg += `${i + 1}. *${p.name}*\n`;
-                            msg += `   💰 ₦${Number(p.price).toLocaleString()}\n`;
-                            msg += `   🔗 *View & Buy:* ${pdpUrl}\n\n`;
-                        });
-
-                        msg += `_Tap any link to view details and order directly!_\n`;
-                        msg += `_Or type another product name to search again._`;
-
-                        await WhatsAppService.sendMessage(from, msg);
-                        return NextResponse.json({ ok: true });
-                    }
-                } catch (searchErr) {
-                    console.error("WhatsApp product search error:", searchErr);
-                    // Fall through to welcome message if search fails
-                }
-
-                // No products found — send search link so they can try on the site
-                await WhatsAppService.sendMessage(from,
-                    `We couldn't find *"${text}"* in our catalog right now.\n\n` +
-                    `Try searching on our website for more options:\n` +
-                    `🔗 ${APP_URL}/search?q=${encodeURIComponent(text)}\n\n` +
-                    `_Our AI-powered search can find products from across Nigeria!_`
-                );
-                return NextResponse.json({ ok: true });
-            }
-
-            // Welcome message for greetings and short messages
-            await WhatsAppService.sendMessage(from, 
-                `Welcome to *FairPrice Shopping!* 🛍️\n\n` +
-                `We help you find the best deals with verified prices across Nigeria.\n\n` +
-                `🔗 *Browse our store:*\n${APP_URL}\n\n` +
-                `Just tap the link above to browse, search for any product, and place your order — all right here inside WhatsApp!\n\n` +
-                `You can also:\n` +
-                `• Type a product name to search (e.g. "iPhone 15")\n` +
-                `• Type /price [product] to check market prices\n` +
-                `• Type /help for human assistance\n\n` +
-                `_Powered by FairPrice.ng — Nigeria's trusted marketplace_ ✅`
-            );
-            return NextResponse.json({ ok: true });
         }
 
-        // LOGIC: Handle User Reply
-        const upperText = text.toUpperCase();
-
-        if (upperText === "ACCEPT") {
-            await (db as any).negotiationRequest.update({
-                where: { id: negotiation.id },
-                data: { status: "accepted" }
-            });
-
-            await WhatsAppService.sendMessage(from, 
-                `Deal Finalized! 🤝 Your offer for *${negotiation.product.name}* at ₦${negotiation.proposedPrice.toLocaleString()} was accepted.\n\nGo to your FairPrice account to complete payment.`
-            );
-        } else if (upperText === "REJECT" || upperText === "CANCEL") {
-            await (db as any).negotiationRequest.update({
-                where: { id: negotiation.id },
-                data: { status: "rejected" }
-            });
-            await WhatsAppService.sendMessage(from, `Negotiation for *${negotiation.product.name}* has been closed.`);
+        // --- 7. FALLBACK: SMART SEARCH & HELP ---
+        const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+        const greetings = ["hi", "hello", "hey", "sup", "menu", "start"];
+        if (greetings.includes(text.toLowerCase()) || text.length < 3) {
+            await WhatsAppService.sendMessage(from, `Welcome to FairPrice! 🚀\n\nHow can I help you today?\n\n- Reply with \`/price [product]\` to check market value\n- Browse our catalogue: ${APP_URL}`);
         } else {
-            // Check if user replied with a numeric price (Counter-offer)
-            const numericValue = parseFloat(text.replace(/[^0-9.]/g, ""));
-            
-            if (!isNaN(numericValue) && numericValue > 0) {
-                // Update the negotiation with the new proposed price
-                await (db as any).negotiationRequest.update({
-                    where: { id: negotiation.id },
-                    data: { 
-                        proposedPrice: numericValue,
-                        status: "pending" // Reset status so seller sees the new offer
-                    }
+            // Fuzzy Search
+            try {
+                const keywords = text.split(/\s+/).filter((w: string) => w.length > 2);
+                const products = await db.product.findMany({
+                    where: {
+                        OR: keywords.map((kw: string) => ({
+                            OR: [
+                                { name: { contains: kw, mode: "insensitive" } },
+                                { description: { contains: kw, mode: "insensitive" } },
+                                { category: { contains: kw, mode: "insensitive" } },
+                            ]
+                        })),
+                        isActive: true
+                    },
+                    take: 3,
+                    select: { id: true, name: true, price: true, slug: true }
                 });
 
-                await WhatsAppService.sendMessage(from, 
-                    `Got it! Your new offer of *₦${numericValue.toLocaleString()}* for *${negotiation.product.name}* has been sent to the seller.\n\nWait for their response here!`
-                );
-            } else {
-                // Generic fallback if text is neither 'accept' nor a number
-                await WhatsAppService.sendMessage(from, 
-                    `Hi! Please reply with a price (e.g. 50000) to counter-offer, or type *ACCEPT* to close the deal.`
-                );
+                if (products.length > 0) {
+                    let msg = `🔍 *I found these on FairPrice for you:*\n\n`;
+                    products.forEach((p: any) => {
+                        const slug = p.slug || p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                        msg += `*${p.name}*\n💰 ₦${p.price.toLocaleString()}\n🔗 ${APP_URL}/product/${p.id}/${slug}\n\n`;
+                    });
+                    await WhatsAppService.sendMessage(from, msg);
+                } else {
+                    await WhatsAppService.sendMessage(from, `I couldn't find a direct match for *"${text}"*. Try searching here:\n🔗 ${APP_URL}/search?q=${encodeURIComponent(text)}`);
+                }
+            } catch (e) {
+                await WhatsAppService.sendMessage(from, `I've noted your message. Browse our latest deals here:\n🔗 ${APP_URL}`);
             }
         }
 
         return NextResponse.json({ ok: true });
-    } catch (error) {
+    } catch (error: any) {
         console.error("WhatsApp Webhook Error:", error);
+        // Log Error for Admin
+        await db.whatsAppInteraction.create({
+            data: {
+                phoneNumber: "SYSTEM",
+                interaction_type: "error",
+                payload: `Webhook Error: ${error.message || "Unknown error"}`
+            }
+        }).catch(() => {});
         return NextResponse.json({ ok: true }); // Always return 200 to Meta to avoid retries on error
     }
 }
@@ -261,8 +211,12 @@ async function handleCommand(from: string, text: string) {
     const args = parts.slice(1).join(" ");
 
     // Log the interaction intent
-    await (db as any).whatsAppInteraction.create({
-        data: { phoneNumber: from, interaction_type: "command", payload: command }
+    await db.whatsAppInteraction.create({
+        data: { 
+            phoneNumber: from, 
+            interaction_type: "command", 
+            payload: JSON.stringify({ command, args, fullText: text })
+        }
     });
 
     const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
@@ -293,8 +247,12 @@ async function handleCommand(from: string, text: string) {
 
 async function handleIceBreaker(from: string, text: string) {
     // Log the interaction intent
-    await (db as any).whatsAppInteraction.create({
-        data: { phoneNumber: from, interaction_type: "ice_breaker", payload: text }
+    await db.whatsAppInteraction.create({
+        data: { 
+            phoneNumber: from, 
+            interaction_type: "ice_breaker", 
+            payload: JSON.stringify({ iceBreaker: text, timestamp: new Date().toISOString() })
+        }
     });
 
     const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
@@ -307,5 +265,66 @@ async function handleIceBreaker(from: string, text: string) {
         await WhatsAppService.sendMessage(from, "Want to Buy Now and Pay Later? Let's check your financing eligibility.\n\nPlease reply with your registered email address.");
     } else if (text === "Help import or source a product") {
         await WhatsAppService.sendMessage(from, "Can't find what you're looking for? Our global sourcing team can help you import it safely using FairPrice Escrow.\n\nReply with the product name or a link to the item, and an agent will assist you.");
+    }
+}
+
+async function handleSellerDirectReply(from: string, text: string, session: any) {
+    const upperText = text.toUpperCase();
+    const negotiationId = session.negotiationId;
+
+    const negotiation = await db.negotiationRequest.findUnique({
+        where: { id: negotiationId },
+        include: { product: true }
+    });
+
+    if (!negotiation) return;
+
+    if (upperText === "ACCEPT") {
+        await db.negotiationRequest.update({
+            where: { id: negotiationId },
+            data: { status: "accepted" }
+        });
+
+        await WhatsAppService.sendMessage(from, `✅ You've accepted the offer for *${negotiation.product.name}*. We'll notify the customer to complete payment.`);
+        
+        if (session.customerPhone) {
+            await WhatsAppService.sendMessage(session.customerPhone, `🎉 Good news! The seller has ACCEPTED your offer for *${negotiation.product.name}* at ₦${negotiation.proposedPrice.toLocaleString()}. Go to the website to pay!`);
+        }
+    } else if (upperText === "REJECT") {
+        await db.negotiationRequest.update({
+            where: { id: negotiationId },
+            data: { status: "rejected" }
+        });
+        await WhatsAppService.sendMessage(from, `❌ You've rejected the offer for *${negotiation.product.name}*.`);
+        
+        if (session.customerPhone) {
+            await WhatsAppService.sendMessage(session.customerPhone, `😔 Sorry, the seller has declined your offer for *${negotiation.product.name}*. Try searching for other deals!`);
+        }
+    } else if (upperText.startsWith("COUNTER")) {
+        const priceStr = text.replace(/[^0-9]/g, "");
+        const counterPrice = parseFloat(priceStr);
+
+        if (!isNaN(counterPrice) && counterPrice > 0) {
+            await db.negotiationRequest.update({
+                where: { id: negotiationId },
+                data: { 
+                    counterPrice,
+                    status: "countered"
+                }
+            });
+
+            await WhatsAppService.sendMessage(from, `📤 Counter-offer of *₦${counterPrice.toLocaleString()}* sent to the customer.`);
+            
+            if (session.customerPhone) {
+                await WhatsAppService.sendNegotiationUpdate(session.customerPhone, {
+                    productName: negotiation.product.name,
+                    newPrice: counterPrice,
+                    sellerName: "The Seller",
+                    negotiationId: negotiation.id
+                });
+            }
+        } else {
+            await WhatsAppService.sendMessage(from, "⚠️ Invalid counter-offer format. Use: `counter 50000`.");
+        }
     }
 }

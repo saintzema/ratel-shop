@@ -2572,7 +2572,7 @@ class DataSyncServiceService {
 
     /** Returns only products whose seller has kyc_status === "approved" (or verified === true). 
      *  Use this for public-facing views (Homepage, Search, Category pages). */
-    getApprovedProducts(): Product[] {
+    public getApprovedProducts(): Product[] {
         const products = this.getProducts();
         const sellers = this.getSellers();
         
@@ -2597,7 +2597,7 @@ class DataSyncServiceService {
     }
 
     /** Manually inject a product into the local store (used by integrations) */
-    addApprovedProduct(product: Product) {
+    public addApprovedProduct(product: Product) {
         this.addRawProduct(product, true);
     }
 

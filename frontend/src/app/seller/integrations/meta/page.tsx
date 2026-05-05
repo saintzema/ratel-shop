@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { cn, getProxiedImageUrl } from "@/lib/utils";
 import { DataSyncService } from "@/lib/sync-store";
+import { Product } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 export default function MetaBusinessSuite() {

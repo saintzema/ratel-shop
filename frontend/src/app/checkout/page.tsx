@@ -1094,7 +1094,7 @@ function CheckoutContent() {
                 // Calculate financing details for vehicle products
                 const isVehicleProduct = isVehicle(item.product);
                 const vehicleDeposit = isVehicleProduct ? Math.round(item.price * item.quantity * 0.15) : 0;
-                const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 'bnpl', 'foreign_used') : null;
+                const loanCalc = isVehicleProduct ? calculateMonthlyPayment(item.price * item.quantity, 2, 'foreign_used') : null;
 
                 // Use pre-generated ID if available (from Paystack flow)
                 const manualId = preGeneratedIds[index] || undefined;

@@ -76,6 +76,16 @@ const INTEGRATIONS = [
         status: "Disconnected",
         color: "gray",
         requiresPremium: true
+    },
+    {
+        id: "int_7",
+        name: "WhatsApp Direct DM Routing",
+        provider: "FairPrice / Meta",
+        description: "Receive customer negotiations in your own WhatsApp and reply directly to them.",
+        icon: <MessageCircle className="h-6 w-6 text-blue-600" />,
+        status: "Disconnected",
+        color: "blue",
+        requiresPremium: true
     }
 ];
 
@@ -121,6 +131,12 @@ export default function IntegrationsPage() {
         );
         setIntegrations(updated);
         localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(updated));
+
+        // Special handling for WhatsApp Direct DM routing
+        if (intId === "int_7") {
+            const isEnabled = updated.find(a => a.id === "int_7")?.status === "Connected";
+            DataSyncService.updateSeller(sellerId, { whatsappDirectDM: isEnabled } as any);
+        }
 
         setConnecting(null);
     };

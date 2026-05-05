@@ -155,6 +155,34 @@ export async function POST(request: Request) {
                     link: "/seller/dashboard/messages"
                 }
             }).catch(e => console.error("Failed to create seller notification:", e));
+
+            // --- WhatsApp Direct DM Routing (PREMIUM) ---
+            const sellerFull = await (db.seller as any).findUnique({
+                where: { id: product.sellerId },
+                select: { whatsappNumber: true, whatsappDirectDM: true, tier: true, subscriptionPlan: true }
+            });
+
+            const isPremium = sellerFull?.subscriptionPlan !== "Starter";
+            if ((sellerFull as any)?.whatsappDirectDM && sellerFull.whatsappNumber && isPremium) {
+                const waRes = await WhatsAppService.sendSellerNegotiationDM(sellerFull.whatsappNumber, {
+                    customerName: body.customer_name || "A buyer",
+                    productName: product.name,
+                    proposedPrice: body.proposed_price,
+                    negotiationId: newNeg.id
+                });
+
+                if (waRes?.messages?.[0]?.id) {
+                    await (db as any).whatsAppNegotiationSession.create({
+                        data: {
+                            sellerId: product.sellerId,
+                            negotiationId: newNeg.id,
+                            sellerPhone: WhatsAppService.normalizePhoneNumber(sellerFull.whatsappNumber),
+                            customerPhone: body.customer_whatsapp || null,
+                            lastMessageId: waRes.messages[0].id
+                        }
+                    }).catch((e: any) => console.error("Failed to create WA session:", e));
+                }
+            }
         }
 
         return NextResponse.json({ success: true, negotiation: newNeg });
