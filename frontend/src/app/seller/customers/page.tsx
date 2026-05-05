@@ -33,14 +33,27 @@ import { BroadcastModal } from "@/components/modals/BroadcastModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 
+interface Customer {
+    id: string;
+    name: string;
+    email: string;
+    location: string;
+    totalSpend: number;
+    orders: number;
+    source: string;
+    lastActive: Date;
+    status: "VIP" | "New" | "Active";
+    tags: string[];
+}
+
 export default function CustomersCRMPage() {
     const { user } = useAuth();
     const [searchTerm, setSearchTerm] = useState("");
     const [filterBy, setFilterBy] = useState("all");
     const [currentPage, setCurrentPage] = useState(1);
-    const [customers, setCustomers] = useState<any[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
     const [selectedCustomers, setSelectedCustomers] = useState<Set<string>>(new Set());
-    const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [customerNotes, setCustomerNotes] = useState("");
     const [customerTags, setCustomerTags] = useState<string[]>([]);
     const [newTag, setNewTag] = useState("");
@@ -53,7 +66,7 @@ export default function CustomersCRMPage() {
 
         // Aggregate orders by customer to create the CRM list
         const allOrders = DataSyncService.getOrders().filter(o => o.seller_id === sellerId);
-        const cusMap = new Map<string, any>();
+        const cusMap = new Map<string, Omit<Customer, 'tags'>>();
 
         allOrders.forEach(order => {
             const cid = order.customer_id;

@@ -338,6 +338,9 @@ class DataSyncServiceService {
         
         // Start auto-release worker
         this.runAutoReleaseWorker();
+
+        // Resilience: Seed demo data if storage is empty to avoid blank UI
+        this.seedDemoData();
     }
 
     private startRealtimeSync() {
@@ -3284,6 +3287,30 @@ class DataSyncServiceService {
         return product;
     }
 
+    /**
+     * targeted sync for a single product to ensure hot-updates are visible
+     */
+    public async syncProduct(id: string) {
+        if (typeof window === "undefined") return;
+        try {
+            const res = await fetch(`/api/products/${id}`);
+            if (res.ok) {
+                const product = await res.json();
+                if (product && product.id) {
+                    const products = this.getProducts();
+                    const updated = products.map(p => p.id === product.id ? { ...p, ...product } : p);
+                    this.safeSetItem(this.STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+                    window.dispatchEvent(new Event("storage"));
+                    window.dispatchEvent(new Event("sync-store-update"));
+                    return product;
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to sync individual product", id, e);
+        }
+        return null;
+    }
+
     async updateProduct(id: string, updates: Partial<Product>) {
         if (typeof window === "undefined") return;
 
@@ -3472,32 +3499,59 @@ class DataSyncServiceService {
     addToHistory(product: Product) {
         if (typeof window === "undefined") return;
         try {
+            // 1. Update Global Search History
             const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
             let history = JSON.parse(historyJson);
-
-            // Remove if already exists so it gets bumped to the top
             history = history.filter((h: any) => h.productId !== product.id);
-
             history.unshift({ productId: product.id, productName: product.name, timestamp: new Date().toISOString() });
             if (history.length > 50) history.length = 50;
             this.safeSetItem("fairprice_demo_global_search_history", JSON.stringify(history));
+
+            // 2. Update Legacy Browsing History (used for recommendation scoring)
+            const saved = localStorage.getItem("fp_browsing_history");
+            let fpHistory = saved ? JSON.parse(saved) : [];
+            fpHistory = fpHistory.filter((p: any) => p.id !== product.id);
+            fpHistory.unshift({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image_url: product.image_url,
+                category: product.category,
+                seller_id: product.seller_id,
+                seller_name: product.seller_name,
+                avg_rating: product.avg_rating,
+                review_count: product.review_count,
+                price_flag: product.price_flag,
+                original_price: product.original_price
+            });
+            this.safeSetItem("fp_browsing_history", JSON.stringify(fpHistory.slice(0, 20)));
         } catch (e) { }
     }
 
     getSearchHistoryProducts(): Product[] {
         if (typeof window === "undefined") return [];
         const historyJson = localStorage.getItem("fairprice_demo_global_search_history") || "[]";
-        const history = JSON.parse(historyJson);
+        const fpHistoryJson = localStorage.getItem("fp_browsing_history") || "[]";
+        
+        let history = JSON.parse(historyJson);
+        const fpHistory = JSON.parse(fpHistoryJson);
+
+        // Merge both history systems into one list of unique IDs
+        const allIds = new Set([
+            ...history.map((h: any) => h.productId),
+            ...fpHistory.map((h: any) => h.id)
+        ]);
+
         const products = this.getProducts();
 
-        // Return recently viewed products from history that exist in the products array.
-        // History is already unshifted (newest first).
-        const historyProducts = history
-            .map((h: any) => products.find((p) => p.id === h.productId))
-            .filter(Boolean);
+        // Re-hydrate from fresh catalog to avoid stale prices/images
+        const historyProducts = Array.from(allIds)
+            .map((id) => products.find((p) => p.id === id))
+            .filter((p): p is Product => !!p);
 
-        // Deduplicate by id (already done in addToHistory but good measure)
-        return historyProducts.filter((v: Product, i: number, a: Product[]) => a.findIndex(t => (t.id === v.id)) === i);
+        // Sort by recency (if possible, otherwise just use order of discovery)
+        // For simplicity, we just return the matches found in 'products'
+        return historyProducts.slice(0, 20);
     }
 
     deleteProduct(id: string) {
@@ -5776,7 +5830,7 @@ class DataSyncServiceService {
     
     /** Get all orders that have concierge chat history */
     getConciergeChats() {
-        return this.getOrders().filter(o => o.chat_messages && o.chat_messages.length > 0);
+        return this.getOrders().filter(o => o.chat_messages && Array.isArray(o.chat_messages) && o.chat_messages.length > 0);
     }
 
     /** Clear chat history for a specific order */
@@ -5826,7 +5880,7 @@ class DataSyncServiceService {
             const orderDate = new Date(o.created_at).getTime();
             const isOldEnough = !cutoff || orderDate < cutoff;
             
-            if (isOldEnough && (o.chat_messages?.length ?? 0) > 0) {
+            if (isOldEnough && o.chat_messages && Array.isArray(o.chat_messages) && o.chat_messages.length > 0) {
                 // If readOnly is set, only clear if no unread messages (simulated check)
                 if (readOnly && o.zivaActive) return o; 
                 

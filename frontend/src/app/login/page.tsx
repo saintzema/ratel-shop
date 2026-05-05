@@ -7,7 +7,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/ui/logo";
 import { useAuth } from "@/context/AuthContext";
-import { Eye, EyeOff, Loader2, ArrowRight, Check, X, AlertCircle, ExternalLink, ChevronDown } from "lucide-react";
+import { Eye, EyeOff, Loader2, ArrowRight, Check, X, AlertCircle, ExternalLink, ChevronDown, ChevronLeft } from "lucide-react";
 import { signIn } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { DataSyncService } from "@/lib/sync-store";

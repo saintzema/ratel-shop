@@ -101,6 +101,7 @@ function getDeliveryDateRange(minDays: number, maxDays: number): { start: string
 
 // ─── Ask Ziva AI helper ──────────────────────────────────────
 function generateZivaAnswers(product: typeof SEED_PRODUCTS[0]): { question: string; answer: string }[] {
+    if (!product) return [];
     const specs = product.specs || {};
     const qa: { question: string; answer: string }[] = [];
 
@@ -171,12 +172,14 @@ export default function ProductDetailPage() {
         setMounted(true);
         const handleStorageChange = () => setStoreVersion(v => v + 1);
         window.addEventListener("storage", handleStorageChange);
+        window.addEventListener("sync-store-update", handleStorageChange);
 
         // Progressive hydration: delay heavy components to improve TTI
         const timer = setTimeout(() => setIsDeferredReady(true), 150);
 
         return () => {
             window.removeEventListener("storage", handleStorageChange);
+            window.removeEventListener("sync-store-update", handleStorageChange);
             clearTimeout(timer);
         };
     }, []);
@@ -655,34 +658,18 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
         }
     }, [product, selectedTenorYears, quantity, selectedVariantIndex]);
     
-    // Record to browsing history
+    // Record to browsing history & Sync with DB
     useEffect(() => {
         if (product && typeof window !== 'undefined') {
+            // 1. Sync fresh data from DB if possible
+            DataSyncService.syncProduct(product.id);
+
+            // 2. Add to history via consolidated service
             try {
-                const saved = localStorage.getItem("fp_browsing_history");
-                let history = saved ? JSON.parse(saved) : [];
-                
-                // Remove existing to bring to top
-                history = history.filter((p: any) => p.id !== product.id);
-                
-                // Add to start
-                history.unshift({
-                    id: product.id,
-                    name: product.name,
-                    price: product.price,
-                    image_url: product.image_url,
-                    category: product.category,
-                    seller_id: product.seller_id,
-                    seller_name: product.seller_name,
-                    avg_rating: product.avg_rating,
-                    review_count: product.review_count,
-                    price_flag: product.price_flag,
-                    original_price: product.original_price
-                });
-                
-                // Limit to 20 items
-                localStorage.setItem("fp_browsing_history", JSON.stringify(history.slice(0, 20)));
-            } catch (e) {}
+                DataSyncService.addToHistory(product);
+            } catch (e) {
+                console.error("Failed to save browsing history", e);
+            }
         }
     }, [product?.id]);
 
@@ -711,13 +698,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                 if (!existing) {
                     DataSyncService.addRawProduct(product as any);
                 }
-            }
-
-            // Save to Browsing History
-            try {
-                DataSyncService.addToHistory(product);
-            } catch (e) {
-                console.error("Failed to save browsing history", e);
             }
 
             // Hydrate Gemini Reviews

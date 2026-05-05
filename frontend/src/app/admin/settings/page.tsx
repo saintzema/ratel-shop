@@ -57,6 +57,7 @@ export default function AdminSettings() {
     const [escrowRelease, setEscrowRelease] = useState(true);
     const [strictSeller, setStrictSeller] = useState(true);
     const [globalSearchCaching, setGlobalSearchCaching] = useState(true);
+    const [waVerificationEnabled, setWaVerificationEnabled] = useState(false);
 
     // Support Configuration
     const [supportEmail, setSupportEmail] = useState("hello@fairprice.ng");
@@ -144,6 +145,7 @@ export default function AdminSettings() {
                     if (initialData.escrowRelease !== undefined) setEscrowRelease(initialData.escrowRelease);
                     if (initialData.strictSeller !== undefined) setStrictSeller(initialData.strictSeller);
                     if (initialData.globalSearchCaching !== undefined) setGlobalSearchCaching(initialData.globalSearchCaching);
+                    if (initialData.waVerificationEnabled !== undefined) setWaVerificationEnabled(initialData.waVerificationEnabled);
                     if (initialData.whatsappNegotiationBridge !== undefined) setWhatsappNegotiationBridge(initialData.whatsappNegotiationBridge);
 
                     if (initialData.maxNegotiationDiscount !== undefined) {
@@ -245,7 +247,7 @@ export default function AdminSettings() {
     }, setIsSavingShipping);
 
     const handleSaveSecurity = () => saveSection({
-        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge
+        aiMonitoring, kycVerification, escrowRelease, strictSeller, globalSearchCaching, whatsappNegotiationBridge, waVerificationEnabled
     }, setIsSavingSecurity);
 
     const handleSaveSupport = () => saveSection({
@@ -684,6 +686,13 @@ export default function AdminSettings() {
                                     <p className="text-xs text-gray-400 mt-0.5">Enable real-time negotiations and alerts via WhatsApp Cloud API</p>
                                 </div>
                                 <Switch checked={whatsappNegotiationBridge} onCheckedChange={setWhatsappNegotiationBridge} />
+                            </div>
+                            <div className="flex items-center justify-between py-4 border-b border-gray-50 last:border-0">
+                                <div className="max-w-md">
+                                    <h4 className="text-sm font-bold text-gray-900">WhatsApp OTP Verification</h4>
+                                    <p className="text-xs text-gray-400 mt-0.5">Force WhatsApp-first login for all users (requires WhatsApp Number)</p>
+                                </div>
+                                <Switch checked={waVerificationEnabled} onCheckedChange={setWaVerificationEnabled} />
                             </div>
                         </div>
 

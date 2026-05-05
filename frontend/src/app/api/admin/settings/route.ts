@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
     codGlobalEnabled: true,
     codGlobalThreshold: 50000,
     globalSearchCaching: true,
+    waVerificationEnabled: false,
     supportConfig: {
         email: "hello@fairprice.ng",
         whatsapp: "2348162816305",

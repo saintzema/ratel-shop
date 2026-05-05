@@ -32,9 +32,13 @@ export default function AdminConciergeChatsPage() {
         const chats = DataSyncService.getConciergeChats();
         // Sort by last message timestamp (most recent first)
         chats.sort((a, b) => {
-            const lastA = (a.chat_messages?.[a.chat_messages?.length - 1])?.timestamp || a.created_at;
-            const lastB = (b.chat_messages?.[b.chat_messages?.length - 1])?.timestamp || b.created_at;
-            return new Date(lastB).getTime() - new Date(lastA).getTime();
+            const lastA = (a.chat_messages && a.chat_messages.length > 0) 
+                ? new Date(a.chat_messages[a.chat_messages.length - 1].timestamp).getTime() 
+                : new Date(a.created_at).getTime();
+            const lastB = (b.chat_messages && b.chat_messages.length > 0) 
+                ? new Date(b.chat_messages[b.chat_messages.length - 1].timestamp).getTime() 
+                : new Date(b.created_at).getTime();
+            return lastB - lastA;
         });
         setOrdersWithChats(chats);
     };

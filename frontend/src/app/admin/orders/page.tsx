@@ -89,7 +89,7 @@ export default function AdminOrdersPage() {
                         }}
                         className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-600/20 transition-all active:scale-95 whitespace-nowrap"
                     >
-                        <Zap className="w-3.5 h-3.5 mr-2 fill-white" />
+                        <Zap className="w-3.5 h-3.5 mr-2" fill="white" />
                         Reconcile Escrow
                     </Button>
                     <div className="relative w-full md:w-72">

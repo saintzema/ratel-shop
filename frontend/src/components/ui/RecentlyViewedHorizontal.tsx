@@ -7,6 +7,7 @@ import { formatPrice, getProductUrl } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
+import { DataSyncService } from "@/lib/sync-store";
 
 export function RecentlyViewedHorizontal() {
     const [history, setHistory] = useState<any[]>([]);
@@ -19,16 +20,18 @@ export function RecentlyViewedHorizontal() {
         setMounted(true);
         const loadHistory = () => {
             try {
-                const saved = localStorage.getItem("fp_browsing_history");
-                if (saved) {
-                    setHistory(JSON.parse(saved));
-                }
+                const hydratedHistory = DataSyncService.getSearchHistoryProducts();
+                setHistory(hydratedHistory);
             } catch (e) {}
         };
 
         loadHistory();
         window.addEventListener("storage", loadHistory);
-        return () => window.removeEventListener("storage", loadHistory);
+        window.addEventListener("sync-store-update", loadHistory);
+        return () => {
+            window.removeEventListener("storage", loadHistory);
+            window.removeEventListener("sync-store-update", loadHistory);
+        };
     }, []);
 
     if (!mounted || history.length === 0) return null;

@@ -424,7 +424,7 @@ function HomeContent() {
                 <StoreDiscoveryRail />
 
                 <section className="w-full px-1 md:px-2 mb-8">
-                  <RecommendedProducts products={allProducts} title="Recommended For You" />
+                  <RecommendedProducts products={allProducts.length > 0 ? allProducts : SEED_PRODUCTS} title="Recommended For You" />
                 </section>
                       </>
                     )
