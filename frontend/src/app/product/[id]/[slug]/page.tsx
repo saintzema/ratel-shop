@@ -111,19 +111,19 @@ export default async function ProductPage({ params }: Props) {
                 '@type': 'ListItem',
                 position: 1,
                 name: 'All Stores',
-                item: 'https://fairprice.ng/stores'
+                item: 'https://www.fairprice.ng/stores'
             },
             {
                 '@type': 'ListItem',
                 position: 2,
                 name: (productDetails as any)?.seller_name || 'Store',
-                item: `https://fairprice.ng/store/${(productDetails as any)?.seller_id}`
+                item: `https://www.fairprice.ng/store/${(productDetails as any)?.seller_id}`
             },
             {
                 '@type': 'ListItem',
                 position: 3,
                 name: productDetails?.name || 'Product',
-                item: `https://fairprice.ng/product/${resolvedParams.id}`
+                item: `https://www.fairprice.ng/product/${resolvedParams.id}`
             }
         ]
     };
@@ -143,7 +143,7 @@ export default async function ProductPage({ params }: Props) {
         '@context': 'https://schema.org',
         '@type': 'Product',
         name: productDetails?.name || 'Product',
-        image: (productDetails as any)?.imageUrl || (productDetails as any)?.image_url || 'https://fairprice.ng/logo.png',
+        image: (productDetails as any)?.imageUrl || (productDetails as any)?.image_url || 'https://www.fairprice.ng/logo.png',
         description: productDetails?.description || 'Price verification and secure marketplace for premium products in Nigeria.',
         sku: productDetails?.id,
         brand: {
@@ -152,7 +152,7 @@ export default async function ProductPage({ params }: Props) {
         },
         offers: {
             '@type': 'Offer',
-            url: `https://fairprice.ng/product/${resolvedParams.id}`,
+            url: `https://www.fairprice.ng/product/${resolvedParams.id}`,
             priceCurrency: 'NGN',
             price: productDetails?.price || 0,
             itemCondition: 'https://schema.org/NewCondition',

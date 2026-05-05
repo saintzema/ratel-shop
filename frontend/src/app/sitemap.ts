@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { SEED_PRODUCTS } from '@/lib/data'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://fairprice.ng'
+  const baseUrl = 'https://www.fairprice.ng'
 
   // 1. Static Routes
   const staticRoutes = [

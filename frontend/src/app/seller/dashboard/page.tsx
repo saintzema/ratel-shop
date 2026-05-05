@@ -437,7 +437,7 @@ export default function SellerDashboard() {
                             <div className="relative">
                                 <QRCodeCanvas 
                                     id="store-sharing-qr"
-                                    value={safeSeller.store_url ? `https://fairprice.ng/store/${safeSeller.store_url}` : `https://fairprice.ng/store/${safeSeller.id}`}
+                                    value={safeSeller.store_url ? `https://www.fairprice.ng/store/${safeSeller.store_url}` : `https://www.fairprice.ng/store/${safeSeller.id}`}
                                     size={140}
                                     level="H"
                                     imageSettings={{
@@ -477,7 +477,7 @@ export default function SellerDashboard() {
                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Share via Social Media</p>
                         <div className="grid grid-cols-5 gap-2 sm:gap-4 w-full">
                             <a
-                                href={`https://wa.me/?text=${encodeURIComponent(`Check out my store on FairPrice: https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`)}`}
+                                href={`https://wa.me/?text=${encodeURIComponent(`Check out my store on FairPrice: https://www.fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-[#25D366]/20 bg-[#25D366]/5 group"
@@ -507,7 +507,7 @@ export default function SellerDashboard() {
                                 </div>
                             </a>
                             <a
-                                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`)}`}
+                                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(`https://www.fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-[#1877F2]/20 bg-[#1877F2]/5 group"
@@ -518,7 +518,7 @@ export default function SellerDashboard() {
                             </a>
                             <button
                                 onClick={() => {
-                                    const url = `https://fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
+                                    const url = `https://www.fairprice.ng/store/${safeSeller.store_url || safeSeller.id}`;
                                     navigator.clipboard.writeText(url);
                                     setCopiedStoreLink(true);
                                     setTimeout(() => setCopiedStoreLink(false), 2000);

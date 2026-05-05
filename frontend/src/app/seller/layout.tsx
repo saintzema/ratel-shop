@@ -453,10 +453,26 @@ export default function SellerLayout({
                             </DialogDescription>
                         </DialogHeader>
                         <div className="grid gap-2 py-4 mt-2">
-                            {allUserStores.map((store) => (
+                            {allUserStores.map((store, index) => {
+                                const limits: Record<string, number> = {
+                                    "Starter": 1,
+                                    "Pro": 2,
+                                    "Growth": 3,
+                                    "Scale": 10
+                                };
+                                // Determine the highest plan across all user stores to avoid locking them out of a pro store if they are logged into a starter store
+                                const highestLimit = Math.max(...allUserStores.map(s => limits[s.subscription_plan || "Starter"] || 1));
+                                const isLocked = index >= highestLimit && currentSeller.id !== store.id;
+
+                                return (
                                 <button
                                     key={store.id}
                                     onClick={() => {
+                                        if (isLocked) {
+                                            setIsSwitchModalOpen(false);
+                                            router.push("/seller/settings/billing");
+                                            return;
+                                        }
                                         DataSyncService.loginSeller(store.id);
                                         setIsSwitchModalOpen(false);
                                         window.dispatchEvent(new Event("sync-store-update"));
@@ -466,7 +482,9 @@ export default function SellerLayout({
                                         "w-full flex items-center gap-4 p-3 rounded-2xl border transition-all text-left",
                                         currentSeller.id === store.id
                                             ? "border-emerald-500 bg-emerald-50 shadow-sm"
-                                            : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
+                                            : isLocked 
+                                                ? "border-gray-200 bg-gray-50 opacity-70 hover:border-gray-300"
+                                                : "border-gray-200 bg-white hover:border-emerald-200 hover:bg-emerald-50/50"
                                     )}
                                 >
                                     <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white font-bold text-lg shrink-0">
@@ -480,11 +498,17 @@ export default function SellerLayout({
                                             {store.subscription_plan || "Starter"} Plan
                                         </p>
                                     </div>
-                                    {currentSeller.id === store.id && (
+                                    {isLocked ? (
+                                        <div className="bg-gray-200 text-gray-500 p-1 rounded-md shrink-0">
+                                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                            </svg>
+                                        </div>
+                                    ) : currentSeller.id === store.id ? (
                                         <div className="h-2 w-2 rounded-full bg-emerald-500 mr-2 shrink-0" />
-                                    )}
+                                    ) : null}
                                 </button>
-                            ))}
+                            )})}
 
                             <Button
                                 variant="outline"

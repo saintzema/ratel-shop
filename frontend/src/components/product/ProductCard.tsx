@@ -124,12 +124,20 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
                     className="relative aspect-square object-cover bg-muted"
                     onClick={handleDoubleTap}
                 >
-                    {/* Sponsored Ad Tag */}
-                    {product.is_sponsored && (
-                        <div className="absolute bottom-3 left-3 z-40 bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-md border border-white/20 flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
-                        </div>
-                    )}
+                    {/* Bottom Left Badges (Sponsored & Premium Seller) */}
+                    <div className="absolute bottom-3 left-3 z-40 flex flex-col gap-1 items-start">
+                        {product.is_sponsored && (
+                            <div className="bg-black/85 backdrop-blur-md text-white px-3 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-full shadow-md border border-white/20 flex items-center gap-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-brand-green-400 animate-pulse" /> Sponsored
+                            </div>
+                        )}
+                        {cardSeller?.subscription_plan && cardSeller.subscription_plan !== "Starter" && (
+                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/95 backdrop-blur-md rounded shadow-md border border-amber-300">
+                                <Crown className="h-2.5 w-2.5 text-white" />
+                                <span className="text-[9px] font-black text-white uppercase tracking-widest">Premium Seller</span>
+                            </div>
+                        )}
+                    </div>
                     {/* Fair Price / Overpriced Badge Overlay */}
                     {product.price_flag === "fair" && (
                         <div className="absolute top-3 left-3 z-20 flex items-center gap-1 px-2 py-1.5 bg-white/70 backdrop-blur-md rounded-full border border-emerald-500/20 shadow-xl group-hover:scale-105 transition-transform duration-300">
@@ -160,12 +168,7 @@ export function ProductCard({ product, dealEndTime, dealDiscountText, className 
 
                     {/* Seller Tenure Badge (Bottom Right Image) */}
                     <div className="absolute bottom-3 right-3 z-30 flex flex-col items-end gap-1">
-                        {cardSeller?.subscription_plan && cardSeller.subscription_plan !== "Starter" && (
-                            <div className="flex items-center gap-1 px-2 py-1 bg-amber-500/95 backdrop-blur-md rounded shadow-md border border-amber-300">
-                                <Crown className="h-2.5 w-2.5 text-white" />
-                                <span className="text-[9px] font-black text-white uppercase tracking-widest">Premium Seller</span>
-                            </div>
-                        )}
+
                         {showTenureBadge && (
                             <div className="flex items-center gap-1 px-2 py-1 bg-blue-600/90 backdrop-blur-md rounded shadow-md border border-blue-400">
                                 <ShieldCheck className="h-2.5 w-2.5 text-white" />

@@ -176,10 +176,18 @@ function HomeContent() {
         .map(p => {
           const savings = (p.original_price || p.price) - p.price;
           const discountPct = Math.round((savings / (p.original_price || p.price)) * 100);
-          return {
-            ...p,
-            dealEndTime: p.created_at ? new Date(new Date(p.created_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : new Date(new Date().setHours(23, 59, 59, 999)).toISOString(),
-            dealDiscountText: `${discountPct}% OFF`
+            const isGlobal = p.seller_id === 'global-partners';
+            const createdPlus24h = p.created_at ? new Date(p.created_at).getTime() + 24 * 60 * 60 * 1000 : 0;
+            const dealEndTime = isGlobal
+              ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString() // 6 months from now
+              : (createdPlus24h > Date.now() 
+                  ? new Date(createdPlus24h).toISOString() 
+                  : new Date(new Date().setHours(23, 59, 59, 999)).toISOString());
+
+            return {
+              ...p,
+              dealEndTime,
+              dealDiscountText: `${discountPct}% OFF`
           };
         }),
       phonesProducts: getByCategory("Phones"),

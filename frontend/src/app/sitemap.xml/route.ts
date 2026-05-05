@@ -5,7 +5,7 @@ import { getProductUrl } from '@/lib/utils';
 export const revalidate = 21600; // Always regenerate on request
 
 export async function GET() {
-    const baseUrl = 'https://fairprice.ng';
+    const baseUrl = 'https://www.fairprice.ng';
 
     // Static routes
     const staticRoutes = [

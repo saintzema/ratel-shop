@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/admin/', '/api/', '/account/'],
     },
-    sitemap: 'https://fairprice.ng/sitemap.xml',
+    sitemap: 'https://www.fairprice.ng/sitemap.xml',
   }
 }
