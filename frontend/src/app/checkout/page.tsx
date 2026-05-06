@@ -2054,10 +2054,7 @@ function CheckoutContent() {
                                                 <svg className="w-8 h-4 rounded-sm bg-blue-800 flex items-center justify-center px-1" viewBox="0 0 36 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                                                     <path d="M14.6548 0.625366L9.61334 11.3752H6.26257L3.95544 3.12565C3.81848 2.50285 3.65588 2.2155 3.19702 1.95679C2.42255 1.51737 1.15112 1.0504 0 0.825226V0.625366H5.21045C5.86792 0.625366 6.45288 1.04543 6.61157 1.83186L7.91528 8.63229L11.3533 0.625366H14.6548ZM26.3779 7.64716C26.3989 4.79374 22.464 4.6346 22.4854 3.32832C22.4922 2.92345 22.8804 2.49352 23.7549 2.37895C24.1956 2.3168 25.4377 2.27453 26.4302 2.73463L27.0176 0.111816C26.4819 0.00976562 25.5459 0 24.4379 0C21.4324 0 19.4175 1.54719 19.3958 3.75087C19.3765 5.37839 20.9163 6.28822 22.072 6.83763C23.2644 7.40445 23.6655 7.765 23.6624 8.27211C23.6565 9.04753 22.6953 9.39558 21.8491 9.39558C20.3013 9.39558 19.4121 8.98036 18.7842 8.68205L18.1729 11.3653C18.7905 11.6462 20.071 11.875 21.4019 11.875C24.5886 11.875 26.3572 10.3343 26.3779 7.64716ZM34.2144 11.3752H37.0503L34.1866 0.625366H31.5496C30.9824 0.625366 30.5093 0.94101 30.292 1.45564L25.8601 11.3752H29.3093L29.9978 9.53535H34.2144V11.3752ZM30.9839 6.80531L32.656 2.36894L33.623 6.80531H30.9839ZM18.4233 11.3752L15.4243 0.625366H12.3552L15.3523 11.3752H18.4233Z" fill="white"/>
                                                 </svg>
-                                                {/* OPay Stylized Text */}
-                                                <div className="h-4 px-1.5 flex items-center justify-center bg-emerald-500 rounded-sm">
-                                                    <span className="text-[10px] font-black text-white italic tracking-tighter">OPay</span>
-                                                </div>
+                    
                                             </div>
                                         </div>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -2074,6 +2071,10 @@ function CheckoutContent() {
                                         <div className="flex items-center gap-2 mb-0.5">
                                             <span className="font-bold text-gray-900">Pay with Transfer</span>
                                             <Building className="h-4 w-4 text-blue-500" />
+                                            {/* OPay Stylized Text */}
+                                                <div className="h-4 px-1.5 flex items-center justify-center bg-emerald-500 rounded-sm">
+                                                    <span className="text-[10px] font-black text-white italic tracking-tighter">OPay</span>
+                                                </div>
                                         </div>
                                         <p className="text-xs text-gray-500 flex items-center gap-1">
                                             <Lock className="h-3 w-3" /> Bank transfer via Paystack
