@@ -448,7 +448,7 @@ function CheckoutContent() {
     const [paystackMetadata, setPaystackMetadata] = useState<any>(null);
 
     // Collapsible Address State
-    const [isAddressExpanded, setIsAddressExpanded] = useState(false);
+    const [isAddressExpanded, setIsAddressExpanded] = useState(true);
     const hasPhysicalProduct = useMemo(() => {
         const physicalCategories = ["phones", "electronics", "home", "fashion", "beauty", "sports", "fitness", "cars", "energy", "appliances", "baby", "grocery", "computers", "textiles", "automotive"];
         return checkoutItems.some(item => physicalCategories.includes(item.product.category?.toLowerCase() || ""));
@@ -1346,28 +1346,19 @@ function CheckoutContent() {
                     )}
 
                     {/* Step 1: Review Items */}
-                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${checkoutStep === 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
+                    <section className={`bg-white rounded-2xl shadow-sm border transition-all duration-300 ${checkoutStep >= 1 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden`}>
                         <div 
-                            className={`p-6 border-b border-gray-100 flex justify-between items-center cursor-pointer transition-colors ${checkoutStep === 1 ? 'bg-gray-50/50' : 'bg-gray-50/30'}`}
-                            onClick={() => { if (checkoutStep > 1) setCheckoutStep(1); }}
+                            className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50"
                         >
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 1 ? 'bg-black text-white' : checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                            <h2 className="font-bold text-lg flex items-center gap-2 text-gray-900">
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep > 1 ? 'bg-brand-green-600 text-white' : 'bg-black text-white'}`}>
                                     {checkoutStep > 1 ? <Check className="h-4 w-4" /> : '1'}
                                 </span>
                                 Review Items ({checkoutItems.length})
                             </h2>
-                            {checkoutStep > 1 && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(1); }}
-                                    className="text-xs font-bold text-blue-600 hover:text-brand-orange"
-                                >
-                                    VIEW
-                                </button>
-                            )}
                         </div>
 
-                        {checkoutStep === 1 && (
+                        {
                             <div className="p-6">
                                 {/* Group items by seller */}
                                 {(() => {
@@ -1475,21 +1466,24 @@ function CheckoutContent() {
 
                                 <div className="mt-8 flex justify-end">
                                     <Button 
-                                        onClick={() => setCheckoutStep(2)}
+                                        onClick={() => {
+                                            if (checkoutStep < 2) setCheckoutStep(2);
+                                            shippingAddressRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                        }}
                                         className="rounded-xl h-12 px-8 bg-brand-green-600 hover:bg-brand-green-700 text-white font-bold"
                                     >
                                         Confirm Items & Continue
                                     </Button>
                                 </div>
                             </div>
-                        )}
+                        }
                     </section>
 
                     {/* Step 2: Shipping & Delivery Info */}
-                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep === 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
-                        <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 cursor-pointer" onClick={() => { if (checkoutStep > 2) setCheckoutStep(2); else if (checkoutStep === 1) setCheckoutStep(2); }}>
-                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep === 2 ? 'text-gray-900' : 'text-gray-500'}`}>
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep === 2 ? 'bg-black text-white' : checkoutStep > 2 ? 'bg-brand-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                    <section ref={shippingAddressRef} className={`bg-white rounded-2xl shadow-sm border ${addressError ? 'border-red-400 ring-1 ring-red-400' : checkoutStep >= 2 ? 'border-brand-green-500 ring-1 ring-brand-green-500' : 'border-gray-100'} overflow-hidden transition-all duration-300`}>
+                        <div className={`p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 ${checkoutStep === 3 ? 'cursor-pointer' : ''}`} onClick={() => { if (checkoutStep === 3) setCheckoutStep(2); }}>
+                            <h2 className={`font-bold text-lg flex items-center gap-2 ${checkoutStep >= 2 ? 'text-gray-900' : 'text-gray-500'}`}>
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${checkoutStep > 2 ? 'bg-brand-green-600 text-white' : checkoutStep >= 2 ? 'bg-black text-white' : 'bg-gray-200 text-gray-500'}`}>
                                     {checkoutStep > 2 ? <Check className="h-4 w-4" /> : '2'}
                                 </span>
                                 Shipping & Delivery Info
@@ -1497,9 +1491,9 @@ function CheckoutContent() {
                             {addressError && (
                                 <p className="text-sm text-red-500 font-semibold">Please enter your delivery address</p>
                             )}
-                            {checkoutStep > 1 && (
+                            {checkoutStep === 3 && (
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); setCheckoutStep(1); }}
+                                    onClick={() => setCheckoutStep(2)}
                                     className="text-xs font-bold text-blue-600 hover:text-brand-orange"
                                 >
                                     CHANGE
@@ -1507,7 +1501,7 @@ function CheckoutContent() {
                             )}
                         </div>
 
-                        {checkoutStep === 2 ? (
+                        {checkoutStep < 3 ? (
                             <div className="p-6">
                                 {/* Saved Address Card List - ALWAYS RENDER AT TOP */}
                                 {savedAddresses.length > 0 && (
@@ -2113,12 +2107,8 @@ function CheckoutContent() {
                                             <span className="font-bold text-gray-500">Pay on Delivery</span>
                                             <p className="text-xs text-gray-400">
                                                 {!codEnabled
-                                                    ? "Pay on Delivery is currently disabled"
-                                                    : hasGlobalProduct && !codGlobalEnabled
-                                                        ? "Global orders don't qualify for Pay on Delivery"
-                                                        : hasGlobalProduct && total > codGlobalThreshold
-                                                            ? `Global order exceeds ₦${codGlobalThreshold.toLocaleString()} limit`
-                                                            : `Order total exceeds ₦${codThreshold.toLocaleString()} limit`}
+                                                    ? "Pay on Delivery is currently unavailable"
+                                                    : "This order doesn't qualify for Pay on Delivery"}
                                             </p>
                                         </div>
                                     </div>

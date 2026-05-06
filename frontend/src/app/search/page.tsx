@@ -951,6 +951,10 @@ function SearchContent() {
               new Date(b.created_at).getTime() -
               new Date(a.created_at).getTime()
             );
+          case "best_selling":
+            return (b.sold_count || 0) - (a.sold_count || 0);
+          case "top_rated":
+            return (b.avg_rating || 0) - (a.avg_rating || 0);
           default: {
             if (a.is_sponsored && !b.is_sponsored) return -1;
             if (!a.is_sponsored && b.is_sponsored) return 1;
@@ -1210,6 +1214,8 @@ function SearchContent() {
                         className="appearance-none flex items-center gap-1.5 pl-3 pr-7 py-1.5 rounded-full text-[12px] font-bold border border-gray-200 bg-white"
                       >
                         <option value="relevance">Sort: Relevance</option>
+                        <option value="best_selling">Best Selling</option>
+                        <option value="top_rated">Top Rated</option>
                         <option value="price_asc">Price: Low-High</option>
                         <option value="price_desc">Price: High-Low</option>
                         <option value="newest">Newest</option>

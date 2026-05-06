@@ -1592,7 +1592,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                             <Sparkles className="h-3 w-3" /> FairPrice Intelligence
                                         </p>
                                         <div className="flex items-center justify-between text-xs">
-                                            <span className="text-gray-600">Average Price:</span>
+                                            <span className="text-gray-600">Average Market Price:</span>
                                             <span className="font-bold text-gray-900">{formatPrice(priceComparison.market_avg)}</span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs">
@@ -1608,68 +1608,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         </div>
                                     </div>
                                 )}
-
-                                {/* Full Price Payment Option */}
-                                <div className="p-5 rounded-3xl border border-gray-200 bg-white shadow-sm flex flex-col gap-4">
-                                    <Button 
-                                        onClick={handleBuyNow}
-                                        className="w-full h-14 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg shadow-xl active:scale-[0.98] transition-all flex flex-col items-center justify-center relative overflow-hidden group"
-                                    >
-                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent translate-x-[-100%] group-hover:animate-[shimmer_1.5s_infinite]" />
-                                        <span className="text-xs font-bold text-gray-300 uppercase tracking-widest mb-0.5">Pay Full Price Now</span>
-                                        <span>{formatPrice(product.price * quantity)}</span>
-                                    </Button>
-                                    
-                                    <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-gray-600 uppercase tracking-tight">
-                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                            <Handshake className="h-3 w-3 text-ratel-green-600" />
-                                            Negotiate Price
-                                        </div>
-                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                            <CheckCircle2 className="h-3 w-3 text-ratel-green-600" />
-                                            85% Acceptance Rate
-                                        </div>
-                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                            <QrCode className="h-3 w-3 text-ratel-green-600" />
-                                            Scan to Pay
-                                        </div>
-                                        <div className="flex items-center gap-1.5 bg-gray-50 p-2 rounded-lg border border-gray-100">
-                                            <ShieldCheck className="h-3 w-3 text-ratel-green-600" />
-                                            FAST & SECURE
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Buy Now, Pay Later Discovery & Breakdown */}
-                                <FinancingOffer product={product} />
-
-                                {/* Price History Embedded Widget */}
-                                {priceComparison && (
-                                    <div className="mt-1">
-                                        <PriceGraphWidget 
-                                            history={[
-                                                { month: "Sep", price: Math.round(priceComparison.market_avg * 1.05) },
-                                                { month: "Oct", price: Math.round(priceComparison.market_avg * 1.01) },
-                                                { month: "Nov", price: Math.round(priceComparison.market_avg * 0.98) },
-                                                { month: "Dec", price: Math.round(priceComparison.market_avg * 1.08) },
-                                                { month: "Jan", price: Math.round(priceComparison.market_avg * 1.02) },
-                                                { month: "Feb", price: priceComparison.market_avg }
-                                            ]} 
-                                            priceDirection="falling" 
-                                        />
-                                    </div>
-                                )}
-
-                                {/* ─── GOOGLE 2026 TRUST SIGNAL: 14-DAY RETURNS ─── */}
-                                <div className="mt-1 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 backdrop-blur-md flex items-center gap-4 transition-all hover:bg-emerald-50/50 group">
-                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
-                                        <RotateCcw className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-xs font-black text-gray-900 leading-tight">14-Day Easy Returns</span>
-                                        <p className="text-[10px] text-gray-500 font-medium tracking-wide uppercase">Consumer Protection Guaranteed</p>
-                                    </div>
-                                </div>
 
                                 {/* ─── VARIANTS & BUNDLES ─── */}
                                 {product.variants && product.variants.length > 0 && (
@@ -1687,8 +1625,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                             if (imgIdx >= 0) {
                                                                 setCurrentImageIndex(imgIdx);
                                                             } else {
-                                                                // Fast fallback if image isn't in main gallery yet
-                                                                setCurrentImageIndex(0); // Optional: add to allImages dynamically if needed
+                                                                setCurrentImageIndex(0);
                                                             }
                                                         }
                                                     }}
@@ -1724,8 +1661,6 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </div>
                                 <div className="space-y-3 pt-2">
-
-
                                     {product.stock === 0 ? (
                                         <Button
                                             className="w-full rounded-full bg-gray-200 hover:bg-gray-300 text-gray-600 font-black py-6 text-lg transition-all cursor-not-allowed shadow-none"
@@ -1747,7 +1682,10 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                 className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-6 text-lg transition-all hover:scale-[1.02] shadow-xl shadow-emerald-500/20"
                                                 onClick={handleBuyNow}
                                             >
-                                                {hasFinancing(product) ? `Pay ${formatPrice(loanAnalysis?.deposit || 0)} Deposit` : "Buy Now"}
+                                                {hasFinancing(product) 
+                                                    ? `Pay Full Price Now ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}` 
+                                                    : `Pay ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}`
+                                                }
                                             </Button>
 
                                             <Button
@@ -1829,6 +1767,39 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     )}
 
                                 </div>
+
+                                {/* Buy Now, Pay Later Discovery & Breakdown */}
+                                <FinancingOffer product={product} />
+
+                                {/* Price History Embedded Widget */}
+                                {priceComparison && (
+                                    <div className="mt-1">
+                                        <PriceGraphWidget 
+                                            history={[
+                                                { month: "Sep", price: Math.round(priceComparison.market_avg * 1.05) },
+                                                { month: "Oct", price: Math.round(priceComparison.market_avg * 1.01) },
+                                                { month: "Nov", price: Math.round(priceComparison.market_avg * 0.98) },
+                                                { month: "Dec", price: Math.round(priceComparison.market_avg * 1.08) },
+                                                { month: "Jan", price: Math.round(priceComparison.market_avg * 1.02) },
+                                                { month: "Feb", price: priceComparison.market_avg }
+                                            ]} 
+                                            priceDirection="falling" 
+                                        />
+                                    </div>
+                                )}
+
+                                {/* ─── GOOGLE 2026 TRUST SIGNAL: 14-DAY RETURNS ─── */}
+                                <div className="mt-1 p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 backdrop-blur-md flex items-center gap-4 transition-all hover:bg-emerald-50/50 group">
+                                    <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-white border border-emerald-200 text-emerald-600 shadow-sm group-hover:scale-110 transition-transform">
+                                        <RotateCcw className="h-5 w-5" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-black text-gray-900 leading-tight">14-Day Easy Returns</span>
+                                        <p className="text-[10px] text-gray-500 font-medium tracking-wide uppercase">Consumer Protection Guaranteed</p>
+                                    </div>
+                                </div>
+
+
 
                                 <div className="flex flex-col gap-3 pt-4 border-t border-gray-100 text-[11px] text-gray-500">
                                     <div className="flex items-center gap-3 bg-emerald-50/50 border border-emerald-100 p-3 rounded-2xl">

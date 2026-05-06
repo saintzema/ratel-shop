@@ -47,9 +47,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: true, disputes: mappedDisputes });
     } catch (error: any) {
         console.error("Disputes API Error:", error);
+        // Fallback to empty disputes to prevent UI issues if the table is missing or migrating
         return NextResponse.json(
-            { success: false, error: "Failed to fetch disputes", details: error.message },
-            { status: 500 }
+            { success: false, disputes: [], error: "Failed to fetch disputes", details: error.message },
+            { status: 200 }
         );
     }
 }

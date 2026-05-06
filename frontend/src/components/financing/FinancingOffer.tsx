@@ -119,6 +119,7 @@ export function FinancingOffer({ product }: FinancingOfferProps) {
 
             <Dialog open={isOpen} onOpenChange={setIsOpen}>
                 <DialogContent className="max-w-2xl p-0 overflow-hidden bg-white rounded-[2rem] border-none shadow-2xl">
+                    <DialogTitle className="sr-only">Financing Application</DialogTitle>
                     <div className="flex flex-col md:flex-row h-[600px]">
                         {/* Sidebar */}
                         <div className="w-full md:w-72 bg-gray-900 p-8 text-white flex flex-col justify-between relative overflow-hidden">

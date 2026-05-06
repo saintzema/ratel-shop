@@ -40,15 +40,6 @@ export async function POST(req: Request) {
         if (body.avatar_url !== undefined) updateData.avatarUrl = body.avatar_url;
         if (body.location !== undefined) updateData.location = body.location;
         if (body.birthday !== undefined) updateData.birthday = body.birthday;
-        if (body.phone !== undefined) updateData.phone = body.phone;
-        if (body.address !== undefined) updateData.address = body.address;
-
-        if (body.password) {
-            const bcryptStr = await import("bcryptjs");
-            // Workaround for module loading in edge/node
-            const bcrypt = 'default' in bcryptStr ? bcryptStr.default : bcryptStr;
-            updateData.password = await bcrypt.hash(body.password, 12);
-        }
 
         // SECURITY: Role Protection
         // Prevent unauthorized role escalation. 
@@ -109,7 +100,7 @@ export async function POST(req: Request) {
     } catch (error: any) {
         console.error("User creation error:", error);
         return NextResponse.json(
-            { error: error.message || "Failed to create or update user" }, 
+            { error: "Database error or unreachable. Check your connection string.", details: error.message }, 
             { status: 500 }
         );
     }

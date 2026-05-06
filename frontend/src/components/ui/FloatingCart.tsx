@@ -48,8 +48,7 @@ export function FloatingCart() {
                         router.push("/cart");
                     }
                 }}
-                // Make it visible on all screens by removing md:hidden
-                className="fixed z-[1015] right-4 md:right-8 top-[55%] w-14 h-14 bg-gradient-to-tr from-brand-green-600 to-emerald-500 rounded-full shadow-[0_8px_30px_rgba(16,185,129,0.4)] flex flex-col items-center justify-center text-white border-2 border-white/20 backdrop-blur-md pt-0.5 hover:scale-105 transition-transform"
+                className="fixed z-[1015] right-4 md:right-8 top-[55%] w-14 h-14 rounded-full bg-emerald-600 shadow-lg shadow-emerald-600/30 flex items-center justify-center transition-all hover:bg-emerald-700 hover:scale-110 active:scale-95 cursor-pointer"
                 style={{ WebkitTapHighlightColor: "transparent", touchAction: "none" }}
             >
                 <motion.div
@@ -58,19 +57,22 @@ export function FloatingCart() {
                         rotate: [0, -15, 15, -10, 0]
                     } : {}}
                     transition={{ duration: 0.6, ease: "easeInOut" }}
-                    className="flex flex-col items-center justify-center gap-0.5"
                 >
-                    <ShoppingCart className="h-5 w-5" />
-                    <span className="text-[9px] font-bold leading-none tracking-wide">Cart</span>
+                    <ShoppingCart className="h-6 w-6 text-white" strokeWidth={2.5} />
                 </motion.div>
 
-                {/* Badge */}
+                {/* Plus badge — matches recommended product cards */}
+                <div className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-emerald-100">
+                    <span className="font-black text-emerald-600 text-[11px] leading-none">+</span>
+                </div>
+
+                {/* Item count badge */}
                 {itemCount > 0 && (
                     <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
-                        key={itemCount} // Re-animate badge when count changes
-                        className="absolute -top-1 -right-1 bg-brand-orange text-black text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-transparent shadow-sm animate-cart-bounce"
+                        key={itemCount}
+                        className="absolute -bottom-1 -right-1 bg-brand-orange text-black text-[10px] font-black w-6 h-6 flex items-center justify-center rounded-full border-2 border-white shadow-sm animate-cart-bounce"
                     >
                         {itemCount}
                     </motion.div>

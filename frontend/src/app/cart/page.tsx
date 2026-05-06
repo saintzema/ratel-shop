@@ -36,7 +36,7 @@ export default function CartPage() {
             <ExitIntentModal />
             <Navbar />
 
-            <main className="flex-1 container mx-auto px-4 py-12 pb-28 lg:pb-10 flex flex-col lg:flex-row gap-6 relative">
+            <main className="flex-1 container mx-auto px-4 pt-28 pb-12 lg:pb-10 flex flex-col lg:flex-row gap-6 relative">
                 {/* Left Column: Cart Items */}
                 <div className="flex-1 bg-white p-6 rounded shadow-sm border border-gray-200">
                     <h1 className="text-2xl font-bold mb-1">Shopping Cart</h1>
