@@ -165,6 +165,8 @@ export default function ProductDetailPage() {
 
     const [isFetchingGlobalData, setIsFetchingGlobalData] = useState(false);
     const [storeVersion, setStoreVersion] = useState(0);
+    const [fetchedProduct, setFetchedProduct] = useState<any>(null);
+    const [isFetchingFull, setIsFetchingFull] = useState(false);
     const [aiReviews, setAiReviews] = useState<any[]>([]);
     const [showQrModal, setShowQrModal] = useState(false);
     const [isDeferredReady, setIsDeferredReady] = useState(false);
@@ -194,7 +196,33 @@ export default function ProductDetailPage() {
 
     // Decode URI-encoded IDs (e.g. "AirPods%20Pro%203" → "AirPods Pro 3")
     const decodedId = id ? decodeURIComponent(id) : id;
-    let product = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
+    
+    // 1. Initial lookup from all sources
+    const cachedProduct = allProducts.find((p) => p.id === decodedId) || allProducts.find((p) => p.id === id) || SEED_PRODUCTS.find((p) => p.id === decodedId) || SEED_PRODUCTS.find((p) => p.id === id) || SEED_DEALS.map(d => d.product).find((p) => p.id === decodedId || p.id === id);
+    
+    // 2. Use fetched version if available, otherwise cached
+    let product = fetchedProduct || cachedProduct;
+
+    // 3. Lazy fetch full details if cached version is lightweight (missing description)
+    useEffect(() => {
+        if (product && !product.description && !isFetchingFull && mounted) {
+            const getFullDetails = async () => {
+                setIsFetchingFull(true);
+                try {
+                    const res = await fetch(`/api/products/${product.id}`);
+                    if (res.ok) {
+                        const full = await res.json();
+                        setFetchedProduct(full);
+                    }
+                } catch (e) {
+                    console.error("Full product fetch failed:", e);
+                } finally {
+                    setIsFetchingFull(false);
+                }
+            };
+            getFullDetails();
+        }
+    }, [product, isFetchingFull, mounted]);
 
     // Auto-hydrate global product from URL if missing from store cache
     if (!product && (decodedId?.startsWith('global_') || decodedId?.startsWith('global-'))) {
@@ -526,7 +554,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     const pName = product?.name || "this item";
     const pCatDisplay = (product?.category) ? product.category : pName;
 
-    const seed = Array.from(product?.id || "default").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const seed: number = Array.from((product as any)?.id || "default").reduce((acc: number, char: any) => acc + char.charCodeAt(0), 0);
 
     const allNames = ["Chukwudi Amaechi", "Aisha Bello", "Oluwaseun Adeyemi", "Tariq Ibrahim", "Ngozi Okafor", "Emeka Nwosu", "Fatima Abubakar", "Adeola Johnson", "Chinedu Okeke", "Grace Ojo", "Kemi Babalola", "Musa Danjuma", "Ifeanyi Eze", "Bola Ahmed", "Blessing Uche"];
 
@@ -553,14 +581,14 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
     ];
 
     const getPseudoRandom = (index: number, max: number) => {
-        const scatter = Math.abs(Math.sin(seed + index)) * 10000;
+        const scatter = Math.abs(Math.sin((seed as number) + index)) * 10000;
         return Math.floor(scatter) % max;
     };
 
     // Shuffle names deterministically based on seed to guarantee uniqueness
     const shuffledNames = [...allNames].sort((a, b) => {
-        const ha = Math.abs(Math.sin(seed + a.charCodeAt(0)));
-        const hb = Math.abs(Math.sin(seed + b.charCodeAt(0)));
+        const ha = Math.abs(Math.sin((seed as number) + a.charCodeAt(0)));
+        const hb = Math.abs(Math.sin((seed as number) + b.charCodeAt(0)));
         return ha - hb;
     });
 
@@ -1427,7 +1455,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] uppercase font-bold text-gray-400">Available Colors</span>
                                                     <div className="flex gap-1 mt-0.5 mt-0.5 flex-wrap">
-                                                        {product.colors.filter(Boolean).map((color, idx) => (
+                                                        {product.colors.filter(Boolean).map((color: any, idx: number) => (
                                             <span key={idx} className="text-[10px] font-medium bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{color}</span>
                                                         ))}
                                                     </div>
@@ -1466,7 +1494,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                         {visibleSpecs.map(([key, value], i) => (
                                             <div key={key} className={`grid grid-cols-3 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                                                 <div className="px-8 py-4 font-semibold text-gray-600 text-sm">{key}</div>
-                                                <div className="px-8 py-4 col-span-2 text-gray-900 text-sm font-medium">{value}</div>
+                                                <div className="px-8 py-4 col-span-2 text-gray-900 text-sm font-medium">{String(value || "")}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -1683,7 +1711,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                                 onClick={handleBuyNow}
                                             >
                                                 {hasFinancing(product) 
-                                                    ? `Pay Full Price Now ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}` 
+                                                    ? `Pay Full Price - ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}` 
                                                     : `Pay ${formatPrice((product.variants?.[selectedVariantIndex]?.price ? Number(product.variants[selectedVariantIndex].price) : product.price) * quantity)}`
                                                 }
                                             </Button>

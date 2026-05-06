@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Star, ShieldCheck, ShoppingCart, Clock, Crown, Store, Plus } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Clock, Crown, Store, Plus, AlertTriangle } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl, getProxiedImageUrl, formatNumber } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
 import { nativeBridge } from "@/lib/native-bridge";
 import { DataSyncService } from "@/lib/sync-store";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/AuthContext";
 
 interface CompactPriceDropCardProps {
     product: Product;
@@ -17,8 +19,10 @@ interface CompactPriceDropCardProps {
 
 export function CompactPriceDropCard({ product, className }: CompactPriceDropCardProps) {
     const { addToCart } = useCart();
+    const { user } = useAuth();
     const router = useRouter();
     const [timeLeft, setTimeLeft] = useState<string>("");
+    const [addedToCart, setAddedToCart] = useState(false);
     
     // Calculate simulated deal end time. If past, default to midnight today so it's always ticking.
     const createdPlus24h = product.created_at ? new Date(new Date(product.created_at).getTime() + 24 * 60 * 60 * 1000) : new Date(0);
@@ -148,7 +152,7 @@ export function CompactPriceDropCard({ product, className }: CompactPriceDropCar
                     </div>
                 </div>
 
-                {/* Final Row: Price + Round Plus Button */}
+                {/* Final Row: Price + Round Cart Button */}
                 <div className="flex items-center justify-between mt-2">
                     <div className="flex flex-col -space-y-0.5">
                         <span className="text-[9px] text-gray-400 line-through">{formatPrice(displayOriginalPrice)}</span>
@@ -156,15 +160,18 @@ export function CompactPriceDropCard({ product, className }: CompactPriceDropCar
                     </div>
                     
                     <button
-                        className="h-7 w-7 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center shadow-lg transition-all active:scale-90"
-                        onClick={(e) => {
+                        onClick={(e) => { 
                             e.preventDefault();
-                            e.stopPropagation();
-                            addToCart(product);
+                            e.stopPropagation(); 
+                            addToCart(product); 
                             nativeBridge.hapticFeedback("medium");
                         }}
+                        className="w-9 h-9 rounded-full bg-emerald-600 shadow-lg shadow-emerald-600/30 flex items-center justify-center transition-all hover:bg-emerald-700 hover:scale-110 active:scale-95 relative"
                     >
-                        <Plus className="h-4 w-4" strokeWidth={3} />
+                        <ShoppingCart className="h-4 w-4 text-white" strokeWidth={2.5} />
+                        <div className="absolute -top-0.5 -left-0.5 w-3.5 h-3.5 bg-white rounded-full flex items-center justify-center shadow-sm">
+                            <span className="font-black text-emerald-600 text-[9px] leading-none">+</span>
+                        </div>
                     </button>
                 </div>
             </div>

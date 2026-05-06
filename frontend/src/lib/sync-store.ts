@@ -495,23 +495,29 @@ class DataSyncServiceService {
                         console.warn("🛡️ Resilience: API returned 0 products but local cache has", localProducts.length, "— preserving cache.");
                     } else if (dbProducts.length > 0 || localProducts.length === 0) {
                     // MAP CamelCase to snake_case for senior tech lead consistency
-                    const mappedDbProducts = dbProducts.map((p: any) => ({
-                        ...p,
-                        seller_id: p.sellerId || p.seller_id,
-                        image_url: getProxiedImageUrl(p.imageUrl || p.image_url),
-                        avg_rating: p.avgRating || p.avg_rating || 0,
-                        review_count: p.reviewCount || p.review_count || 0,
-                        sold_count: p.soldCount || p.sold_count || 0,
-                        is_trending: p.isTrending || p.is_trending || false,
-                        is_active: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
-                        is_sponsored: p.isSponsored || p.is_sponsored || false,
-                        original_price: p.originalPrice || p.original_price,
-                        financing_down_payment: p.financingDownPayment || p.financing_down_payment,
-                        seller_name: p.sellerName || p.seller_name || "Global Store",
-                        tags: p.tags || [],
-                        subcategory: p.subcategory || "",
-                        updated_at: p.updatedAt || p.updated_at || p.createdAt || p.created_at || new Date().toISOString()
-                    }));
+                    const mappedDbProducts = dbProducts.map((p: any) => {
+                        // COMPRESSION: Strip heavy fields for storefront/listing views to save space
+                        // These will be re-fetched on the product detail page if needed.
+                        const { description, highlights, specs, images, ...lightweight } = p;
+                        
+                        return {
+                            ...lightweight,
+                            seller_id: p.sellerId || p.seller_id,
+                            image_url: getProxiedImageUrl(p.imageUrl || p.image_url),
+                            avg_rating: p.avgRating || p.avg_rating || 0,
+                            review_count: p.reviewCount || p.review_count || 0,
+                            sold_count: p.soldCount || p.sold_count || 0,
+                            is_trending: p.isTrending || p.is_trending || false,
+                            is_active: p.isActive !== undefined ? p.isActive : (p.is_active !== undefined ? p.is_active : true),
+                            is_sponsored: p.isSponsored || p.is_sponsored || false,
+                            original_price: p.originalPrice || p.original_price,
+                            financing_down_payment: p.financingDownPayment || p.financing_down_payment,
+                            seller_name: p.sellerName || p.seller_name || "Global Store",
+                            tags: p.tags || [],
+                            subcategory: p.subcategory || "",
+                            updated_at: p.updatedAt || p.updated_at || p.createdAt || p.created_at || new Date().toISOString()
+                        };
+                    });
                     
                     // ASYNC MERGE: Prevent UI hanging for large catalogs (6k+ items)
                     setTimeout(() => {

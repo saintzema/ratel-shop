@@ -18,74 +18,81 @@ import Link from "next/link";
 
 const INTEGRATIONS = [
     {
-        id: "int_1",
+        id: "instagram",
         name: "Instagram DMs",
         provider: "Meta",
         description: "Reply to Instagram messages & comments directly from your FairPrice CRM.",
         icon: <Instagram className="h-6 w-6 text-pink-600" />,
         status: "Disconnected",
         color: "pink",
-        requiresPremium: true
+        requiresPremium: true,
+        manageUrl: "/seller/integrations/meta"
     },
     {
-        id: "int_2",
+        id: "paystack",
         name: "Paystack Payments",
         provider: "Paystack",
         description: "Accept local and international payments via card, bank transfer, and USSD.",
         icon: <CreditCard className="h-6 w-6 text-cyan-600" />,
         status: "Connected",
         color: "cyan",
-        requiresPremium: false
+        requiresPremium: false,
+        manageUrl: "/seller/settings/payouts"
     },
     {
-        id: "int_3",
+        id: "shipbubble",
         name: "Shipbubble Logistics",
         provider: "Shipbubble",
         description: "Automate deliveries and generate shipping labels instantly.",
         icon: <Truck className="h-6 w-6 text-indigo-600" />,
         status: "Disconnected",
         color: "indigo",
-        requiresPremium: true
+        requiresPremium: true,
+        manageUrl: "/seller/shipping/shipbubble"
     },
     {
-        id: "int_4",
+        id: "fez",
         name: "Fez Delivery",
         provider: "Fez",
         description: "Same-day delivery within major cities across the country.",
         icon: <Truck className="h-6 w-6 text-amber-600" />,
         status: "Disconnected",
         color: "amber",
-        requiresPremium: false
+        requiresPremium: false,
+        manageUrl: "/seller/shipping/fez"
     },
     {
-        id: "int_5",
+        id: "whatsapp",
         name: "WhatsApp Business API",
         provider: "Meta",
         description: "Send automated order confirmations and tracking updates via WhatsApp.",
         icon: <MessageCircle className="h-6 w-6 text-emerald-600" />,
         status: "Disconnected",
         color: "emerald",
-        requiresPremium: true
+        requiresPremium: true,
+        manageUrl: "/seller/integrations/meta"
     },
     {
-        id: "int_6",
+        id: "custom_domain",
         name: "Custom Domain Linking",
         provider: "Vercel / Cloudflare",
         description: "Connect your own domain (e.g., www.mystore.com) to your FairPrice storefront.",
         icon: <Globe className="h-6 w-6 text-gray-600" />,
         status: "Disconnected",
         color: "gray",
-        requiresPremium: true
+        requiresPremium: true,
+        manageUrl: "/seller/settings/domain"
     },
     {
-        id: "int_7",
+        id: "whatsapp_direct",
         name: "WhatsApp Direct DM Routing",
         provider: "FairPrice / Meta",
         description: "Receive customer negotiations in your own WhatsApp and reply directly to them.",
         icon: <MessageCircle className="h-6 w-6 text-blue-600" />,
         status: "Disconnected",
         color: "blue",
-        requiresPremium: true
+        requiresPremium: true,
+        manageUrl: "/seller/integrations/meta"
     }
 ];
 
@@ -105,7 +112,35 @@ export default function IntegrationsPage() {
 
         const stored = localStorage.getItem(`fp_integrations_${sellerId}`);
         if (stored) {
-            setIntegrations(JSON.parse(stored));
+            try {
+                let parsed = JSON.parse(stored);
+                // ID MIGRATION LAYER: Convert old int_N IDs to new semantic IDs
+                const idMap: Record<string, string> = {
+                    "int_1": "instagram",
+                    "int_2": "paystack",
+                    "int_3": "shipbubble",
+                    "int_4": "fez",
+                    "int_5": "whatsapp",
+                    "int_6": "custom_domain",
+                    "int_7": "whatsapp_direct"
+                };
+
+                const migrated = parsed.map((app: any) => {
+                    const newId = idMap[app.id];
+                    if (newId) {
+                        const template = INTEGRATIONS.find(i => i.id === newId);
+                        return { ...app, id: newId, manageUrl: template?.manageUrl };
+                    }
+                    return app;
+                });
+                
+                setIntegrations(migrated);
+                if (JSON.stringify(migrated) !== stored) {
+                    localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(migrated));
+                }
+            } catch (e) {
+                setIntegrations(INTEGRATIONS);
+            }
         } else {
             // Seed
             localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(INTEGRATIONS));
@@ -133,8 +168,8 @@ export default function IntegrationsPage() {
         localStorage.setItem(`fp_integrations_${sellerId}`, JSON.stringify(updated));
 
         // Special handling for WhatsApp Direct DM routing
-        if (intId === "int_7") {
-            const isEnabled = updated.find(a => a.id === "int_7")?.status === "Connected";
+        if (intId === "whatsapp_direct") {
+            const isEnabled = updated.find(a => a.id === "whatsapp_direct")?.status === "Connected";
             DataSyncService.updateSeller(sellerId, { whatsappDirectDM: isEnabled } as any);
         }
 
@@ -185,17 +220,11 @@ export default function IntegrationsPage() {
                         <div className="mt-auto">
                             {app.status === 'Connected' ? (
                                 <div className="flex gap-2">
-                                    {app.id === 'instagram' || app.id === 'whatsapp' ? (
-                                        <Link href="/seller/integrations/meta" className="flex-1">
-                                            <Button variant="outline" className="w-full h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
-                                                Manage
-                                            </Button>
-                                        </Link>
-                                    ) : (
-                                        <Button variant="outline" className="flex-1 h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
+                                    <Link href={(app as any).manageUrl || "#"} className="flex-1">
+                                        <Button variant="outline" className="w-full h-12 rounded-xl border-gray-200 text-gray-700 font-bold hover:bg-gray-50 shadow-sm">
                                             Manage
                                         </Button>
-                                    )}
+                                    </Link>
                                     <Button
                                         variant="outline"
                                         onClick={() => handleConnect(app.id, app.requiresPremium)}
