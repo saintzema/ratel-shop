@@ -61,10 +61,6 @@ export function FloatingCart() {
                     <ShoppingCart className="h-6 w-6 text-white" strokeWidth={2.5} />
                 </motion.div>
 
-                {/* Plus badge — matches recommended product cards */}
-                <div className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-sm border border-emerald-100">
-                    <span className="font-black text-emerald-600 text-[11px] leading-none">+</span>
-                </div>
 
                 {/* Item count badge */}
                 {itemCount > 0 && (

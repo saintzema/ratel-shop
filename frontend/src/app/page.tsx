@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SEED_PRODUCTS } from "@/lib/data";
 import { DataSyncService } from "@/lib/sync-store";
 import { ProductCard } from "@/components/product/ProductCard";
+import { CompactPriceDropCard } from "@/components/product/CompactPriceDropCard";
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -383,6 +384,7 @@ function HomeContent() {
                     icon={<Flame className="h-5 w-5 text-orange-500" />}
                     autoScroll
                     direction="right"
+                    cardType="compact"
                   />
                 </section>
 
@@ -605,7 +607,7 @@ function BestSellersScroller({ title, link, products, icon, autoScroll = false, 
 
 
 
-function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean }) {
+function ProductSlider({ title, link, products, icon, autoScroll = false, direction = "left", isLoading = false, cardType = "default" }: { title: React.ReactNode; link: string; products: any[]; icon?: React.ReactNode; autoScroll?: boolean; direction?: "left" | "right", isLoading?: boolean, cardType?: "default" | "compact" }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -732,9 +734,11 @@ function ProductSlider({ title, link, products, icon, autoScroll = false, direct
           style={{ scrollBehavior: isPaused ? "smooth" : "auto", paddingRight: autoScroll ? '0' : '1.5rem' }}
         >
           {displayProducts.map((product, idx) => (
-            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col">
+            <div key={product ? `${product.id}-${idx}` : `skeleton-${idx}`} className="min-w-[180px] md:min-w-[220px] snap-center flex flex-col h-full">
               {isLoading ? (
                 <ProductCardSkeleton />
+              ) : cardType === "compact" ? (
+                <CompactPriceDropCard product={product} />
               ) : (
                 <ProductCard 
                   product={product} 

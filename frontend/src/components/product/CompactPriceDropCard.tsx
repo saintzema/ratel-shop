@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Star, ShieldCheck, ShoppingCart, Clock, Crown, Store } from "lucide-react";
+import { Star, ShieldCheck, ShoppingCart, Clock, Crown, Store, Plus } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl, getProxiedImageUrl, formatNumber } from "@/lib/utils";
 import { useCart } from "@/context/CartContext";
@@ -20,8 +20,11 @@ export function CompactPriceDropCard({ product, className }: CompactPriceDropCar
     const router = useRouter();
     const [timeLeft, setTimeLeft] = useState<string>("");
     
-    // Calculate simulated deal end time if none provided (midnight tonight)
-    const dealEndTime = product.created_at ? new Date(new Date(product.created_at).getTime() + 24 * 60 * 60 * 1000).toISOString() : new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+    // Calculate simulated deal end time. If past, default to midnight today so it's always ticking.
+    const createdPlus24h = product.created_at ? new Date(new Date(product.created_at).getTime() + 24 * 60 * 60 * 1000) : new Date(0);
+    const dealEndTime = createdPlus24h.getTime() > Date.now() 
+        ? createdPlus24h.toISOString() 
+        : new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
 
     useEffect(() => {
         const updateTimer = () => {
@@ -153,7 +156,7 @@ export function CompactPriceDropCard({ product, className }: CompactPriceDropCar
                     </div>
                     
                     <button
-                        className="h-7 w-7 rounded-full bg-black hover:bg-brand-green-600 text-white flex items-center justify-center shadow-lg transition-all active:scale-90"
+                        className="h-7 w-7 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center shadow-lg transition-all active:scale-90"
                         onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
@@ -161,7 +164,7 @@ export function CompactPriceDropCard({ product, className }: CompactPriceDropCar
                             nativeBridge.hapticFeedback("medium");
                         }}
                     >
-                        <ShoppingCart className="h-3.5 w-3.5" />
+                        <Plus className="h-4 w-4" strokeWidth={3} />
                     </button>
                 </div>
             </div>
