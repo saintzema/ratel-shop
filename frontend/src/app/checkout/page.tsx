@@ -1203,6 +1203,10 @@ function CheckoutContent() {
                             reason: `Referral bonus unlocked! Assigned for new purchase by ${fullName || orderUserId}.`,
                             expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Extends 30 Days
                         });
+                        
+                        // Register the referral in the tracker
+                        DataSyncService.addReferral(referrerId, orderUserId, fullName || "A Friend", "completed");
+                        
                         // Remove hook to prevent infinite coupon payouts on subsequent orders
                         localStorage.removeItem("fp_referral");
                     }

@@ -102,7 +102,7 @@ export function RecentlyViewedHorizontal() {
                                     addToCart(product);
                                     router.push("/cart");
                                 }}
-                                className="absolute top-1 right-1 w-7 h-7 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg transform scale-0 group-hover/item:scale-100 transition-all duration-200 hover:bg-emerald-700 active:scale-90 z-20"
+                                className="absolute top-1 right-1 w-7 h-7 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg transform scale-100 transition-all duration-200 hover:bg-emerald-700 active:scale-90 z-20"
                                 title="Add to cart and checkout"
                             >
                                 <Plus className="w-4 h-4" />

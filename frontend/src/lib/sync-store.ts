@@ -5441,14 +5441,17 @@ class DataSyncServiceService {
         return all.filter((r: any) => r.referrerCode === referrerCode);
     }
 
-    addReferral(referrerCode: string, referredUserId: string) {
+    addReferral(referrerCode: string, referredUserId: string, name: string = "A Friend", status: string = "completed") {
         const all = this.getReferrals();
         all.unshift({
-            id: `ref_${Date.now()} `,
+            id: `ref_${Date.now()}`,
             referrerCode,
             referredUserId,
+            name,
+            status,
+            date: new Date().toISOString(),
             orderAmount: 0,
-            couponIssued: false,
+            couponIssued: status === "completed",
             createdAt: new Date().toISOString(),
         });
         localStorage.setItem(this.STORAGE_KEYS.REFERRALS, JSON.stringify(all));
