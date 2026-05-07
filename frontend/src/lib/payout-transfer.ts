@@ -195,7 +195,7 @@ export async function emailSellerPayout(
             ? `https://${process.env.VERCEL_URL}`
             : "http://localhost:3000";
 
-        await fetch(`${baseUrl}/api/email/send`, {
+        await fetch(`${baseUrl}/api/email`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

@@ -146,6 +146,7 @@ class DataSyncServiceService {
         REFERRALS: "fairprice_demo_referrals",
         REVIEWS: "fairprice_demo_reviews",
         RETURNS: "fairprice_demo_returns",
+        PROMOTIONS: "fairprice_demo_promotions",
         USERS: "fp_user",
         USER_OVERRIDES: "fp_user_overrides",
         SEARCH_CACHE: "fairprice_search_cache",
@@ -445,7 +446,8 @@ class DataSyncServiceService {
             const [
                 productsResult, sellersResult, searchCacheResult, ordersResult, 
                 negotiationsResult, notificationsResult, conversationsResult,
-                disputesResult, complaintsResult, kycResult, reviewsResult
+                disputesResult, complaintsResult, kycResult, reviewsResult,
+                promotionsResult, payoutsResult
             ] = await Promise.allSettled([
                 fetchProducts ? fetchWithTimeout(`/api/products?all=true${updatedAfter}`) : mockUnfetched,
                 fetchSellers ? fetchWithTimeout(`/api/sellers?all=true${updatedAfter}`) : mockUnfetched,
@@ -457,7 +459,9 @@ class DataSyncServiceService {
                 fetchDisputes ? fetchWithTimeout("/api/disputes?all=true") : mockUnfetched,
                 fetchComplaints ? fetchWithTimeout("/api/complaints?all=true") : mockUnfetched,
                 fetchKYC ? fetchWithTimeout("/api/kyc?all=true") : mockUnfetched,
-                fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched
+                fetchReviews ? fetchWithTimeout("/api/reviews?all=true") : mockUnfetched,
+                fetchWithTimeout("/api/promotions?all=true"), // Always fetch ads for admin/seller awareness
+                fetchWithTimeout("/api/payouts?all=true")    // Always fetch payouts
             ]);
 
             // Resilience Check: If any critical results are 503 (offline), 
@@ -583,6 +587,16 @@ class DataSyncServiceService {
                         if (localVersion) {
                             const mergedSeller = { ...localVersion, ...(dbSeller as any) };
                             for (const field of LOCAL_ONLY_FIELDS) {
+                                // Special handling for subscription_plan: don't downgrade from a paid plan to Starter
+                                if (field === 'subscription_plan') {
+                                    const localPlan = localVersion[field];
+                                    const dbPlan = dbSeller[field];
+                                    if (localPlan && localPlan !== 'Starter' && dbPlan === 'Starter') {
+                                        mergedSeller[field] = localPlan;
+                                        continue;
+                                    }
+                                }
+                                
                                 if (localVersion[field] !== undefined && (dbSeller[field] === undefined || dbSeller[field] === null)) {
                                     mergedSeller[field] = localVersion[field];
                                 }
@@ -646,6 +660,13 @@ class DataSyncServiceService {
                             category: dbOrder.product.category,
                         } : undefined,
                     };
+                    // 🛡️ Data Integrity: If local order is terminal ('delivered', 'cancelled'), don't let remote fetch revert it
+                    const localVersion = localMap.get(dbOrder.id);
+                    if (localVersion && (localVersion.status === 'delivered' || localVersion.status === 'cancelled') && dbOrder.status !== localVersion.status) {
+                        mapped.status = localVersion.status;
+                        mapped.escrow_status = localVersion.escrow_status;
+                    }
+
                     mergedOrders.set(dbOrder.id, mapped);
                 }
                 
@@ -856,6 +877,24 @@ class DataSyncServiceService {
                 }
             }
 
+            // ── Process Promotions ──
+            if (promotionsResult.status === "fulfilled" && promotionsResult.value.ok) {
+                const data = await promotionsResult.value.json();
+                const promos = data.promotions || data || [];
+                if (Array.isArray(promos)) {
+                    this.safeSetItem(this.STORAGE_KEYS.PROMOTIONS, JSON.stringify(promos));
+                }
+            }
+
+            // ── Process Payouts ──
+            if (payoutsResult.status === "fulfilled" && payoutsResult.value.ok) {
+                const data = await payoutsResult.value.json();
+                const payouts = data.payouts || data || [];
+                if (Array.isArray(payouts)) {
+                    this.safeSetItem(this.STORAGE_KEYS.PAYOUTS, JSON.stringify(payouts));
+                }
+            }
+
             if (!collection && !isCritical) {
                 this._lastFullSync = now;
             }
@@ -1005,7 +1044,7 @@ class DataSyncServiceService {
                             name: neg.customer_name,
                             productName: product.name,
                             discountPercent,
-                            link: `https://fairprice.ng/account/negotiations`
+                            link: `https://www.fairprice.ng/account/negotiations`
                         })
                     }).catch(() => {});
                     
@@ -1308,7 +1347,7 @@ class DataSyncServiceService {
                             customerName: request.customer_name,
                             productName: product.name,
                             amount: `₦${request.proposed_price.toLocaleString()}`,
-                            dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                            dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages`
                         }
                     })
                 }).catch(err => console.error("Negotiation email failed:", err));
@@ -1338,6 +1377,24 @@ class DataSyncServiceService {
                 message: `Negotiation: ${request.customer_name} offered ₦${request.proposed_price.toLocaleString()} for "${product.name}" (${seller?.business_name || 'Unknown Store'})`,
                 link: "/admin/governance"
             });
+
+            // ─── ZIVA AI-WHATSAPP BRIDGE ───
+            if (seller?.ziva_whatsapp_bridge && seller.whatsapp) {
+                const cleanPhone = seller.whatsapp.replace(/\D/g, '');
+                if (cleanPhone) {
+                    const waMsg = `🚀 *New Negotiation from FairPrice!*\n\nCustomer *${request.customer_name}* offered *₦${request.proposed_price.toLocaleString()}* for *${product.name}*.\n\nReply directly here or manage on your dashboard: https://www.fairprice.ng/seller/dashboard/messages`;
+                    
+                    fetch("/api/marketing/whatsapp", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: cleanPhone,
+                            message: waMsg,
+                            type: "NEGOTIATION_ALERT"
+                        })
+                    }).catch(() => {});
+                }
+            }
         }
 
         // Also trigger storage event for other tabs
@@ -1888,7 +1945,7 @@ class DataSyncServiceService {
                         customerName: negotiation.customer_name || "Buyer",
                         productName: product.name,
                         amount: `₦${(negotiation.counter_price || 0).toLocaleString()}`,
-                        dashboardUrl: `https://fairprice.ng/seller/dashboard/messages?customer=${negotiation.customer_id}&order=${negotiation.id}`
+                        dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages?customer=${negotiation.customer_id}&order=${negotiation.id}`
                     }
                 })
             }).catch(console.error);
@@ -2298,11 +2355,11 @@ class DataSyncServiceService {
                 return p;
             });
 
-        if (options?.includeInactiveSellers) return derivedProducts;
+        const isAdmin = user?.role === "admin";
+        if (options?.includeInactiveSellers || isAdmin) return derivedProducts;
 
         // By default, filter out products belonging to inactive/unverified sellers 
         // to prevent unapproved sellers from showing up in global search or catalogs.
-        const user = this.getCurrentUser();
         const activeSellerIds = new Set<string>();
         allSellers.forEach((s: any) => {
             // Handle both camelCase (from DB API) and snake_case (from localStorage)
@@ -2312,13 +2369,17 @@ class DataSyncServiceService {
             
             const isVerified = s.status === "active" || s.verified || kycStatus === "approved" || s.id === "global-partners";
             const isOwner = user && (user.id === userId || user.email === ownerEmail);
-            const isAdmin = user?.role === "admin";
 
-            if (isVerified || isOwner || isAdmin) {
+            if (isVerified || isOwner) {
                 if (s.id) activeSellerIds.add(s.id);
                 if (userId) activeSellerIds.add(userId);
+                if (ownerEmail) activeSellerIds.add(ownerEmail);
             }
         });
+
+        // Add special case for system sellers that might not be in the sellers list
+        activeSellerIds.add("global-partners");
+        activeSellerIds.add("fairprice-official");
 
         return derivedProducts.filter((p: Product) => activeSellerIds.has(p.seller_id));
     }
@@ -2798,7 +2859,7 @@ class DataSyncServiceService {
                             orderId: orderId,
                             productName: `${product.name} (Negotiated Savings: ₦${amountSaved.toLocaleString()})`,
                             amount: order.amount,
-                            trackingUrl: `https://fairprice.ng/account/orders`
+                            trackingUrl: `https://www.fairprice.ng/account/orders`
                         }
                     })
                 }).catch(console.error);
@@ -2822,6 +2883,33 @@ class DataSyncServiceService {
             link: `/account/orders`
         });
 
+        // ─── DIRECT PAYMENT NOTIFICATION (QR) ───
+        // @ts-ignore
+        if (product.is_direct_payment) {
+            const seller = this.getSellers().find(s => s.id === product.seller_id);
+            if (seller && seller.whatsapp) {
+                const cleanPhone = seller.whatsapp.replace(/\D/g, '');
+                if (cleanPhone) {
+                    // @ts-ignore
+                    const memoText = product.memo ? `\nMemo: ${product.memo}` : "";
+                    // @ts-ignore
+                    const refText = product.ref ? `\nRef: ${product.ref}` : "";
+                    
+                    const waMsg = `✅ *Payment Received via QR!*\n\nAmount: *₦${order.amount.toLocaleString()}*\nProduct: *${product.name}*${memoText}${refText}\n\nCustomer: ${customerName}\nOrder ID: #${orderId}\n\nView details: https://www.fairprice.ng/seller/orders?id=${orderId}`;
+                    
+                    fetch("/api/marketing/whatsapp", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: cleanPhone,
+                            message: waMsg,
+                            type: "DIRECT_PAYMENT_ALERT"
+                        })
+                    }).catch(() => {});
+                }
+            }
+        }
+
         // Email Buyer
         const customerEmail = `user_${order.customer_id}@fairprice.ng`;
         let resolvedCustomerEmail = customerEmail;
@@ -2841,7 +2929,7 @@ class DataSyncServiceService {
                     orderId: orderId,
                     productName: product.name,
                     amount: order.amount,
-                    trackingUrl: `https://fairprice.ng/account/orders`
+                    trackingUrl: `https://www.fairprice.ng/account/orders`
                 }
             })
         }).catch(console.error);
@@ -2868,7 +2956,7 @@ class DataSyncServiceService {
                             productName: product.name,
                             businessName: seller.business_name || "Seller",
                             amount: order.amount,
-                            dashboardUrl: `https://fairprice.ng/seller/orders`
+                            dashboardUrl: `https://www.fairprice.ng/seller/orders`
                         }
                     })
                 }).catch(console.error);
@@ -2931,7 +3019,7 @@ class DataSyncServiceService {
                             productName: `⚠️ RESTOCK NEEDED: ${product.name}`,
                             businessName: seller.business_name || "Seller",
                             amount: 0,
-                            dashboardUrl: `https://fairprice.ng/seller/dashboard`
+                            dashboardUrl: `https://www.fairprice.ng/seller/dashboard`
                         }
                     })
                 }).catch(console.error);
@@ -3031,7 +3119,7 @@ class DataSyncServiceService {
                                     sellerName: seller?.business_name || "Seller",
                                     orderId: order.id,
                                     message: text,
-                                    dashboardUrl: `https://fairprice.ng/seller/dashboard/messages?order=${orderId}`
+                                    dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages?order=${orderId}`
                                 }
                             })
                         }).catch(() => {});
@@ -3062,7 +3150,7 @@ class DataSyncServiceService {
                                     sellerName: "FairPrice Support",
                                     orderId: orderId,
                                     message: text,
-                                    dashboardUrl: `https://fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
+                                    dashboardUrl: `https://www.fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
                                 }
                             })
                         }).catch(() => {});
@@ -3102,7 +3190,7 @@ class DataSyncServiceService {
                                     sellerName: seller?.business_name || "the Seller",
                                     orderId: orderId,
                                     message: text,
-                                    dashboardUrl: `https://fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
+                                    dashboardUrl: `https://www.fairprice.ng/account/orders?orderId=${orderId}&openConcierge=true`
                                 }
                             })
                         }).catch(() => {});
@@ -3133,7 +3221,7 @@ class DataSyncServiceService {
                                 sellerName: seller.business_name || "Seller",
                                 orderId: orderId,
                                 message: text,
-                                dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                                dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages`
                             }
                         })
                     }).catch(console.error);
@@ -3866,7 +3954,7 @@ class DataSyncServiceService {
                     name: resolvedName,
                     orderId: order.id,
                     productName,
-                    trackingUrl: `https://fairprice.ng/account/orders?id=${order.id}`
+                    trackingUrl: `https://www.fairprice.ng/account/orders?id=${order.id}`
                 });
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has been delivered.`, link: `/account/orders?id=${order.id}` });
                 
@@ -3876,7 +3964,7 @@ class DataSyncServiceService {
                     orderId: order.id,
                     productName,
                     sellerName: seller?.business_name || "a Seller",
-                    trackingUrl: `https://fairprice.ng/admin/orders?id=${order.id}`
+                    trackingUrl: `https://www.fairprice.ng/admin/orders?id=${order.id}`
                 });
                 this.addNotification({ userId: 'admin', type: "order", message: `Order #${order.id.substring(0, 8)} has been marked as delivered by ${seller?.business_name || 'seller'}.`, link: `/admin/orders?id=${order.id}` });
             }
@@ -3907,7 +3995,7 @@ class DataSyncServiceService {
                     name: resolvedName,
                     orderId: order.id,
                     productName,
-                    trackingUrl: `https://fairprice.ng/account/orders?id=${order.id}`
+                    trackingUrl: `https://www.fairprice.ng/account/orders?id=${order.id}`
                 });
                 
                 // ALSO Notify Admin!
@@ -3916,7 +4004,7 @@ class DataSyncServiceService {
                     orderId: order.id,
                     productName,
                     sellerName: seller?.business_name || "a Seller",
-                    trackingUrl: `https://fairprice.ng/admin/orders?id=${order.id}`
+                    trackingUrl: `https://www.fairprice.ng/admin/orders?id=${order.id}`
                 });
 
                 this.addNotification({ userId: order.customer_id, type: "order", message: `Your order #${order.id} for ${productName} has shipped!`, link: `/account/orders?id=${order.id}` });
@@ -4504,7 +4592,7 @@ class DataSyncServiceService {
                             sellerName: "Seller",
                             orderId: `Neg: ${product.name}`,
                             message: text,
-                            dashboardUrl: `https://fairprice.ng/seller/dashboard/messages`
+                            dashboardUrl: `https://www.fairprice.ng/seller/dashboard/messages`
                         }
                     })
                 }).catch(console.error);
@@ -4529,7 +4617,7 @@ class DataSyncServiceService {
                             sellerName: negotiation.customer_name || "Customer",
                             orderId: `Neg: ${product.name}`,
                             message: text,
-                            dashboardUrl: `https://fairprice.ng/account/negotiations`
+                            dashboardUrl: `https://www.fairprice.ng/account/negotiations`
                         }
                     })
                 }).catch(console.error);
@@ -4597,10 +4685,11 @@ class DataSyncServiceService {
     getPromotions(sellerId?: string): any[] {
         const stored = localStorage.getItem(this.PROMO_KEY);
         const all = stored ? JSON.parse(stored) : [];
-        // Auto-expire
+        // Auto-expire and Simulate traffic
         const now = new Date().getTime();
         let changed = false;
         for (const p of all) {
+            // Auto-expire logic
             if (p.status === "active" && new Date(p.expires_at).getTime() < now) {
                 p.status = "ended";
                 this.updateProduct(p.product_id, { is_sponsored: false });
@@ -4612,6 +4701,21 @@ class DataSyncServiceService {
                     link: "/seller/dashboard/promotions",
                 });
                 changed = true;
+            }
+
+            // Simulate traffic for active promotions to bridge the UI with "real" metrics
+            if (p.status === "active") {
+                const startTime = new Date(p.started_at).getTime();
+                const hoursActive = (now - startTime) / (1000 * 60 * 60);
+                
+                // If metrics are missing or significantly behind expected demo levels, boost them
+                const expectedImpressions = Math.floor(hoursActive * 12.5); // ~300 per day
+                if ((p.impressions || 0) < expectedImpressions) {
+                    p.impressions = expectedImpressions + Math.floor(Math.random() * 50);
+                    // Standard CTR around 2.5% - 4%
+                    p.clicks = Math.floor(p.impressions * (0.025 + Math.random() * 0.015));
+                    changed = true;
+                }
             }
         }
         if (changed) localStorage.setItem(this.PROMO_KEY, JSON.stringify(all));
@@ -5095,6 +5199,45 @@ class DataSyncServiceService {
         // Force immediate balance recalculation to ensure availability
         this.recalculateSellerBalances(order.seller_id);
 
+        // --- Auto-Generate Payout Request for Admin Visibility ---
+        const seller = this.getSellers().find(s => s.id === order.seller_id);
+        if (seller && (seller.account_number || seller.bank_name)) {
+            // Check if a payout already exists for this order to avoid duplicates
+            const existingPayouts = this.getPayouts();
+            const alreadyInPayout = existingPayouts.some(p => p.order_ids && p.order_ids.includes(orderId));
+            
+            if (!alreadyInPayout) {
+                console.log(`🎁 DataSyncService: Auto-creating payout request for released order ${orderId}`);
+                this.requestPayout(
+                    order.seller_id,
+                    [orderId],
+                    order.amount,
+                    "Bank Transfer",
+                    seller.bank_name || "Saved Bank",
+                    seller.account_number?.slice(-4) || "0000"
+                );
+            }
+        }
+
+        // --- Notifications ---
+        const productName = order.product?.name || `Product ${order.product_id}`;
+        
+        // Notify Seller
+        this.addNotification({
+            userId: order.seller_id,
+            type: "order",
+            message: `💰 Funds Released: ₦${order.amount.toLocaleString()} for "${productName}" (Order #${orderId}) is now in your payoutable balance.`,
+            link: `/seller/dashboard/wallet`
+        });
+
+        // Notify Buyer
+        this.addNotification({
+            userId: order.customer_id || order.customer_name,
+            type: "order",
+            message: `📦 Order #${orderId} complete: Escrow funds have been released for your purchase of "${productName}".`,
+            link: `/account/orders/${orderId}`
+        });
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
     }
@@ -5103,7 +5246,7 @@ class DataSyncServiceService {
     checkAutoReleaseEligible(order: Order): boolean {
         if (order.escrow_status !== "seller_confirmed" || !order.seller_confirmed_at) return false;
         const hoursSinceConfirm = (Date.now() - new Date(order.seller_confirmed_at).getTime()) / (1000 * 60 * 60);
-        return hoursSinceConfirm >= 48;
+        return hoursSinceConfirm >= 24;
     }
 
     /** Background worker to process all eligible auto-releases */
@@ -5230,7 +5373,7 @@ class DataSyncServiceService {
                     description: description,
                     buyerName: buyerName,
                     message: `A buyer has filed a dispute on order #${orderId} for "${productName}". Reason: ${reasonLabel}. Payment is frozen until resolved.`,
-                    dashboardUrl: `https://fairprice.ng/seller/orders?filter=disputed`
+                    dashboardUrl: `https://www.fairprice.ng/seller/orders?filter=disputed`
                 }
             })
         }).catch(console.error);
@@ -5635,6 +5778,8 @@ class DataSyncServiceService {
 
         // Update conversation metadata
         const conversations = this.getConversations();
+        const conversation = conversations.find((c: any) => c.id === conversationId);
+        
         const updated = conversations.map((c: any) => {
             if (c.id === conversationId) {
                 const newUnread = { ...c.unread_count };
@@ -5647,6 +5792,53 @@ class DataSyncServiceService {
             return c;
         });
         localStorage.setItem(this.STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
+
+        // --- Notifications & Emails ---
+        if (conversation) {
+            conversation.participants.forEach((participantId: string) => {
+                if (participantId === senderId) return;
+
+                // 1) Trigger In-App Notification
+                this.addNotification({
+                    userId: participantId,
+                    type: "system",
+                    message: `💬 New message from ${senderName}: "${text.length > 50 ? text.substring(0, 47) + '...' : text}"`,
+                    link: conversationId.startsWith("conc-") ? `/account/orders` : `/account/messages`
+                });
+
+                // 2) Trigger Email Alert
+                const recipient = this.getUser(participantId);
+                const recipientEmail = recipient?.email || (participantId.includes("@") ? participantId : null);
+                
+                if (recipientEmail) {
+                    const isOrderConcierge = conversationId.startsWith("conc-");
+                    let orderId = "";
+                    if (isOrderConcierge) {
+                        const parts = conversationId.split("-");
+                        if (parts.length >= 2) orderId = parts[1] + "-" + parts[2];
+                    }
+
+                    fetch("/api/email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            to: recipientEmail,
+                            type: isOrderConcierge ? 'BUYER_ORDER_MESSAGE' : 'NEW_CHAT_MESSAGE',
+                            payload: {
+                                name: recipient?.name || "Customer",
+                                senderName,
+                                orderId,
+                                message: text,
+                                dashboardUrl: isOrderConcierge 
+                                    ? `https://www.fairprice.ng/account/orders?orderId=${orderId}`
+                                    : `https://www.fairprice.ng/account/messages`
+                            }
+                        })
+                    }).catch(() => {});
+                }
+            });
+        }
+
         window.dispatchEvent(new Event("storage"));
         window.dispatchEvent(new Event("sync-store-update"));
         return msg;

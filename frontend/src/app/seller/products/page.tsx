@@ -29,9 +29,15 @@ import {
     ArrowUpDown,
     Timer,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    Loader2,
+    LayoutGrid,
+    List,
+    X,
+    CheckCircle2
 } from "lucide-react";
 import { Pagination } from "@/components/ui/Pagination";
+import { useNotification } from "@/components/ui/NotificationProvider";
 import {
     Dialog,
     DialogContent,
@@ -50,6 +56,9 @@ export default function SellerProducts() {
     const [showFilters, setShowFilters] = useState(false);
     const [sortBy, setSortBy] = useState<string>("newest");
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+    const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+    
     const [promoteModalOpen, setPromoteModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [dealModalOpen, setDealModalOpen] = useState<{ isOpen: boolean; product: Product | null }>({ isOpen: false, product: null });
     const [dealDiscount, setDealDiscount] = useState("15");
@@ -57,8 +66,8 @@ export default function SellerProducts() {
     const [showPaystack, setShowPaystack] = useState(false);
     const [selectedAdPlan, setSelectedAdPlan] = useState<"3_day" | "10_day" | "30_day">("3_day");
     const [saveSuccess, setSaveSuccess] = useState(false);
+    const { showNotification } = useNotification();
     const router = useRouter();
-
     const [loading, setLoading] = useState(true);
 
     // Pagination State
@@ -76,21 +85,12 @@ export default function SellerProducts() {
         setActiveDeals(DataSyncService.getDeals());
         setLoading(true);
         try {
-            // Fetch products for this specific seller
-            const res = await fetch(`/api/products?all=true`);
-            let all = [];
-            if (res.ok) {
-                const data = await res.json();
-                all = Array.isArray(data) ? data : (data?.products ?? []);
-            }
-            if (!all || all.length === 0) {
-                all = DataSyncService.getProducts({ includeInactiveSellers: true });
-            }
-            setProducts(all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
+            // Fetch products for this specific seller from global sync store first for better consistency
+            const all = DataSyncService.getProducts({ includeInactiveSellers: true });
+            const sellerProducts = all.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id));
+            setProducts(sellerProducts);
         } catch (error) {
             console.error("Failed to load products:", error);
-            const fallback = DataSyncService.getProducts({ includeInactiveSellers: true });
-            setProducts(fallback.filter((p: any) => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
         } finally {
             setLoading(false);
         }
@@ -98,9 +98,21 @@ export default function SellerProducts() {
 
     useEffect(() => {
         loadProducts();
+        
+        // Restore view mode preference
+        const savedMode = localStorage.getItem("seller_products_view_mode");
+        if (savedMode === "grid" || savedMode === "table") {
+            setViewMode(savedMode as any);
+        }
+
         window.addEventListener("sync-store-update", loadProducts);
         return () => window.removeEventListener("sync-store-update", loadProducts);
     }, []);
+
+    // Save view mode preference
+    useEffect(() => {
+        localStorage.setItem("seller_products_view_mode", viewMode);
+    }, [viewMode]);
 
     // Reset page when filters change
     useEffect(() => {
@@ -109,14 +121,62 @@ export default function SellerProducts() {
 
     const handleDelete = async (id: string) => {
         try {
-            const res = await fetch(`/api/products/${id}`, { method: "DELETE" });
-            if (res.ok) {
-                setDeleteConfirm(null);
-                loadProducts();
-            }
+            // Use canonical DataSyncService to ensure tombstoning and local cleanup
+            DataSyncService.deleteProduct(id);
+            setDeleteConfirm(null);
+            setSelectedProductIds(prev => prev.filter(pid => pid !== id));
+            showNotification({
+                type: "success",
+                title: "Item Purged",
+                message: "Product has been successfully removed from inventory.",
+                duration: 3000
+            });
+            loadProducts();
         } catch (error) {
             console.error("Delete failed:", error);
+            showNotification({
+                type: "error",
+                title: "Purge Failed",
+                message: "We encountered an error while removing the item.",
+                duration: 4000
+            });
         }
+    };
+
+    const handleBulkDelete = () => {
+        if (confirm(`Are you sure you want to delete ${selectedProductIds.length} products? This cannot be undone.`)) {
+            selectedProductIds.forEach(id => DataSyncService.deleteProduct(id));
+            const count = selectedProductIds.length;
+            setSelectedProductIds([]);
+            showNotification({
+                type: "success",
+                title: "Bulk Purge Complete",
+                message: `Successfully removed ${count} items from your catalog.`,
+                duration: 4000
+            });
+            loadProducts();
+            setSaveSuccess(true);
+            setTimeout(() => setSaveSuccess(false), 3000);
+        }
+    };
+
+    const handleBulkPromote = () => {
+        if (selectedProductIds.length === 0) return;
+        setPromoteModalOpen({ isOpen: true, product: null });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedProductIds.length === paginatedProducts.length) {
+            setSelectedProductIds([]);
+        } else {
+            setSelectedProductIds(paginatedProducts.map(p => p.id));
+        }
+    };
+
+    const toggleSelectProduct = (id: string) => {
+        setSelectedProductIds(prev => 
+            prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]
+        );
     };
 
     const filtered = products.filter(p => {
@@ -150,7 +210,7 @@ export default function SellerProducts() {
     const categories = Array.from(new Set(products.map(p => p.category)));
 
     const handlePromoteProductInit = () => {
-        if (!promoteModalOpen.product) return;
+        // If product is null, it's a bulk promotion
         setPromoteModalOpen({ ...promoteModalOpen, isOpen: false });
         setShowPaystack(true);
     };
@@ -160,9 +220,7 @@ export default function SellerProducts() {
         const sellerInfo = DataSyncService.getCurrentSeller();
         
         if (sellerId) {
-            // Check which flow triggered the payment
             if (dealModalOpen.isOpen && dealModalOpen.product) {
-                // It was a Paid Deal promotion
                 const hours = parseInt(dealDurationHours) || 24;
                 const discountPct = parseInt(dealDiscount) || 15;
                 const endAt = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
@@ -184,69 +242,42 @@ export default function SellerProducts() {
                         message: `🔥 Your paid deal for "${dealModalOpen.product.name}" is now live! ${discountPct}% off for ${hours} hours.`,
                         link: "/deals"
                     });
-                    
-                    fetch('/api/send-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            to: sellerInfo.owner_email || 'demo@fairprice.store',
-                            subject: `Paid Deal Promoted`,
-                            type: 'security_alert',
-                            data: {
-                                storeName: sellerInfo.business_name,
-                                message: `Your product "${dealModalOpen.product.name}" has been promoted to Deals! ${discountPct}% off for ${hours} hours.`
-                            }
-                        })
-                    }).catch(() => {});
                 }
-                
-                window.dispatchEvent(new Event("sync-store-update"));
-                setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
-                
                 setDealModalOpen({ isOpen: false, product: null });
-            } else if (promoteModalOpen.isOpen && promoteModalOpen.product) {
-                // It was a Paid Sponsored promotion
-                DataSyncService.createPromotion(promoteModalOpen.product.id, sellerId, selectedAdPlan);
+            } else if (promoteModalOpen.isOpen || selectedProductIds.length > 0) {
+                const idsToPromote = promoteModalOpen.product ? [promoteModalOpen.product.id] : selectedProductIds;
                 
+                idsToPromote.forEach(pid => {
+                    DataSyncService.createPromotion(pid, sellerId, selectedAdPlan);
+                });
+
                 if (sellerInfo) {
                     DataSyncService.addNotification({
                         userId: sellerInfo.owner_email || sellerInfo.id,
                         type: "promo",
-                        message: `🚀 Your product "${promoteModalOpen.product.name}" is now sponsored! Delivery expected within minutes to the homepage.`,
+                        message: `🚀 ${idsToPromote.length > 1 ? `${idsToPromote.length} products` : `"${promoteModalOpen.product?.name || 'Your product'}"`} ${idsToPromote.length > 1 ? 'are' : 'is'} now sponsored!`,
                         link: "/seller/dashboard"
                     });
-                    
-                    fetch('/api/send-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            to: sellerInfo.owner_email || 'demo@fairprice.store',
-                            subject: `Product Sponsored`,
-                            type: 'security_alert',
-                            data: {
-                                storeName: sellerInfo.business_name,
-                                message: `Your product "${promoteModalOpen.product.name}" is now sponsored and live on the platform.`
-                            }
-                        })
-                    }).catch(() => {});
                 }
-
-                window.dispatchEvent(new Event("sync-store-update"));
-                setProducts(DataSyncService.getProducts({ includeInactiveSellers: true }).filter(p => p.seller_id === sellerId || (sellerInfo && p.seller_id === sellerInfo.user_id)));
-                
                 setPromoteModalOpen({ isOpen: false, product: null });
+                setSelectedProductIds([]);
             }
         }
 
         setShowPaystack(false);
         setSaveSuccess(true);
+        showNotification({
+            type: "success",
+            title: "Market Boost Active",
+            message: promoteModalOpen.isOpen ? "Promotion successfully launched!" : "Product deal is now live!",
+            duration: 4000
+        });
         setTimeout(() => setSaveSuccess(false), 3000);
+        loadProducts();
     };
 
     const handlePromoteToDeal = () => {
-        // This function now only handles FREE deal creation (from plan slots)
         if (!dealModalOpen.product) return;
-
         const seller = DataSyncService.getCurrentSeller();
         const discountPct = parseInt(dealDiscount) || 15;
         const hours = parseInt(dealDurationHours) || 24;
@@ -262,404 +293,464 @@ export default function SellerProducts() {
             is_active: true
         });
 
-        // Notify seller that the deal is live
         if (seller) {
             DataSyncService.addNotification({
                 userId: seller.owner_email || seller.id,
                 type: "promo",
-                message: `🔥 Your free deal slot for "${dealModalOpen.product.name}" has been activated! ${discountPct}% off for ${hours} hours.`,
+                message: `🔥 Your free deal for "${dealModalOpen.product.name}" is live!`,
                 link: "/deals"
             });
-            
-            fetch('/api/send-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    to: seller.owner_email || 'demo@fairprice.store',
-                    subject: `Free Deal Slot Activated`,
-                    type: 'security_alert',
-                    data: {
-                        storeName: seller.business_name,
-                        message: `Your free deal slot for "${dealModalOpen.product.name}" has been activated! ${discountPct}% off for ${hours} hours.`
-                    }
-                })
-            }).catch(() => {});
         }
 
-        // Dispatch event so homepage picks up the new deal immediately
         window.dispatchEvent(new Event("sync-store-update"));
-
         setDealModalOpen({ isOpen: false, product: null });
         setSaveSuccess(true);
+        showNotification({
+            type: "success",
+            title: "Hot Deal Live",
+            message: "Your free deal promotion has been activated.",
+            duration: 4000
+        });
         setTimeout(() => setSaveSuccess(false), 3000);
     };
 
     return (
-        <div className="max-w-6xl mx-auto py-10 px-4 sm:px-6 text-gray-900 pb-24">
-
-            {/* Premium Header — Apple Style */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 bg-white/40 backdrop-blur-xl p-8 rounded-[32px] border border-white/60 shadow-lg">
-                <div>
-                    <div className="flex items-center gap-2 mb-2">
-                        <div className="h-2 w-2 rounded-full bg-brand-green-500 animate-pulse" />
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Inventory Control</span>
+        <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 text-gray-900 pb-32">
+            
+            {/* Apple-Style Responsive Header */}
+            <div className="flex flex-col gap-6 mb-10">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1.5">
+                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-100 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full">
+                                Inventory Systems
+                            </Badge>
+                            <span className="text-[11px] font-bold text-gray-400">/ Catalog Control</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <h1 className="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">Products</h1>
+                            <span className="bg-gray-100 text-gray-500 text-sm font-black px-3 py-1 rounded-full">{filtered.length} items</span>
+                        </div>
                     </div>
-                    <h1 className="text-4xl font-black text-gray-900 tracking-tight">Products</h1>
-                    <p className="text-sm text-gray-500 mt-1 font-medium italic opacity-70">Manage your high-performance inventory.</p>
+                    <Link href="/seller/products/new">
+                        <Button className="bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-2xl px-6 h-12 shadow-xl transition-all hover:scale-105 active:scale-95 text-[10px] hidden sm:flex">
+                            <Plus className="h-4 w-4 mr-2" /> Add Item
+                        </Button>
+                    </Link>
                 </div>
-                <Link href="/seller/products/new">
-                    <Button className="bg-gray-900 hover:bg-black text-white font-black uppercase tracking-widest rounded-2xl px-8 h-14 shadow-xl transition-all hover:scale-105 active:scale-95 text-xs">
-                        <Plus className="h-5 w-5 mr-2" /> Add New Item
-                    </Button>
-                </Link>
-            </div>
 
-            {saveSuccess && (
-                <div className="flex items-center gap-3 text-sm font-bold text-emerald-700 bg-emerald-50/80 backdrop-blur-md px-6 py-4 rounded-[20px] border border-emerald-200/50 mb-8 animate-in fade-in slide-in-from-top-4">
-                    <div className="h-6 w-6 bg-emerald-500 rounded-full flex items-center justify-center">
-                        <Check className="h-4 w-4 text-white" />
-                    </div>
-                    <span>System Sync Successful: Product changes are now live!</span>
-                </div>
-            )}
-
-            {/* Search & Filter Bar: Liquid Glass */}
-            <div className="flex flex-col gap-4 mb-8">
-                <div className="bg-white/60 backdrop-blur-2xl border border-white/80 rounded-[24px] p-3 flex flex-col sm:flex-row gap-3 shadow-xl">
-                    <div className="relative flex-1 group">
+                {/* Search & Bulk Toolbar */}
+                <div className="bg-white/60 backdrop-blur-xl border border-white/80 rounded-[28px] p-2.5 shadow-xl flex flex-col lg:flex-row gap-3 items-center">
+                    <div className="relative flex-1 w-full group">
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 group-focus-within:text-brand-green-600 transition-colors" />
                         <Input
-                            placeholder="Find an item..."
-                            className="pl-12 h-14 rounded-2xl border-white/40 bg-white/40 backdrop-blur-sm focus:bg-white transition-all text-sm font-semibold shadow-inner"
+                            placeholder="Find an item in your warehouse..."
+                            className="pl-12 pr-12 h-14 rounded-[22px] border-white/40 bg-white/40 backdrop-blur-sm focus:bg-white transition-all text-sm font-semibold shadow-inner w-full"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
-                    </div>
-                    <div className="relative">
-                        <ArrowUpDown className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-                        <select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="h-14 pl-10 pr-4 rounded-2xl bg-white/40 backdrop-blur-sm border border-white/60 text-[10px] font-black uppercase tracking-widest text-gray-600 focus:ring-4 focus:ring-brand-green-500/10 outline-none transition-all shadow-sm cursor-pointer appearance-none min-w-[160px]"
-                        >
-                            <option value="newest">Newest First</option>
-                            <option value="price-high">Price: High → Low</option>
-                            <option value="price-low">Price: Low → High</option>
-                            <option value="low-stock">Low Stock First</option>
-                            <option value="most-bought">Most Bought</option>
-                            <option value="name-az">Name A → Z</option>
-                        </select>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        className={cn(
-                            "h-14 px-6 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all gap-2",
-                            showFilters ? "bg-brand-green-50 text-brand-green-700 shadow-inner" : "bg-white/40 text-gray-500 hover:bg-white/80 shadow-sm border border-white/60"
-                        )}
-                        onClick={() => setShowFilters(!showFilters)}
-                    >
-                        <Filter className="h-4 w-4" />
-                        {showFilters ? "Hide Panel" : "Filter Panel"}
-                    </Button>
-                </div>
-
-                {/* Expanded Filters: Glass Drawer */}
-                {showFilters && (
-                    <div className="bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[28px] p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 shadow-2xl animate-in fade-in slide-in-from-top-6">
-                        <div className="space-y-3">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 pl-1">Category Domain</Label>
-                            <select
-                                className="w-full h-12 bg-white/60 backdrop-blur-sm border border-white rounded-[16px] px-4 text-xs font-black uppercase tracking-widest focus:ring-4 focus:ring-brand-green-500/10 outline-none transition-all shadow-sm cursor-pointer"
-                                value={selectedCategory}
-                                onChange={(e) => setSelectedCategory(e.target.value)}
+                        {searchQuery && (
+                            <button 
+                                onClick={() => setSearchQuery("")}
+                                className="absolute right-5 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition-all"
                             >
-                                <option value="all">Global Matrix</option>
-                                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto scrollbar-hide p-1">
+                        <div className="relative shrink-0">
+                            <ArrowUpDown className="absolute left-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                            <select
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                                className="h-14 pl-10 pr-8 rounded-[22px] bg-white/40 backdrop-blur-sm border border-white/60 text-[10px] font-black uppercase tracking-widest text-gray-600 focus:ring-4 focus:ring-brand-green-500/10 outline-none transition-all shadow-sm cursor-pointer appearance-none min-w-[150px]"
+                            >
+                                <option value="newest">Newest</option>
+                                <option value="price-high">Price: High</option>
+                                <option value="price-low">Price: Low</option>
+                                <option value="low-stock">Low Stock</option>
+                                <option value="most-bought">Popular</option>
                             </select>
                         </div>
-                        <div className="space-y-3">
-                            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 pl-1">Operational Status</Label>
-                            <div className="flex bg-gray-200/50 p-1 rounded-[18px] gap-1 shadow-inner">
-                                {["all", "live", "sponsored"].map((s) => (
-                                    <button
-                                        key={s}
-                                        type="button"
-                                        onClick={() => setStatusFilter(s)}
-                                        className={cn(
-                                            "flex-1 h-10 rounded-[14px] text-[9px] font-black uppercase tracking-widest transition-all",
-                                            statusFilter === s ? "bg-white text-gray-900 shadow-md scale-[1.02]" : "text-gray-400 hover:text-gray-600"
-                                        )}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                        <div className="flex items-end">
-                            <Button
-                                variant="ghost"
-                                className="h-12 w-full text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 hover:text-rose-600 hover:bg-rose-50/50 rounded-[16px]"
-                                onClick={() => {
-                                    setSelectedCategory("all");
-                                    setStatusFilter("all");
-                                    setSearchQuery("");
-                                }}
+
+                        <Button
+                            variant="ghost"
+                            className={cn(
+                                "h-14 px-6 rounded-[22px] font-black uppercase tracking-widest text-[10px] transition-all gap-2 shrink-0 border border-white/60",
+                                showFilters ? "bg-brand-green-50 text-brand-green-700 shadow-inner" : "bg-white/40 text-gray-500 hover:bg-white/80"
+                            )}
+                            onClick={() => setShowFilters(!showFilters)}
+                        >
+                            <Filter className="h-4 w-4" /> Filters
+                        </Button>
+
+                        <div className="h-14 bg-gray-100/50 p-1.5 rounded-[22px] flex gap-1 border border-white/40 shrink-0">
+                            <button 
+                                onClick={() => setViewMode("table")}
+                                className={cn("px-4 rounded-xl transition-all", viewMode === "table" ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600")}
                             >
-                                Flush Filters
+                                <List className="h-4 w-4" />
+                            </button>
+                            <button 
+                                onClick={() => setViewMode("grid")}
+                                className={cn("px-4 rounded-xl transition-all", viewMode === "grid" ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                            >
+                                <LayoutGrid className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Bulk Actions Floating Bar */}
+                {selectedProductIds.length > 0 && (
+                    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 bg-gray-900/90 backdrop-blur-2xl px-8 py-4 rounded-[32px] border border-white/10 shadow-2xl flex items-center gap-8 animate-in fade-in slide-in-from-bottom-10">
+                        <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 bg-brand-green-500 rounded-full flex items-center justify-center">
+                                <Check className="h-4 w-4 text-white" />
+                            </div>
+                            <span className="text-sm font-black text-white uppercase tracking-widest">{selectedProductIds.length} Selected</span>
+                        </div>
+                        <div className="h-8 w-px bg-white/10" />
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" onClick={() => setSelectedProductIds([])} className="text-white/60 hover:text-white font-bold text-[10px] uppercase tracking-widest">
+                                Deselect
+                            </Button>
+                            <Button 
+                                onClick={handleBulkPromote}
+                                className="bg-amber-500 hover:bg-amber-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl h-10 px-6 shadow-lg shadow-amber-500/20"
+                            >
+                                <Megaphone className="h-4 w-4 mr-2" /> Bulk Promote
+                            </Button>
+                            <Button 
+                                variant="destructive" 
+                                onClick={handleBulkDelete}
+                                className="bg-rose-500 hover:bg-rose-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl h-10 px-6 shadow-lg shadow-rose-500/20"
+                            >
+                                <Trash2 className="h-4 w-4 mr-2" /> Bulk Delete
                             </Button>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Products — Mobile Cards + Desktop Table */}
-            <div className="bg-white rounded-2xl border border-gray-200/60 shadow-sm overflow-hidden">
-
-                {/* ─── Mobile Card View ─── */}
-                <div className="md:hidden divide-y divide-white/20">
-                    {loading ? (
-                        <div className="py-24 flex flex-col items-center gap-4">
-                            <div className="h-10 w-10 border-4 border-brand-green-500 border-t-transparent rounded-full animate-spin" />
-                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Loading Grid...</p>
-                        </div>
-                    ) : filtered.length === 0 ? (
-                        <div className="py-24 text-center">
-                            <div className="h-16 w-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-gray-100">
-                                <Package className="h-8 w-8 text-gray-200" />
-                            </div>
-                            <p className="text-sm font-black text-gray-900">Zero Inventory Match</p>
-                            <p className="text-xs text-gray-400 mt-1 px-10">Adjust your matrix or add a new high-performance item.</p>
-                        </div>
-                    ) : paginatedProducts.map((product) => (
-                        <div key={product.id} className="p-6 transition-colors hover:bg-white/40">
-                            <div className="flex gap-5">
-                                {/* Thumbnail: Elite Style */}
-                                <div className="h-24 w-24 bg-white rounded-[20px] border border-gray-100 shadow-xl overflow-hidden flex items-center justify-center p-2 shrink-0 relative group">
-                                    <img src={getProxiedImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform" onError={(e) => { e.currentTarget.src = "/assets/images/placeholder-product.svg"; }} />
-                                    {product.price_flag === "overpriced" && (
-                                        <div className="absolute top-1 right-1 bg-rose-500 rounded-full p-1 shadow-lg">
-                                            <AlertTriangle className="h-3 w-3 text-white" />
-                                        </div>
+            {/* Quick Status Filters */}
+            {showFilters && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 animate-in fade-in slide-in-from-top-4">
+                    <div className="bg-white/40 backdrop-blur-xl p-6 rounded-[28px] border border-white/60">
+                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 block">Category</Label>
+                        <select
+                            className="w-full h-12 bg-white/60 border border-white rounded-2xl px-4 text-xs font-black uppercase tracking-widest outline-none"
+                            value={selectedCategory}
+                            onChange={(e) => setSelectedCategory(e.target.value)}
+                        >
+                            <option value="all">All Categories</option>
+                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                        </select>
+                    </div>
+                    <div className="bg-white/40 backdrop-blur-xl p-6 rounded-[28px] border border-white/60">
+                        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-3 block">Market Status</Label>
+                        <div className="flex bg-gray-100 p-1 rounded-2xl gap-1">
+                            {["all", "live", "sponsored"].map((s) => (
+                                <button
+                                    key={s}
+                                    onClick={() => setStatusFilter(s)}
+                                    className={cn(
+                                        "flex-1 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all",
+                                        statusFilter === s ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600"
                                     )}
-                                </div>
-                                {/* Info */}
-                                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                    <h3 className="font-black text-gray-900 text-[15px] leading-tight mb-1">{product.name}</h3>
-                                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                                        <span className="text-[9px] font-black uppercase tracking-[0.1em] text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100">
-                                            {product.category}
-                                        </span>
-                                        {product.is_sponsored && (
-                                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-amber-600 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-100 flex items-center gap-1">
-                                                <Star className="h-2.5 w-2.5 fill-amber-500" /> PROMOTED
-                                            </span>
-                                        )}
-                                        {activeDeals.some(d => d.product_id === product.id) && (
-                                            <span className="text-[9px] font-black uppercase tracking-[0.1em] text-purple-600 bg-purple-50 px-2 py-0.5 rounded-lg border border-purple-100 flex items-center gap-1">
-                                                <Timer className="h-2.5 w-2.5 text-purple-600" /> HOTTEST DEAL
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-lg font-black text-gray-900">{formatPrice(product.price)}</span>
-                                        <div className={cn(
-                                            "flex items-center gap-1.5 px-2 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest border",
-                                            product.stock < 10 ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                        )}>
-                                            <Zap className="h-3 w-3" /> {product.stock} Units
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Luxury Action Tier */}
-                            {deleteConfirm === product.id ? (
-                                <div className="flex items-center gap-3 mt-6 animate-in slide-in-from-right-4">
-                                    <div className="flex-1 flex items-center gap-2 text-[10px] font-black uppercase text-rose-600 bg-rose-50 p-3 rounded-2xl border border-rose-100">
-                                        <AlertTriangle className="h-4 w-4" /> Final Confirmation?
-                                    </div>
-                                    <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(null)} className="h-12 px-5 font-black uppercase text-[10px] bg-white border border-gray-100 rounded-2xl">Escape</Button>
-                                    <Button size="sm" variant="destructive" onClick={() => handleDelete(product.id)} className="h-12 px-6 font-black uppercase text-[10px] rounded-2xl shadow-lg shadow-rose-200">Delete</Button>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-5 gap-2 mt-6">
-                                    <Link href={`/product/${product.id}`} className="col-span-1">
-                                        <Button size="sm" variant="ghost" className="w-full h-12 rounded-2xl bg-white border border-gray-100 shadow-sm hover:bg-gray-50 flex items-center justify-center p-0">
-                                            <Eye className="h-5 w-5 text-gray-400" />
-                                        </Button>
-                                    </Link>
-                                    <Link href={`/seller/products/${product.id}/edit`} className="col-span-1">
-                                        <Button size="sm" variant="ghost" className="w-full h-12 rounded-2xl bg-white border border-gray-100 shadow-sm hover:bg-blue-50 flex items-center justify-center p-0">
-                                            <Edit3 className="h-5 w-5 text-blue-500" />
-                                        </Button>
-                                    </Link>
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="col-span-1 h-12 rounded-2xl bg-purple-50 border border-purple-200 text-purple-600 shadow-sm hover:bg-purple-100 flex items-center justify-center p-0"
-                                        onClick={() => setDealModalOpen({ isOpen: true, product })}
-                                    >
-                                        <Timer className="h-5 w-5" />
-                                    </Button>
-                                    {!product.is_sponsored ? (
-                                        <Button
-                                            size="sm"
-                                            variant="ghost"
-                                            className="col-span-1 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 shadow-sm hover:bg-amber-100 flex items-center justify-center p-0"
-                                            onClick={() => setPromoteModalOpen({ isOpen: true, product })}
-                                        >
-                                            <Megaphone className="h-5 w-5" />
-                                        </Button>
-                                    ) : (
-                                        <div className="col-span-1 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
-                                            <TrendingUp className="h-5 w-5 text-emerald-600" />
-                                        </div>
-                                    )}
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => setDeleteConfirm(product.id)}
-                                        className="col-span-1 h-12 rounded-2xl bg-rose-50 border border-rose-100 text-rose-500 hover:bg-rose-100 flex items-center justify-center p-0"
-                                    >
-                                        <Trash2 className="h-5 w-5" />
-                                    </Button>
-                                </div>
-                            )}
+                                >
+                                    {s}
+                                </button>
+                            ))}
                         </div>
-                    ))}
+                    </div>
+                    <div className="flex items-center justify-center">
+                        <Button 
+                            variant="ghost" 
+                            className="text-[10px] font-black uppercase text-rose-500 hover:text-rose-600"
+                            onClick={() => { setSelectedCategory("all"); setStatusFilter("all"); setSearchQuery(""); }}
+                        >
+                            Clear All Filters
+                        </Button>
+                    </div>
                 </div>
+            )}
 
-                {/* ─── Desktop Table View ─── */}
-                <table className="w-full text-left border-collapse hidden md:table">
-                    <thead>
-                        <tr className="border-b border-gray-100">
-                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider w-16">Image</th>
-                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Product</th>
-                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Price</th>
-                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Stock</th>
-                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                        {filtered.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="py-24 text-center text-gray-400">
-                                    <Package className="h-12 w-12 text-gray-200 mx-auto mb-4" />
-                                    <p className="text-base font-medium">No products found</p>
-                                    <p className="text-sm mt-1">Try adjusting your search or add a new product.</p>
-                                </td>
-                            </tr>
-                        ) : (
-                            paginatedProducts.map((product) => (
-                                <tr key={product.id} className="hover:bg-gray-50/50 transition-colors">
-                                    <td className="px-6 py-5">
-                                        <div className="h-14 w-14 bg-gray-50 border border-gray-100 rounded-xl overflow-hidden flex items-center justify-center p-1 relative">
-                                            <img src={getProxiedImageUrl(product.image_url)} alt={product.name} className="h-full w-full object-contain mix-blend-multiply" onError={(e) => { e.currentTarget.src = "/assets/images/placeholder-product.svg"; }} />
-                                            {product.price_flag === "overpriced" && (
-                                                <div className="absolute -top-1 -right-1 bg-orange-500 rounded-full p-0.5">
-                                                    <AlertTriangle className="h-2.5 w-2.5 text-white" />
-                                                </div>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex flex-col max-w-[250px]">
-                                            <span className="font-semibold text-gray-900 text-sm truncate" title={product.name}>{product.name}</span>
-                                            <span className="text-xs text-gray-400 mt-0.5">{product.category}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <div className="flex flex-col">
-                                            <span className="text-sm font-bold text-gray-900">{formatPrice(product.price)}</span>
-                                            {product.price_flag === "overpriced" && (
-                                                <span className="text-[10px] font-semibold text-orange-600 uppercase flex items-center gap-1 mt-0.5">
-                                                    <AlertTriangle className="h-2.5 w-2.5" /> Above Market
-                                                </span>
-                                            )}
-                                            {product.price_flag === "fair" && (
-                                                <span className="text-[10px] font-semibold text-emerald-600 uppercase flex items-center gap-1 mt-0.5">
-                                                    <Check className="h-2.5 w-2.5" /> Fair Price
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <span className={cn(
-                                            "inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold",
-                                            product.stock < 10 ? "bg-red-50 text-red-600" : "bg-gray-100 text-gray-600"
-                                        )}>
-                                            {product.stock} {product.stock === 1 ? 'unit' : 'units'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-5">
-                                        <Badge variant="outline" className="text-xs font-semibold bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-wide px-2.5">
-                                            Live
-                                        </Badge>
-                                    </td>
-                                    <td className="px-6 py-5 text-right">
-                                        {deleteConfirm === product.id ? (
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm(null)} className="h-8 text-xs font-semibold hover:bg-gray-100 rounded-lg">Cancel</Button>
-                                                <Button size="sm" variant="destructive" onClick={() => handleDelete(product.id)} className="h-8 text-xs font-semibold rounded-lg">Delete</Button>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-end gap-1">
-                                                {!product.is_sponsored ? (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-8 px-2.5 text-xs font-semibold text-amber-600 hover:bg-amber-50 hover:text-amber-700 rounded-lg gap-1.5 transition-colors"
-                                                        onClick={() => setPromoteModalOpen({ isOpen: true, product })}
-                                                    >
-                                                        <Megaphone className="h-3.5 w-3.5" /> Promote
-                                                    </Button>
-                                                ) : (
-                                                    <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200 gap-1 font-bold text-[10px] uppercase h-8 mr-1">
-                                                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" /> Sponsored
-                                                    </Badge>
+            {/* Content Area */}
+            <div className={cn(
+                "transition-all duration-500",
+                loading ? "opacity-50 grayscale" : "opacity-100"
+            )}>
+                {paginatedProducts.length === 0 ? (
+                    <div className="py-32 text-center bg-white/40 backdrop-blur-xl rounded-[40px] border border-dashed border-gray-200">
+                        <div className="h-20 w-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-gray-100">
+                            <Package className="h-10 w-10 text-gray-200" />
+                        </div>
+                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tight">Zero Items Found</h2>
+                        <p className="text-sm text-gray-500 mt-2 font-medium italic">Adjust your filters or add a new high-performance item.</p>
+                        <Link href="/seller/products/new" className="mt-8 inline-block">
+                            <Button className="bg-gray-900 text-white font-black uppercase tracking-widest rounded-2xl px-8 h-12">Launch Product</Button>
+                        </Link>
+                    </div>
+                ) : viewMode === "table" ? (
+                    /* ─── Premium Responsive Table ─── */
+                    <div className="bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/60 shadow-xl overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="border-b border-gray-100/50">
+                                        <th className="px-6 py-5 w-12">
+                                            <div 
+                                                className={cn(
+                                                    "h-5 w-5 rounded-md border-2 transition-all flex items-center justify-center cursor-pointer",
+                                                    selectedProductIds.length === paginatedProducts.length && paginatedProducts.length > 0 ? "bg-gray-900 border-gray-900" : "border-gray-200"
                                                 )}
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 px-2.5 text-xs font-semibold text-purple-600 hover:bg-purple-50 hover:text-purple-700 rounded-lg gap-1.5 transition-colors"
-                                                    onClick={() => setDealModalOpen({ isOpen: true, product })}
+                                                onClick={toggleSelectAll}
+                                            >
+                                                {selectedProductIds.length === paginatedProducts.length && paginatedProducts.length > 0 && <Check className="h-3 w-3 text-white" />}
+                                            </div>
+                                        </th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Product Item</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Pricing</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest hidden md:table-cell">Inventory</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest hidden lg:table-cell">Status</th>
+                                        <th className="px-6 py-5 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Control</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100/50">
+                                    {paginatedProducts.map((product) => (
+                                        <tr key={product.id} className={cn(
+                                            "transition-all duration-300 group",
+                                            selectedProductIds.includes(product.id) ? "bg-brand-green-50/30" : "hover:bg-white/60"
+                                        )}>
+                                            <td className="px-6 py-6">
+                                                <div 
+                                                    className={cn(
+                                                        "h-5 w-5 rounded-md border-2 transition-all flex items-center justify-center cursor-pointer",
+                                                        selectedProductIds.includes(product.id) ? "bg-gray-900 border-gray-900" : "border-gray-200 group-hover:border-gray-400"
+                                                    )}
+                                                    onClick={() => toggleSelectProduct(product.id)}
                                                 >
-                                                    <Timer className="h-3.5 w-3.5" /> Deal
-                                                </Button>
-                                                <Link href={`/seller/products/${product.id}/edit`}>
-                                                    <Button size="sm" variant="ghost" className="h-8 px-2.5 text-xs font-semibold hover:bg-blue-50 hover:text-blue-600 rounded-lg gap-1.5 transition-colors">
-                                                        <Edit3 className="h-3.5 w-3.5" /> Edit
+                                                    {selectedProductIds.includes(product.id) && <Check className="h-3 w-3 text-white" />}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-6">
+                                                <div className="flex items-center gap-5">
+                                                    <div className="h-16 w-16 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex items-center justify-center p-2 relative shrink-0">
+                                                        <img 
+                                                            src={getProxiedImageUrl(product.image_url)} 
+                                                            alt={product.name} 
+                                                            className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-500" 
+                                                            onError={(e) => { e.currentTarget.src = "/assets/images/placeholder-product.svg"; }} 
+                                                        />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <h3 className="font-black text-gray-900 text-sm truncate max-w-[200px] xl:max-w-[300px]">{product.name}</h3>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <span className="text-[9px] font-black uppercase text-gray-400">{product.category}</span>
+                                                            {product.is_sponsored && <Badge className="bg-amber-100 text-amber-700 text-[8px] font-black uppercase px-1.5 h-4">Ads Live</Badge>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-6">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-black text-gray-900">{formatPrice(product.price)}</span>
+                                                    {product.original_price && (
+                                                        <span className="text-[10px] text-gray-400 line-through">₦{product.original_price.toLocaleString()}</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-6 hidden md:table-cell">
+                                                <div className={cn(
+                                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm",
+                                                    product.stock < 10 ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                                )}>
+                                                    <Zap className="h-3 w-3" /> {product.stock} Units
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-6 hidden lg:table-cell">
+                                                <Badge variant="outline" className="text-[9px] font-black bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-widest px-2.5">
+                                                    Active Live
+                                                </Badge>
+                                            </td>
+                                            <td className="px-6 py-6 text-right">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    {!product.is_sponsored ? (
+                                                        <Button
+                                                            variant="ghost"
+                                                            className="h-10 px-4 rounded-xl hover:bg-amber-50 hover:text-amber-600 transition-colors gap-2 text-[10px] font-black uppercase tracking-widest"
+                                                            onClick={() => setPromoteModalOpen({ isOpen: true, product })}
+                                                            title="Promote Item"
+                                                        >
+                                                            <Megaphone className="h-4 w-4" /> Promote
+                                                        </Button>
+                                                    ) : (
+                                                        <div className="h-10 px-4 rounded-xl bg-amber-50 flex items-center justify-center gap-2 border border-amber-100" title="Promotion Active">
+                                                            <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                                                            <span className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Promoted</span>
+                                                        </div>
+                                                    )}
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-10 w-10 rounded-xl hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                                                        onClick={() => setDealModalOpen({ isOpen: true, product })}
+                                                        title="Add to Deals"
+                                                    >
+                                                        <Timer className="h-4 w-4" />
                                                     </Button>
-                                                </Link>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() => setDeleteConfirm(product.id)}
-                                                    className="h-8 px-2.5 text-xs font-semibold hover:bg-red-50 hover:text-red-600 rounded-lg gap-1.5 transition-colors"
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" /> Delete
-                                                </Button>
+                                                    <Link href={`/seller/products/${product.id}/edit`}>
+                                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition-colors" title="Edit Item">
+                                                            <Edit3 className="h-4 w-4" />
+                                                        </Button>
+                                                    </Link>
+                                                    <Button 
+                                                        size="icon" 
+                                                        variant="ghost" 
+                                                        className="h-10 w-10 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-colors"
+                                                        onClick={() => setDeleteConfirm(product.id)}
+                                                        title="Delete Item"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                    
+                                                    {/* Confirmation overlay if delete clicked */}
+                                                    {deleteConfirm === product.id && (
+                                                        <div className="absolute right-6 z-10 bg-white shadow-2xl border border-gray-200 p-2 rounded-2xl flex items-center gap-2 animate-in slide-in-from-right-4">
+                                                            <span className="text-[10px] font-black uppercase px-2 text-rose-600">Delete Permanently?</span>
+                                                            <Button size="sm" variant="ghost" className="h-8 text-[9px] font-black uppercase rounded-lg" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+                                                            <Button size="sm" variant="destructive" className="h-8 text-[9px] font-black uppercase rounded-lg px-4" onClick={() => handleDelete(product.id)}>Delete</Button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : (
+                    /* ─── Premium Grid Mode ─── */
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {paginatedProducts.map((product) => (
+                            <div key={product.id} className={cn(
+                                "group bg-white/40 backdrop-blur-xl rounded-[32px] border border-white/60 p-6 shadow-xl transition-all duration-500 relative",
+                                selectedProductIds.includes(product.id) ? "ring-2 ring-gray-900 border-transparent bg-white/80" : "hover:bg-white/80"
+                            )}>
+                                {/* Selection Checkbox */}
+                                <div 
+                                    className={cn(
+                                        "absolute top-5 left-5 z-10 h-6 w-6 rounded-lg border-2 transition-all flex items-center justify-center cursor-pointer",
+                                        selectedProductIds.includes(product.id) ? "bg-gray-900 border-gray-900" : "bg-white/40 border-white opacity-0 group-hover:opacity-100"
+                                    )}
+                                    onClick={() => toggleSelectProduct(product.id)}
+                                >
+                                    {selectedProductIds.includes(product.id) && <Check className="h-3.5 w-3.5 text-white" />}
+                                </div>
+
+                                <div className="aspect-square bg-white rounded-3xl mb-6 p-4 border border-gray-100 shadow-sm relative overflow-hidden flex items-center justify-center">
+                                    <img 
+                                        src={getProxiedImageUrl(product.image_url)} 
+                                        alt={product.name} 
+                                        className="h-full w-full object-contain mix-blend-multiply group-hover:scale-110 transition-transform duration-700" 
+                                        onError={(e) => { e.currentTarget.src = "/assets/images/placeholder-product.svg"; }} 
+                                    />
+                                    {product.stock < 10 && (
+                                        <div className="absolute bottom-4 left-4 bg-rose-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full shadow-lg">Low Stock</div>
+                                    )}
+                                </div>
+                                
+                                <div className="space-y-1">
+                                    <h3 className="font-black text-gray-900 text-sm line-clamp-1">{product.name}</h3>
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{product.category}</p>
+                                </div>
+                                
+                                <div className="mt-4 flex items-end justify-between">
+                                    <div>
+                                        <span className="text-xl font-black text-gray-900">{formatPrice(product.price)}</span>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <Badge variant="outline" className="text-[8px] font-bold h-4">Live</Badge>
+                                            {product.is_sponsored && <Badge className="bg-amber-500 text-white text-[8px] font-bold h-4 border-none">Promoted</Badge>}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-1.5 items-center">
+                                        {!product.is_sponsored ? (
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-amber-50 hover:text-amber-600"
+                                                onClick={() => setPromoteModalOpen({ isOpen: true, product })}
+                                                title="Promote Item"
+                                            >
+                                                <Megaphone className="h-4 w-4" />
+                                            </Button>
+                                        ) : (
+                                            <div className="h-9 px-3 rounded-xl bg-amber-50 flex items-center justify-center gap-1.5 border border-amber-100" title="Promotion Active">
+                                                <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+                                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Promoted</span>
                                             </div>
                                         )}
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm hover:bg-purple-50 hover:text-purple-600"
+                                            onClick={() => setDealModalOpen({ isOpen: true, product })}
+                                            title="Add to Deals"
+                                        >
+                                            <Timer className="h-4 w-4" />
+                                        </Button>
+                                        <Link href={`/seller/products/${product.id}/edit`}>
+                                            <Button size="icon" variant="ghost" className="h-9 w-9 rounded-xl bg-white border border-gray-100 shadow-sm" title="Edit Item">
+                                                <Edit3 className="h-4 w-4" />
+                                            </Button>
+                                        </Link>
+                                        <Button 
+                                            size="icon" 
+                                            variant="ghost" 
+                                            className="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 border border-rose-100"
+                                            onClick={() => setDeleteConfirm(product.id)}
+                                            title="Delete Item"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
 
-                {/* Seller Pagination UI */}
-                <Pagination 
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={setCurrentPage}
-                    itemsPerPage={itemsPerPage}
-                    totalItems={filtered.length}
-                    onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
-                    type="items"
-                    className="bg-white/40"
-                />
+                                {deleteConfirm === product.id && (
+                                    <div className="absolute inset-0 z-20 bg-gray-900/90 backdrop-blur-md rounded-[32px] p-8 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95">
+                                        <AlertTriangle className="h-10 w-10 text-rose-500 mb-4" />
+                                        <h4 className="text-white font-black uppercase tracking-widest text-xs mb-2">Confirm Removal</h4>
+                                        <p className="text-white/60 text-[10px] mb-6">This product will be permanently purged from the marketplace.</p>
+                                        <div className="flex gap-3 w-full">
+                                            <Button variant="ghost" className="flex-1 text-white hover:bg-white/10 rounded-2xl h-12" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
+                                            <Button variant="destructive" className="flex-1 bg-rose-500 rounded-2xl h-12" onClick={() => handleDelete(product.id)}>Delete</Button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+                
+                {/* Modern Pagination */}
+                {totalPages > 1 && (
+                    <div className="mt-12 bg-white/40 backdrop-blur-xl p-4 rounded-[28px] border border-white/60 shadow-lg">
+                        <Pagination 
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={setCurrentPage}
+                            itemsPerPage={itemsPerPage}
+                            totalItems={filtered.length}
+                            onItemsPerPageChange={(val) => { setItemsPerPage(val); setCurrentPage(1); }}
+                            type="items"
+                            className="bg-transparent"
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Promote Product Modal — 3-Tier Selector */}

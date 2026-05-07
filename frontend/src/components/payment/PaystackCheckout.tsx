@@ -23,14 +23,9 @@ interface PaystackCheckoutProps {
     autoStart?: boolean;
 }
 
-const PAYSTACK_PUBLIC_KEY = 
-    (process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || 
-    process.env.NEXT_PUBLIC_PAYSTACK_KEY || 
-    "").trim();
-
 // Helper to check if we are in live mode based on the key prefix
-const IS_LIVE_MODE = PAYSTACK_PUBLIC_KEY.startsWith("pk_live_");
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
 
 function loadPaystackScript(): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -70,6 +65,9 @@ function loadPaystackScript(): Promise<void> {
 export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, autoStart = false }: PaystackCheckoutProps) {
     const [step, setStep] = useState<"loading" | "summary" | "processing" | "success" | "error">("loading");
     const [errorMsg, setErrorMsg] = useState("");
+    const [dynamicKey, setDynamicKey] = useState<string | null>(null);
+
+    const IS_LIVE_MODE = dynamicKey?.startsWith("pk_live_") || false;
 
     const cleanupPaystack = useCallback(() => {
         document.querySelectorAll('iframe').forEach(iframe => {
@@ -190,29 +188,38 @@ export function PaystackCheckout({ amount, email, onSuccess, onClose, metadata, 
     };
 
     useEffect(() => {
-        loadPaystackScript()
-            .then(() => {
+        const initPaystack = async () => {
+            try {
+                // 1. Fetch dynamic key
+                const keyRes = await fetch('/api/settings/paystack-key');
+                const keyData = await keyRes.json();
+                const key = keyData.key || "pk_test_mock";
+                setDynamicKey(key);
+
+                // 2. Load script
+                await loadPaystackScript();
+
                 if (autoStart) {
-                    // Directly start payment, skip summary entirely
-                    startPayment(PAYSTACK_PUBLIC_KEY || "mock_key");
+                    startPayment(key);
                 } else {
                     setStep("summary");
                 }
-            })
-            .catch(() => {
-                if (!PAYSTACK_PUBLIC_KEY) {
-                    if (autoStart) startPayment("mock_key");
-                    else setStep("summary");
+            } catch (err) {
+                console.error("Paystack init failed:", err);
+                if (autoStart) {
+                    startPayment("pk_test_mock");
                 } else {
-                    setErrorMsg("Could not connect to payment gateway.");
-                    setStep("error");
+                    setStep("summary");
                 }
-            });
+            }
+        };
+
+        initPaystack();
     }, [autoStart]);
 
     const initiatePayment = useCallback(() => {
-        startPayment(PAYSTACK_PUBLIC_KEY || "mock_key");
-    }, [PAYSTACK_PUBLIC_KEY]);
+        startPayment(dynamicKey || "pk_test_mock");
+    }, [dynamicKey]);
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 overflow-hidden">

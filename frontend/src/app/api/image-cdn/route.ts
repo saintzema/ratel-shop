@@ -62,7 +62,7 @@ export async function GET(req: Request) {
 
         const upstream = await fetch(imageUrl, {
             headers: {
-                "User-Agent": "Mozilla/5.0 (compatible; FairPrice/1.0; +https://fairprice.ng)",
+                "User-Agent": "Mozilla/5.0 (compatible; FairPrice/1.0; +https://www.fairprice.ng)",
                 "Accept": "image/*,*/*;q=0.8",
             },
             signal: controller.signal,

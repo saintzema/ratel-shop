@@ -133,17 +133,24 @@ function HomeContent() {
     loadGrids();
     loadHeroConfig();
     setMounted(true);
-    window.addEventListener("storage", refresh);
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "ratel_homepage_banners" || e.key === "ratel_homepage_grids") {
+        refresh();
+        loadGrids();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
     window.addEventListener("sync-store-update", refresh);
-    window.addEventListener("storage", loadGrids);
     window.addEventListener("hero-config-update", loadHeroConfig);
+    
     return () => {
-      window.removeEventListener("storage", refresh);
+      window.removeEventListener("storage", handleStorageChange);
       window.removeEventListener("sync-store-update", refresh);
-      window.removeEventListener("storage", loadGrids);
       window.removeEventListener("hero-config-update", loadHeroConfig);
     };
-  }, [searchParams, isSeller, router, activeTab]);
+  }, [searchParams]); // Only searchParams affects the content (referrals)
 
   // Slideshow timer
   useEffect(() => {
@@ -156,41 +163,39 @@ function HomeContent() {
 
   // ─── Unified Product Memoization Engine ───
   const sections = useMemo(() => {
-    if (!mounted) return null;
-    const pool = allProducts.length > 0 ? allProducts : SEED_PRODUCTS;
-    if (pool.length === 0) return null;
+    if (!mounted || allProducts.length === 0) return null;
+    const pool = allProducts;
 
     const getByCategory = (cat: string) => pool.filter(p => p.category === cat).slice(0, 15);
 
-    return {
-      topPicks: pool
-        .sort((a, b) => {
-            if (a.is_trending && !b.is_trending) return -1;
-            if (!a.is_trending && b.is_trending) return 1;
-            return (b.sold_count || 0) - (a.sold_count || 0);
-        })
-        .slice(0, 20),
-      sponsoredProducts: pool.filter(p => p.is_sponsored).slice(0, 15),
-      dealProducts: pool
+    // Pre-calculate deal end times once per product update
+    const dealProducts = pool
         .filter(p => p.original_price && p.original_price > p.price)
         .slice(0, 30)
         .map(p => {
           const savings = (p.original_price || p.price) - p.price;
           const discountPct = Math.round((savings / (p.original_price || p.price)) * 100);
-            const isGlobal = p.seller_id === 'global-partners';
-            const createdPlus24h = p.created_at ? new Date(p.created_at).getTime() + 24 * 60 * 60 * 1000 : 0;
-            const dealEndTime = isGlobal
-              ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString() // 6 months from now
-              : (createdPlus24h > Date.now() 
-                  ? new Date(createdPlus24h).toISOString() 
-                  : new Date(new Date().setHours(23, 59, 59, 999)).toISOString());
+          const isGlobal = p.seller_id === 'global-partners';
+          const createdPlus24h = p.created_at ? new Date(p.created_at).getTime() + 24 * 60 * 60 * 1000 : 0;
+          const dealEndTime = isGlobal
+            ? new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString()
+            : (createdPlus24h > Date.now() 
+                ? new Date(createdPlus24h).toISOString() 
+                : new Date(new Date().setHours(23, 59, 59, 999)).toISOString());
 
-            return {
-              ...p,
-              dealEndTime,
-              dealDiscountText: `${discountPct}% OFF`
+          return {
+            ...p,
+            dealEndTime,
+            dealDiscountText: `${discountPct}% OFF`
           };
-        }),
+        });
+
+    return {
+      topPicks: pool
+        .sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0))
+        .slice(0, 20),
+      sponsoredProducts: pool.filter(p => p.is_sponsored).slice(0, 15),
+      dealProducts,
       phonesProducts: getByCategory("Phones"),
       gamingProducts: getByCategory("Gaming"),
       computerProducts: getByCategory("Computers"),

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { Star, ShieldCheck, ShoppingCart, Clock, Crown, Store, Plus, AlertTriangle } from "lucide-react";
 import { Product } from "@/lib/types";
 import { formatPrice, cn, getProductUrl, getProxiedImageUrl, formatNumber } from "@/lib/utils";
@@ -17,35 +17,48 @@ interface CompactPriceDropCardProps {
     className?: string;
 }
 
-export function CompactPriceDropCard({ product, className }: CompactPriceDropCardProps) {
+function CompactPriceDropCardComponent({ product, className }: CompactPriceDropCardProps) {
     const { addToCart } = useCart();
     const { user } = useAuth();
     const router = useRouter();
-    const [timeLeft, setTimeLeft] = useState<string>("");
+    const [timeLeft, setTimeLeft] = useState<string>("00:00:00");
     const [addedToCart, setAddedToCart] = useState(false);
     
-    // Calculate simulated deal end time. If past, default to midnight today so it's always ticking.
-    const createdPlus24h = product.created_at ? new Date(new Date(product.created_at).getTime() + 24 * 60 * 60 * 1000) : new Date(0);
-    const dealEndTime = createdPlus24h.getTime() > Date.now() 
-        ? createdPlus24h.toISOString() 
-        : new Date(new Date().setHours(23, 59, 59, 999)).toISOString();
+    // Stabilize deal end time calculation
+    const dealEndTime = useMemo(() => {
+        const createdPlus24h = product.created_at ? new Date(new Date(product.created_at).getTime() + 24 * 60 * 60 * 1000) : new Date(0);
+        const now = new Date();
+        
+        // If the 24h deal is still active, use it
+        if (createdPlus24h.getTime() > now.getTime()) {
+            return createdPlus24h.toISOString();
+        }
+        
+        // Otherwise, use end of current day as a fallback "daily deal"
+        const endOfDay = new Date(now);
+        endOfDay.setHours(23, 59, 59, 999);
+        return endOfDay.toISOString();
+    }, [product.id, product.created_at]);
 
     useEffect(() => {
-        const updateTimer = () => {
+        const calculateTimeLeft = () => {
             const diff = new Date(dealEndTime).getTime() - Date.now();
-            if (diff <= 0) {
-                setTimeLeft("00:00:00");
-                return;
-            }
+            if (diff <= 0) return "00:00:00";
+            
             const hours = Math.floor(diff / (1000 * 60 * 60));
             const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const secs = Math.floor((diff % (1000 * 60)) / 1000);
             
-            setTimeLeft(`${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+            return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         };
         
-        updateTimer();
-        const interval = setInterval(updateTimer, 1000);
+        // Update immediately
+        setTimeLeft(calculateTimeLeft());
+        
+        const interval = setInterval(() => {
+            setTimeLeft(calculateTimeLeft());
+        }, 1000);
+        
         return () => clearInterval(interval);
     }, [dealEndTime]);
 
@@ -210,3 +223,4 @@ export function CompactPriceDropCard({ product, className }: CompactPriceDropCar
         </div>
     );
 }
+export const CompactPriceDropCard = memo(CompactPriceDropCardComponent);

@@ -38,6 +38,8 @@ import {
 import { QRCodeCanvas } from "qrcode.react";
 
 import { useAuth } from "@/context/AuthContext";
+import { WhatsAppCatalogImporter } from "@/components/seller/WhatsAppCatalogImporter";
+
 
 export default function SellerDashboard() {
     const router = useRouter();
@@ -405,6 +407,9 @@ export default function SellerDashboard() {
                     </Link>
                 </div>
             )}
+
+            {/* Growth Tools: WhatsApp Import */}
+            <WhatsAppCatalogImporter />
 
             {/* ── Store Link Card ── */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">

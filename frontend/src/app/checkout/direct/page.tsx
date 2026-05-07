@@ -33,13 +33,15 @@ function DirectCheckoutContent() {
     useEffect(() => {
         const productId = searchParams.get("productId") || "";
         const name = searchParams.get("name") || "";
+        const memo = searchParams.get("memo") || "";
+        const ref = searchParams.get("ref") || "";
         const amount = Number(searchParams.get("amount")) || 0;
-        const image = searchParams.get("image") || "/assets/images/placeholder.png";
+        const image = searchParams.get("image") || "";
         const category = searchParams.get("category") || "general";
         const sellerId = searchParams.get("sellerId") || "";
-        const label = searchParams.get("label") || "";
+        const label = searchParams.get("label") || memo || ref || "";
 
-        if (!productId && !name && !sellerId) {
+        if (!productId && !name && !sellerId && !label) {
             setStatus("error");
             setErrorMsg("Missing payment information. Please scan a valid QR code.");
             return;
@@ -58,21 +60,24 @@ function DirectCheckoutContent() {
             }
 
             // Strategy 3: Handle Direct Payment (No specific product, just amount + seller)
-            if (!product && sellerId) {
+            if (!product && (sellerId || label)) {
                 const sellers = DataSyncService.getSellers();
                 const seller = sellers.find(s => s.id === sellerId);
                 
+                // Use a unique ID for direct payments to allow multiple different payments in one cart
+                const uniqueId = productId || `qr-pay-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                
                 const reconstructed: Product = {
-                    id: productId || `qr-pay-${Date.now()}`,
+                    id: uniqueId,
                     name: label || (name ? name : `Payment to ${seller?.business_name || "Verified Seller"}`),
                     price: amount,
                     original_price: amount,
                     category: (category || "services") as ProductCategory,
                     description: label || `Direct QR payment secured by FairPrice Escrow.`,
-                    image_url: seller?.logo_url || image,
-                    images: [seller?.logo_url || image],
+                    image_url: image || "SPECIAL:QR_PAYMENT",
+                    images: [image || "SPECIAL:QR_PAYMENT"],
                     stock: 9999,
-                    seller_id: sellerId,
+                    seller_id: sellerId || "global-partners",
                     seller_name: seller?.business_name || "Verified Seller",
                     price_flag: "fair",
                     sold_count: 0,
@@ -81,15 +86,15 @@ function DirectCheckoutContent() {
                     is_active: true,
                     created_at: new Date().toISOString(),
                     // @ts-ignore - Dynamic metadata for tracking
-                    off_listing: true
+                    off_listing: true,
+                    // @ts-ignore
+                    is_direct_payment: true
                 };
 
-                // For direct payments, we don't necessarily need to persist to global catalogue
-                // but we need it for the cart/checkout to work.
                 product = reconstructed;
             }
 
-            // Strategy 4: Fallback reconstruction (if no sellerId but has productId/name)
+            // Strategy 4: Fallback reconstruction (if no sellerId/label but has productId/name)
             if (!product) {
                 const reconstructed: Product = {
                     id: productId || `qr-${Date.now()}`,
@@ -98,8 +103,8 @@ function DirectCheckoutContent() {
                     original_price: amount > 0 ? Math.round(amount * 1.15) : 0,
                     category: (category || "electronics") as ProductCategory,
                     description: `Product added via QR scan. Secured by FairPrice Escrow protection.`,
-                    image_url: image,
-                    images: [image],
+                    image_url: image || "/assets/images/placeholder.png",
+                    images: [image || "/assets/images/placeholder.png"],
                     stock: 100,
                     seller_id: "global-partners",
                     seller_name: "Global Stores",
@@ -119,21 +124,16 @@ function DirectCheckoutContent() {
                 DataSyncService.addRawProduct(product, false);
             } catch { /* best effort */ }
 
-            // Check if already in cart (prevent double-adds from QR re-scans)
-            const alreadyInCart = cart.some(item => 
-                item.product.id === product!.id && item.product.price === product!.price
-            );
-            
-            if (!alreadyInCart) {
-                addToCart(product);
-            }
+            // Add to cart regardless (CartContext handles quantity increments for same IDs)
+            // But since we use unique IDs for direct payments, they will appear as separate items
+            addToCart(product);
 
             setStatus("redirecting");
 
             // Small delay so the user sees the confirmation before redirect
             setTimeout(() => {
                 router.replace("/checkout");
-            }, 1500);
+            }, 1200);
 
         } catch (err) {
             console.error("[DirectCheckout] Error:", err);

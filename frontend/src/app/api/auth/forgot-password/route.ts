@@ -45,9 +45,9 @@ export async function POST(request: Request) {
         });
 
         // Send Email
-        const resetLink = `${process.env.NEXTAUTH_URL || 'https://fairprice.ng'}/reset-password?token=${token}&email=${encodeURIComponent(normalizedEmail)}`;
+        const resetLink = `${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/reset-password?token=${token}&email=${encodeURIComponent(normalizedEmail)}`;
         
-        await fetch(`${process.env.NEXTAUTH_URL || 'https://fairprice.ng'}/api/email`, {
+        await fetch(`${process.env.NEXTAUTH_URL || 'https://www.fairprice.ng'}/api/email`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

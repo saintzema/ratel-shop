@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronDown, Trash2, Plus, X, Globe, ShieldCheck, Eye, EyeOff } from "lucide-react";
-import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building, Sparkles } from "lucide-react";
+import { Check, Lock, ChevronRight, CreditCard, Tag, MapPin, Phone, Truck, Package, CheckCircle2, Crown, Building, Sparkles, QrCode } from "lucide-react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, useEffect, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1160,7 +1160,7 @@ function CheckoutContent() {
                                 orderId: newOrder.id,
                                 productName: item.product.name,
                                 amount: item.price * item.quantity,
-                                trackingUrl: `https://fairprice.ng/seller/orders`
+                                trackingUrl: `https://www.fairprice.ng/seller/orders`
                             }
                         })
                     }).catch(() => {}); // Silently fail email — in-app notification is the source of truth
@@ -1274,7 +1274,7 @@ function CheckoutContent() {
                             orderId: realOrderId,
                             productName: checkoutItems.length > 1 ? `${checkoutItems[0].product.name} +${checkoutItems.length - 1} more` : checkoutItems[0].product.name,
                             amount: checkoutItems.reduce((acc, item) => acc + (item.price * item.quantity), 0),
-                            trackingUrl: `https://fairprice.ng/account/orders`
+                            trackingUrl: `https://www.fairprice.ng/account/orders`
                         }
                     })
                 }).catch(console.error);
@@ -1321,7 +1321,7 @@ function CheckoutContent() {
                             orderId: firstSellerOrder.order.id,
                             productName: productNames,
                             amount: totalAmount,
-                            trackingUrl: `https://fairprice.ng/seller/orders`
+                            trackingUrl: `https://www.fairprice.ng/seller/orders`
                         }
                     })
                 }).catch(console.error);
@@ -2201,14 +2201,20 @@ function CheckoutContent() {
                             {checkoutItems.map((item, i) => (
                                 <div key={i} className="flex items-center gap-3 group">
                                     <div className="w-12 h-12 bg-white rounded-lg border border-gray-100 p-1 shrink-0 overflow-hidden flex items-center justify-center">
-                                        <img
-                                            src={item.product.image_url || "/assets/images/placeholder.png"}
-                                            alt={item.product.name}
-                                            className="w-full h-full object-contain"
-                                            onError={e => {
-                                                e.currentTarget.src = "/assets/images/placeholder.png";
-                                            }}
-                                        />
+                                        {item.product.image_url === "SPECIAL:QR_PAYMENT" ? (
+                                            <div className="w-full h-full bg-emerald-50 rounded-md flex items-center justify-center">
+                                                <QrCode className="h-6 w-6 text-emerald-600" />
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={item.product.image_url || "/assets/images/placeholder.png"}
+                                                alt={item.product.name}
+                                                className="w-full h-full object-contain"
+                                                onError={e => {
+                                                    e.currentTarget.src = "/assets/images/placeholder.png";
+                                                }}
+                                            />
+                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-xs font-medium text-gray-700 line-clamp-1">{item.product.name}</p>

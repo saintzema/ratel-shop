@@ -971,24 +971,29 @@ export default function UnifiedAuthPage() {
                                                 }}
                                                 list="email-domains"
                                             />
-                                            {mounted && identifier && identifier.trim().length > 0 && isNaN(Number(identifier.replace(/\D/g, ''))) && (
-                                                <datalist id="email-domains">
-                                                    {(() => {
-                                                        const prefix = identifier.includes('@') ? identifier.split('@')[0] : identifier;
-                                                        if (!prefix) return null;
-                                                        return (
-                                                            <>
-                                                                <option value={`${prefix}@gmail.com`} />
-                                                                <option value={`${prefix}@yahoo.com`} />
-                                                                <option value={`${prefix}@icloud.com`} />
-                                                                <option value={`${prefix}@outlook.com`} />
-                                                                <option value={`${prefix}@protonmail.com`} />
-                                                                <option value={`${prefix}@hotmail.com`} />
-                                                            </>
-                                                        );
-                                                    })()}
-                                                </datalist>
-                                            )}
+                                            <datalist id="email-domains">
+                                                {mounted && identifier && identifier.trim().length > 0 && !/^\d+$/.test(identifier.replace(/\s+/g, '')) && (() => {
+                                                    const [localPart, domainPart] = identifier.split('@');
+                                                    const domains = [
+                                                        'gmail.com', 'yahoo.com', 'icloud.com', 
+                                                        'outlook.com', 'protonmail.com', 'hotmail.com'
+                                                    ];
+                                                    
+                                                    // If no @ yet, show all common domains
+                                                    if (!identifier.includes('@')) {
+                                                        return domains.map(d => <option key={d} value={`${identifier}@${d}`} />);
+                                                    }
+                                                    
+                                                    // If @ is present, filter domains by what's after @
+                                                    if (localPart && domainPart !== undefined) {
+                                                        return domains
+                                                            .filter(d => d.startsWith(domainPart))
+                                                            .map(d => <option key={d} value={`${localPart}@${d}`} />);
+                                                    }
+                                                    
+                                                    return null;
+                                                })()}
+                                            </datalist>
                                         </div>
                                         {error && (
                                             <motion.div

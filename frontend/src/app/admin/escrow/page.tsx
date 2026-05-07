@@ -427,17 +427,17 @@ export default function EscrowManagement() {
                                                         )}
                                                         {(order.escrow_status === "seller_confirmed" || order.escrow_status === "buyer_confirmed" || isAutoEligible) && (
                                                             <Button
-                                                                onClick={() => handleRelease(order.id)}
-                                                                size="sm"
-                                                                className={cn(
-                                                                    "h-8 px-3 rounded-lg text-white font-bold text-[10px] uppercase tracking-widest",
-                                                                    isAutoEligible ? "bg-emerald-600 hover:bg-emerald-700 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
-                                                                )}
-                                                            >
-                                                                <Unlock className="h-3 w-3 mr-1" />
-                                                                Release to Seller
-                                                            </Button>
-                                                        )}
+                                                                 onClick={() => handleRelease(order.id)}
+                                                                 size="sm"
+                                                                 className={cn(
+                                                                     "h-8 px-3 rounded-lg text-white font-bold text-[10px] uppercase tracking-widest",
+                                                                     isAutoEligible ? "bg-indigo-600 hover:bg-indigo-700 animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
+                                                                 )}
+                                                             >
+                                                                 <Unlock className="h-3 w-3 mr-1" />
+                                                                 {isAutoEligible ? "Admin Force Release (24h+)" : "Release to Seller"}
+                                                             </Button>
+                                                         )}
                                                         {order.escrow_status === "seller_confirmed" && !isAutoEligible && (
                                                             <Button
                                                                 onClick={() => handleBuyerConfirm(order.id)}
@@ -555,7 +555,7 @@ export default function EscrowManagement() {
                 <div className="text-center md:text-left">
                     <h3 className="text-xl font-black tracking-tight">Escrow Release Protocol</h3>
                     <p className="text-indigo-100/70 text-sm font-bold mt-1">
-                        Funds auto-eligible for release 48 hours after seller confirms delivery if no dispute is raised. Final release requires admin approval.
+                        Funds auto-eligible for release 24 hours after seller confirms delivery if no dispute is raised. Final release requires admin approval or buyer confirmation.
                     </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -571,7 +571,7 @@ export default function EscrowManagement() {
                     <ArrowRight className="h-4 w-4 text-indigo-300" />
                     <div className="flex items-center gap-2 text-xs font-bold text-indigo-200">
                         <Timer className="h-4 w-4" />
-                        <span>48 Hour Hold</span>
+                        <span>24 Hour Hold</span>
                     </div>
                     <ArrowRight className="h-4 w-4 text-indigo-300" />
                     <div className="flex items-center gap-2 text-xs font-bold text-white">

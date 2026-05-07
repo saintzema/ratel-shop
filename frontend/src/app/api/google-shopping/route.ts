@@ -6,7 +6,7 @@ import { SEED_PRODUCTS } from '@/lib/data';
 export const revalidate = 3600;
 
 export async function GET() {
-    const baseUrl = "https://fairprice.ng";
+    const baseUrl = "https://www.fairprice.ng";
     
     // 1. Fetch products (SEED + DB)
     let allProducts = [...SEED_PRODUCTS];

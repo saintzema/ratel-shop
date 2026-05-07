@@ -50,6 +50,8 @@ export async function GET(req: Request) {
                 location: true,
                 createdAt: true,
                 ownerName: true,
+                subscriptionPlan: true,
+                planExpiryDate: true,
             },
             take: 100
         });
@@ -64,6 +66,8 @@ export async function GET(req: Request) {
             kyc_status: s.kycStatus,
             store_url: s.storeUrl,
             owner_name: s.ownerName,
+            subscription_plan: s.subscriptionPlan,
+            plan_expiry_date: s.planExpiryDate ? s.planExpiryDate.toISOString() : null,
             created_at: s.createdAt.toISOString(),
         }));
 
@@ -153,6 +157,8 @@ export async function POST(req: Request) {
             physicalStores: body.physical_stores,
             ownerName: body.owner_name || user.name,
             ownerEmail: body.owner_email || user.email,
+            subscriptionPlan: body.subscription_plan || body.subscriptionPlan || "Starter",
+            planExpiryDate: body.plan_expiry_date || body.planExpiryDate ? new Date(body.plan_expiry_date || body.planExpiryDate) : null,
         };
 
         // Enforce Subscription Limits for NEW sellers

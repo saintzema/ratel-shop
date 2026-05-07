@@ -1701,7 +1701,7 @@ export default function CatalogControl() {
                                         className="bg-gray-50 border-gray-100 h-10 rounded-xl text-sm font-medium"
                                         placeholder="product-name-slug"
                                     />
-                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">https://fairprice.ng/product/{editingProduct?.id}/{editSlug || 'slug'}</p>
+                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight">https://www.fairprice.ng/product/{editingProduct?.id}/{editSlug || 'slug'}</p>
                                 </div>
                             </div>
                         </div>

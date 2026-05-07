@@ -207,13 +207,13 @@ export default function StoreProfile() {
                                 '@type': 'ListItem',
                                 position: 1,
                                 name: 'All Stores',
-                                item: 'https://fairprice.ng/stores'
+                                item: 'https://www.fairprice.ng/stores'
                             },
                             {
                                 '@type': 'ListItem',
                                 position: 2,
                                 name: seller.business_name,
-                                item: `https://fairprice.ng/store/${params.slug}`
+                                item: `https://www.fairprice.ng/store/${params.slug}`
                             }
                         ]
                     }) }}

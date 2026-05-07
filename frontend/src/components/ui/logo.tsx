@@ -20,7 +20,7 @@ export function Logo({ className, variant = "light", hideTextMobile = false, isA
                     {isAdmin ? "Admin Portal" : "FairPrice.ng"}
                 </span>
                 <span className={cn("text-[8.5px] font-black italic uppercase tracking-widest mt-1.5", variant === "light" ? "text-yellow-400 drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]" : "text-emerald-700")}>
-                    {isAdmin ? "Marketplace Engine" : "Never Over Pay Again"}
+                    {isAdmin ? "Marketplace Engine" : "Buy & Sell on Credit, No Wahala"}
                 </span>
             </div>
         </Link>

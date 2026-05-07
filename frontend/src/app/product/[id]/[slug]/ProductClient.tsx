@@ -1256,7 +1256,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                             </h2>
                             <div className="grid grid-cols-5 gap-2 sm:gap-3 lg:grid-cols-5">
                                 <a
-                                    href={`https://wa.me/?text=${encodeURIComponent((product?.name || '') + ' — ₦' + (product?.price || 0).toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? (window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://fairprice.ng', 'https://www.fairprice.ng')) : ''))}`}
+                                    href={`https://wa.me/?text=${encodeURIComponent((product?.name || '') + ' — ₦' + (product?.price || 0).toLocaleString() + ' on FairPrice: ' + (typeof window !== 'undefined' ? (window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://www.fairprice.ng', 'https://www.fairprice.ng')) : ''))}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-[#25D366]/20 bg-[#25D366]/5 group"
@@ -1286,7 +1286,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                     </div>
                                 </a>
                                 <a
-                                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== 'undefined' ? (window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://fairprice.ng', 'https://www.fairprice.ng')) : '')}`}
+                                    href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(typeof window !== 'undefined' ? (window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://www.fairprice.ng', 'https://www.fairprice.ng')) : '')}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center justify-center p-3 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-md border border-[#1877F2]/20 bg-[#1877F2]/5 group"
@@ -1297,7 +1297,7 @@ Inside your package, you'll find the ${n} along with standard manufacturer inclu
                                 </a>
                                 <button
                                     onClick={async () => {
-                                        const shareUrl = window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://fairprice.ng', 'https://www.fairprice.ng');
+                                        const shareUrl = window.location.href.includes('localhost') || window.location.href.includes('vercel.app') ? window.location.href : window.location.href.replace('https://www.fairprice.ng', 'https://www.fairprice.ng');
                                         const success = await copyToClipboard(shareUrl);
                                         if (success) {
                                             setCopiedLink(true);

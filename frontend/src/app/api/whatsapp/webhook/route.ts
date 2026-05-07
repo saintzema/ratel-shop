@@ -67,7 +67,7 @@ export async function POST(req: Request) {
                         where: { id: verification.id },
                         data: { status: "verified" }
                     });
-                    const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+                    const APP_URL = process.env.NEXTAUTH_URL || "https://www.fairprice.ng";
                     await WhatsAppService.sendMessage(from, `✅ *Verified!* Your account is now securely linked to WhatsApp.\n\n🔗 *Back to FairPrice:* ${APP_URL}/login?wa_code=${code}`);
                     return NextResponse.json({ ok: true });
                 }
@@ -150,7 +150,7 @@ export async function POST(req: Request) {
         }
 
         // --- 7. FALLBACK: SMART SEARCH & HELP ---
-        const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+        const APP_URL = process.env.NEXTAUTH_URL || "https://www.fairprice.ng";
         const greetings = ["hi", "hello", "hey", "sup", "menu", "start"];
         if (greetings.includes(text.toLowerCase()) || text.length < 3) {
             await WhatsAppService.sendMessage(from, `Welcome to FairPrice! 🚀\n\nHow can I help you today?\n\n- Reply with \`/price [product]\` to check market value\n- Browse our catalogue: ${APP_URL}`);
@@ -219,7 +219,7 @@ async function handleCommand(from: string, text: string) {
         }
     });
 
-    const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+    const APP_URL = process.env.NEXTAUTH_URL || "https://www.fairprice.ng";
 
     if (command === "/price") {
         if (args) {
@@ -255,7 +255,7 @@ async function handleIceBreaker(from: string, text: string) {
         }
     });
 
-    const APP_URL = process.env.NEXTAUTH_URL || "https://fairprice.ng";
+    const APP_URL = process.env.NEXTAUTH_URL || "https://www.fairprice.ng";
 
     if (text === "Check Real Market Price") {
         await WhatsAppService.sendMessage(from, `Welcome to FairPrice! ZIVA AI ensures you Buy & Sell with no wahala.\n\nReply with \`/price [product name]\` or search our catalog directly inside WhatsApp:\n🔗 ${APP_URL}/search`);

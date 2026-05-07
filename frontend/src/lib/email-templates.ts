@@ -1,4 +1,4 @@
-export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED';
+export type EmailType = 'WELCOME' | 'VERIFY_EMAIL' | 'ORDER_PLACED' | 'ORDER_DELIVERED' | 'CHANGE_PASSWORD' | 'PROMOTIONAL' | 'SELLER_WELCOME' | 'SELLER_APPROVED' | 'SELLER_PAYOUT_REQUEST' | 'ADMIN_NEW_KYC' | 'PLAN_EXPIRY' | 'SELLER_NEW_ORDER' | 'SELLER_IMAGE_REQUEST' | 'NEGOTIATION_REQUEST' | 'NEGOTIATION_ACCEPTED' | 'NEGOTIATION_REJECTED' | 'COUNTER_OFFER_DECLINED' | 'ORDER_CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_UPDATED' | 'ORDER_SHIPPED' | 'ORDER_INQUIRY' | 'NEW_DISPUTE' | 'RESTOCK_ALERT' | 'BUYER_ORDER_MESSAGE' | 'NEW_CHAT_MESSAGE' | 'SELLER_PAYOUT_COMPLETED' | 'SELLER_PAYOUT_FAILED';
 
 interface EmailPayload {
     name?: string;
@@ -23,6 +23,7 @@ interface EmailPayload {
     newStatus?: string;
     resetLink?: string;
     productLink?: string;
+    senderName?: string;
 }
 
 const BRAND_COLOR = "#059669";
@@ -187,7 +188,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 </table>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Explore the Marketplace</a>
+    <a href="https://www.fairprice.ng" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Explore the Marketplace</a>
 </div>
             `);
             break;
@@ -236,7 +237,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Your funds will not be released to the merchant until you confirm delivery.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Track Your Order</a>
+    <a href="${payload.trackingUrl || "https://www.fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Track Your Order</a>
 </div>
             `);
             break;
@@ -255,7 +256,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 </div>
 
 <div style="text-align:center;">
-    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Confirm Receipt & Finish Order</a>
+    <a href="${payload.trackingUrl || "https://www.fairprice.ng/account/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Confirm Receipt & Finish Order</a>
 </div>
             `);
             break;
@@ -290,7 +291,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Please fulfill this order within your SLA timeframe to maintain your store rating.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.trackingUrl || "https://fairprice.ng/seller/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;text-align:center;color:white; font-weight:700;font-size:16px;" class="btn">View Order Dashboard</a>
+    <a href="${payload.trackingUrl || "https://www.fairprice.ng/seller/orders"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;text-align:center;color:white; font-weight:700;font-size:16px;" class="btn">View Order Dashboard</a>
 </div>
             `);
             break;
@@ -303,7 +304,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 32px 0;">If you made this request, click the button below to securely update your credentials:</p>
 
 <div style="text-align:center;">
-    <a href="${payload.resetLink || 'https://fairprice.ng/login'}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Reset Password</a>
+    <a href="${payload.resetLink || 'https://www.fairprice.ng/login'}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Reset Password</a>
 </div>
 
 <p style="margin:32px 0 0 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">If you didn't request a password change, please ignore this email or contact support immediately.</p>
@@ -319,7 +320,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 </div>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Shop Now</a>
+    <a href="https://www.fairprice.ng" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Shop Now</a>
 </div>
             `);
             break;
@@ -341,7 +342,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 </div>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/seller/dashboard" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Go to Dashboard</a>
+    <a href="https://www.fairprice.ng/seller/dashboard" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Go to Dashboard</a>
 </div>
             `);
             break;
@@ -354,11 +355,11 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 24px 0;">Your FairPrice Seller profile is now fully active, and your products will be visible to millions of shoppers across the global platform.</p>
 
 <div style="padding:16px;text-align:center;border-radius:12px;border:1px solid #e5e7eb;background-color:#f9fafb;margin-bottom:32px;font-family:monospace;font-size:16px;font-weight:700;" class="feature-box text-main border-divider">
-    fairprice.ng/store/${payload.storeUrl || "your-store"}
+    www.fairprice.ng/store/${payload.storeUrl || "your-store"}
 </div>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/store/${payload.storeUrl || "your-store"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View your Public Store</a>
+    <a href="https://www.fairprice.ng/store/${payload.storeUrl || "your-store"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View your Public Store</a>
 </div>
             `);
             break;
@@ -393,7 +394,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Please review the payout details and proceed with the bank transfer via the dashboard.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/admin/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Payout Request</a>
+    <a href="https://www.fairprice.ng/admin/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Payout Request</a>
 </div>
             `);
             break;
@@ -422,7 +423,7 @@ export function buildEmailTemplate(type: EmailType, payload: EmailPayload): { su
 </table>
 
 <div style="text-align:center;">
-    <a href="${payload.reviewUrl || "https://fairprice.ng/admin/users"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review & Approve</a>
+    <a href="${payload.reviewUrl || "https://www.fairprice.ng/admin/users"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review & Approve</a>
 </div>
             `);
             break;
@@ -446,7 +447,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;">Your <strong>${payload.planName || ""}</strong> plan for <strong>${payload.businessName || "your store"}</strong> will expire in <strong>${payload.daysRemaining} day${(payload.daysRemaining || 0) > 1 ? 's' : ''}</strong>. After expiry, your store and products will be hidden from the marketplace.</p>
 `}
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/seller/settings/billing" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">${payload.daysRemaining === 0 ? 'Renew Now' : 'Renew Your Plan'}</a>
+    <a href="https://www.fairprice.ng/seller/settings/billing" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">${payload.daysRemaining === 0 ? 'Renew Now' : 'Renew Your Plan'}</a>
 </div>
             `);
             break;
@@ -481,7 +482,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Please upload clear photos of the actual unit as soon as possible. Responding promptly improves your seller trust score.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.dashboardUrl || "https://fairprice.ng/seller/dashboard/messages"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Upload Photos Now</a>
+    <a href="${payload.dashboardUrl || "https://www.fairprice.ng/seller/dashboard/messages"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Upload Photos Now</a>
 </div>
             `);
             break;
@@ -515,7 +516,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Respond quickly to secure the sale! You can accept, reject, or counter-offer.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.dashboardUrl || "https://fairprice.ng/seller/dashboard/messages"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View & Respond to Offer</a>
+    <a href="${payload.dashboardUrl || "https://www.fairprice.ng/seller/dashboard/messages"}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View & Respond to Offer</a>
 </div>
             `);
             break;
@@ -534,7 +535,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Your negotiated price is locked in for a limited time. Complete your checkout now to secure the deal.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/account/negotiations" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Checkout Now</a>
+    <a href="https://www.fairprice.ng/account/negotiations" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Checkout Now</a>
 </div>
             `);
             break;
@@ -548,7 +549,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Don't worry! You can still browse other sellers offering the same product, or buy it at the listed price.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/account/negotiations" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Details</a>
+    <a href="https://www.fairprice.ng/account/negotiations" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Details</a>
 </div>
             `);
             break;
@@ -562,7 +563,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">You can wait for other offers or reach out to the customer via the messaging dashboard.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/dashboard/messages'}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Message Dashboard</a>
+    <a href="${payload.dashboardUrl || 'https://www.fairprice.ng/seller/dashboard/messages'}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Message Dashboard</a>
 </div>
             `);
             break;
@@ -575,7 +576,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">If a payment was made, your funds are safely returning from escrow to your original payment method immediately.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Your Orders</a>
+    <a href="https://www.fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Your Orders</a>
 </div>
             `);
             break;
@@ -588,7 +589,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Please check your dashboard to review the evidence provided by the buyer. Escrow funds are paused until this dispute is securely resolved.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/seller/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Manage Returns</a>
+    <a href="https://www.fairprice.ng/seller/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Manage Returns</a>
 </div>
             `);
             break;
@@ -601,7 +602,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">If approved, your escrow funds will be fully refunded shortly.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Order Status</a>
+    <a href="https://www.fairprice.ng/account/orders" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Order Status</a>
 </div>
             `);
             break;
@@ -614,7 +615,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">You can track its live status below. Remember, your funds remain safe in escrow until delivery is confirmed.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.trackingUrl || "https://fairprice.ng/account/orders"}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Track Package</a>
+    <a href="${payload.trackingUrl || "https://www.fairprice.ng/account/orders"}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Track Package</a>
 </div>
             `);
             break;
@@ -630,7 +631,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Please respond as soon as possible via the messaging dashboard to ensure a smooth Escrow transaction.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/dashboard/messages'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply to Customer</a>
+    <a href="${payload.dashboardUrl || 'https://www.fairprice.ng/seller/dashboard/messages'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply to Customer</a>
 </div>
             `);
             break;
@@ -646,7 +647,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">Your escrow payment for this transaction has been temporarily frozen. Please navigate to your dashboard immediately to review the dispute and provide evidence or a resolution.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.dashboardUrl || 'https://fairprice.ng/seller/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Review Dispute</a>
+    <a href="${payload.dashboardUrl || 'https://www.fairprice.ng/seller/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Review Dispute</a>
 </div>
             `);
             break;
@@ -659,7 +660,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;">Great news! It's back in stock and ready to be ordered. Hurry before it runs out again!</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng${payload.productLink}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Order Now</a>
+    <a href="https://www.fairprice.ng${payload.productLink}" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Order Now</a>
 </div>
             `);
             break;
@@ -675,7 +676,22 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 24px 0;font-size:14px;color:#86868b;" class="text-muted">You can reply directly via the Ziva Order Concierge on your dashboard.</p>
 
 <div style="text-align:center;">
-    <a href="${payload.dashboardUrl || 'https://fairprice.ng/account/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply in Concierge</a>
+    <a href="${payload.dashboardUrl || 'https://www.fairprice.ng/account/orders'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">Reply in Concierge</a>
+</div>
+            `);
+            break;
+
+        case 'NEW_CHAT_MESSAGE':
+            subject = `New message from ${payload.senderName || 'FairPrice User'}`;
+            html = BaseTemplate("New Message Received", `
+<p style="margin:0 0 16px 0;">Hi ${name},</p>
+<p style="margin:0 0 16px 0;">You have a new message from <strong>${payload.senderName || 'a user'}</strong> on FairPrice.</p>
+<div style="background-color:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:0 0 24px 0;" class="feature-box">
+    <p style="font-size:15px;margin:0;font-style:italic;" class="text-main">"${payload.message || 'Please log in to view the message.'}"</p>
+</div>
+
+<div style="text-align:center;">
+    <a href="${payload.dashboardUrl || 'https://www.fairprice.ng/account/messages'}" class="btn" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;">View Message</a>
 </div>
             `);
             break;
@@ -706,7 +722,7 @@ ${payload.daysRemaining === 0 ? `
 <p style="margin:0 0 32px 0;font-size:14px;color:#86868b;text-align:center;" class="text-muted">Funds typically arrive within 1-24 hours depending on your bank. You can view your settlement history on your dashboard.</p>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/seller/wallet" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Balance & Settlements</a>
+    <a href="https://www.fairprice.ng/seller/wallet" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">View Balance & Settlements</a>
 </div>
             `);
             break;
@@ -731,7 +747,7 @@ ${payload.daysRemaining === 0 ? `
 </ul>
 
 <div style="text-align:center;">
-    <a href="https://fairprice.ng/seller/settings/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Bank Details</a>
+    <a href="https://www.fairprice.ng/seller/settings/payouts" style="display:inline-block;padding:16px 32px;text-decoration:none;border-radius:12px;font-weight:700;font-size:16px;" class="btn">Review Bank Details</a>
 </div>
             `);
             break;

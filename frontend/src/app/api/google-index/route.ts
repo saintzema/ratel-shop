@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
  * to a lightweight sitemap ping (no-auth, limited but free).
  */
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://fairprice.ng";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.fairprice.ng";
 
 export async function POST(req: Request) {
     try {

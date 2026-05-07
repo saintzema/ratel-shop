@@ -369,10 +369,10 @@ export function DynamicPillNotification() {
     return (
         <AnimatePresence>
             {visible && (
-                <div className="fixed top-2 md:top-4 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pt-[env(safe-area-inset-top,0px)]">
+                <div className="fixed bottom-32 left-0 right-0 z-[10000] flex justify-center pointer-events-none px-4 pb-[env(safe-area-inset-bottom,0px)]">
                     <motion.div
                         layout
-                        initial={{ opacity: 0, y: -100, scale: 0.6, filter: "blur(20px)" }}
+                        initial={{ opacity: 0, y: 100, scale: 0.6, filter: "blur(20px)" }}
                         animate={{ 
                             opacity: 1, 
                             y: 0, 
@@ -385,17 +385,17 @@ export function DynamicPillNotification() {
                                 mass: 0.8
                             }
                         }}
-                        exit={{ opacity: 0, y: -100, scale: 0.6, filter: "blur(20px)" }}
+                        exit={{ opacity: 0, y: 100, scale: 0.6, filter: "blur(20px)" }}
                         drag="y"
-                        dragConstraints={{ top: -100, bottom: 50 }}
+                        dragConstraints={{ top: -50, bottom: 100 }}
                         dragElastic={0.4}
                         onDragEnd={(e, info) => {
-                            if (info.offset.y < -40) {
+                            if (info.offset.y > 40) {
                                 setVisible(false);
                                 dismissNotification();
                                 setCustomNotification(null);
                                 try { (window as any).nativeBridge?.hapticFeedback?.("light"); } catch {}
-                            } else if (info.offset.y > 60 && !expanded) {
+                            } else if (info.offset.y < -60 && !expanded) {
                                 setExpanded(true);
                                 try { (window as any).nativeBridge?.hapticFeedback?.("medium"); } catch {}
                             }

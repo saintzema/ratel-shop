@@ -75,6 +75,8 @@ export interface Seller {
     created_at?: string;
     seller_role?: string;
     auto_payout_enabled?: boolean;
+    whatsapp?: string;
+    ziva_whatsapp_bridge?: boolean;
 }
 
 export interface ProductVariant {
@@ -336,7 +338,7 @@ export interface CartItem {
 
 export interface Notification {
     id: string;
-    type: "system" | "order" | "negotiation" | "promo";
+    type: "system" | "order" | "negotiation" | "promo" | "message";
     title?: string;
     message: string;
     read: boolean;
