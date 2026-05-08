@@ -162,15 +162,23 @@ function HomeContent() {
   }, [banners]);
 
   // ─── Unified Product Memoization Engine ───
-  const sections = useMemo(() => {
-    if (!mounted || allProducts.length === 0) return null;
-    const pool = allProducts;
+  const filteredByCategory = useMemo(() => {
+    if (!allProducts || !Array.isArray(allProducts)) return [];
+    if (activeTab === "All") return allProducts;
+    return allProducts.filter(p => 
+      p && p.category && (p.category === activeTab || p.category === activeTab.toLowerCase())
+    );
+  }, [allProducts, activeTab]);
 
-    const getByCategory = (cat: string) => pool.filter(p => p.category === cat).slice(0, 15);
+  const sections = useMemo(() => {
+    if (!mounted || !allProducts || !Array.isArray(allProducts)) return null;
+    const pool = allProducts.filter(p => p && typeof p === 'object');
+
+    const getByCategory = (cat: string) => pool.filter(p => p && p.category && (p.category === cat || p.category === cat.toLowerCase())).slice(0, 15);
 
     // Pre-calculate deal end times once per product update
     const dealProducts = pool
-        .filter(p => p.original_price && p.original_price > p.price)
+        .filter(p => p && p.original_price && p.original_price > p.price)
         .slice(0, 30)
         .map(p => {
           const savings = (p.original_price || p.price) - p.price;
@@ -192,9 +200,9 @@ function HomeContent() {
 
     return {
       topPicks: pool
-        .sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0))
+        .sort((a, b) => (b?.sold_count || 0) - (a?.sold_count || 0))
         .slice(0, 20),
-      sponsoredProducts: pool.filter(p => p.is_sponsored).slice(0, 15),
+      sponsoredProducts: pool.filter(p => p && p.is_sponsored).slice(0, 15),
       dealProducts,
       phonesProducts: getByCategory("Phones"),
       gamingProducts: getByCategory("Gaming"),
@@ -208,7 +216,7 @@ function HomeContent() {
       fitnessProducts: getByCategory("Sports"),
       healthProducts: getByCategory("Health"),
       groceryProducts: getByCategory("Grocery"),
-      fairPriceProducts: pool.filter(p => p.price_flag === "fair").slice(0, 20),
+      fairPriceProducts: pool.filter(p => p && p.price_flag === "fair").slice(0, 20),
       followedStoreProducts: []
     };
   }, [allProducts, mounted]);

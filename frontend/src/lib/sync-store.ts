@@ -155,7 +155,6 @@ class DataSyncServiceService {
         CATEGORIES: "fp_marketplace_taxonomy",
         TRENDING_CURATION: "fp_trending_ids",
         DEALS: "fairprice_demo_deals",
-        PROMOTIONS: "fairprice_demo_promotions",
         AD_CREDITS: "fairprice_demo_ad_credits",
         DELETED_STUBS: "fp_deleted_stubs",
         PENDING_NEGOTIATIONS: "fp_pending_negotiations",
@@ -2327,6 +2326,7 @@ class DataSyncServiceService {
     // --- Getters ---
     getProducts(options?: { includeInactiveSellers?: boolean }): Product[] {
         if (typeof window === "undefined") return [];
+        const user = this.getCurrentUser();
         const stored = localStorage.getItem(this.STORAGE_KEYS.PRODUCTS);
         let allProducts: Product[] = [];
         try {
